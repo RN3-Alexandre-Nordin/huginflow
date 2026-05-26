@@ -6,35 +6,32 @@ import { AiResponseService } from '@/lib/omnichannel/services/AiResponseService'
 import { RagnarMessage } from '@/types/omnichannel';
 
 export async function POST(request: Request) {
+  const timestampId = Date.now();
   try {
     let rawBody = await request.json();
-    
-    // ATENÇÃO: A Evolution API por vezes envia o body como uma string JSON dupla (escapada)
     const body = typeof rawBody === 'string' ? JSON.parse(rawBody) : rawBody;
     
-    console.log("Mensagem recebida da Evolution:", JSON.stringify(body, null, 2));
+    console.log(`[Webhook Evolution][${timestampId}] Recebido:`, body.event);
 
-    // ATENÇÃO: Webhooks não possuem cookies de sessão. 
-    // Usamos a Service Role Key para contornar o RLS e acessar a tabela crm_canais.
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    // 1. Validar se é um evento de mensagem
     const event = body.event?.toLowerCase();
     if (event !== 'messages.upsert') {
-      return NextResponse.json({ status: 'ignored', reason: 'Evento não processado nesta rota' });
+      return NextResponse.json({ status: 'ignored' });
     }
 
     const instanceName = body.instance;
     const data = body.data;
 
     if (!instanceName || !data || data.key?.fromMe) {
-      return NextResponse.json({ status: 'ignored', reason: 'Payload inválido ou mensagem enviada por nós' });
+      console.log(`[Webhook Evolution][${timestampId}] Ignorado: Mensagem enviada pelo próprio número ou payload incompleto.`);
+      return NextResponse.json({ status: 'ignored' });
     }
 
-    // 2. Validar canal/instância no banco
+    // 1. Buscar Canal
     const { data: canal, error: canalError } = await supabase
       .from('crm_canais')
       .select('id, empresa_id, ia_config, settings')
@@ -43,22 +40,24 @@ export async function POST(request: Request) {
       .single();
 
     if (canalError || !canal) {
-      console.error(`Canal não configurado ou inativo para instância: ${instanceName}`);
+      console.error(`[Webhook Evolution][${timestampId}] ERRO: Canal não encontrado para instância ${instanceName}`);
       return NextResponse.json({ error: 'Instância não autorizada' }, { status: 403 });
     }
 
-    // 3. Normalizar a mensagem usando o Provedor
+    // 2. Parsear Mensagem
     const provider = new EvolutionProvider();
     const parsed = provider.parseWebhook(body);
 
     if (!parsed || !('content' in parsed)) {
-      return NextResponse.json({ status: 'ignored', reason: 'Não foi possível parsear a mensagem' });
+      console.log(`[Webhook Evolution][${timestampId}] Ignorado: Conteúdo da mensagem vazio ou não suportado.`);
+      return NextResponse.json({ status: 'ignored' });
     }
 
     const msg = parsed as RagnarMessage;
     msg.empresa_id = canal.empresa_id;
 
-    // 4. Lógica de Leads (Busca ou Criação)
+    // 3. Gerenciar Lead (Buscar ou Criar)
+    console.log(`[Webhook Evolution][${timestampId}] Buscando lead para telefone: ${msg.sender_id}`);
     const { data: existingLead } = await supabase
       .from('crm_leads')
       .select('id')
@@ -68,6 +67,7 @@ export async function POST(request: Request) {
 
     let leadId = existingLead?.id;
     if (!leadId) {
+      console.log(`[Webhook Evolution][${timestampId}] Criando novo lead para: ${msg.sender_id}`);
       const { data: newLead, error: insertError } = await supabase
         .from('crm_leads')
         .insert([{
@@ -81,16 +81,20 @@ export async function POST(request: Request) {
         .single();
       
       if (insertError) {
-        console.error("[Webhook] Erro ao criar novo Lead:", insertError);
+        console.error(`[Webhook Evolution][${timestampId}] ERRO ao criar Lead:`, insertError);
+        return NextResponse.json({ error: 'Erro ao criar lead' }, { status: 500 });
       }
       leadId = newLead?.id;
     }
 
-    // 5. Atualizar Estado da Conversiva e Triagem
+    // 4. Atualizar Estado da Conversa
     const conversaId = await TriageService.updateConversaState(msg, canal.id, supabase, leadId);
-    const shouldRespond = await TriageService.shouldAiRespond(msg, canal.id, supabase);
+    if (!conversaId) {
+      console.error(`[Webhook Evolution][${timestampId}] ERRO: Não foi possível obter/criar conversa.`);
+      return NextResponse.json({ error: 'Erro de sessão' }, { status: 500 });
+    }
 
-    // 6. Salvar Interação em crm_interacoes
+    // 5. Salvar Interação
     const { error: interacaoError } = await supabase.from('crm_interacoes').insert({
       empresa_id: canal.empresa_id,
       lead_id: leadId,
@@ -99,42 +103,41 @@ export async function POST(request: Request) {
       contact_name: msg.sender_name || 'Usuário WhatsApp',
       role: 'user',
       content: msg.content,
-      // Se provider suportar, força timestamp original, senão DB põe genérico
       created_at: msg.created_at ? new Date(msg.created_at).toISOString() : new Date().toISOString(),
       metadata: { 
         provider: 'evolution',
         instance: instanceName,
-        ai_triage: shouldRespond,
-        provider_message_id: msg.id,
-        timestamp: msg.created_at,
-        type: msg.type
+        provider_message_id: msg.id
       }
     });
 
     if (interacaoError) {
-      console.error("[Webhook] Erro CRÍTICO ao salvar crm_interacoes:", interacaoError);
+      console.error(`[Webhook Evolution][${timestampId}] ERRO ao salvar interação:`, interacaoError);
     }
 
-    // 7. Lógica de Resposta da IA (Modo Automático)
+    // 6. Triagem para Resposta da IA
+    const shouldRespond = await TriageService.shouldAiRespond(msg, canal.id, supabase);
+    
     if (shouldRespond && canal.ia_config?.ativo) {
-      console.log(`[Webhook Evolution] Disparando IA para lead ${leadId} no canal ${canal.id}`);
+      console.log(`[Webhook Evolution][${timestampId}] IA Habilitada. Ativando AiResponseService para Lead ${leadId}`);
       
-      // Passamos o lead_id e conversa_id no metadata para o serviço de IA
       msg.metadata = { 
         ...msg.metadata, 
         lead_id: leadId, 
         conversa_id: conversaId 
       };
 
-      // Executamos de forma assíncrona (não travamos o webhook)
+      // Execução assíncrona
       AiResponseService.processAutoResponse(msg, canal.id).catch(err => {
-        console.error("[Webhook Evolution] Erro no processamento da IA:", err);
+        console.error(`[Webhook Evolution][${timestampId}] Erro AiResponseService:`, err);
       });
+    } else {
+      console.log(`[Webhook Evolution][${timestampId}] IA não deve responder (shouldRespond=${shouldRespond})`);
     }
 
-    return NextResponse.json({ status: 'SUCCESS' });
+    return NextResponse.json({ status: 'SUCCESS', leadId, conversaId });
   } catch (error: any) {
-    console.error("[Webhook Evolution] Erro crítico:", error);
+    console.error(`[Webhook Evolution][${timestampId}] ERRO CRÍTICO:`, error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

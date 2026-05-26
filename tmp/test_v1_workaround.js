@@ -5,10 +5,10 @@ async function testV1() {
   const genAI = new GoogleGenerativeAI(apiKey);
   
   // Usando v1 (Stable)
-  // Como vimos que gemini-1.5-flash NÃO está na lista da v1 para esta chave,
+  // Como vimos que gemini-3.5-flash NÃO está na lista da v1 para esta chave,
   // vamos testar com gemini-2.0-flash que está disponível e é estável.
   const model = genAI.getGenerativeModel({ 
-    model: "gemini-2.0-flash" 
+    model: "gemini-3.5-flash" 
   }, { apiVersion: 'v1' });
 
   const systemPrompt = "Você é o assistente virtual da Monte Sinai Atacadista.";
@@ -17,7 +17,7 @@ async function testV1() {
   // Na v1, injetamos a instrução no início do prompt do usuário
   const fullPrompt = `Contexto: ${systemPrompt}\n\nPergunta: ${userMessage}`;
 
-  console.log("--- Iniciando teste v1 com Gemini 2.0 Flash ---");
+  console.log("--- Iniciando teste v1 com gemini-3.5-flash ---");
   try {
     const result = await model.generateContent(fullPrompt);
     const response = await result.response;

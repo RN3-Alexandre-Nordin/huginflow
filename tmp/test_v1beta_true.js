@@ -4,15 +4,15 @@ async function testV1Beta() {
   const apiKey = "AIzaSyDFHTP2OK3NgsPlfVxu69yJTo2pTgrqbmM"; 
   const genAI = new GoogleGenerativeAI(apiKey);
   
-  // Testando com gemini-1.5-flash na v1beta
+  // Testando com gemini-3.5-flash na v1beta
   const model = genAI.getGenerativeModel({ 
-    model: "gemini-1.5-flash" 
+    model: "gemini-3.5-flash" 
   }, { apiVersion: 'v1beta' });
 
   const systemInstructions = "Você é um assistente virtual.";
   const message = "Olá!";
 
-  console.log("--- Testando v1beta com gemini-1.5-flash (USANDO systemInstruction CORRETAMENTE) ---");
+  console.log("--- Testando v1beta com gemini-3.5-flash (USANDO systemInstruction CORRETAMENTE) ---");
   try {
     const result = await model.generateContent({
       contents: [{ role: 'user', parts: [{ text: message }] }],

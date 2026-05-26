@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from '@/utils/supabase/server'
-import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai'
+import { GoogleGenerativeAI } from '@google/generative-ai'
 import { revalidatePath } from 'next/cache'
 import { hasPermission } from '@/utils/permissions'
 import { getMyProfile } from '@/app/(app)/cockpit/actions'
@@ -29,14 +29,17 @@ export async function processChat(phone: string, name: string, message: string) 
 
   if (!targetEmpresaId) return { error: 'Empresa não identificada para carregar configurações de IA.' }
 
+  const geminiApiKey = process.env.GEMINI_API_KEY
+  if (!geminiApiKey) {
+    return { error: 'GEMINI_API_KEY não configurada no servidor. Adicione a chave no arquivo .env local.' }
+  }
+
   // 2. Buscar configurações da organização (tabela empresas)
   const { data: empresa } = await supabase
     .from('empresas')
-    .select('gemini_api_key, ai_model, ai_context_prompt')
+    .select('ai_context_prompt')
     .eq('id', targetEmpresaId)
     .single()
-
-  if (!empresa?.gemini_api_key) return { error: 'Sua empresa ainda não configurou uma API Key do Gemini nas configurações.' }
 
   // 3. Gestão de Lead (Detecção/Criação)
   let leadId: string
@@ -84,17 +87,17 @@ export async function processChat(phone: string, name: string, message: string) 
     .order('created_at', { ascending: true })
     .limit(20)
 
-  const genAI = new GoogleGenerativeAI(empresa.gemini_api_key);
-  // v1beta + gemini-1.5-flash
-  const model = genAI.getGenerativeModel({ 
-    model: "gemini-1.5-flash"
-  }, { apiVersion: 'v1beta' });
+  const genAI = new GoogleGenerativeAI(geminiApiKey)
+  const model = genAI.getGenerativeModel(
+    { model: 'gemini-3.5-flash' },
+    { apiVersion: 'v1beta' },
+  )
 
   // 6. RECUPERAÇÃO DE CONTEXTO (RAG) - Refatorado para Busca Semântica
   let extraContext = "Nenhuma informação específica encontrada na base de conhecimento.";
   
   try {
-    const userEmbedding = await generateEmbedding(message, empresa.gemini_api_key);
+    const userEmbedding = await generateEmbedding(message, geminiApiKey)
     
     const { data: kbContext, error: rpcError } = await supabase.rpc('match_knowledge_base', {
       query_embedding: userEmbedding,
@@ -112,7 +115,7 @@ export async function processChat(phone: string, name: string, message: string) 
     console.error("[RAG DEBUG] Erro na busca semântica:", ragErr);
   }
 
-  const systemPersonality = (empresa.ai_context_prompt || "Você é a Mônica, assistente da Monte Sinai.").replace(/%22/g, '"').trim();
+  const systemPersonality = (empresa?.ai_context_prompt || "Você é a Mônica, assistente da Monte Sinai.").replace(/%22/g, '"').trim();
   
   const formattedHistory = (history || [])
     .map(msg => `${msg.role === 'user' ? 'Cliente' : 'Mônica'}: ${msg.content}`)

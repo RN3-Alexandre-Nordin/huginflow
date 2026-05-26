@@ -1,133 +1,140 @@
 import { createClient } from '@/utils/supabase/server';
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import { RagnarMessage, ProviderConfig } from '@/types/omnichannel';
-import { EvolutionProvider } from '../providers/EvolutionProvider';
-import { TriageService } from '../TriageService';
+import { RagnarMessage } from '@/types/omnichannel';
 
 export class AiResponseService {
   /**
-   * Processa uma resposta automática para uma mensagem recebida.
+   * Processa uma resposta automática via n8n com política de resiliência (Retry + Timeout).
+   * Protocolo: 3 tentativas, 30s timeout, zero persistência local de sucesso, alerta de falha.
    */
   static async processAutoResponse(message: RagnarMessage, canalId: string) {
     const supabase = await createClient();
+    const maxRetries = 3;
+    const retryDelay = 2000; // 2 segundos
+    const timeoutMs = 30000; // 30 segundos
+    const n8nWebhook = process.env.N8N_WEBHOOK;
+
+    if (!n8nWebhook) {
+      console.error("[AiResponse] N8N_WEBHOOK não configurado no ambiente.");
+      return;
+    }
+
+    const empresaId = message.empresa_id;
+    const leadId = message.metadata?.lead_id;
+    const conversaId = message.metadata?.conversa_id;
+
+    if (!empresaId || !leadId || !conversaId) {
+      console.error(`[AiResponse] Metadados insuficientes: empresa=${empresaId}, lead=${leadId}, conversa=${conversaId}`);
+      return;
+    }
 
     try {
-      // 1. Buscar configurações da empresa
-      const { data: empresa, error: empresaError } = await supabase
-        .from('empresas')
-        .select('id, gemini_api_key, ai_model, ai_context_prompt, ia_silence_timeout')
-        .eq('id', message.empresa_id)
-        .single();
+      // 1. Marcar conversa como 'processing' para evitar loops e indicar atividade
+      await supabase
+        .from('crm_conversas')
+        .update({ status: 'processing' as any })
+        .eq('id', conversaId);
 
-      if (empresaError || !empresa?.gemini_api_key) {
-        console.error(`[AiResponse] Erro ao buscar config da empresa ou API Key ausente: ${message.empresa_id}`);
-        return;
-      }
-
-      // 2. RECUPERAÇÃO DE CONTEXTO (RAG)
-      const genAI = new GoogleGenerativeAI(empresa.gemini_api_key);
-      
-      // Embedding da pergunta do usuário
-      const embedModel = genAI.getGenerativeModel({ 
-        model: "models/gemini-embedding-001" 
-      }, { apiVersion: 'v1beta' });
-      
-      const embeddingResponse = await embedModel.embedContent(message.content);
-      const queryEmbedding = embeddingResponse.embedding.values;
-
-      // Busca semântica
-      const { data: kbContext, error: kbError } = await supabase.rpc('match_knowledge_base', {
-        query_embedding: queryEmbedding,
-        match_threshold: 0.5,
-        match_count: 5, // Ajustado para auto-atendimento
-        org_id: empresa.id
-      });
-
-      if (kbError) console.error("[AiResponse] Erro na busca semântica:", kbError);
-
-      const extraContext = kbContext?.length 
-        ? kbContext.map((c: any) => `[FONTE: ${c.file_name || 'Geral'}]: ${c.content}`).join('\n---\n') 
-        : "Nenhuma informação específica encontrada na base de conhecimento.";
-
-      // 3. Gerar Resposta com Gemini
-      const aiModel = empresa.ai_model || "gemini-2.0-flash"; // Fallback se vazio
-      const model = genAI.getGenerativeModel({ 
-        model: aiModel
-      }, { apiVersion: 'v1beta' });
-
-      const systemPersonality = (empresa.ai_context_prompt || "Você é um assistente virtual prestativo.").replace(/%22/g, '"').trim();
-      
-      const ragnarInstructions = `
-        --- INSTRUÇÕES DE PRIORIDADE (BASE DE CONHECIMENTO) ---
-        1. Use os dados abaixo para responder o cliente. Eles são sua única fonte de verdade técnica.
-        2. Se a informação não estiver na base, responda educadamente que irá verificar com um humano.
-        
-        --- DADOS DA BASE DE CONHECIMENTO ---
-        ${extraContext}
-        -----------------------------------------------
-
-        DIRETRIZES:
-        - ${systemPersonality}
-        - Responda de forma curta e natural, como se fosse um atendente no WhatsApp.
-        - Não use formatações complexas que o WhatsApp não suporte bem.
-      `;
-
-      const result = await model.generateContent(`${ragnarInstructions}\n\nCliente: ${message.content}`);
-      const response = await result.response;
-      const aiText = response.text().trim();
-
-      // 4. Enviar Resposta via Evolution
-      // Precisamos da config do canal para o token e instance
-      const { data: canal } = await supabase
-        .from('crm_canais')
-        .select('*')
-        .eq('id', canalId)
-        .single();
-
-      if (!canal) {
-        console.error(`[AiResponse] Canal não encontrado: ${canalId}`);
-        return;
-      }
-
-      const provider = new EvolutionProvider();
-      const providerConfig: ProviderConfig = {
-        provider: 'evolution',
-        provider_id: canal.provider_id, // instance name
-        provider_token: canal.provider_token,
-        settings: canal.settings
+      // 2. Montar o Payload para o n8n no padrão solicitado (Evolution API + Metadados)
+      const n8nPayload = {
+        event: "messages.upsert",
+        instance: "Ragnar_Prod",
+        data: {
+          key: {
+            remoteJid: `${message.sender_id.replace(/\D/g, "")}@s.whatsapp.net`,
+            fromMe: false,
+            id: message.id
+          },
+          pushName: message.sender_name || 'Usuário WhatsApp',
+          message: {
+            conversation: message.content
+          },
+          messageType: "conversation"
+        },
+        metadata: {
+          empresa_id: empresaId,
+          cliente_id: leadId
+        }
       };
 
-      const sendResult = await provider.sendMessage(message.sender_id, aiText, providerConfig);
+      // 3. Loop de Retentativa para o N8N_WEBHOOK
+      let attempt = 0;
+      let success = false;
 
-      if (sendResult.success) {
-        // 5. Salvar Interação da IA
+      while (attempt < maxRetries && !success) {
+        attempt++;
+        console.log(`[AiResponse] Tentativa ${attempt}/${maxRetries} vinculada ao lead ${leadId}`);
+
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+          const response = await fetch(n8nWebhook, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(n8nPayload),
+            signal: controller.signal
+          });
+
+          clearTimeout(timeoutId);
+
+          if (response.ok) {
+            success = true;
+            console.log(`[AiResponse] Sucesso: n8n recebeu a mensagem na tentativa ${attempt}`);
+            
+            // Retornar o status da conversa para 'ai'
+            await supabase
+              .from('crm_conversas')
+              .update({ status: 'ai' as any })
+              .eq('id', conversaId);
+
+          } else {
+            console.warn(`[AiResponse] Erro ${response.status} no n8n (tentativa ${attempt})`);
+            if (attempt < maxRetries) await new Promise(res => setTimeout(res, retryDelay));
+          }
+        } catch (err: any) {
+          if (err.name === 'AbortError') {
+            console.warn(`[AiResponse] Timeout de 30s atingido na tentativa ${attempt}`);
+          } else {
+            console.error(`[AiResponse] Erro na requisição (tentativa ${attempt}):`, err.message);
+          }
+          if (attempt < maxRetries) await new Promise(res => setTimeout(res, retryDelay));
+        }
+      }
+
+      // 4. Tratamento de Falha Crítica após todas as tentativas
+      if (!success) {
+        console.error(`[AiResponse] FALHA CRÍTICA: n8n não respondeu após ${maxRetries} tentativas.`);
+        
+        // Reverter status para 'ai' para não travar o lead em 'processing' indefinidamente
+        await supabase
+          .from('crm_conversas')
+          .update({ status: 'ai' as any })
+          .eq('id', conversaId);
+
+        // Notificar administrador via crm_interacoes usando o novo campo log_sistema
+        const errorLog = `Falha crítica: Mônica (IA) não respondeu após 3 tentativas para o cliente [${leadId}], número do whatsapp ${message.sender_id} e o nome do cliente ${message.sender_name || 'Desconhecido'}. Verifique o n8n.`;
+        
         await supabase.from('crm_interacoes').insert({
-          empresa_id: empresa.id,
-          lead_id: message.metadata?.lead_id, // Passar o lead_id se disponível
-          conversa_id: message.metadata?.conversa_id,
+          empresa_id: empresaId,
+          lead_id: leadId,
+          conversa_id: conversaId,
           contact_phone: message.sender_id,
-          role: 'assistant',
-          content: aiText,
+          contact_name: message.sender_name || 'Usuário',
+          role: 'system' as any,
+          content: '(Erro de comunicação com motor de IA)',
+          log_sistema: errorLog,
           metadata: { 
-            is_ai: true,
-            model: aiModel,
-            provider_message_id: sendResult.messageId
+            error: true,
+            attempts: maxRetries,
+            type: 'ai_failure'
           }
         });
 
-        // 6. Atualizar estado da conversa (opcional, para marcar ultima interação)
-        await TriageService.updateConversaState({
-          ...message,
-          content: aiText,
-          direction: 'outbound',
-          metadata: { is_ai: true }
-        }, canalId, supabase);
-      } else {
-        console.error(`[AiResponse] Erro ao enviar mensagem:`, sendResult.error);
+        console.error(`[ALERT] ${errorLog}`);
       }
 
     } catch (error) {
-      console.error("[AiResponse] Erro crítico no processamento da IA:", error);
+      console.error("[AiResponse] Erro inesperado no processamento da IA:", error);
     }
   }
 }

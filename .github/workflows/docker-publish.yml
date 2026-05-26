@@ -55,3 +55,4 @@ jobs:
             SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
             NEXT_PUBLIC_APP_URL=https://ragnar.supa.rn3.tec.br
             NEXT_PUBLIC_LANDING_PAGE_TOKEN=${{ secrets.NEXT_PUBLIC_LANDING_PAGE_TOKEN }}  
+            GEMINI_API_KEY=${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
