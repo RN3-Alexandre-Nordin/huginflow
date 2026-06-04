@@ -86,7 +86,7 @@ export async function POST(
     }
 
     // Atualizar Estado da Conversa e Triagem
-    const conversaId = await TriageService.updateConversaState(msg, canal.id, supabase);
+    const conversaId = await TriageService.recordInboundMessage(msg, canal.id, supabase);
     const shouldRespond = await TriageService.shouldAiRespond(msg, canal.id, supabase);
 
     // Lógica de CRM (Cards no Kanban)

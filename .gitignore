@@ -33,6 +33,12 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
+# MCP local overrides (opcional; o exemplo versionado é mcp.json.example)
+# .cursor/mcp.json
+
+# Cloudflare tunnel local (credenciais)
+/cloudflared/config.yml
+
 # vercel
 .vercel
 

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { CheckCircle2, QrCode, AlertCircle, Bot, Trash2, Loader2, Power, Share2, Eye, Globe, MessageSquare, MessageCircle, Mail, ChevronRight, X, RefreshCw, Layout, Key, Copy } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 import { updateChannelAIConfig, deleteChannel, getReconnectQRCode, syncChannelStatus, toggleChannelStatus } from "./actions";
+import { isChannelAiEnabled } from "@/lib/omnichannel/channel-ai";
 import LandingPageEditModal from "./LandingPageEditModal";
 
 const PROVIDER_INFO: any = {
@@ -77,7 +78,7 @@ export default function ChannelCard({ canal: initialCanal, onDelete }: { canal: 
   const handleToggleAI = async () => {
     setIsUpdatingAI(true);
     try {
-      const newAtivo = !canal.ia_config?.ativo;
+      const newAtivo = !isChannelAiEnabled(canal.ia_config);
       await updateChannelAIConfig(canal.id, { ...canal.ia_config, ativo: newAtivo });
       setCanal({ ...canal, ia_config: { ...canal.ia_config, ativo: newAtivo } });
     } catch (error) {
@@ -135,7 +136,7 @@ export default function ChannelCard({ canal: initialCanal, onDelete }: { canal: 
         canal.settings?.apiUrl, 
         canal.provider_token
       );
-      setReconnectQR(qrcode);
+      setReconnectQR(qrcode || "");
       setShowQR(true);
     } catch (error) {
       console.error("Erro ao buscar QR Code:", error);
@@ -232,23 +233,23 @@ export default function ChannelCard({ canal: initialCanal, onDelete }: { canal: 
         {canal.provider !== 'internal' && (
           <div className="flex items-center justify-between p-4 rounded-2xl bg-[#0A0A0A] border border-[#ffffff0a] group/ai transition-all hover:border-[#2BAADF]/20">
             <div className="flex items-center gap-3">
-               <div className={`p-2 rounded-xl transition-all duration-500 ${canal.ia_config?.ativo ? "bg-[#2BAADF]/10 text-[#2BAADF] shadow-[0_0_15px_-5px_#2BAADF]" : "bg-gray-800/40 text-gray-600"}`}>
+               <div className={`p-2 rounded-xl transition-all duration-500 ${isChannelAiEnabled(canal.ia_config) ? "bg-[#2BAADF]/10 text-[#2BAADF] shadow-[0_0_15px_-5px_#2BAADF]" : "bg-gray-800/40 text-gray-600"}`}>
                   <Bot className="w-4 h-4" />
                </div>
                <div>
                   <p className="text-[10px] font-black text-white uppercase tracking-widest leading-none mb-1">Agente Ragnar</p>
-                  <p className={`text-[9px] font-bold uppercase tracking-widest ${canal.ia_config?.ativo ? "text-[#2BAADF]/80" : "text-gray-600"}`}>{canal.ia_config?.ativo ? "IA em Operação" : "Desativado"}</p>
+                  <p className={`text-[9px] font-bold uppercase tracking-widest ${isChannelAiEnabled(canal.ia_config) ? "text-[#2BAADF]/80" : "text-gray-600"}`}>{isChannelAiEnabled(canal.ia_config) ? "IA em Operação" : "Desativado"}</p>
                </div>
             </div>
-            <button onClick={handleToggleAI} disabled={isUpdatingAI} className={`relative w-9 h-5 rounded-full transition-all duration-300 outline-none ${canal.ia_config?.ativo ? "bg-[#2BAADF]" : "bg-gray-800"}`}>
-               <div className={`absolute top-1 w-3 h-3 rounded-full bg-white transition-all duration-300 shadow-sm ${canal.ia_config?.ativo ? "left-5" : "left-1"}`} />
+            <button onClick={handleToggleAI} disabled={isUpdatingAI} className={`relative w-9 h-5 rounded-full transition-all duration-300 outline-none ${isChannelAiEnabled(canal.ia_config) ? "bg-[#2BAADF]" : "bg-gray-800"}`}>
+               <div className={`absolute top-1 w-3 h-3 rounded-full bg-white transition-all duration-300 shadow-sm ${isChannelAiEnabled(canal.ia_config) ? "left-5" : "left-1"}`} />
             </button>
           </div>
         )}
 
         {/* Action Buttons Section */}
         <div className="flex flex-col gap-3 mt-auto">
-          {isPairing && (
+          {canal.provider === 'evolution' && !isConnected && (
             <button 
               onClick={handleShowQR} 
               disabled={isUpdatingAI}

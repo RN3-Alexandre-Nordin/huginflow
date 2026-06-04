@@ -10,6 +10,7 @@ import {
 import { format } from 'date-fns'
 import Link from 'next/link'
 import { sendOmniMessage } from '../omni-actions'
+import { getOmniConversas, getOmniMensagens } from '../omni-chat-actions'
 
 interface Conversa {
   id: string
@@ -30,10 +31,21 @@ interface Mensagem {
   created_at: string
   conversa_id: string
   user_id?: string
-  metadata?: any
+  metadata?: { is_ai?: boolean; sent_by?: string } | null
   usuarios?: {
     nome_completo: string
-  }
+  } | null
+}
+
+function getResponderLabel(msg: Mensagem): string | null {
+  if (msg.role === 'user') return null
+  if (msg.role === 'system') return 'Sistema'
+  const isAi =
+    msg.metadata?.is_ai === true ||
+    (msg.role === 'assistant' && !msg.user_id && !msg.metadata?.sent_by)
+  if (isAi) return 'Agente de IA'
+  if (msg.usuarios?.nome_completo) return msg.usuarios.nome_completo
+  return 'Atendente'
 }
 
 export default function ChatOmnichannelPage() {
@@ -67,28 +79,8 @@ export default function ChatOmnichannelPage() {
   }, [])
 
   async function fetchConversas(me: any) {
-    let query = supabase
-      .from('crm_conversas')
-      .select(`
-        *,
-        crm_leads (
-          nome,
-          telefone,
-          whatsapp
-        )
-      `)
-      .order('updated_at', { ascending: false })
-      .limit(50)
-
-    if (me.role_global !== 'superadmin') {
-      query = query.eq('empresa_id', me.empresa_id)
-    }
-
-    if (me.role_global === 'operador') {
-      query = query.or(`atribuido_a_id.eq.${me.id},atribuido_a_id.is.null`)
-    }
-
-    const { data } = await query
+    const { data, error } = await getOmniConversas()
+    if (error) console.error('[Chat] Erro ao listar conversas:', error)
     setConversas(data || [])
     setLoading(false)
   }
@@ -102,35 +94,58 @@ export default function ChatOmnichannelPage() {
   useEffect(() => {
     if (!profile) return
 
-    const channel = supabase
-      .channel('chat-updates')
-      .on(
-        'postgres_changes',
-        { 
-          event: 'INSERT', 
-          schema: 'public', 
-          table: 'crm_interacoes', 
-          filter: `empresa_id=eq.${profile.empresa_id}` 
-        },
-        (payload) => {
-          if (selectedChatRef.current && (payload.new as any).conversa_id === selectedChatRef.current.id) {
-            // Re-fetch para trazer os nomes (joins não vem no payload do realtime)
-            fetchMensagens(selectedChatRef.current.id)
-          }
-          fetchConversas(profile)
-        }
-      )
-      .on(
-        'postgres_changes',
-        { 
-          event: '*', 
-          schema: 'public', 
-          table: 'crm_conversas',
-          filter: `empresa_id=eq.${profile.empresa_id}` 
-        },
-        () => fetchConversas(profile)
-      )
-      .subscribe()
+    const isSuperadmin = profile.role_global === 'superadmin'
+    const interacoesFilter = isSuperadmin
+      ? undefined
+      : `empresa_id=eq.${profile.empresa_id}`
+    const conversasFilter = isSuperadmin
+      ? undefined
+      : `empresa_id=eq.${profile.empresa_id}`
+
+    const channel = supabase.channel('chat-updates')
+
+    const interacoesConfig: {
+      event: 'INSERT'
+      schema: 'public'
+      table: 'crm_interacoes'
+      filter?: string
+    } = {
+      event: 'INSERT',
+      schema: 'public',
+      table: 'crm_interacoes',
+    }
+    if (interacoesFilter) interacoesConfig.filter = interacoesFilter
+
+    channel.on('postgres_changes', interacoesConfig, (payload) => {
+      const row = payload.new as { conversa_id?: string; empresa_id?: string }
+      if (!isSuperadmin && row.empresa_id !== profile.empresa_id) return
+      if (selectedChatRef.current && row.conversa_id === selectedChatRef.current.id) {
+        fetchMensagens(selectedChatRef.current.id)
+      }
+      fetchConversas(profile)
+    })
+
+    const conversasConfig: {
+      event: '*'
+      schema: 'public'
+      table: 'crm_conversas'
+      filter?: string
+    } = {
+      event: '*',
+      schema: 'public',
+      table: 'crm_conversas',
+    }
+    if (conversasFilter) conversasConfig.filter = conversasFilter
+
+    channel.on('postgres_changes', conversasConfig, (payload) => {
+      const row = payload.new as { sessao_id?: string; empresa_id?: string } | null
+      if (!isSuperadmin && row?.empresa_id && row.empresa_id !== profile.empresa_id) return
+      if (selectedChatRef.current && row?.sessao_id === selectedChatRef.current.id) {
+        fetchMensagens(selectedChatRef.current.id)
+      }
+      fetchConversas(profile)
+    })
+    channel.subscribe()
 
     return () => { 
       supabase.removeChannel(channel) 
@@ -143,14 +158,25 @@ export default function ChatOmnichannelPage() {
     }
   }, [selectedChat])
 
+  // Fallback: Realtime pode falhar se a tabela não estiver na publication
+  useEffect(() => {
+    if (!profile) return
+    const interval = setInterval(() => {
+      fetchConversas(profile)
+      if (selectedChatRef.current) {
+        fetchMensagens(selectedChatRef.current.id)
+      }
+    }, 8000)
+    return () => clearInterval(interval)
+  }, [profile])
+
   async function fetchMensagens(chatId: string) {
-    const { data } = await supabase
-      .from('crm_interacoes')
-      .select('*, usuarios(nome_completo)')
-      .eq('conversa_id', chatId)
-      .order('created_at', { ascending: true })
-      .limit(100)
-    
+    const { data, error } = await getOmniMensagens(chatId)
+    if (error) {
+      console.error('[Chat] Erro ao carregar mensagens:', error)
+      setMensagens([])
+      return
+    }
     setMensagens(data || [])
     setTimeout(scrollToBottom, 50)
   }
@@ -289,16 +315,29 @@ export default function ChatOmnichannelPage() {
               </div>
 
               <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar-chat bg-grid-white/[0.01]">
-                {mensagens.map((msg) => (
+                {mensagens.map((msg) => {
+                  const responderLabel = getResponderLabel(msg)
+                  const isAiResponder = responderLabel === 'Agente de IA'
+                  return (
                   <div 
                     key={msg.id}
                     className={`flex ${msg.role === 'user' ? 'justify-start' : 'justify-end'} animate-in fade-in slide-in-from-bottom-2 duration-300`}
                   >
                     <div className={`max-w-[75%] group relative`}>
                        <div className={`flex items-center gap-2 mb-1.5 px-1 ${msg.role === 'user' ? 'flex-row' : 'flex-row-reverse'}`}>
-                          {msg.role === 'assistant' && msg.usuarios?.nome_completo && (
-                            <span className="text-[9px] font-black text-[#2BAADF] uppercase tracking-[0.1em]">
-                               {msg.usuarios.nome_completo}
+                          {msg.role === 'user' && selectedChat?.crm_leads?.nome && (
+                            <span className="text-[9px] font-black text-gray-500 uppercase tracking-[0.1em]">
+                              {selectedChat.crm_leads.nome}
+                            </span>
+                          )}
+                          {responderLabel && (
+                            <span
+                              className={`text-[9px] font-black uppercase tracking-[0.1em] flex items-center gap-1 ${
+                                isAiResponder ? 'text-[#80B828]' : 'text-[#2BAADF]'
+                              }`}
+                            >
+                              {isAiResponder ? <Bot className="w-3 h-3" /> : <User className="w-3 h-3" />}
+                              {responderLabel}
                             </span>
                           )}
                           <span className="text-[9px] text-gray-700 font-mono">
@@ -310,11 +349,14 @@ export default function ChatOmnichannelPage() {
                             ? 'bg-[#1A1A1A] text-gray-200 border-[#ffffff0a] rounded-tl-none' 
                             : 'bg-gradient-to-br from-[#2BAADF] to-[#1A8FBF] text-white border-[#2BAADF]/20 rounded-tr-none'
                        }`}>
-                          {msg.content}
+                          {msg.role === 'assistant'
+                            ? msg.content.replace(/\[STATUS_CRM:.*?\]/gi, '').replace(/\[.*?\]/g, '').trim()
+                            : msg.content}
                        </div>
                     </div>
                   </div>
-                ))}
+                  )
+                })}
                 <div ref={messagesEndRef} />
               </div>
 

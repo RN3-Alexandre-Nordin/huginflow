@@ -1,41 +1,62 @@
-import dotenv from 'dotenv';
-import path from 'path';
-
-// Carregar variáveis de ambiente manualmente se estivermos em desenvolvimento
-if (process.env.NODE_ENV === 'development') {
-  dotenv.config({ path: path.resolve(process.cwd(), '.env.development') });
-}
+import {
+  getEvolutionCredentials,
+  getOmnichannelConfig,
+} from '@/lib/config/environment'
 
 export class EvolutionApiService {
-  /**
-   * Resolve a URL base: usa a passada na chamada ou a do .env se existir.
-   */
-  private static getBaseUrl(customUrl?: string) {
-     return customUrl || process.env.WHATSAPP_API_URL || 'https://evo.supa.rn3.tec.br';
+  /** Extrai base64 do QR a partir de qualquer formato retornado pela Evolution. */
+  static extractQrFromPayload(data: unknown): string | null {
+    if (!data || typeof data !== 'object') return null
+    const payload = data as Record<string, unknown>
+    const nested = payload.qrcode
+    const candidates = [
+      typeof nested === 'object' && nested !== null
+        ? (nested as Record<string, unknown>).base64
+        : null,
+      payload.base64,
+      typeof nested === 'string' ? nested : null,
+      payload.code,
+    ]
+    for (const value of candidates) {
+      if (typeof value === 'string' && value.length > 0) {
+        return this.normalizeQrBase64(value)
+      }
+    }
+    return null
   }
 
-  /**
-   * Resolve a API Key: usa a passada na chamada ou a do .env se existir.
-   */
+  /** Garante prefixo data:image para uso em <img src>. */
+  static normalizeQrBase64(value: string): string {
+    if (value.startsWith('data:image')) return value
+    return `data:image/png;base64,${value}`
+  }
+
+  private static getBaseUrl(customUrl?: string) {
+    return getEvolutionCredentials(customUrl).apiUrl
+  }
+
   private static getApiKey(customKey?: string) {
-     const key = customKey || process.env.WHATSAPP_API_TOKEN;
-     if (!key) throw new Error('API Key da Evolution não fornecida (WHATSAPP_API_TOKEN).');
-     return key;
+    return getEvolutionCredentials(undefined, customKey).apiKey
   }
 
   /**
    * Cria uma nova instância na Evolution API (WHATSAPP-BAILEYS).
    * Retorna o objeto completo da resposta, incluindo o base64 do QR Code.
    */
-  static async createInstance(instanceName: string, customUrl?: string, customKey?: string, options: { token?: string; number?: string } = {}) {
-    const baseUrl = this.getBaseUrl(customUrl);
-    const apiKey = this.getApiKey(customKey);
+  static async createInstance(
+    instanceName: string,
+    customUrl?: string,
+    customKey?: string,
+    options: { token?: string; number?: string } = {},
+  ) {
+    const { apiUrl, apiKey, webhookUrl, environment } = getEvolutionCredentials(
+      customUrl,
+      customKey,
+    )
 
-    // Schema exato conforme especificação técnica.
-    // Campos opcionais (token, number) são incluídos APENAS se tiverem valor
-    // para evitar erros de validação de schema da API.
-    const webhookUrl = process.env.RAGNAR_WEBHOOK_URL || process.env.NEXT_PUBLIC_WEBHOOK_URL || 'https://ragnar.supa.rn3.tec.br/api/webhooks/evolution';
-    console.log(`[EvolutionApiService] Criando instância com webhook: ${webhookUrl} (Env: ${process.env.NODE_ENV})`);
+    console.log(
+      `[EvolutionApiService] ambiente=${environment} instância=${instanceName} evolution=${apiUrl} webhook=${webhookUrl}`,
+    )
 
     const body: Record<string, unknown> = {
       instanceName,
@@ -55,166 +76,206 @@ export class EvolutionApiService {
         ],
       },
       reject_call: true,
-      msg_call: 'Olá! Este número é automatizado e não recebe chamadas. Por favor, envie sua dúvida por texto.',
+      msg_call:
+        'Olá! Este número é automatizado e não recebe chamadas. Por favor, envie sua dúvida por texto.',
       groups_ignore: true,
       always_online: true,
       read_messages: false,
       read_status: false,
       sync_full_history: false,
-    };
+    }
 
-    if (options.token) body.token = options.token;
-    if (options.number) body.number = options.number;
+    if (options.token) body.token = options.token
+    if (options.number) body.number = options.number
 
-    const response = await fetch(`${baseUrl}/instance/create`, {
+    const response = await fetch(`${apiUrl}/instance/create`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'apikey': apiKey,
+        apikey: apiKey,
       },
       body: JSON.stringify(body),
-    });
+    })
 
-    const data = await response.json();
+    const data = await response.json()
 
     if (!response.ok) {
       const errorMsg =
-        (Array.isArray(data?.response?.message) ? data.response.message[0] : null)
-        || data?.response?.message
-        || data?.message
-        || data?.error
-        || JSON.stringify(data);
-      throw new Error(`Evolution API (${response.status}): ${errorMsg}`);
+        (Array.isArray(data?.response?.message) ? data.response.message[0] : null) ||
+        data?.response?.message ||
+        data?.message ||
+        data?.error ||
+        JSON.stringify(data)
+      throw new Error(`Evolution API (${response.status}): ${errorMsg}`)
     }
 
-    return data;
+    return data
   }
 
-  /**
-   * Define configurações de comportamento da instância (Always Online, Reject Call, etc).
-   */
-  static async setInstanceSettings(instanceName: string, settings: any, customUrl?: string, customKey?: string) {
-    const baseUrl = this.getBaseUrl(customUrl);
-    const apiKey = this.getApiKey(customKey);
+  static async setInstanceSettings(
+    instanceName: string,
+    settings: Record<string, unknown>,
+    customUrl?: string,
+    customKey?: string,
+  ) {
+    const { apiUrl, apiKey } = getEvolutionCredentials(customUrl, customKey)
 
-    const response = await fetch(`${baseUrl}/settings/set/${instanceName}`, {
+    const response = await fetch(`${apiUrl}/settings/set/${instanceName}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'apikey': apiKey
+        apikey: apiKey,
       },
-      body: JSON.stringify(settings)
-    });
+      body: JSON.stringify(settings),
+    })
 
-    const data = await response.json();
-    
+    const data = await response.json()
+
     if (!response.ok) {
-      console.error('Erro ao definir settings na Evolution API:', data);
-      return { success: false, error: data };
+      console.error('Erro ao definir settings na Evolution API:', data)
+      return { success: false, error: data }
     }
 
-    return { success: true, data };
+    return { success: true, data }
   }
 
-  /**
-   * Registra a URL do Webhook do Ragnar na instância Evolution.
-   */
-  static async registerWebhook(instanceName: string, webhookUrl: string, customUrl?: string, customKey?: string) {
-    const baseUrl = this.getBaseUrl(customUrl);
-    const apiKey = this.getApiKey(customKey);
+  static async registerWebhook(
+    instanceName: string,
+    webhookUrl?: string,
+    customUrl?: string,
+    customKey?: string,
+  ) {
+    const creds = getEvolutionCredentials(customUrl, customKey)
+    const url = webhookUrl ?? creds.webhookUrl
 
-    const response = await fetch(`${baseUrl}/webhook/set/${instanceName}`, {
+    const response = await fetch(`${creds.apiUrl}/webhook/set/${instanceName}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'apikey': apiKey
+        apikey: creds.apiKey,
       },
       body: JSON.stringify({
-        url: webhookUrl,
-        enabled: true,
-        // Habilitamos eventos de conexão e mensagens para garantir sync total
-        events: [
-          "CONNECTION_UPDATE",
-          "MESSAGES_UPSERT"
-        ]
-      })
-    });
+        webhook: {
+          url,
+          enabled: true,
+          byEvents: false,
+          base64: false,
+          events: [
+            'CONNECTION_UPDATE',
+            'MESSAGES_UPSERT',
+            'MESSAGES_UPDATE',
+            'SEND_MESSAGE',
+          ],
+        },
+      }),
+    })
 
-    const data = await response.json();
-    
+    const data = await response.json()
+
     if (!response.ok) {
-      console.error('Erro ao registrar webhook na Evolution API:', data);
-      return { success: false, error: data };
+      console.error('Erro ao registrar webhook na Evolution API:', data)
+      return { success: false, error: data }
     }
 
-    return { success: true, data };
+    return { success: true, data }
   }
 
-  /**
-   * Busca o QR Code atual da instância.
-   */
   static async getQRCode(instanceName: string, customUrl?: string, customKey?: string) {
-    const baseUrl = this.getBaseUrl(customUrl);
-    const apiKey = this.getApiKey(customKey);
-
-    const response = await fetch(`${baseUrl}/instance/connect/${instanceName}`, {
-      method: 'GET',
-      headers: {
-        'apikey': apiKey
-      }
-    });
-
-    const data = await response.json();
-    if (!response.ok) return null;
-
-    return data.base64;
-  }
-
-  /**
-   * Remove uma instância da Evolution API.
-   */
-  static async logoutInstance(instanceName: string, customUrl?: string, customKey?: string) {
-    const baseUrl = this.getBaseUrl(customUrl);
-    const apiKey = this.getApiKey(customKey);
-
-    console.log(`[EvolutionApiService] Solicitando exclusão da instância: ${instanceName}`);
+    const { apiUrl, apiKey } = getEvolutionCredentials(customUrl, customKey)
 
     try {
-      const response = await fetch(`${baseUrl}/instance/delete/${instanceName}`, {
-        method: 'DELETE',
-        headers: {
-          'apikey': apiKey
-        }
-      });
+      const response = await fetch(`${apiUrl}/instance/connect/${instanceName}`, {
+        method: 'GET',
+        headers: { apikey: apiKey },
+      })
 
-      if (response.ok) {
-        console.log(`[EvolutionApiService] Instância ${instanceName} removida com sucesso do provedor.`);
-      } else {
-        const data = await response.json().catch(() => ({}));
-        console.warn(`[EvolutionApiService] Resposta do provedor ao deletar (status ${response.status}):`, data);
+      const data = await response.json()
+
+      if (!response.ok) {
+        console.error(`[EvolutionApiService] Erro ao obter QR Code (${response.status}):`, data)
+        return null
       }
-    } catch (e) {
-      console.error('[EvolutionApiService] Erro de rede ao tentar deletar instância:', e);
+
+      return this.extractQrFromPayload(data)
+    } catch (error) {
+      console.error(`[EvolutionApiService] Erro de rede ao obter QR Code para ${instanceName}:`, error)
+      return null
     }
   }
 
   /**
-   * Verifica o status da conexão da instância.
+   * Tenta obter QR da resposta do create e, se necessário, via /instance/connect com retry.
    */
-  static async getConnectionStatus(instanceName: string, customUrl?: string, customKey?: string) {
-    const baseUrl = this.getBaseUrl(customUrl);
-    const apiKey = this.getApiKey(customKey);
+  static async resolveQRCode(
+    instanceName: string,
+    createResponse: unknown,
+    customUrl?: string,
+    customKey?: string,
+    options: { retries?: number; delayMs?: number } = {},
+  ): Promise<string | null> {
+    const { retries = 3, delayMs = 1500 } = options
 
-    const response = await fetch(`${baseUrl}/instance/connectionState/${instanceName}`, {
-      method: 'GET',
-      headers: {
-        'apikey': apiKey
+    let qr = this.extractQrFromPayload(createResponse)
+    if (qr) return qr
+
+    for (let attempt = 0; attempt < retries; attempt++) {
+      if (attempt > 0) {
+        await new Promise((resolve) => setTimeout(resolve, delayMs))
       }
-    });
+      qr = await this.getQRCode(instanceName, customUrl, customKey)
+      if (qr) return qr
+    }
 
-    if (!response.ok) return 'disconnected';
+    return null
+  }
 
-    const data = await response.json();
-    return data.instance.state;
+  static async logoutInstance(instanceName: string, customUrl?: string, customKey?: string) {
+    const { apiUrl, apiKey } = getEvolutionCredentials(customUrl, customKey)
+
+    console.log(`[EvolutionApiService] Solicitando exclusão da instância: ${instanceName}`)
+
+    try {
+      const response = await fetch(`${apiUrl}/instance/delete/${instanceName}`, {
+        method: 'DELETE',
+        headers: { apikey: apiKey },
+      })
+
+      if (response.ok) {
+        console.log(
+          `[EvolutionApiService] Instância ${instanceName} removida com sucesso do provedor.`,
+        )
+      } else {
+        const data = await response.json().catch(() => ({}))
+        console.warn(
+          `[EvolutionApiService] Resposta do provedor ao deletar (status ${response.status}):`,
+          data,
+        )
+      }
+    } catch (e) {
+      console.error('[EvolutionApiService] Erro de rede ao tentar deletar instância:', e)
+    }
+  }
+
+  static async getConnectionStatus(
+    instanceName: string,
+    customUrl?: string,
+    customKey?: string,
+  ) {
+    const { apiUrl, apiKey } = getEvolutionCredentials(customUrl, customKey)
+
+    const response = await fetch(`${apiUrl}/instance/connectionState/${instanceName}`, {
+      method: 'GET',
+      headers: { apikey: apiKey },
+    })
+
+    if (!response.ok) return 'disconnected'
+
+    const data = await response.json()
+    return data.instance.state
+  }
+
+  /** Expõe config do ambiente atual (útil em logs e rotas API). */
+  static getEnvironmentConfig() {
+    return getOmnichannelConfig()
   }
 }

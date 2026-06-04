@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
 import { EvolutionApiService } from '@/lib/omnichannel/services/EvolutionApiService';
+import { getOmnichannelConfig } from '@/lib/config/environment';
+import { DEFAULT_IA_CONFIG } from '@/lib/omnichannel/channel-ai';
 
 /**
  * POST /api/channels/create
@@ -24,18 +26,21 @@ export async function POST(request: Request) {
   try {
     const { nome, tipo, provider } = await request.json();
 
-    // SEGURANÇA: Ignoramos apiUrl/apiToken vindos do body.
-    // Usamos exclusivamente o que está no servidor.
-    const serverApiUrl = process.env.WHATSAPP_API_URL;
-    const serverApiToken = process.env.WHATSAPP_API_TOKEN;
-
     if (!nome || !provider) {
       return NextResponse.json({ error: 'Nome e Provider são obrigatórios' }, { status: 400 });
     }
 
-    if (!serverApiUrl || !serverApiToken) {
-       return NextResponse.json({ error: 'Servidor não configurado para conexões omnichannel (WHATSAPP_API_URL/TOKEN ausentes).' }, { status: 500 });
+    let omnichannel
+    try {
+      omnichannel = getOmnichannelConfig()
+    } catch (configError: unknown) {
+      const message =
+        configError instanceof Error ? configError.message : 'Configuração omnichannel inválida.'
+      return NextResponse.json({ error: message }, { status: 500 })
     }
+
+    const { evolutionApiUrl: serverApiUrl, evolutionApiToken: serverApiToken, webhookUrl, environment } =
+      omnichannel
 
     // 2. Gerar nome de instância único baseado no nome digitado pelo usuário
     const normalizedName = nome
@@ -50,33 +55,72 @@ export async function POST(request: Request) {
 
     let qrCodeBase64 = null;
 
-    // 3. Orquestração Baseada no Provedor (Usando Credenciais Seguras)
+        // 3. Orquestração Baseada no Provedor (Usando Credenciais Seguras)
     if (provider === 'evolution') {
-      const createResponse: any = await EvolutionApiService.createInstance(instanceName, serverApiUrl, serverApiToken);
-      
-      // Aplicar configurações de "Ouro" (Reject Call, Always Online, Ignore Groups)
-      await EvolutionApiService.setInstanceSettings(instanceName, {
-        rejectCall: true,
-        msgCall: "Este número só recebe mensagens de WhatsApp.",
-        groupsIgnore: true,
-        alwaysOnline: true,
-        readMessages: false,
-        readStatus: false,
-        syncFullHistory: false
-      }, serverApiUrl, serverApiToken);
-      
-      // Registrar Webhook dinamicamente baseado no ambiente (.env)
-      const webhookUrl = process.env.RAGNAR_WEBHOOK_URL || "https://ragnar.supa.rn3.tec.br/api/webhooks/evolution";
-      
-      await EvolutionApiService.registerWebhook(instanceName, webhookUrl, serverApiUrl, serverApiToken);
-      
-      // Capturar o QR Code (Base64) gerado na criação da instância
-      if (createResponse?.qrcode?.base64) {
-        qrCodeBase64 = createResponse.qrcode.base64;
-      } else if (createResponse?.base64) {
-        qrCodeBase64 = createResponse.base64;
-      } else if (typeof createResponse?.qrcode === 'string') {
-        qrCodeBase64 = createResponse.qrcode;
+      let createResponse: unknown
+      try {
+        createResponse = await EvolutionApiService.createInstance(
+          instanceName,
+          serverApiUrl,
+          serverApiToken,
+        )
+        console.log(`[Channel Create] Instância criada: ${instanceName}`, createResponse)
+      } catch (createError: unknown) {
+        const message = createError instanceof Error ? createError.message : String(createError)
+        console.error(`[Channel Create] Erro ao criar instância: ${instanceName}`, createError)
+        throw new Error(`Falha ao criar instância na Evolution: ${message}`)
+      }
+
+      try {
+        await EvolutionApiService.setInstanceSettings(
+          instanceName,
+          {
+            rejectCall: true,
+            msgCall: 'Este número só recebe mensagens de WhatsApp.',
+            groupsIgnore: true,
+            alwaysOnline: true,
+            readMessages: false,
+            readStatus: false,
+            syncFullHistory: false,
+          },
+          serverApiUrl,
+          serverApiToken,
+        )
+        console.log(`[Channel Create] Settings aplicadas: ${instanceName}`)
+      } catch (settingsError: unknown) {
+        const message =
+          settingsError instanceof Error ? settingsError.message : String(settingsError)
+        console.warn(`[Channel Create] Aviso ao aplicar settings: ${message}`)
+      }
+
+      const webhookResult = await EvolutionApiService.registerWebhook(
+        instanceName,
+        webhookUrl,
+        serverApiUrl,
+        serverApiToken,
+      )
+      if (!webhookResult.success) {
+        await EvolutionApiService.logoutInstance(instanceName, serverApiUrl, serverApiToken)
+        const detail =
+          typeof webhookResult.error === 'object'
+            ? JSON.stringify(webhookResult.error)
+            : String(webhookResult.error)
+        throw new Error(`Falha ao registrar webhook na Evolution: ${detail}`)
+      }
+      console.log(`[Channel Create] Webhook registrado: ${instanceName}`)
+
+      qrCodeBase64 = await EvolutionApiService.resolveQRCode(
+        instanceName,
+        createResponse,
+        serverApiUrl,
+        serverApiToken,
+      )
+      if (qrCodeBase64) {
+        console.log(`[Channel Create] QR Code obtido com sucesso para ${instanceName}`)
+      } else {
+        console.warn(
+          `[Channel Create] QR Code indisponível após retries para ${instanceName}; cliente pode solicitar novamente.`,
+        )
       }
     } else {
       return NextResponse.json({ error: 'Provedor ainda não integrado ou indisponível.' }, { status: 501 });
@@ -93,12 +137,12 @@ export async function POST(request: Request) {
         provider: provider,
         provider_id: instanceName,
         provider_token: serverApiToken,
-        // Se tiver QR code = está pareando; se não = conexão direta (Evolution mode)
-        status: qrCodeBase64 ? 'pairing' : 'connected',
+        status: provider === 'evolution' ? 'pairing' : qrCodeBase64 ? 'pairing' : 'connected',
         settings: {
           apiUrl: serverApiUrl,
           instanceName: instanceName
-        }
+        },
+        ia_config: DEFAULT_IA_CONFIG,
       }])
       .select('id')
       .single();
@@ -113,7 +157,10 @@ export async function POST(request: Request) {
       success: true,
       canalId: canal.id,
       instanceName: instanceName,
-      qrcode: qrCodeBase64
+      qrcode: qrCodeBase64,
+      environment,
+      evolutionApiUrl: serverApiUrl,
+      webhookUrl,
     });
 
   } catch (error: any) {

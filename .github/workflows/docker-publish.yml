@@ -2,7 +2,9 @@ name: Docker Image CI/CD (GHCR)
 
 on:
   push:
-    branches: [ "main" ]
+    branches:
+      - main      # deploy produção
+      - develop   # deploy dev (opcional)
   workflow_dispatch:
 
 env:
@@ -30,13 +32,26 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Definir ambiente (prod vs dev)
+        id: env
+        run: |
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "ragnar_env=production" >> $GITHUB_OUTPUT
+            echo "app_url=https://ragnar.rn3.tec.br" >> $GITHUB_OUTPUT
+            echo "tag=latest" >> $GITHUB_OUTPUT
+          else
+            echo "ragnar_env=development" >> $GITHUB_OUTPUT
+            echo "app_url=https://dev-ragnar.rn3.tec.br" >> $GITHUB_OUTPUT
+            echo "tag=dev" >> $GITHUB_OUTPUT
+          fi
+
       - name: Extract Docker metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=latest
+            type=raw,value=${{ steps.env.outputs.tag }}
             type=sha,prefix=,format=short
 
       - name: Build and push Docker image
@@ -53,6 +68,20 @@ jobs:
             NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
             SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
             SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-            NEXT_PUBLIC_APP_URL=https://ragnar.supa.rn3.tec.br
-            NEXT_PUBLIC_LANDING_PAGE_TOKEN=${{ secrets.NEXT_PUBLIC_LANDING_PAGE_TOKEN }}  
+            NEXT_PUBLIC_APP_URL=${{ steps.env.outputs.app_url }}
+            NEXT_PUBLIC_LANDING_PAGE_TOKEN=${{ secrets.NEXT_PUBLIC_LANDING_PAGE_TOKEN }}
             GEMINI_API_KEY=${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
+
+      # Deploy automático só em produção (branch main). Dev roda localmente.
+      - name: Deploy na VPS de produção
+        if: github.ref == 'refs/heads/main'
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            cd /opt/ragnar
+            docker pull ghcr.io/${{ github.repository }}:latest
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps app
+            docker image prune -f

@@ -9,3 +9,5 @@ services:
       - .env
     environment:
       - NODE_ENV=production
+      # Defina RAGNAR_ENV no .env do host (development | production). Padrão: development.
+      - RAGNAR_ENV=${RAGNAR_ENV:-development}

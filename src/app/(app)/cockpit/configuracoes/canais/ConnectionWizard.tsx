@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { X, CheckCircle2, ChevronRight, Smartphone, ShieldCheck, Zap, Globe, MessageSquare, Mail, MessageCircle, Layout } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { X, CheckCircle2, ChevronRight, Smartphone, ShieldCheck, Zap, Globe, MessageSquare, Mail, MessageCircle, Layout, RefreshCw } from "lucide-react";
 import { getPipelinesAndStages, createLandingPageChannel } from "./actions";
 
 interface ConnectionWizardProps {
@@ -30,6 +30,8 @@ export default function ConnectionWizard({ onClose, onCreated, empresaId }: Conn
   const [selectedProvider, setSelectedProvider] = useState<any>(null);
   const [nome, setNome] = useState("");
   const [qrCode, setQrCode] = useState("");
+  const [createdCanalId, setCreatedCanalId] = useState<string | null>(null);
+  const [isFetchingQr, setIsFetchingQr] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -37,6 +39,65 @@ export default function ConnectionWizard({ onClose, onCreated, empresaId }: Conn
   const [pipelines, setPipelines] = useState<any[]>([]);
   const [selectedPipelineId, setSelectedPipelineId] = useState("");
   const [selectedStageId, setSelectedStageId] = useState("");
+
+  const fetchQrFromApi = useCallback(async (canalId: string) => {
+    const response = await fetch(`/api/channels/qrcode?canalId=${encodeURIComponent(canalId)}`);
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || "Falha ao obter QR Code");
+    }
+    if (data.qrcode) {
+      setQrCode(data.qrcode);
+      return true;
+    }
+    return false;
+  }, []);
+
+  useEffect(() => {
+    if (step !== 3 || qrCode || !createdCanalId) return;
+
+    let cancelled = false;
+    let attempts = 0;
+    const maxAttempts = 8;
+    let timeoutId: ReturnType<typeof setTimeout>;
+
+    const poll = async () => {
+      if (cancelled) return;
+      attempts++;
+      setIsFetchingQr(true);
+      try {
+        const ok = await fetchQrFromApi(createdCanalId);
+        if (ok || cancelled) return;
+      } catch {
+        // continua tentando
+      } finally {
+        if (!cancelled) setIsFetchingQr(false);
+      }
+      if (!cancelled && attempts < maxAttempts) {
+        timeoutId = setTimeout(poll, 2000);
+      }
+    };
+
+    poll();
+    return () => {
+      cancelled = true;
+      clearTimeout(timeoutId);
+    };
+  }, [step, qrCode, createdCanalId, fetchQrFromApi]);
+
+  const handleRefreshQr = async () => {
+    if (!createdCanalId) return;
+    setIsFetchingQr(true);
+    setError("");
+    try {
+      const ok = await fetchQrFromApi(createdCanalId);
+      if (!ok) setError("QR Code ainda indisponível. Tente novamente em alguns segundos.");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Falha ao atualizar QR Code");
+    } finally {
+      setIsFetchingQr(false);
+    }
+  };
 
   const handleSelectCategory = async (cat: any) => {
     if (cat.soon) return;
@@ -72,12 +133,19 @@ export default function ConnectionWizard({ onClose, onCreated, empresaId }: Conn
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Falha ao criar canal");
       if (selectedProvider.id === 'evolution') {
-        if (data.qrcode) { setQrCode(data.qrcode); setStep(3); }
-        else { setStep(4); }
+        setCreatedCanalId(data.canalId);
+        if (data.qrcode) setQrCode(data.qrcode);
+        setStep(3);
+        onCreated({
+          id: data.canalId,
+          nome,
+          status: "pairing",
+          provider: selectedProvider.id,
+          provider_id: data.instanceName,
+        });
       } else {
         onClose();
       }
-      onCreated({ id: data.canalId, nome, status: data.qrcode ? "pairing" : "connected", provider: selectedProvider.id, provider_id: data.instanceName });
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -248,12 +316,37 @@ export default function ConnectionWizard({ onClose, onCreated, empresaId }: Conn
                 <h3 className="text-3xl font-black text-white tracking-tighter uppercase italic italic-ragnar">Escaneie o QR Code</h3>
                 <p className="text-gray-500 text-sm font-medium">Use seu WhatsApp para autorizar este ponto de contato.</p>
               </div>
-              <div className="bg-white p-6 rounded-[32px] mx-auto inline-block border-8 border-white/5 shadow-[0_0_50px_-10px_rgba(255,255,255,0.05)]">
-                <img src={qrCode} alt="WhatsApp QR Code" className="w-[200px] h-[200px] rounded-lg" />
+              <div className="bg-white p-6 rounded-[32px] mx-auto inline-block border-8 border-white/5 shadow-[0_0_50px_-10px_rgba(255,255,255,0.05)] min-h-[232px] min-w-[232px] flex items-center justify-center">
+                {qrCode ? (
+                  <img src={qrCode} alt="WhatsApp QR Code" className="w-[200px] h-[200px] rounded-lg" />
+                ) : (
+                  <div className="flex flex-col items-center gap-3 text-gray-400">
+                    <div className="w-10 h-10 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
+                    <span className="text-[10px] font-bold uppercase tracking-widest">
+                      {isFetchingQr ? "Gerando QR Code..." : "Aguardando QR Code..."}
+                    </span>
+                  </div>
+                )}
               </div>
-              <button onClick={onClose} className="px-8 py-3 rounded-xl bg-[#ffffff05] border border-[#ffffff0a] text-gray-500 font-black uppercase tracking-widest text-[9px] hover:text-white hover:bg-[#ffffff10] transition-all">
-                Fechar e Concluir
-              </button>
+              {error && (
+                <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center justify-center gap-3 text-red-500 text-[10px] font-bold uppercase">
+                  {error}
+                </div>
+              )}
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleRefreshQr}
+                  disabled={isFetchingQr || !createdCanalId}
+                  className="px-6 py-3 rounded-xl bg-[#2BAADF]/10 border border-[#2BAADF]/20 text-[#2BAADF] font-black uppercase tracking-widest text-[9px] hover:bg-[#2BAADF]/20 transition-all disabled:opacity-40 flex items-center gap-2"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isFetchingQr ? "animate-spin" : ""}`} />
+                  Atualizar QR
+                </button>
+                <button onClick={onClose} className="px-8 py-3 rounded-xl bg-[#ffffff05] border border-[#ffffff0a] text-gray-500 font-black uppercase tracking-widest text-[9px] hover:text-white hover:bg-[#ffffff10] transition-all">
+                  Fechar e Concluir
+                </button>
+              </div>
             </div>
           )}
 

@@ -1,140 +1,190 @@
-import { createClient } from '@/utils/supabase/server';
-import { RagnarMessage } from '@/types/omnichannel';
+import type { SupabaseClient } from '@supabase/supabase-js'
+import { GeminiChatService } from '@/lib/crm/GeminiChatService'
+import { buildEvolutionProviderConfig } from '@/lib/omnichannel/evolution-config'
+import { EvolutionProvider } from '@/lib/omnichannel/providers/EvolutionProvider'
+import { RagnarMessage } from '@/types/omnichannel'
+import { ConversaHistoricoService } from '@/lib/omnichannel/ConversaHistoricoService'
+import { WHATSAPP_SENDER_LABELS } from '@/lib/omnichannel/whatsapp-outbound'
+type CanalContext = {
+  id: string
+  provider_id: string
+  provider_token?: string | null
+  settings?: Record<string, unknown> | null
+}
 
+/**
+ * Resposta automática omnichannel: mesma IA do Simulador (Gemini + RAG),
+ * persiste no Supabase e envia texto pelo WhatsApp (Evolution).
+ */
 export class AiResponseService {
-  /**
-   * Processa uma resposta automática via n8n com política de resiliência (Retry + Timeout).
-   * Protocolo: 3 tentativas, 30s timeout, zero persistência local de sucesso, alerta de falha.
-   */
-  static async processAutoResponse(message: RagnarMessage, canalId: string) {
-    const supabase = await createClient();
-    const maxRetries = 3;
-    const retryDelay = 2000; // 2 segundos
-    const timeoutMs = 30000; // 30 segundos
-    const n8nWebhook = process.env.N8N_WEBHOOK;
+  static async processAutoResponse(
+    message: RagnarMessage,
+    canal: CanalContext,
+    supabase: SupabaseClient,
+  ) {
+    const empresaId = message.empresa_id
+    const leadId = message.metadata?.lead_id as string | undefined
+    const sessaoId = message.metadata?.conversa_id as string | undefined
 
-    if (!n8nWebhook) {
-      console.error("[AiResponse] N8N_WEBHOOK não configurado no ambiente.");
-      return;
-    }
-
-    const empresaId = message.empresa_id;
-    const leadId = message.metadata?.lead_id;
-    const conversaId = message.metadata?.conversa_id;
-
-    if (!empresaId || !leadId || !conversaId) {
-      console.error(`[AiResponse] Metadados insuficientes: empresa=${empresaId}, lead=${leadId}, conversa=${conversaId}`);
-      return;
+    if (!empresaId || !leadId || !sessaoId) {
+      console.error(
+        `[AiResponse] Metadados insuficientes: empresa=${empresaId}, lead=${leadId}, sessao=${sessaoId}`,
+      )
+      return
     }
 
     try {
-      // 1. Marcar conversa como 'processing' para evitar loops e indicar atividade
-      await supabase
-        .from('crm_conversas')
-        .update({ status: 'processing' as any })
-        .eq('id', conversaId);
+      await ConversaHistoricoService.updateLatestSessaoStatus(
+        sessaoId,
+        { status: 'processing' },
+        supabase,
+      )
 
-      // 2. Montar o Payload para o n8n no padrão solicitado (Evolution API + Metadados)
-      const n8nPayload = {
-        event: "messages.upsert",
-        instance: "Ragnar_Prod",
-        data: {
-          key: {
-            remoteJid: `${message.sender_id.replace(/\D/g, "")}@s.whatsapp.net`,
-            fromMe: false,
-            id: message.id
-          },
-          pushName: message.sender_name || 'Usuário WhatsApp',
-          message: {
-            conversation: message.content
-          },
-          messageType: "conversation"
-        },
-        metadata: {
-          empresa_id: empresaId,
-          cliente_id: leadId
-        }
-      };
+      const aiResult = await GeminiChatService.generateReply(supabase, {
+        empresaId,
+        leadId,
+        conversaId: sessaoId,
+        contactPhone: message.sender_id,
+        contactName: message.sender_name || 'Usuário WhatsApp',
+        message: message.content,
+      })
 
-      // 3. Loop de Retentativa para o N8N_WEBHOOK
-      let attempt = 0;
-      let success = false;
-
-      while (attempt < maxRetries && !success) {
-        attempt++;
-        console.log(`[AiResponse] Tentativa ${attempt}/${maxRetries} vinculada ao lead ${leadId}`);
-
-        try {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-
-          const response = await fetch(n8nWebhook, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(n8nPayload),
-            signal: controller.signal
-          });
-
-          clearTimeout(timeoutId);
-
-          if (response.ok) {
-            success = true;
-            console.log(`[AiResponse] Sucesso: n8n recebeu a mensagem na tentativa ${attempt}`);
-            
-            // Retornar o status da conversa para 'ai'
-            await supabase
-              .from('crm_conversas')
-              .update({ status: 'ai' as any })
-              .eq('id', conversaId);
-
-          } else {
-            console.warn(`[AiResponse] Erro ${response.status} no n8n (tentativa ${attempt})`);
-            if (attempt < maxRetries) await new Promise(res => setTimeout(res, retryDelay));
-          }
-        } catch (err: any) {
-          if (err.name === 'AbortError') {
-            console.warn(`[AiResponse] Timeout de 30s atingido na tentativa ${attempt}`);
-          } else {
-            console.error(`[AiResponse] Erro na requisição (tentativa ${attempt}):`, err.message);
-          }
-          if (attempt < maxRetries) await new Promise(res => setTimeout(res, retryDelay));
-        }
+      if (!aiResult.success) {
+        await this.handleFailure(supabase, message, leadId, sessaoId, aiResult.error)
+        return
       }
 
-      // 4. Tratamento de Falha Crítica após todas as tentativas
-      if (!success) {
-        console.error(`[AiResponse] FALHA CRÍTICA: n8n não respondeu após ${maxRetries} tentativas.`);
-        
-        // Reverter status para 'ai' para não travar o lead em 'processing' indefinidamente
-        await supabase
-          .from('crm_conversas')
-          .update({ status: 'ai' as any })
-          .eq('id', conversaId);
+      const { response, responseForWhatsApp, crmStatus } = aiResult
+      const textToSend = responseForWhatsApp || response
 
-        // Notificar administrador via crm_interacoes usando o novo campo log_sistema
-        const errorLog = `Falha crítica: Mônica (IA) não respondeu após 3 tentativas para o cliente [${leadId}], número do whatsapp ${message.sender_id} e o nome do cliente ${message.sender_name || 'Desconhecido'}. Verifique o n8n.`;
-        
-        await supabase.from('crm_interacoes').insert({
+      if (!textToSend) {
+        await this.handleFailure(supabase, message, leadId, sessaoId, 'Resposta vazia após limpeza.')
+        return
+      }
+
+      const { data: insertedMsg, error: insertError } = await supabase
+        .from('crm_interacoes')
+        .insert({
           empresa_id: empresaId,
           lead_id: leadId,
-          conversa_id: conversaId,
+          conversa_id: sessaoId,
           contact_phone: message.sender_id,
-          contact_name: message.sender_name || 'Usuário',
-          role: 'system' as any,
-          content: '(Erro de comunicação com motor de IA)',
-          log_sistema: errorLog,
-          metadata: { 
-            error: true,
-            attempts: maxRetries,
-            type: 'ai_failure'
-          }
-        });
+          contact_name: message.sender_name || 'Usuário WhatsApp',
+          role: 'assistant',
+          content: response,
+          metadata: {
+            provider: 'evolution',
+            is_ai: true,
+            crm_status: crmStatus ?? null,
+            instance: message.metadata?.instance ?? canal.provider_id,
+          },
+        })
+        .select('id')
+        .single()
 
-        console.error(`[ALERT] ${errorLog}`);
+      if (insertError) {
+        console.error('[AiResponse] Erro ao salvar resposta da IA:', insertError)
       }
 
+      const config = buildEvolutionProviderConfig(canal)
+
+      const provider = new EvolutionProvider()
+      const sendResult = await provider.sendMessageWithSenderLabel(
+        message.sender_id,
+        WHATSAPP_SENDER_LABELS.ai,
+        textToSend,
+        config,
+      )
+
+      if (!sendResult.success) {
+        console.error(
+          `[AiResponse] Evolution sendText falhou instance=${config.provider_id} url=${(config.settings as { apiUrl?: string })?.apiUrl}`,
+          sendResult.error,
+        )
+      }
+
+      if (sendResult.success && insertedMsg?.id) {
+        await supabase
+          .from('crm_interacoes')
+          .update({
+            metadata: {
+              provider: 'evolution',
+              is_ai: true,
+              crm_status: crmStatus ?? null,
+              provider_message_id: sendResult.messageId,
+              status: 'sent',
+            },
+          })
+          .eq('id', insertedMsg.id)
+      } else if (!sendResult.success) {
+        console.error('[AiResponse] Falha ao enviar WhatsApp:', sendResult.error)
+        if (insertedMsg?.id) {
+          await supabase
+            .from('crm_interacoes')
+            .update({
+              metadata: {
+                is_ai: true,
+                status: 'error',
+                provider_error: sendResult.error,
+              },
+            })
+            .eq('id', insertedMsg.id)
+        }
+      }
+
+      await ConversaHistoricoService.appendMessage(
+        {
+          empresa_id: empresaId,
+          canal_id: canal.id,
+          external_id: message.sender_id,
+          lead_id: leadId,
+          role: 'assistant',
+          content: response,
+          direcao: 'outbound',
+          status: 'ai',
+          is_ai: true,
+          metadata: {
+            provider: 'evolution',
+            is_ai: true,
+            crm_status: crmStatus ?? null,
+            provider_message_id: sendResult.messageId,
+          },
+        },
+        supabase,
+      )
+
+      console.log(
+        `[AiResponse] OK lead=${leadId} whatsapp=${sendResult.success} crmStatus=${crmStatus ?? 'n/a'}`,
+      )
     } catch (error) {
-      console.error("[AiResponse] Erro inesperado no processamento da IA:", error);
+      console.error('[AiResponse] Erro inesperado:', error)
+      await ConversaHistoricoService.updateLatestSessaoStatus(sessaoId, { status: 'ai' }, supabase)
     }
+  }
+
+  private static async handleFailure(
+    supabase: SupabaseClient,
+    message: RagnarMessage,
+    leadId: string,
+    sessaoId: string,
+    reason: string,
+  ) {
+    console.error(`[AiResponse] FALHA: ${reason}`)
+
+    await ConversaHistoricoService.updateLatestSessaoStatus(sessaoId, { status: 'ai' }, supabase)
+
+    const errorLog = `Falha na IA (Gemini) para lead [${leadId}], WhatsApp ${message.sender_id}: ${reason}`
+
+    await supabase.from('crm_interacoes').insert({
+      empresa_id: message.empresa_id,
+      lead_id: leadId,
+      conversa_id: sessaoId,
+      contact_phone: message.sender_id,
+      contact_name: message.sender_name || 'Usuário',
+      role: 'system',
+      content: '(Erro ao gerar resposta automática)',
+      log_sistema: errorLog,
+      metadata: { error: true, type: 'ai_failure' },
+    })
   }
 }

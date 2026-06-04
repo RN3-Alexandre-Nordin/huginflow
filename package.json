@@ -4,6 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "next dev --webpack",
+    "tunnel": "powershell -ExecutionPolicy Bypass -File ./scripts/dev-tunnel.ps1",
+    "tunnel:fixed": "powershell -ExecutionPolicy Bypass -File ./scripts/dev-tunnel-named.ps1",
+    "tunnel:setup": "powershell -ExecutionPolicy Bypass -File ./scripts/setup-cloudflare-tunnel.ps1",
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint"

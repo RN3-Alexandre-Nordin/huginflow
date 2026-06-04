@@ -4,7 +4,19 @@ import { createClient } from "@/utils/supabase/server";
 import { createAdminClient } from "@/utils/supabase/admin";
 import { revalidatePath } from "next/cache";
 import { EvolutionApiService } from "@/lib/omnichannel/services/EvolutionApiService";
+import { getEvolutionCredentials, getRagnarEnvironment } from "@/lib/config/environment";
 import { getMyProfile } from "@/app/(app)/cockpit/actions";
+
+function resolveEvolutionCredentials(apiUrl?: string, apiToken?: string) {
+  const env = getEvolutionCredentials();
+  if (getRagnarEnvironment() === "development") {
+    return { apiUrl: env.apiUrl, apiToken: env.apiKey };
+  }
+  return {
+    apiUrl: apiUrl || env.apiUrl,
+    apiToken: apiToken || env.apiKey,
+  };
+}
 
 /**
  * Atualiza a configuração de IA de um canal.
@@ -51,7 +63,12 @@ export async function syncChannelStatus(id: string, provider: string, providerId
 
   if (provider === 'evolution') {
     try {
-      const state = await EvolutionApiService.getConnectionStatus(providerId, apiUrl, apiToken);
+      const creds = resolveEvolutionCredentials(apiUrl, apiToken);
+      const state = await EvolutionApiService.getConnectionStatus(
+        providerId,
+        creds.apiUrl,
+        creds.apiToken,
+      );
       console.log(`[actions] Sincronizando status para ${providerId}: Evo State = ${state}`);
       
       let ragnarStatus = 'pairing';
@@ -89,7 +106,8 @@ export async function deleteChannel(id: string, provider: string, providerId: st
   try {
     // 1. Remover do provedor externo se for Evolution
     if (provider === 'evolution') {
-      await EvolutionApiService.logoutInstance(providerId, apiUrl, apiToken);
+      const creds = resolveEvolutionCredentials(apiUrl, apiToken);
+      await EvolutionApiService.logoutInstance(providerId, creds.apiUrl, creds.apiToken);
     }
 
     // 2. Remover do Supabase
@@ -122,7 +140,12 @@ export async function deleteChannel(id: string, provider: string, providerId: st
  */
 export async function getReconnectQRCode(provider: string, providerId: string, apiUrl?: string, apiToken?: string) {
   if (provider === 'evolution') {
-    const qrcode = await EvolutionApiService.getQRCode(providerId, apiUrl, apiToken);
+    const creds = resolveEvolutionCredentials(apiUrl, apiToken);
+    const qrcode = await EvolutionApiService.getQRCode(
+      providerId,
+      creds.apiUrl,
+      creds.apiToken,
+    );
     return { qrcode };
   }
   return { qrcode: null };

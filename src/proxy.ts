@@ -18,6 +18,7 @@ export async function proxy(request: NextRequest) {
   if (
     pathname.startsWith('/_next') ||           // HMR, webpack, chunks
     pathname.startsWith('/api/webhooks') ||     // Evolution API webhooks (sem auth)
+    pathname.startsWith('/api/health') ||       // Diagnóstico omnichannel (sem auth)
     pathname.startsWith('/api/inbound') ||      // Inbound leads public API (sem auth)
     pathname.startsWith('/favicon') ||          // favicon
     /\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|woff|woff2|ttf|map)$/.test(pathname)

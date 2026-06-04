@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { getMyProfile } from '@/app/(app)/cockpit/actions'
 import { EvolutionApiService } from '@/lib/omnichannel/services/EvolutionApiService'
+import { getOmnichannelConfig } from '@/lib/config/environment'
 
 export async function createQuickChannel(formData: FormData) {
   const me = await getMyProfile()
@@ -20,7 +21,10 @@ export async function createQuickChannel(formData: FormData) {
 
   try {
     const debugUrl = `/cockpit/configuracoes/canais/debug?v=${Date.now()}`;
-    console.log(`[EmergencyAction] Enviando criando para: ${nome} (Webhook: ${process.env.RAGNAR_WEBHOOK_URL})`);
+    const { environment, webhookUrl, evolutionApiUrl } = getOmnichannelConfig()
+    console.log(
+      `[EmergencyAction] ambiente=${environment} evolution=${evolutionApiUrl} webhook=${webhookUrl} canal=${nome}`,
+    )
     
     // 1. Criar na Evolution API via Service (Static Call)
     const instanceData = await EvolutionApiService.createInstance(nome);

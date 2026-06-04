@@ -1,0 +1,40 @@
+# Deploy de PRODUÇÃO na VPS (Ragnar + Evolution em VPS separada da dev).
+# Dev local: npm run dev + .env.local (não use este compose).
+#
+# Na VPS: cp env.production.example .env && preencha segredos
+# docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+services:
+  app:
+    image: ghcr.io/RN3-Alexandre-Nordin/ragnar:latest
+    restart: unless-stopped
+    env_file:
+      - .env
+
+    environment:
+      - NODE_ENV=production
+      - RAGNAR_ENV=production
+      - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-https://ragnar.rn3.tec.br}
+      - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
+      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - WHATSAPP_API_URL_PROD=${WHATSAPP_API_URL_PROD}
+      - WHATSAPP_API_TOKEN_PROD=${WHATSAPP_API_TOKEN_PROD}
+      - RAGNAR_WEBHOOK_URL_PROD=${RAGNAR_WEBHOOK_URL_PROD}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.ragnar.rule=Host(`ragnar.rn3.tec.br`)
+      - traefik.http.routers.ragnar.entrypoints=websecure
+      - traefik.http.routers.ragnar.tls.certresolver=letsencryptresolver
+      - traefik.http.routers.ragnar.service=ragnar
+      - traefik.http.services.ragnar.loadbalancer.server.port=3000
+
+    networks:
+      - rn3net
+
+networks:
+  rn3net:
+    external: true
+    name: rn3net
