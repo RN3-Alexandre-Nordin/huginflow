@@ -39,6 +39,11 @@ yarn-error.log*
 # Cloudflare tunnel local (credenciais)
 /cloudflared/config.yml
 
+# Scripts locais / testes (não versionar)
+/tmp/
+/.continue/
+/scripts/supabase/migrations-prod.json
+
 # vercel
 .vercel
 

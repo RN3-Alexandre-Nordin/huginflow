@@ -116,6 +116,7 @@ Scripts em `scripts/supabase/`:
 |--------|--------|
 | `sync-data-storage-auth.mjs` | Copia **dados** (`public.*`), **Storage** (buckets/arquivos) e **Auth** (mesmos UUIDs) |
 | `clone-prod-to-dev.mjs` | Alternativa via Postgres direto (requer senha DB nos dois projetos) |
+| `fetch-migrations-pg.mjs` / `parse-migrations-export.mjs` | Auxiliares pontuais para gerar `migrations-prod.json` (gitignored) |
 
 **Pré-requisito:** schema do dev igual ao prod (37 migrations + colunas extras criadas manualmente no prod).
 
