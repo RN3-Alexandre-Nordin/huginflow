@@ -73,6 +73,22 @@ jobs:
             GEMINI_API_KEY=${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
 
       # Deploy automático só em produção (branch main). Dev roda localmente.
+      - name: Verificar secrets de deploy na VPS
+        if: github.ref == 'refs/heads/main'
+        run: |
+          missing=0
+          if [ -z "${{ secrets.VPS_HOST }}" ]; then echo "::error::Secret VPS_HOST não configurado"; missing=1; fi
+          if [ -z "${{ secrets.VPS_USER }}" ]; then echo "::error::Secret VPS_USER não configurado"; missing=1; fi
+          if [ -z "${{ secrets.VPS_SSH_KEY }}" ]; then echo "::error::Secret VPS_SSH_KEY não configurado"; missing=1; fi
+          if [ "$missing" -eq 1 ]; then
+            echo ""
+            echo "Configure em: Settings → Secrets and variables → Actions"
+            echo "  VPS_HOST     = IP ou hostname da VPS (ex: 123.45.67.89)"
+            echo "  VPS_USER     = usuário SSH (ex: root ou deploy)"
+            echo "  VPS_SSH_KEY  = chave privada OpenSSH completa (incluindo BEGIN/END)"
+            exit 1
+          fi
+
       - name: Deploy na VPS de produção
         if: github.ref == 'refs/heads/main'
         uses: appleboy/ssh-action@v1
@@ -80,6 +96,8 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
+          script_stop: true
+          command_timeout: 10m
           script: |
             cd /opt/ragnar
             docker pull ghcr.io/${{ github.repository }}:latest
