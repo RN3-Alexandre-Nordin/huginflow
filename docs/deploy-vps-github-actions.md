@@ -11,6 +11,7 @@ Em **GitHub → Settings → Secrets and variables → Actions**:
 | `VPS_HOST` | `123.45.67.89` ou `vps.rn3.tec.br` |
 | `VPS_USER` | `root` |
 | `VPS_SSH_KEY` | Conteúdo **inteiro** do arquivo de chave **privada** |
+| `VPS_SSH_PASSPHRASE` | *(Opcional)* Senha da chave, se a privada tiver passphrase |
 
 ## Criar chave nova (recomendado para CI)
 
@@ -69,6 +70,9 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps 
 
 ## Erros comuns
 
+- **`this private key is passphrase protected`** — a chave em `VPS_SSH_KEY` tem senha. Opções:
+  1. Crie secret **`VPS_SSH_PASSPHRASE`** com a senha da chave; ou
+  2. *(Recomendado para CI)* use **`ragnar_deploy`** (sem senha): `Get-Content ~/.ssh/ragnar_deploy | clip` → `VPS_SSH_KEY`, e coloque `ragnar_deploy.pub` no `authorized_keys` da VPS.
 - **Colar chave pública** em `VPS_SSH_KEY` → use a **privada**.
 - **Quebra de linha faltando** no final do secret → cole o arquivo completo.
 - **Usuário errado** em `VPS_USER` → deve ser quem tem a chave no `authorized_keys`.

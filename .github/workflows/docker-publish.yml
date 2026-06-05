@@ -89,12 +89,12 @@ jobs:
 
       - name: Deploy na VPS de produção
         if: github.ref == 'refs/heads/main' && steps.deploy_ready.outputs.ready == 'true'
-        uses: appleboy/ssh-action@v1
+        uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          script_stop: true
+          passphrase: ${{ secrets.VPS_SSH_PASSPHRASE }}
           command_timeout: 10m
           script: |
             cd /opt/ragnar
