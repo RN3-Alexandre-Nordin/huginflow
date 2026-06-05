@@ -4,7 +4,7 @@
  * | Onde roda          | RAGNAR_ENV     | Evolution (_DEV / _PROD) | Webhook Ragnar        |
  * |--------------------|----------------|--------------------------|------------------------|
  * | npm run dev (local)| development    | VPS Evolution DEV        | URL público (túnel*)  |
- * | Docker VPS prod    | production     | VPS Evolution PROD       | ragnar.rn3.tec.br     |
+ * | Docker VPS prod    | production     | VPS Evolution PROD       | app.ragnar.ia.br      |
  *
  * * A Evolution na VPS não alcança localhost. Em dev local use Cloudflare Tunnel
  *   ou teste recebimento de mensagens no deploy de produção.
@@ -37,8 +37,8 @@ const DEFAULTS: Record<
   },
   production: {
     evolutionApiUrl: 'https://evo.rn3.tec.br',
-    webhookUrl: 'https://ragnar.rn3.tec.br/api/webhooks/evolution',
-    appUrl: 'https://ragnar.rn3.tec.br',
+    webhookUrl: 'https://app.ragnar.ia.br/api/webhooks/evolution',
+    appUrl: 'https://app.ragnar.ia.br',
   },
 }
 

@@ -14,7 +14,7 @@ services:
     environment:
       - NODE_ENV=production
       - RAGNAR_ENV=production
-      - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-https://ragnar.rn3.tec.br}
+      - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-https://app.ragnar.ia.br}
       - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
       - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
       - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
@@ -25,7 +25,7 @@ services:
 
     labels:
       - traefik.enable=true
-      - traefik.http.routers.ragnar.rule=Host(`ragnar.rn3.tec.br`)
+      - traefik.http.routers.ragnar.rule=Host(`app.ragnar.ia.br`)
       - traefik.http.routers.ragnar.entrypoints=websecure
       - traefik.http.routers.ragnar.tls.certresolver=letsencryptresolver
       - traefik.http.routers.ragnar.service=ragnar
