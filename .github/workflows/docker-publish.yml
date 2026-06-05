@@ -75,22 +75,20 @@ jobs:
       # Deploy automático só em produção (branch main). Dev roda localmente.
       - name: Verificar secrets de deploy na VPS
         if: github.ref == 'refs/heads/main'
+        id: deploy_ready
         run: |
-          missing=0
-          if [ -z "${{ secrets.VPS_HOST }}" ]; then echo "::error::Secret VPS_HOST não configurado"; missing=1; fi
-          if [ -z "${{ secrets.VPS_USER }}" ]; then echo "::error::Secret VPS_USER não configurado"; missing=1; fi
-          if [ -z "${{ secrets.VPS_SSH_KEY }}" ]; then echo "::error::Secret VPS_SSH_KEY não configurado"; missing=1; fi
-          if [ "$missing" -eq 1 ]; then
-            echo ""
+          if [ -z "${{ secrets.VPS_HOST }}" ] || [ -z "${{ secrets.VPS_USER }}" ] || [ -z "${{ secrets.VPS_SSH_KEY }}" ]; then
+            echo "ready=false" >> $GITHUB_OUTPUT
+            echo "::warning::Deploy SSH ignorado — faltam secrets na VPS."
             echo "Configure em: Settings → Secrets and variables → Actions"
-            echo "  VPS_HOST     = IP ou hostname da VPS (ex: 123.45.67.89)"
-            echo "  VPS_USER     = usuário SSH (ex: root ou deploy)"
-            echo "  VPS_SSH_KEY  = chave privada OpenSSH completa (incluindo BEGIN/END)"
-            exit 1
+            echo "  VPS_HOST, VPS_USER, VPS_SSH_KEY (chave privada OpenSSH completa)"
+            echo "Imagem publicada no GHCR; faça pull manual na VPS até configurar os secrets."
+          else
+            echo "ready=true" >> $GITHUB_OUTPUT
           fi
 
       - name: Deploy na VPS de produção
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && steps.deploy_ready.outputs.ready == 'true'
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.VPS_HOST }}
