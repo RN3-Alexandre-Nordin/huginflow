@@ -169,7 +169,7 @@ Usa `SUPABASE_SERVICE_ROLE_KEY` de `.env` (prod) e `.env.local` (dev).
 
 - `.env` na VPS: **somente** chaves Supabase **prod**
 - `RAGNAR_ENV=production`
-- `WHATSAPP_*_PROD`, `RAGNAR_WEBHOOK_URL_PROD=https://ragnar.rn3.tec.br/...`
+- `WHATSAPP_*_PROD`, `RAGNAR_WEBHOOK_URL_PROD=https://app.ragnar.ia.br/...`
 - CI/CD: secrets GitHub = prod
 - **Nunca** commitar `.env.local` / `.env.production`
 

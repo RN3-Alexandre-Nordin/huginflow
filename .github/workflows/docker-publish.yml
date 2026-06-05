@@ -37,7 +37,7 @@ jobs:
         run: |
           if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
             echo "ragnar_env=production" >> $GITHUB_OUTPUT
-            echo "app_url=https://ragnar.rn3.tec.br" >> $GITHUB_OUTPUT
+            echo "app_url=https://app.ragnar.ia.br" >> $GITHUB_OUTPUT
             echo "tag=latest" >> $GITHUB_OUTPUT
           else
             echo "ragnar_env=development" >> $GITHUB_OUTPUT
