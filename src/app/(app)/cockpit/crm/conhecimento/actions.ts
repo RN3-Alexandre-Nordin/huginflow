@@ -7,6 +7,8 @@ import pdf from 'pdf-parse/lib/pdf-parse'
 import { hasPermission } from '@/utils/permissions'
 import { getMyProfile } from '@/app/(app)/cockpit/actions'
 
+const KNOWLEDGE_BUCKET = 'knowledge_documents'
+
 /**
  * Busca o ID da empresa do usuário logado
  */
@@ -144,6 +146,35 @@ export async function upsertKnowledge(formData: FormData) {
 
     if (sourceError) throw new Error('Erro ao criar fonte: ' + sourceError.message)
 
+    // Metadados para download (requer migration knowledge_sources_download.sql)
+    const downloadMeta: Record<string, string> = {
+      content_text: rawContent,
+      mime_type: type === 'text' ? 'text/plain' : 'application/pdf',
+    }
+
+    if (type === 'pdf') {
+      const file = formData.get('file') as File
+      const storagePath = `${empresaId}/${source.id}/${file.name}`
+      const { error: uploadError } = await supabase.storage
+        .from(KNOWLEDGE_BUCKET)
+        .upload(storagePath, file, { contentType: 'application/pdf', upsert: true })
+
+      if (!uploadError) {
+        downloadMeta.storage_path = storagePath
+      } else {
+        console.warn('[KnowledgeBase] PDF não salvo no Storage (download será .txt):', uploadError.message)
+      }
+    }
+
+    const { error: metaError } = await supabase
+      .from('knowledge_sources')
+      .update(downloadMeta)
+      .eq('id', source.id)
+
+    if (metaError) {
+      console.warn('[KnowledgeBase] Campos de download indisponíveis. Rode scripts/migrations/knowledge_sources_download.sql')
+    }
+
     // 2. Chunking
     const chunks = chunkText(rawContent)
     console.log(`[KnowledgeBase] Documento "${fileName}" dividido em ${chunks.length} blocos. Gerando embeddings...`)
@@ -189,6 +220,17 @@ export async function deleteKnowledge(id: string) {
   }
   const empresaId = me?.empresa_id ?? ''
   const supabase = await createClient()
+
+  const { data: source } = await supabase
+    .from('knowledge_sources')
+    .select('storage_path')
+    .eq('id', id)
+    .eq('organization_id', empresaId)
+    .maybeSingle()
+
+  if (source?.storage_path) {
+    await supabase.storage.from(KNOWLEDGE_BUCKET).remove([source.storage_path])
+  }
 
   // Deletar a fonte (triggers CASCADE na knowledge_base)
   const { error } = await supabase

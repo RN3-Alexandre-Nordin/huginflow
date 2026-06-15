@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Ragnar — Manual do Usuário</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --surface: #1a2332;
+      --surface2: #243044;
+      --text: #e7ecf3;
+      --muted: #9aa8bc;
+      --accent: #2baadf;
+      --accent2: #1a8fbf;
+      --green: #3dd68c;
+      --orange: #f97316;
+      --warn: #ffb020;
+      --border: #2d3a4f;
+      --code-bg: #121820;
+      --step: #80b828;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.55;
+      font-size: 15px;
+    }
+    .layout {
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      min-height: 100vh;
+    }
+    @media (max-width: 960px) {
+      .layout { grid-template-columns: 1fr; }
+      .toc { position: static; height: auto; border-right: none; border-bottom: 1px solid var(--border); }
+    }
+    .toc {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      padding: 1.25rem 1rem 2rem;
+    }
+    .toc-logo {
+      font-size: 1.1rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 0.25rem;
+      color: var(--text);
+    }
+    .toc-sub { font-size: 0.75rem; color: var(--muted); margin-bottom: 1.25rem; }
+    .toc nav a {
+      display: block;
+      padding: 0.4rem 0.6rem;
+      font-size: 0.82rem;
+      color: var(--muted);
+      text-decoration: none;
+      border-radius: 6px;
+      border-left: 2px solid transparent;
+      margin-bottom: 0.15rem;
+    }
+    .toc nav a:hover { color: var(--text); background: rgba(255,255,255,0.04); }
+    .toc nav a.active { color: var(--accent); border-left-color: var(--accent); background: rgba(43,170,223,0.08); }
+    .toc .section-label {
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin: 1rem 0 0.4rem 0.6rem;
+    }
+    .content { padding: 2rem 2rem 4rem; max-width: 900px; }
+    header.doc-header {
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 1.5rem;
+      margin-bottom: 2rem;
+    }
+    h1 { font-size: 1.85rem; margin: 0 0 0.5rem; font-weight: 800; }
+    .subtitle { color: var(--muted); margin: 0; font-size: 0.95rem; }
+    .meta { margin-top: 1rem; font-size: 0.85rem; color: var(--muted); }
+    h2 {
+      font-size: 1.3rem;
+      margin: 2.5rem 0 1rem;
+      padding-bottom: 0.4rem;
+      border-bottom: 2px solid var(--accent);
+      color: var(--accent);
+      scroll-margin-top: 1rem;
+    }
+    h3 { font-size: 1.05rem; margin: 1.5rem 0 0.75rem; }
+    p { margin: 0.5rem 0 1rem; }
+    a { color: var(--accent); }
+    ul, ol { margin: 0.5rem 0 1rem; padding-left: 1.4rem; }
+    li { margin: 0.35rem 0; }
+    code {
+      font-family: ui-monospace, Consolas, monospace;
+      font-size: 0.88em;
+      background: var(--code-bg);
+      padding: 0.12em 0.35em;
+      border-radius: 4px;
+    }
+    .alert {
+      border-radius: 8px;
+      padding: 0.85rem 1rem;
+      margin: 1rem 0;
+      border-left: 4px solid var(--warn);
+      background: rgba(255, 176, 32, 0.08);
+      font-size: 0.9rem;
+    }
+    .alert.info { border-left-color: var(--accent); background: rgba(43,170,223,0.08); }
+    .alert.ok { border-left-color: var(--green); background: rgba(61,214,140,0.08); }
+    .badge {
+      display: inline-block;
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      padding: 0.2rem 0.55rem;
+      border-radius: 4px;
+      margin-right: 0.35rem;
+    }
+    .badge-admin { background: rgba(249,115,22,0.15); color: var(--orange); }
+    .badge-op { background: rgba(43,170,223,0.15); color: var(--accent); }
+    .badge-sa { background: rgba(147,51,234,0.15); color: #a78bfa; }
+    .procedure {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.25rem 1.5rem;
+      margin: 1.25rem 0;
+    }
+    .procedure-title {
+      font-weight: 700;
+      font-size: 0.95rem;
+      margin: 0 0 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .procedure-title span {
+      background: var(--step);
+      color: #0a0a0a;
+      width: 1.5rem;
+      height: 1.5rem;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      font-weight: 800;
+      flex-shrink: 0;
+    }
+    .steps { list-style: none; padding: 0; margin: 0; counter-reset: step; }
+    .steps li {
+      counter-increment: step;
+      padding: 0.65rem 0 0.65rem 2.5rem;
+      position: relative;
+      border-bottom: 1px solid var(--border);
+    }
+    .steps li:last-child { border-bottom: none; }
+    .steps li::before {
+      content: counter(step);
+      position: absolute;
+      left: 0;
+      top: 0.65rem;
+      width: 1.6rem;
+      height: 1.6rem;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--accent);
+    }
+    figure.screenshot {
+      margin: 1.25rem 0 1.75rem;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      background: #0a0a0a;
+    }
+    figure.screenshot img,
+    figure.screenshot svg {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+    figure.screenshot figcaption {
+      padding: 0.65rem 1rem;
+      font-size: 0.82rem;
+      color: var(--muted);
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0;
+      font-size: 0.9rem;
+    }
+    th, td {
+      border: 1px solid var(--border);
+      padding: 0.6rem 0.75rem;
+      text-align: left;
+      vertical-align: top;
+    }
+    th { background: var(--surface2); font-weight: 600; }
+    tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+    @media (max-width: 640px) { .grid-2 { grid-template-columns: 1fr; } }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.1rem;
+    }
+    footer {
+      margin-top: 3rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+    @media print {
+      .toc { display: none; }
+      .layout { display: block; }
+      body { background: #fff; color: #111; }
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <aside class="toc">
+      <div class="toc-logo">Ragnar</div>
+      <div class="toc-sub">Manual do Usuário</div>
+      <nav id="toc-nav">
+        <div class="section-label">Início</div>
+        <a href="#intro">Introdução</a>
+        <a href="#perfis">Perfis e permissões</a>
+        <a href="#login">Entrar no sistema</a>
+        <a href="#navegacao">Navegação</a>
+        <div class="section-label">Omnichannel</div>
+        <a href="#whatsapp">Conectar WhatsApp</a>
+        <a href="#canais">Gerenciar canais</a>
+        <a href="#chat">Chat omnichannel</a>
+        <div class="section-label">CRM</div>
+        <a href="#leads">Base de leads</a>
+        <a href="#funis">Funis (Kanban)</a>
+        <a href="#conhecimento">Base de conhecimento</a>
+        <a href="#landing">Landing page</a>
+        <a href="#simulador">Simulador de chat</a>
+        <div class="section-label">Administração</div>
+        <a href="#usuarios">Usuários</a>
+        <a href="#grupos">Grupos de acesso</a>
+        <a href="#empresas">Empresas e departamentos</a>
+        <div class="section-label">Suporte</div>
+        <a href="#problemas">Problemas comuns</a>
+        <a href="#links">Links úteis</a>
+      </nav>
+    </aside>
+
+    <main class="content">
+      <header class="doc-header">
+        <h1>Manual do Usuário — Ragnar</h1>
+        <p class="subtitle">Guia passo a passo para operar o Cockpit: WhatsApp, chat, leads, funis e configurações da equipe.</p>
+        <p class="meta">Versão jun/2026 · Produção: <a href="https://app.ragnar.ia.br">app.ragnar.ia.br</a> · Doc técnico de ambientes: <a href="ambientes-ragnar.html">ambientes-ragnar.html</a></p>
+      </header>
+
+      <div class="alert info">
+        <strong>Ilustrações:</strong> as capturas abaixo representam fielmente a interface do Ragnar. Para substituir por prints reais, salve PNG em <code>docs/manual/img/</code> e altere o atributo <code>src</code> das tags <code>&lt;img&gt;</code> (caminhos já preparados).
+      </div>
+
+      <!-- INTRO -->
+      <h2 id="intro">1. Introdução</h2>
+      <p>O <strong>Ragnar</strong> é a plataforma de CRM e atendimento omnichannel da RN3. Pelo Cockpit você:</p>
+      <ul>
+        <li>Conecta canais (WhatsApp via Evolution API, landing pages)</li>
+        <li>Atende clientes no chat em tempo real, com apoio do Agente de IA</li>
+        <li>Gerencia leads, funis de vendas (Kanban) e base de conhecimento para a IA</li>
+        <li>Administra usuários, permissões e estrutura da empresa (conforme seu perfil)</li>
+      </ul>
+
+      <!-- PERFIS -->
+      <h2 id="perfis">2. Perfis e permissões</h2>
+      <p>Cada usuário possui um <strong>papel global</strong> e um <strong>grupo de acesso</strong> que define o que pode ver e fazer.</p>
+      <table>
+        <thead>
+          <tr><th>Papel</th><th>Descrição</th><th>Exemplos de acesso</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="badge badge-sa">Superadmin</span></td>
+            <td>Administrador da plataforma (todas as empresas)</td>
+            <td>Empresas, todos os funis, configuração global</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-admin">Admin</span></td>
+            <td>Gestor da empresa</td>
+            <td>Usuários, grupos, canais, CRM completo</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-op">Operador</span></td>
+            <td>Atendimento e vendas no dia a dia</td>
+            <td>Chat, leads, funis (conforme grupo)</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-op">Visualizador</span></td>
+            <td>Somente leitura</td>
+            <td>Consulta sem editar (conforme grupo)</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>Se aparecer a tela <strong>“Acesso Interditado”</strong> ou <strong>“Acesso Restrito”</strong>, seu grupo não tem permissão para aquela função. Peça ao administrador da empresa para ajustar em <strong>Grupos de Acesso</strong>.</p>
+
+      <!-- LOGIN -->
+      <h2 id="login">3. Entrar no sistema</h2>
+      <div class="procedure">
+        <p class="procedure-title"><span>✓</span> Fazer login</p>
+        <ol class="steps">
+          <li>Abra o endereço do Ragnar (produção: <code>https://app.ragnar.ia.br/login</code>).</li>
+          <li>Informe seu <strong>e-mail</strong> cadastrado.</li>
+          <li>Informe sua <strong>senha</strong> e clique em entrar.</li>
+          <li>Após autenticação, você será direcionado ao <strong>Cockpit</strong> (painel inicial conforme seu papel).</li>
+        </ol>
+      </div>
+
+      <figure class="screenshot">
+        <img src="manual/img/01-login.png" alt="Tela de login do Ragnar"
+             onerror="this.replaceWith(document.getElementById('svg-login').content.cloneNode(true))" />
+        <template id="svg-login">
+          <svg viewBox="0 0 800 420" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Tela de login">
+            <rect width="800" height="420" fill="#0A0A0A"/>
+            <rect x="250" y="40" width="300" height="340" rx="16" fill="#111" stroke="#ffffff15"/>
+            <text x="400" y="90" text-anchor="middle" fill="#F5F5F5" font-size="22" font-weight="800" font-family="Segoe UI,sans-serif">Bem-vindo de volta</text>
+            <text x="400" y="115" text-anchor="middle" fill="#888" font-size="12" font-family="Segoe UI,sans-serif">Faça login para acessar sua conta Ragnar</text>
+            <text x="280" y="155" fill="#888" font-size="10" font-family="Segoe UI,sans-serif">E-MAIL</text>
+            <rect x="280" y="165" width="240" height="40" rx="8" fill="#0A0A0A" stroke="#ffffff15"/>
+            <text x="295" y="190" fill="#555" font-size="12" font-family="Segoe UI,sans-serif">seu@email.com</text>
+            <text x="280" y="230" fill="#888" font-size="10" font-family="Segoe UI,sans-serif">SENHA</text>
+            <rect x="280" y="240" width="240" height="40" rx="8" fill="#0A0A0A" stroke="#ffffff15"/>
+            <rect x="280" y="300" width="240" height="44" rx="10" fill="#2BAADF"/>
+            <text x="400" y="328" text-anchor="middle" fill="#fff" font-size="13" font-weight="700" font-family="Segoe UI,sans-serif">Entrar</text>
+          </svg>
+        </template>
+        <figcaption>Figura 1 — Tela de login: e-mail, senha e botão Entrar.</figcaption>
+      </figure>
+
+      <div class="alert">
+        <strong>Erro no login?</strong> Verifique e-mail e senha. Se a mensagem de erro persistir, peça redefinição de senha ao administrador da empresa.
+      </div>
+
+      <!-- NAVEGAÇÃO -->
+      <h2 id="navegacao">4. Navegação no Cockpit</h2>
+      <p>O menu lateral esquerdo concentra os módulos principais:</p>
+      <table>
+        <thead><tr><th>Menu</th><th>Função</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Cockpit</strong></td><td>Painel inicial (métricas e atalhos por perfil)</td></tr>
+          <tr><td><strong>CRM Workspace</strong></td><td>Hub com atalhos para Funis, Leads e Canais</td></tr>
+          <tr><td><strong>Funis</strong></td><td>Pipelines de vendas em Kanban</td></tr>
+          <tr><td><strong>Base de Leads</strong></td><td>Lista e cadastro de contatos</td></tr>
+          <tr><td><strong>Chat Omnichannel</strong></td><td>Atendimento WhatsApp em tempo real</td></tr>
+          <tr><td><strong>Canais Inbound</strong></td><td>Conectar WhatsApp, landing pages, IA por canal</td></tr>
+          <tr><td><strong>Simulador de Chat</strong></td><td>Testar respostas da IA sem WhatsApp real</td></tr>
+          <tr><td><strong>Base de Conhecimento</strong></td><td>Textos e PDFs que alimentam o Agente de IA</td></tr>
+          <tr><td><strong>Empresas / Departamentos / Grupos / Usuários</strong></td><td>Administração (admin e superadmin)</td></tr>
+        </tbody>
+      </table>
+
+      <figure class="screenshot">
+        <img src="manual/img/02-sidebar.png" alt="Menu lateral do Cockpit"
+             onerror="this.replaceWith(document.getElementById('svg-sidebar').content.cloneNode(true))" />
+        <template id="svg-sidebar">
+          <svg viewBox="0 0 800 380" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Menu lateral">
+            <rect width="800" height="380" fill="#0A0A0A"/>
+            <rect x="0" y="0" width="200" height="380" fill="#0F0F0F" stroke="#ffffff0a"/>
+            <text x="20" y="35" fill="#fff" font-size="14" font-weight="800" font-family="Segoe UI,sans-serif">RAGNAR</text>
+            <rect x="12" y="60" width="176" height="32" rx="6" fill="#ffffff08"/>
+            <text x="44" y="80" fill="#fff" font-size="11" font-family="Segoe UI,sans-serif">Cockpit</text>
+            <text x="44" y="115" fill="#888" font-size="11" font-family="Segoe UI,sans-serif">CRM Workspace</text>
+            <text x="44" y="145" fill="#888" font-size="11" font-family="Segoe UI,sans-serif">Funis</text>
+            <text x="44" y="175" fill="#888" font-size="11" font-family="Segoe UI,sans-serif">Base de Leads</text>
+            <rect x="12" y="188" width="176" height="32" rx="6" fill="#2BAADF20" stroke="#2BAADF40"/>
+            <text x="44" y="208" fill="#2BAADF" font-size="11" font-weight="700" font-family="Segoe UI,sans-serif">Chat Omnichannel</text>
+            <text x="44" y="245" fill="#888" font-size="11" font-family="Segoe UI,sans-serif">Canais Inbound</text>
+            <rect x="210" y="20" width="580" height="340" rx="12" fill="#111" stroke="#ffffff0a"/>
+            <text x="230" y="55" fill="#fff" font-size="18" font-weight="700" font-family="Segoe UI,sans-serif">Chat Omnichannel</text>
+            <text x="230" y="78" fill="#666" font-size="12" font-family="Segoe UI,sans-serif">Atendimento em tempo real via WhatsApp</text>
+          </svg>
+        </template>
+        <figcaption>Figura 2 — Menu lateral: item selecionado fica destacado em azul.</figcaption>
+      </figure>
+
+      <!-- WHATSAPP -->
+      <h2 id="whatsapp">5. Conectar WhatsApp (Evolution API)</h2>
+      <p>Use esta operação na <strong>primeira configuração</strong> ou quando precisar de um número novo. Requer perfil com acesso a <strong>Canais Inbound</strong>.</p>
+
+      <div class="procedure">
+        <p class="procedure-title"><span>📱</span> Nova conexão WhatsApp</p>
+        <ol class="steps">
+          <li>No menu, clique em <strong>Canais Inbound</strong>.</li>
+          <li>Clique no botão <strong>+ Nova Conexão</strong> (canto superior ou área de cards vazia).</li>
+          <li>No assistente, escolha a categoria <strong>WhatsApp</strong>.</li>
+          <li>Selecione o provedor <strong>Evolution API</strong> (WhatsApp Instância Baileys).</li>
+          <li>Dê um <strong>nome</strong> ao canal (ex.: “WhatsApp Comercial”) e clique para iniciar a conexão.</li>
+          <li>Aguarde o <strong>QR Code</strong> aparecer na tela (pode levar alguns segundos; use “Atualizar QR” se necessário).</li>
+          <li>No celular: WhatsApp → <strong>Aparelhos conectados</strong> → <strong>Conectar aparelho</strong> → escaneie o QR.</li>
+          <li>Quando conectado, o status muda para <strong>Ativo</strong> (verde). O assistente exibe confirmação de sucesso.</li>
+        </ol>
+      </div>
+
+      <figure class="screenshot">
+        <img src="manual/img/03-wizard-whatsapp.png" alt="Assistente de conexão WhatsApp"
+             onerror="this.replaceWith(document.getElementById('svg-wizard').content.cloneNode(true))" />
+        <template id="svg-wizard">
+          <svg viewBox="0 0 800 420" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Wizard WhatsApp">
+            <rect width="800" height="420" fill="#000000e0"/>
+            <rect x="150" y="30" width="500" height="360" rx="24" fill="#0C0C0C" stroke="#ffffff0a"/>
+            <text x="400" y="75" text-anchor="middle" fill="#2BAADF" font-size="10" font-weight="800" font-family="Segoe UI,sans-serif">PONTO DE CONTATO</text>
+            <text x="400" y="105" text-anchor="middle" fill="#fff" font-size="22" font-weight="800" font-family="Segoe UI,sans-serif">NOVA CONEXÃO</text>
+            <rect x="180" y="130" width="210" height="120" rx="16" fill="#ffffff08" stroke="#22c55e40"/>
+            <text x="285" y="195" text-anchor="middle" fill="#22c55e" font-size="13" font-weight="700" font-family="Segoe UI,sans-serif">WhatsApp</text>
+            <rect x="410" y="130" width="210" height="120" rx="16" fill="#ffffff03" stroke="#ffffff0a"/>
+            <text x="515" y="195" text-anchor="middle" fill="#555" font-size="13" font-family="Segoe UI,sans-serif">Landing Page</text>
+            <rect x="280" y="280" width="240" height="180" rx="8" fill="#fff" stroke="#ccc"/>
+            <text x="400" y="370" text-anchor="middle" fill="#333" font-size="11" font-family="Segoe UI,sans-serif">[ QR Code ]</text>
+            <text x="400" y="395" text-anchor="middle" fill="#888" font-size="10" font-family="Segoe UI,sans-serif">Escaneie com o WhatsApp do celular</text>
+          </svg>
+        </template>
+        <figcaption>Figura 3 — Assistente: categoria WhatsApp → Evolution → QR Code para pareamento.</figcaption>
+      </figure>
+
+      <div class="alert ok">
+        <strong>Agente de IA:</strong> após conectar, ative o toggle <strong>Agente Ragnar</strong> no card do canal para respostas automáticas (veja seção 6).
+      </div>
+
+      <!-- CANAIS -->
+      <h2 id="canais">6. Gerenciar canais</h2>
+      <p>Cada canal aparece como um <strong>card</strong> na página Canais Inbound, com status visual:</p>
+      <div class="grid-2">
+        <div class="card"><strong style="color:var(--green)">Ativo</strong> — WhatsApp conectado e recebendo mensagens.</div>
+        <div class="card"><strong style="color:var(--accent)">Aguardando...</strong> — pareamento em andamento (QR pendente).</div>
+        <div class="card"><strong style="color:#ef4444">Desconectado</strong> — instância offline; reconecte com QR.</div>
+      </div>
+
+      <h3>6.1 Reconectar WhatsApp</h3>
+      <div class="procedure">
+        <ol class="steps">
+          <li>No card do canal desconectado, clique em <strong>ESTABELECER CONEXÃO</strong>.</li>
+          <li>Escaneie o novo QR Code no celular (mesmo fluxo do WhatsApp).</li>
+          <li>Use o ícone <strong>↻</strong> (atualizar) no card para sincronizar o status com o servidor.</li>
+        </ol>
+      </div>
+
+      <h3>6.2 Ativar ou desativar o Agente de IA</h3>
+      <div class="procedure">
+        <ol class="steps">
+          <li>No card do canal, localize o bloco <strong>Agente Ragnar</strong>.</li>
+          <li>Alterne o interruptor: <strong>IA em Operação</strong> (ligado) ou <strong>Desativado</strong>.</li>
+          <li>Com IA ligada, mensagens inbound são triadas e respondidas automaticamente quando aplicável.</li>
+        </ol>
+      </div>
+
+      <h3>6.3 Remover um canal</h3>
+      <div class="procedure">
+        <ol class="steps">
+          <li>Clique no botão <strong>Remover</strong> (ícone lixeira) no card.</li>
+          <li>Clique novamente para <strong>confirmar</strong> a exclusão.</li>
+          <li>O canal é removido do Ragnar e a instância é excluída no servidor Evolution do ambiente correto.</li>
+        </ol>
+      </div>
+
+      <div class="alert">
+        <strong>Atenção:</strong> remover um canal apaga a instância WhatsApp no servidor. Use apenas quando for recriar a conexão do zero ou desativar definitivamente aquele número.
+      </div>
+
+      <figure class="screenshot">
+        <img src="manual/img/04-canal-card.png" alt="Card de canal WhatsApp"
+             onerror="this.replaceWith(document.getElementById('svg-card').content.cloneNode(true))" />
+        <template id="svg-card">
+          <svg viewBox="0 0 800 280" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Card de canal">
+            <rect width="800" height="280" fill="#0A0A0A"/>
+            <rect x="40" y="30" width="340" height="220" rx="20" fill="#111" stroke="#ffffff0a"/>
+            <circle cx="80" cy="70" r="20" fill="#22c55e20" stroke="#22c55e40"/>
+            <rect x="260" y="58" width="90" height="24" rx="12" fill="#22c55e20" stroke="#22c55e40"/>
+            <text x="305" y="74" text-anchor="middle" fill="#22c55e" font-size="9" font-weight="800" font-family="Segoe UI,sans-serif">ATIVO</text>
+            <text x="70" y="120" fill="#fff" font-size="16" font-weight="800" font-family="Segoe UI,sans-serif">WHATSAPP COMERCIAL</text>
+            <text x="70" y="140" fill="#666" font-size="9" font-family="Segoe UI,sans-serif">EVOLUTION API · WHATSAPP</text>
+            <rect x="70" y="155" width="280" height="50" rx="12" fill="#0A0A0A" stroke="#ffffff0a"/>
+            <text x="90" y="178" fill="#fff" font-size="9" font-weight="800" font-family="Segoe UI,sans-serif">AGENTE RAGNAR</text>
+            <text x="90" y="192" fill="#2BAADF" font-size="8" font-family="Segoe UI,sans-serif">IA EM OPERAÇÃO</text>
+            <rect x="310" y="168" width="36" height="20" rx="10" fill="#2BAADF"/>
+            <circle cx="342" cy="178" r="6" fill="#fff"/>
+          </svg>
+        </template>
+        <figcaption>Figura 4 — Card do canal: status, Agente Ragnar e ações de reconexão/remoção.</figcaption>
+      </figure>
+
+      <!-- CHAT -->
+      <h2 id="chat">7. Chat Omnichannel</h2>
+      <p>Central de atendimento para conversas vindas do WhatsApp (e outros canais configurados).</p>
+
+      <div class="procedure">
+        <p class="procedure-title"><span>💬</span> Atender uma conversa</p>
+        <ol class="steps">
+          <li>Acesse <strong>Chat Omnichannel</strong> no menu lateral.</li>
+          <li>Na coluna esquerda, use a busca por <strong>nome do lead</strong> ou <strong>telefone</strong>.</li>
+          <li>Clique na conversa desejada — as mensagens aparecem à direita.</li>
+          <li>Leia o histórico: mensagens do cliente à esquerda; respostas (IA ou atendente) à direita.</li>
+          <li>Identifique o responsável pelo rótulo: <strong>Agente de IA</strong> (verde) ou nome do atendente (azul).</li>
+          <li>Digite sua mensagem no campo inferior e pressione <strong>Enviar</strong> (ou Enter).</li>
+          <li>A conversa atualiza automaticamente quando chegam novas mensagens.</li>
+        </ol>
+      </div>
+
+      <figure class="screenshot">
+        <img src="manual/img/05-chat.png" alt="Tela de chat omnichannel"
+             onerror="this.replaceWith(document.getElementById('svg-chat').content.cloneNode(true))" />
+        <template id="svg-chat">
+          <svg viewBox="0 0 800 380" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Chat">
+            <rect width="800" height="380" fill="#0A0A0A"/>
+            <rect x="20" y="20" width="760" height="340" rx="16" fill="#111" stroke="#ffffff0a"/>
+            <rect x="20" y="20" width="220" height="340" fill="#111" stroke="#ffffff0a"/>
+            <rect x="32" y="36" width="196" height="32" rx="8" fill="#0A0A0A" stroke="#ffffff0a"/>
+            <text x="50" y="56" fill="#555" font-size="10" font-family="Segoe UI,sans-serif">Buscar lead...</text>
+            <rect x="32" y="80" width="196" height="56" fill="#2BAADF15"/>
+            <rect x="32" y="80" width="3" height="56" fill="#2BAADF"/>
+            <text x="90" y="102" fill="#fff" font-size="11" font-weight="700" font-family="Segoe UI,sans-serif">Maria Silva</text>
+            <text x="90" y="118" fill="#666" font-size="9" font-family="Segoe UI,sans-serif">Olá, preciso de ajuda...</text>
+            <text x="250" y="55" fill="#fff" font-size="13" font-weight="700" font-family="Segoe UI,sans-serif">Maria Silva</text>
+            <text x="250" y="72" fill="#666" font-size="9" font-family="Segoe UI,sans-serif">● ATENDIMENTO ROBOTIZADO</text>
+            <rect x="250" y="100" width="200" height="44" rx="12" fill="#1A1A1A" stroke="#ffffff0a"/>
+            <text x="265" y="127" fill="#ccc" font-size="11" font-family="Segoe UI,sans-serif">Olá, preciso de ajuda</text>
+            <rect x="520" y="160" width="220" height="44" rx="12" fill="#2BAADF20" stroke="#2BAADF30"/>
+            <text x="535" y="178" fill="#80B828" font-size="8" font-family="Segoe UI,sans-serif">AGENTE DE IA</text>
+            <text x="535" y="195" fill="#ccc" font-size="11" font-family="Segoe UI,sans-serif">Como posso ajudar?</text>
+            <rect x="250" y="310" width="490" height="36" rx="10" fill="#0A0A0A" stroke="#ffffff0a"/>
+            <text x="265" y="332" fill="#555" font-size="11" font-family="Segoe UI,sans-serif">Digite sua mensagem...</text>
+          </svg>
+        </template>
+        <figcaption>Figura 5 — Chat: lista de conversas à esquerda; thread e campo de envio à direita.</figcaption>
+      </figure>
+
+      <p>Indicadores na lista de conversas:</p>
+      <ul>
+        <li>Ícone <strong>verde (robô)</strong> — conversa em atendimento pela IA</li>
+        <li>Ícone <strong>laranja (pessoa)</strong> — conversa em gestão humana</li>
+      </ul>
+
+      <!-- LEADS -->
+      <h2 id="leads">8. Base de leads</h2>
+      <div class="procedure">
+        <p class="procedure-title"><span>👤</span> Cadastrar um lead manualmente</p>
+        <ol class="steps">
+          <li>Acesse <strong>Base de Leads</strong> (menu ou CRM Workspace).</li>
+          <li>Clique em <strong>+ Novo Lead</strong>.</li>
+          <li>Preencha nome, telefone/WhatsApp, e-mail e demais campos disponíveis.</li>
+          <li>Salve o cadastro.</li>
+        </ol>
+      </div>
+
+      <div class="procedure">
+        <p class="procedure-title"><span>🔍</span> Buscar e editar leads</p>
+        <ol class="steps">
+          <li>Na Base de Leads, use a barra de busca (nome, telefone, e-mail).</li>
+          <li>Clique no lead para abrir o detalhe ou use o ícone de editar na linha.</li>
+          <li>Altere os dados e salve. Leads criados automaticamente pelo WhatsApp também aparecem aqui.</li>
+        </ol>
+      </div>
+
+      <!-- FUNIS -->
+      <h2 id="funis">9. Funis (Kanban)</h2>
+      <p>Organize oportunidades em colunas (estágios) e mova cards entre etapas do processo comercial.</p>
+
+      <div class="procedure">
+        <p class="procedure-title"><span>📋</span> Criar um funil</p>
+        <ol class="steps">
+          <li>Acesse <strong>Funis</strong> no menu.</li>
+          <li>Clique em <strong>+ Novo Funil</strong>.</li>
+          <li>Informe nome e descrição; configure as etapas (colunas) do pipeline.</li>
+          <li>Salve e abra o funil para ver o quadro Kanban.</li>
+        </ol>
+      </div>
+
+      <div class="procedure">
+        <p class="procedure-title"><span>↔</span> Mover cards no Kanban</p>
+        <ol class="steps">
+          <li>Abra o funil desejado na lista.</li>
+          <li>Arraste um card de uma coluna para outra (drag and drop).</li>
+          <li>Clique em um card para ver detalhes, anexos e histórico (conforme permissão).</li>
+          <li>Use os filtros superiores (prazo, “meus cards”, finalizados) para refinar a visão.</li>
+        </ol>
+      </div>
+
+      <figure class="screenshot">
+        <img src="manual/img/06-kanban.png" alt="Quadro Kanban"
+             onerror="this.replaceWith(document.getElementById('svg-kanban').content.cloneNode(true))" />
+        <template id="svg-kanban">
+          <svg viewBox="0 0 800 300" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Kanban">
+            <rect width="800" height="300" fill="#0A0A0A"/>
+            <text x="30" y="35" fill="#fff" font-size="16" font-weight="700" font-family="Segoe UI,sans-serif">Funil Comercial</text>
+            <rect x="30" y="55" width="170" height="220" rx="10" fill="#111" stroke="#ffffff0a"/>
+            <text x="45" y="78" fill="#888" font-size="10" font-weight="700" font-family="Segoe UI,sans-serif">PROSPECÇÃO</text>
+            <rect x="45" y="90" width="140" height="60" rx="8" fill="#1A1A1A" stroke="#2BAADF30"/>
+            <text x="55" y="115" fill="#fff" font-size="10" font-family="Segoe UI,sans-serif">Lead Maria</text>
+            <rect x="220" y="55" width="170" height="220" rx="10" fill="#111" stroke="#ffffff0a"/>
+            <text x="235" y="78" fill="#888" font-size="10" font-weight="700" font-family="Segoe UI,sans-serif">NEGOCIAÇÃO</text>
+            <rect x="410" y="55" width="170" height="220" rx="10" fill="#111" stroke="#ffffff0a"/>
+            <text x="425" y="78" fill="#888" font-size="10" font-weight="700" font-family="Segoe UI,sans-serif">FECHAMENTO</text>
+          </svg>
+        </template>
+        <figcaption>Figura 6 — Kanban: colunas por estágio; arraste cards entre elas.</figcaption>
+      </figure>
+
+      <!-- CONHECIMENTO -->
+      <h2 id="conhecimento">10. Base de conhecimento (IA)</h2>
+      <p>Alimente o Agente de IA com informações da sua empresa. Quanto mais conteúdo relevante, melhores as respostas automáticas.</p>
+
+      <div class="procedure">
+        <p class="procedure-title"><span>📚</span> Adicionar conteúdo</p>
+        <ol class="steps">
+          <li>Acesse <strong>Base de Conhecimento</strong> no menu.</li>
+          <li>Clique em <strong>+ Adicionar</strong> (ou equivalente no topo).</li>
+          <li>Escolha o tipo: <strong>Texto</strong> (digite título e conteúdo) ou <strong>PDF</strong> (faça upload do arquivo).</li>
+          <li>Salve. O item passa a ser usado pelo agente nas respostas do chat/WhatsApp.</li>
+        </ol>
+      </div>
+
+      <div class="procedure">
+        <p class="procedure-title"><span>🗑</span> Remover item</p>
+        <ol class="steps">
+          <li>Na lista de itens, localize o registro.</li>
+          <li>Clique em excluir e confirme.</li>
+        </ol>
+      </div>
+
+      <!-- LANDING -->
+      <h2 id="landing">11. Canal Landing Page</h2>
+      <p>Capture leads de formulários externos e encaminhe automaticamente para um estágio do funil.</p>
+
+      <div class="procedure">
+        <ol class="steps">
+          <li>Em <strong>Canais Inbound</strong>, clique <strong>+ Nova Conexão</strong>.</li>
+          <li>Escolha <strong>Landing Page</strong>.</li>
+          <li>Informe o nome do canal, selecione o <strong>funil</strong> e o <strong>estágio</strong> de destino.</li>
+          <li>Após criar, copie o <strong>Token da Conexão</strong> exibido no card (botão copiar).</li>
+          <li>Use esse token na integração da landing page externa conforme documentação técnica da RN3.</li>
+          <li>Para alterar funil/estágio depois, use <strong>Editar Destino</strong> no card.</li>
+        </ol>
+      </div>
+
+      <!-- SIMULADOR -->
+      <h2 id="simulador">12. Simulador de chat</h2>
+      <p>Teste o comportamento da IA <strong>sem</strong> enviar mensagens reais pelo WhatsApp.</p>
+      <div class="procedure">
+        <ol class="steps">
+          <li>Acesse <strong>Simulador de Chat</strong> no menu.</li>
+          <li>Digite mensagens como se fosse um cliente.</li>
+          <li>Observe as respostas do agente com base na base de conhecimento configurada.</li>
+          <li>Use para validar tom, conteúdo e fluxos antes de ativar a IA no canal real.</li>
+        </ol>
+      </div>
+
+      <!-- USUÁRIOS -->
+      <h2 id="usuarios">13. Usuários</h2>
+      <p><span class="badge badge-admin">Admin</span> Gestão de equipe com acesso ao Cockpit.</p>
+
+      <div class="procedure">
+        <p class="procedure-title"><span>➕</span> Convidar / criar usuário</p>
+        <ol class="steps">
+          <li>Acesse <strong>Usuários</strong> no menu.</li>
+          <li>Clique em <strong>+ Novo Usuário</strong>.</li>
+          <li>Preencha nome, e-mail, senha inicial, empresa (superadmin) e <strong>grupo de acesso</strong>.</li>
+          <li>Salve. O usuário recebe credenciais para login.</li>
+        </ol>
+      </div>
+
+      <div class="procedure">
+        <p class="procedure-title"><span>✏</span> Editar usuário</p>
+        <ol class="steps">
+          <li>Na lista, clique no usuário ou no ícone de editar.</li>
+          <li>Altere dados, grupo ou status conforme necessário.</li>
+          <li>Salve as alterações.</li>
+        </ol>
+      </div>
+
+      <!-- GRUPOS -->
+      <h2 id="grupos">14. Grupos de acesso</h2>
+      <p>Define <strong>o que cada equipe pode fazer</strong>: ver funis, editar leads, administrar usuários, etc.</p>
+
+      <div class="procedure">
+        <ol class="steps">
+          <li>Acesse <strong>Grupos de Acesso</strong>.</li>
+          <li>Crie um novo grupo ou edite um existente.</li>
+          <li>Na matriz de permissões, marque view / create / edit / delete por módulo (funis, leads, chat, usuários…).</li>
+          <li>Marque <strong>Grupo administrador</strong> se usuários do grupo devem ter poderes amplos na empresa.</li>
+          <li>Salve e associe usuários ao grupo em <strong>Usuários</strong>.</li>
+        </ol>
+      </div>
+
+      <!-- EMPRESAS -->
+      <h2 id="empresas">15. Empresas e departamentos</h2>
+      <p><span class="badge badge-sa">Superadmin</span> gerencia empresas (contas). <span class="badge badge-admin">Admin</span> gerencia departamentos da própria empresa.</p>
+
+      <h3>Empresas (superadmin)</h3>
+      <div class="procedure">
+        <ol class="steps">
+          <li>Menu <strong>Empresas</strong> → listar, criar ou editar cadastro da conta.</li>
+          <li>Configure nome, status (ativo/inativo) e dados corporativos.</li>
+        </ol>
+      </div>
+
+      <h3>Departamentos</h3>
+      <div class="procedure">
+        <ol class="steps">
+          <li>Menu <strong>Departamentos</strong> → <strong>Novo Departamento</strong>.</li>
+          <li>Informe nome e descrição; associe à estrutura interna da empresa.</li>
+          <li>Use departamentos para organizar equipes e relatórios futuros.</li>
+        </ol>
+      </div>
+
+      <!-- PROBLEMAS -->
+      <h2 id="problemas">16. Problemas comuns</h2>
+      <table>
+        <thead><tr><th>Sintoma</th><th>O que fazer</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>QR Code não aparece</td>
+            <td>Aguarde alguns segundos; clique em atualizar QR. Verifique se Evolution está online (contate suporte técnico).</td>
+          </tr>
+          <tr>
+            <td>Canal “Ativo” mas não chegam mensagens</td>
+            <td>Confirme webhook configurado na instância; em produção use suporte RN3. Operador: reporte ao admin.</td>
+          </tr>
+          <tr>
+            <td>Chat vazio</td>
+            <td>Envie uma mensagem de teste pelo WhatsApp conectado. Verifique se o lead foi criado na Base de Leads.</td>
+          </tr>
+          <tr>
+            <td>IA não responde</td>
+            <td>Verifique se <strong>Agente Ragnar</strong> está ligado no card do canal e se há conteúdo na Base de Conhecimento.</td>
+          </tr>
+          <tr>
+            <td>“Acesso Interditado”</td>
+            <td>Seu grupo não tem permissão. Admin deve ajustar em Grupos de Acesso.</td>
+          </tr>
+          <tr>
+            <td>WhatsApp desconectou sozinho</td>
+            <td>Abra o card → <strong>ESTABELECER CONEXÃO</strong> → escaneie novo QR. Evite usar o mesmo número em outro aparelho simultaneamente.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- LINKS -->
+      <h2 id="links">17. Links úteis</h2>
+      <table>
+        <thead><tr><th>Recurso</th><th>Endereço / arquivo</th></tr></thead>
+        <tbody>
+          <tr><td>App produção</td><td><a href="https://app.ragnar.ia.br">https://app.ragnar.ia.br</a></td></tr>
+          <tr><td>Login</td><td><a href="https://app.ragnar.ia.br/login">https://app.ragnar.ia.br/login</a></td></tr>
+          <tr><td>Doc ambientes (técnico)</td><td><a href="ambientes-ragnar.html">docs/ambientes-ragnar.html</a></td></tr>
+          <tr><td>Deploy CI/CD</td><td><code>docs/deploy-vps-github-actions.md</code></td></tr>
+          <tr><td>Suporte RN3</td><td>Contate o administrador da sua conta ou equipe técnica RN3</td></tr>
+        </tbody>
+      </table>
+
+      <footer>
+        Ragnar · RN3 · Manual do usuário. Atualize este documento quando novos módulos forem lançados no Cockpit.
+      </footer>
+    </main>
+  </div>
+
+  <script>
+    (function () {
+      var links = document.querySelectorAll('#toc-nav a');
+      var sections = [];
+      links.forEach(function (a) {
+        var id = a.getAttribute('href').slice(1);
+        var el = document.getElementById(id);
+        if (el) sections.push({ link: a, el: el });
+      });
+      function onScroll() {
+        var y = window.scrollY + 120;
+        var current = sections[0];
+        sections.forEach(function (s) {
+          if (s.el.offsetTop <= y) current = s;
+        });
+        links.forEach(function (l) { l.classList.remove('active'); });
+        if (current) current.link.classList.add('active');
+      }
+      window.addEventListener('scroll', onScroll, { passive: true });
+      onScroll();
+    })();
+  </script>
+</body>
+</html>

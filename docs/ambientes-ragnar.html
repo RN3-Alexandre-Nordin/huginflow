@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Ragnar — Configuração de Ambientes (Dev e Produção)</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --surface: #1a2332;
+      --surface2: #243044;
+      --text: #e7ecf3;
+      --muted: #9aa8bc;
+      --accent: #2baadf;
+      --accent2: #1a8fbf;
+      --dev: #3dd68c;
+      --prod: #f5a623;
+      --warn: #ffb020;
+      --border: #2d3a4f;
+      --code-bg: #121820;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.55;
+      font-size: 15px;
+    }
+    .wrap { max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+    header {
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 1.5rem;
+      margin-bottom: 2rem;
+    }
+    h1 { font-size: 1.75rem; margin: 0 0 0.5rem; font-weight: 700; }
+    .subtitle { color: var(--muted); margin: 0; font-size: 0.95rem; }
+    .meta { margin-top: 1rem; font-size: 0.85rem; color: var(--muted); }
+    h2 {
+      font-size: 1.25rem;
+      margin: 2.5rem 0 1rem;
+      padding-bottom: 0.4rem;
+      border-bottom: 2px solid var(--accent);
+      color: var(--accent);
+    }
+    h3 { font-size: 1.05rem; margin: 1.5rem 0 0.75rem; color: var(--text); }
+    p { margin: 0.5rem 0 1rem; }
+    a { color: var(--accent); }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+    @media (max-width: 768px) { .grid-2 { grid-template-columns: 1fr; } }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem;
+    }
+    .card.dev { border-top: 3px solid var(--dev); }
+    .card.prod { border-top: 3px solid var(--prod); }
+    .card h3 { margin-top: 0; }
+    .badge {
+      display: inline-block;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      padding: 0.2rem 0.55rem;
+      border-radius: 4px;
+      margin-bottom: 0.5rem;
+    }
+    .badge-dev { background: rgba(61, 214, 140, 0.15); color: var(--dev); }
+    .badge-prod { background: rgba(245, 166, 35, 0.15); color: var(--prod); }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0;
+      font-size: 0.9rem;
+    }
+    th, td {
+      border: 1px solid var(--border);
+      padding: 0.6rem 0.75rem;
+      text-align: left;
+      vertical-align: top;
+    }
+    th { background: var(--surface2); font-weight: 600; white-space: nowrap; }
+    tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+    code, .mono {
+      font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+      font-size: 0.88em;
+      background: var(--code-bg);
+      padding: 0.12em 0.35em;
+      border-radius: 4px;
+    }
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem;
+      overflow-x: auto;
+      font-size: 0.82rem;
+      line-height: 1.45;
+    }
+    pre code { background: none; padding: 0; }
+    .alert {
+      border-radius: 8px;
+      padding: 0.85rem 1rem;
+      margin: 1rem 0;
+      border-left: 4px solid var(--warn);
+      background: rgba(255, 176, 32, 0.08);
+      font-size: 0.9rem;
+    }
+    .checklist { list-style: none; padding: 0; margin: 0; }
+    .checklist li {
+      padding: 0.45rem 0 0.45rem 1.75rem;
+      position: relative;
+      border-bottom: 1px solid var(--border);
+    }
+    .checklist li:last-child { border-bottom: none; }
+    .checklist li::before {
+      content: "☐";
+      position: absolute;
+      left: 0;
+      color: var(--muted);
+    }
+    .flow {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      align-items: center;
+      margin: 1rem 0;
+      font-size: 0.85rem;
+    }
+    .flow span {
+      background: var(--surface2);
+      padding: 0.35rem 0.65rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+    }
+    .flow .arrow { background: none; border: none; color: var(--muted); padding: 0; }
+    footer {
+      margin-top: 3rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+    @media print {
+      body { background: #fff; color: #111; }
+      .card, th { background: #f5f5f5; }
+      :root { --border: #ccc; --code-bg: #f0f0f0; --muted: #555; --accent: #006699; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Ragnar — Configuração de Ambientes</h1>
+      <p class="subtitle">Referência operacional: desenvolvimento local vs produção (VPS). Documento base para a documentação final do projeto.</p>
+      <p class="meta">Repositório: <code>RN3-Alexandre-Nordin/ragnar</code> · Versão do doc: jun/2026 · Não commitar segredos neste arquivo.</p>
+    </header>
+
+    <div class="alert">
+      <strong>Regra de ouro:</strong> nunca misturar credenciais entre ambientes. Dev usa Supabase <code>ragnar-dev</code> + Evolution <code>evo-dev</code>. Produção usa Supabase prod + Evolution prod + domínio <code>app.ragnar.ia.br</code>.
+    </div>
+
+    <h2>1. Visão geral</h2>
+    <div class="grid-2">
+      <div class="card dev">
+        <span class="badge badge-dev">Desenvolvimento</span>
+        <h3>Onde roda</h3>
+        <p>PC local — <code>npm run dev</code></p>
+        <p><strong>RAGNAR_ENV:</strong> <code>development</code></p>
+        <p><strong>Arquivo de env:</strong> <code>.env.local</code> (gitignore)</p>
+        <p><strong>Branch Git:</strong> <code>develop</code></p>
+      </div>
+      <div class="card prod">
+        <span class="badge badge-prod">Produção</span>
+        <h3>Onde roda</h3>
+        <p>VPS — Docker Compose + Traefik</p>
+        <p><strong>RAGNAR_ENV:</strong> <code>production</code></p>
+        <p><strong>Arquivo de env:</strong> <code>/opt/ragnar/.env</code></p>
+        <p><strong>Branch Git:</strong> <code>main</code> (CI/CD deploy)</p>
+      </div>
+    </div>
+
+    <h3>Fluxo de mensagens (omnichannel)</h3>
+    <div class="flow">
+      <span>WhatsApp cliente</span>
+      <span class="arrow">→</span>
+      <span>Evolution API (VPS dev ou prod)</span>
+      <span class="arrow">→</span>
+      <span>Webhook HTTPS Ragnar</span>
+      <span class="arrow">→</span>
+      <span>Supabase (projeto do ambiente)</span>
+      <span class="arrow">→</span>
+      <span>Chat / IA Gemini</span>
+    </div>
+
+    <h2>2. URLs e domínios</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Serviço</th>
+          <th>Desenvolvimento</th>
+          <th>Produção</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>App Ragnar (UI)</strong></td>
+          <td><code>http://localhost:3000</code></td>
+          <td><code>https://app.ragnar.ia.br</code></td>
+        </tr>
+        <tr>
+          <td><strong>Webhook Evolution → Ragnar</strong></td>
+          <td><code>https://ragnar-local.rn3.tec.br/api/webhooks/evolution</code><br><small>Túnel Cloudflare fixo (ver §6)</small></td>
+          <td><code>https://app.ragnar.ia.br/api/webhooks/evolution</code></td>
+        </tr>
+        <tr>
+          <td><strong>Health check omnichannel</strong></td>
+          <td><code>http://localhost:3000/api/health/omnichannel</code></td>
+          <td><code>https://app.ragnar.ia.br/api/health/omnichannel</code></td>
+        </tr>
+        <tr>
+          <td><strong>Evolution API</strong></td>
+          <td><code>https://evo-dev.rn3.tec.br</code></td>
+          <td><code>https://evo.rn3.tec.br</code></td>
+        </tr>
+        <tr>
+          <td><strong>Imagem Docker (GHCR)</strong></td>
+          <td><code>ghcr.io/RN3-Alexandre-Nordin/ragnar:dev</code> <small>(build develop)</small></td>
+          <td><code>ghcr.io/RN3-Alexandre-Nordin/ragnar:latest</code></td>
+        </tr>
+        <tr>
+          <td><strong>Traefik Host rule</strong></td>
+          <td>— (local)</td>
+          <td><code>Host(`app.ragnar.ia.br`)</code></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>3. Supabase</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Item</th>
+          <th>Desenvolvimento</th>
+          <th>Produção</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Projeto</strong></td>
+          <td>ragnar-dev</td>
+          <td>ragnar-prod (atual)</td>
+        </tr>
+        <tr>
+          <td><strong>Project ref</strong></td>
+          <td><code>vujqukqsfwmoezwyuoum</code></td>
+          <td><code>zmypzexefjbovuknjlid</code></td>
+        </tr>
+        <tr>
+          <td><strong>Dashboard</strong></td>
+          <td><a href="https://supabase.com/dashboard/project/vujqukqsfwmoezwyuoum">Abrir dev</a></td>
+          <td><a href="https://supabase.com/dashboard/project/zmypzexefjbovuknjlid">Abrir prod</a></td>
+        </tr>
+        <tr>
+          <td><strong>Variáveis</strong></td>
+          <td><code>NEXT_PUBLIC_SUPABASE_URL</code><br><code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code><br><code>SUPABASE_SERVICE_ROLE_KEY</code></td>
+          <td>Idem (chaves do projeto prod)</td>
+        </tr>
+        <tr>
+          <td><strong>Arquivo local</strong></td>
+          <td><code>.env.local</code></td>
+          <td><code>/opt/ragnar/.env</code> + secrets GitHub Actions (build)</td>
+        </tr>
+        <tr>
+          <td><strong>Realtime omnichannel</strong></td>
+          <td>Tabelas <code>crm_conversas</code>, <code>crm_interacoes</code> na publication <code>supabase_realtime</code></td>
+          <td>Conferir igual em prod após migrations</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>Migration obrigatória (prod e dev)</h3>
+    <p>Script: <code>scripts/migrations/crm_conversas_one_row_per_message.sql</code></p>
+    <p>Adiciona <code>sessao_id</code>, <code>role</code>, <code>content</code>, <code>direcao</code> em <code>crm_conversas</code> (uma linha por mensagem).</p>
+
+    <h3>Scripts úteis (dev)</h3>
+    <ul>
+      <li><code>node scripts/supabase/sync-data-storage-auth.mjs</code> — clone dados prod → dev</li>
+      <li><code>node scripts/supabase/reset-dev-auth-password.mjs email senha</code></li>
+      <li><code>node scripts/supabase/reset-dev-empresa-passwords.mjs "Empresa" senha</code></li>
+    </ul>
+
+    <h2>4. Variáveis de ambiente</h2>
+
+    <h3>Desenvolvimento — <code>.env.local</code></h3>
+    <p>Template: <code>env.local.example</code></p>
+    <pre><code>RAGNAR_ENV=development
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+
+WHATSAPP_API_URL_DEV=https://evo-dev.rn3.tec.br
+WHATSAPP_API_TOKEN_DEV=&lt;token evo-dev&gt;
+RAGNAR_WEBHOOK_URL_DEV=https://ragnar-local.rn3.tec.br/api/webhooks/evolution
+
+NEXT_PUBLIC_SUPABASE_URL=https://vujqukqsfwmoezwyuoum.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=&lt;anon dev&gt;
+SUPABASE_SERVICE_ROLE_KEY=&lt;service_role dev&gt;
+
+GEMINI_API_KEY=&lt;chave&gt;</code></pre>
+
+    <h3>Produção — <code>/opt/ragnar/.env</code></h3>
+    <p>Template: <code>env.production.example</code></p>
+    <pre><code>NODE_ENV=production
+RAGNAR_ENV=production
+NEXT_PUBLIC_APP_URL=https://app.ragnar.ia.br
+
+NEXT_PUBLIC_SUPABASE_URL=https://zmypzexefjbovuknjlid.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=&lt;anon prod&gt;
+SUPABASE_SERVICE_ROLE_KEY=&lt;service_role prod&gt;
+
+WHATSAPP_API_URL_PROD=https://evo.rn3.tec.br
+WHATSAPP_API_TOKEN_PROD=&lt;token evo prod&gt;
+RAGNAR_WEBHOOK_URL_PROD=https://app.ragnar.ia.br/api/webhooks/evolution
+
+GEMINI_API_KEY=&lt;chave&gt;
+NEXT_PUBLIC_LANDING_PAGE_TOKEN=&lt;token&gt;</code></pre>
+
+    <h3>Prioridade de leitura (código)</h3>
+    <p>Arquivo: <code>src/lib/config/environment.ts</code></p>
+    <ul>
+      <li><code>RAGNAR_ENV</code> explícito vence sobre <code>NODE_ENV</code></li>
+      <li>Em dev, <code>buildEvolutionProviderConfig</code> força credenciais <code>*_DEV</code> do env (não usa token clonado do canal no DB)</li>
+      <li>Sufixos: <code>WHATSAPP_API_URL_DEV|PROD</code>, <code>WHATSAPP_API_TOKEN_DEV|PROD</code>, <code>RAGNAR_WEBHOOK_URL_DEV|PROD</code></li>
+    </ul>
+
+    <h2>5. VPS e infraestrutura</h2>
+
+    <h3>Produção — Ragnar app</h3>
+    <table>
+      <thead>
+        <tr><th>Item</th><th>Valor / ação</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Diretório deploy</td><td><code>/opt/ragnar</code></td></tr>
+        <tr><td>Compose</td><td><code>docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d</code></td></tr>
+        <tr><td>Rede Docker</td><td><code>rn3net</code> (externa)</td></tr>
+        <tr><td>Proxy / TLS</td><td>Traefik — Let's Encrypt (<code>letsencryptresolver</code>)</td></tr>
+        <tr><td>Porta interna app</td><td><code>3000</code></td></tr>
+        <tr><td>DNS</td><td><code>app.ragnar.ia.br</code> → IP da VPS prod</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Evolution (WhatsApp)</h3>
+    <table>
+      <thead>
+        <tr><th>Ambiente</th><th>URL API</th><th>Webhook na instância</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Dev</td>
+          <td><code>https://evo-dev.rn3.tec.br</code></td>
+          <td>URL do túnel → <code>.../api/webhooks/evolution</code></td>
+        </tr>
+        <tr>
+          <td>Prod</td>
+          <td><code>https://evo.rn3.tec.br</code></td>
+          <td><code>https://app.ragnar.ia.br/api/webhooks/evolution</code></td>
+        </tr>
+      </tbody>
+    </table>
+    <p>Canal no DB (<code>crm_canais</code>): em dev local o código sobrescreve <code>apiUrl</code> pelo env. Em prod usa <code>settings.apiUrl</code> ou fallback <code>WHATSAPP_API_URL_PROD</code>.</p>
+
+    <h2>6. Túnel Cloudflare (dev local)</h2>
+    <p>A Evolution na VPS não alcança <code>localhost</code>. Use túnel HTTPS público.</p>
+    <table>
+      <thead>
+        <tr><th>Comando</th><th>Função</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>npm run tunnel:setup</code></td><td>Configuração inicial Cloudflare</td></tr>
+        <tr><td><code>npm run tunnel:fixed</code></td><td>Túnel nomeado (hostname fixo)</td></tr>
+        <tr><td><code>npm run tunnel</code></td><td>Túnel temporário (trycloudflare)</td></tr>
+      </tbody>
+    </table>
+    <p>Hostname fixo documentado: <code>ragnar-local.rn3.tec.br</code> → apontar em <code>RAGNAR_WEBHOOK_URL_DEV</code>.</p>
+    <p>Config exemplo: <code>cloudflared/config.example.yml</code> (credenciais em <code>cloudflared/config.yml</code>, gitignore).</p>
+
+    <h2>7. GitHub Actions (CI/CD)</h2>
+    <p>Workflow: <code>.github/workflows/docker-publish.yml</code></p>
+    <table>
+      <thead>
+        <tr><th>Branch</th><th>Imagem</th><th>Deploy SSH</th><th>NEXT_PUBLIC_APP_URL (build)</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>main</code></td>
+          <td><code>:latest</code></td>
+          <td>Sim → VPS prod</td>
+          <td><code>https://app.ragnar.ia.br</code></td>
+        </tr>
+        <tr>
+          <td><code>develop</code></td>
+          <td><code>:dev</code></td>
+          <td>Não</td>
+          <td><code>https://dev-ragnar.rn3.tec.br</code> (legado build)</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>Secrets (Settings → Actions)</h3>
+    <table>
+      <thead>
+        <tr><th>Secret</th><th>Uso</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>NEXT_PUBLIC_SUPABASE_URL</code></td><td>Build Docker (prod)</td></tr>
+        <tr><td><code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code></td><td>Build Docker (prod)</td></tr>
+        <tr><td><code>GOOGLE_GENERATIVE_AI_API_KEY</code></td><td>Build (Gemini)</td></tr>
+        <tr><td><code>NEXT_PUBLIC_LANDING_PAGE_TOKEN</code></td><td>Build landing</td></tr>
+        <tr><td><code>VPS_HOST</code></td><td>IP/hostname VPS prod</td></tr>
+        <tr><td><code>VPS_USER</code></td><td>Usuário SSH</td></tr>
+        <tr><td><code>VPS_SSH_KEY</code></td><td>Chave privada OpenSSH (recomendado: <code>ragnar_deploy</code> sem passphrase)</td></tr>
+        <tr><td><code>VPS_SSH_PASSPHRASE</code></td><td>Opcional — só se a chave tiver senha</td></tr>
+      </tbody>
+    </table>
+    <p>Detalhes: <code>docs/deploy-vps-github-actions.md</code></p>
+
+    <h2>8. Checklist de conferência</h2>
+
+    <h3>Desenvolvimento (antes de testar WhatsApp local)</h3>
+    <ul class="checklist">
+      <li><code>.env.local</code> com <code>RAGNAR_ENV=development</code> e Supabase dev</li>
+      <li><code>WHATSAPP_API_TOKEN_DEV</code> válido para evo-dev</li>
+      <li>Túnel Cloudflare ativo (<code>npm run tunnel:fixed</code>) e <code>RAGNAR_WEBHOOK_URL_DEV</code> apontando para o hostname público</li>
+      <li>Webhook registrado na instância Evolution dev</li>
+      <li><code>npm run dev</code> rodando; logs mostram Supabase dev (<code>vujqukqsfwmoezwyuoum</code>)</li>
+      <li>Migration <code>crm_conversas_one_row_per_message</code> aplicada no Supabase dev</li>
+      <li>Chat omnichannel carrega conversas; Realtime ou polling ativo</li>
+    </ul>
+
+    <h3>Produção (antes de go-live / após deploy)</h3>
+    <ul class="checklist">
+      <li>DNS <code>app.ragnar.ia.br</code> aponta para VPS prod</li>
+      <li>Traefik com certificado TLS válido para <code>app.ragnar.ia.br</code></li>
+      <li><code>/opt/ragnar/.env</code> com URLs prod (<code>app.ragnar.ia.br</code>, não domínios antigos)</li>
+      <li>Supabase prod — migration <code>sessao_id</code> aplicada</li>
+      <li>Evolution prod — webhook = <code>https://app.ragnar.ia.br/api/webhooks/evolution</code></li>
+      <li>Instância WhatsApp prod conectada; canal <code>crm_canais</code> com <code>provider_id</code> correto</li>
+      <li>GitHub Actions verde; container <code>docker ps</code> saudável na VPS</li>
+      <li><code>GET /api/health/omnichannel</code> → <code>healthy: true</code>, <code>environment: production</code></li>
+      <li>Login cockpit prod; mensagem WhatsApp teste grava em <code>crm_conversas</code> / <code>crm_interacoes</code></li>
+      <li>Assinatura WhatsApp (bolha <code>🤖 Agente de IA</code>) visível no celular do cliente</li>
+    </ul>
+
+    <h2>9. Arquivos de referência no repositório</h2>
+    <table>
+      <thead>
+        <tr><th>Arquivo</th><th>Conteúdo</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>src/lib/config/environment.ts</code></td><td>Defaults dev/prod, health summary</td></tr>
+        <tr><td><code>src/lib/omnichannel/evolution-config.ts</code></td><td>Credenciais Evolution por ambiente</td></tr>
+        <tr><td><code>docker-compose.prod.yml</code></td><td>Traefik, env prod, imagem GHCR</td></tr>
+        <tr><td><code>env.local.example</code> / <code>env.production.example</code></td><td>Templates de variáveis</td></tr>
+        <tr><td><code>docs/supabase-dev-prod.md</code></td><td>Clone Supabase, MCP Cursor</td></tr>
+        <tr><td><code>docs/deploy-vps-github-actions.md</code></td><td>Deploy SSH, chaves</td></tr>
+        <tr><td><code>docs/ambientes-ragnar.html</code></td><td>Este documento</td></tr>
+      </tbody>
+    </table>
+
+    <h2>10. Mapa rápido (não misturar)</h2>
+    <pre><code>DEV                          PROD
+────────────────────────────────────────────────────────────
+npm run dev                  Docker VPS /opt/ragnar
+.env.local                   /opt/ragnar/.env
+Supabase vujqukqsfwmoezwyuoum  Supabase zmypzexefjbovuknjlid
+evo-dev.rn3.tec.br           evo.rn3.tec.br
+localhost:3000               app.ragnar.ia.br
+túnel → webhook dev          webhook app.ragnar.ia.br
+branch develop               branch main → CI deploy</code></pre>
+
+    <footer>
+      Ragnar · RN3 · Documentação operacional de ambientes. Atualize este HTML quando URLs, project refs ou fluxo de deploy mudarem.
+    </footer>
+  </div>
+</body>
+</html>

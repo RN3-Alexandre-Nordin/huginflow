@@ -3,7 +3,8 @@
 import { useTransition, useState, useEffect } from "react"
 import { createEmpresa, getMyProfile } from "@/app/(app)/cockpit/actions"
 import { hasPermission } from "@/utils/permissions"
-import { maskCNPJ, maskPhone, validateCNPJ } from "@/utils/brasilian-formatters"
+import { maskCNPJ, maskPhone, maskCPF, validateCNPJ, validateCPF } from "@/utils/brasilian-formatters"
+import { TIPOS_SOCIETARIOS, ESTADOS_CIVIS } from "@/constants/empresa-juridico"
 import Link from "next/link"
 import { Building2, ArrowLeft, User, Phone, Mail, Globe, MapPin, Briefcase, AlertCircle, Sparkles, ShieldCheck, Cpu, Lock, Clock } from "lucide-react"
 import { createClient } from "@/utils/supabase/client"
@@ -44,7 +45,9 @@ export default function NovaEmpresaPage() {
   const [cnpj, setCnpj] = useState("")
   const [phone, setPhone] = useState("")
   const [respPhone, setRespPhone] = useState("")
+  const [respCpf, setRespCpf] = useState("")
   const [isValidCnpj, setIsValidCnpj] = useState(true)
+  const [isValidCpf, setIsValidCpf] = useState(true)
 
   useEffect(() => {
     async function checkAccess() {
@@ -67,6 +70,18 @@ export default function NovaEmpresaPage() {
       setIsValidCnpj(validateCNPJ(digits))
     } else {
       setIsValidCnpj(true) // Reset while typing
+    }
+  }
+
+  const handleCpfChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
+    const masked = maskCPF(value)
+    setRespCpf(masked)
+    const digits = value.replace(/\D/g, "")
+    if (digits.length === 11) {
+      setIsValidCpf(validateCPF(digits))
+    } else {
+      setIsValidCpf(true)
     }
   }
 
@@ -137,18 +152,27 @@ export default function NovaEmpresaPage() {
         <div className="bg-[#111111] border border-[#ffffff0a] rounded-2xl p-6 space-y-5 relative overflow-hidden">
           <div className="absolute -top-20 -right-20 w-48 h-48 rounded-full opacity-[0.04] pointer-events-none"
                style={{ background: 'radial-gradient(circle, #2BAADF 0%, transparent 70%)', filter: 'blur(30px)' }} />
-          <SectionHeader icon={Building2} title="Dados Corporativos" subtitle="Informações oficiais da empresa" />
+          <SectionHeader icon={Building2} title="Dados Corporativos" subtitle="Informações oficiais para contrato e cadastro" />
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
-              <Field label="Razão Social / Nome Fantasia" required>
+              <Field label="Razão Social" required>
                 <input type="text" name="nome" required placeholder="Ex: Acme Soluções Ltda." className={inputCls} />
               </Field>
             </div>
-            <Field label="CNPJ">
+            <Field label="Tipo Societário" required>
+              <select name="tipo_societario" required defaultValue="" className={`${inputCls} appearance-none bg-[#0A0A0A]`}>
+                <option value="" disabled>Selecione...</option>
+                {TIPOS_SOCIETARIOS.map((t) => (
+                  <option key={t.value} value={t.value}>{t.label}</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="CNPJ" required>
               <div className="relative">
                 <input 
                   type="text" 
                   name="cnpj" 
+                  required
                   value={cnpj}
                   onChange={handleCnpjChange}
                   maxLength={18}
@@ -163,6 +187,9 @@ export default function NovaEmpresaPage() {
                 )}
               </div>
             </Field>
+            <Field label="Cidade (sede)">
+              <input type="text" name="cidade" placeholder="Ex: São Paulo" className={inputCls} />
+            </Field>
             <Field label="Ramo de Atividade">
               <input type="text" name="ramo_atividade" placeholder="Ex: Tecnologia, Varejo, Saúde..." className={inputCls} />
             </Field>
@@ -175,6 +202,12 @@ export default function NovaEmpresaPage() {
                style={{ background: 'radial-gradient(circle, #80B828 0%, transparent 70%)', filter: 'blur(30px)' }} />
           <SectionHeader icon={Phone} title="Contato da Empresa" subtitle="Canais de comunicação corporativos" />
           <div className="grid grid-cols-2 gap-4">
+            <Field label="E-mail Corporativo">
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                <input type="email" name="email" placeholder="contato@empresa.com.br" className={`${inputCls} pl-10`} />
+              </div>
+            </Field>
             <Field label="Telefone Geral" required>
               <div className="relative">
                 <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
@@ -211,21 +244,55 @@ export default function NovaEmpresaPage() {
         <div className="bg-[#111111] border border-[#ffffff0a] rounded-2xl p-6 space-y-5 relative overflow-hidden">
           <div className="absolute -top-20 -right-20 w-48 h-48 rounded-full opacity-[0.04] pointer-events-none"
                style={{ background: 'radial-gradient(circle, #2BAADF 0%, transparent 70%)', filter: 'blur(30px)' }} />
-          <SectionHeader icon={User} title="Responsável / Ponto de Contato" subtitle="Pessoa que gerencia o contrato com a RN3" />
+          <SectionHeader icon={User} title="Representante Legal" subtitle="Qualificação para contrato MSA (preâmbulo e assinaturas)" />
           <div className="grid grid-cols-2 gap-4">
-            <Field label="Nome do Responsável" required>
+            <Field label="Nome Completo" required>
               <div className="relative">
                 <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
                 <input type="text" name="responsavel_nome" required placeholder="Ex: João da Silva" className={`${inputCls} pl-10`} />
               </div>
             </Field>
-            <Field label="Cargo / Função" required>
+            <Field label="CPF" required>
               <div className="relative">
-                <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                <input type="text" name="responsavel_cargo" required placeholder="Ex: Gerente de TI, CEO..." className={`${inputCls} pl-10`} />
+                <input
+                  type="text"
+                  name="responsavel_cpf"
+                  required
+                  value={respCpf}
+                  onChange={handleCpfChange}
+                  maxLength={14}
+                  placeholder="000.000.000-00"
+                  className={`${inputCls} font-mono tracking-wider ${!isValidCpf ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20' : ''}`}
+                />
+                {!isValidCpf && (
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5 text-red-500">
+                    <AlertCircle className="w-4 h-4" />
+                    <span className="text-[10px] font-bold uppercase tracking-tight">Inválido</span>
+                  </div>
+                )}
               </div>
             </Field>
-            <Field label="E-mail do Responsável" required>
+            <Field label="Nacionalidade" required>
+              <input type="text" name="responsavel_nacionalidade" required defaultValue="brasileiro(a)" placeholder="Ex: brasileiro(a)" className={inputCls} />
+            </Field>
+            <Field label="Estado Civil" required>
+              <select name="responsavel_estado_civil" required defaultValue="" className={`${inputCls} appearance-none bg-[#0A0A0A]`}>
+                <option value="" disabled>Selecione...</option>
+                {ESTADOS_CIVIS.map((ec) => (
+                  <option key={ec} value={ec}>{ec.charAt(0).toUpperCase() + ec.slice(1)}</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Profissão" required>
+              <input type="text" name="responsavel_profissao" required placeholder="Ex: administrador de empresas" className={inputCls} />
+            </Field>
+            <Field label="Cargo / Qualidade" required>
+              <div className="relative">
+                <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                <input type="text" name="responsavel_cargo" required placeholder="Ex: Sócio Administrador, CEO..." className={`${inputCls} pl-10`} />
+              </div>
+            </Field>
+            <Field label="E-mail do Representante" required>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
                 <input type="email" name="responsavel_email" required placeholder="responsavel@empresa.com.br" className={`${inputCls} pl-10`} />
