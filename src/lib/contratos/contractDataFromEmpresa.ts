@@ -56,7 +56,8 @@ export function contractDataFromEmpresa(empresa: EmpresaRow, referenceDate = new
 export function getMissingContractFields(data: ContractFillData): string[] {
   const missing: string[] = []
   for (const field of CONTRACT_REQUIRED_FIELDS) {
-    if (!data[field.key]?.trim()) {
+    const value = data[field.key]
+    if (typeof value !== 'string' || !value.trim()) {
       missing.push(field.label)
     }
   }

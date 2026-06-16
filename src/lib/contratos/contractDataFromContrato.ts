@@ -55,7 +55,7 @@ export function mergeContratoIntoContractData(
     planoContratado: String(contrato.titulo ?? '').trim(),
     valorSetup: formatSetupValor(contrato),
     meioPagamentoSetup: valorSetup > 0 ? meioSetup : '—',
-    valorMensalidade: formatBRL(contrato.valor_mensalidade),
+    valorMensalidade: formatBRL(Number(contrato.valor_mensalidade ?? 0)),
     diaVencimentoMensal:
       contrato.dia_vencimento_mensal != null ? String(contrato.dia_vencimento_mensal) : '',
     limiteUsuarios:

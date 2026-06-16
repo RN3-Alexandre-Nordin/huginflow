@@ -7,7 +7,7 @@ import {
 } from '@/lib/contratos/contractDataFromEmpresa'
 import { mergeContratoIntoContractData } from '@/lib/contratos/contractDataFromContrato'
 import { buildFilledContractHtml } from '@/lib/contratos/fillContractTemplate'
-import type { ContractFillData } from '@/lib/contratos/types'
+import type { ContractFillData, ContractServicoExtra } from '@/lib/contratos/types'
 
 export type EmpresaContratoResult =
   | {
@@ -58,11 +58,11 @@ export async function getEmpresaContratoPayload(
     if (contrato?.empresa_id === empresa.id) {
       Object.assign(data, mergeContratoIntoContractData(data, contrato))
       data.servicosExtras = (contrato.finance_contrato_servicos_extra ?? [])
-        .map((item) => ({
+        .map((item: { descricao?: unknown; observacao?: unknown }) => ({
           descricao: String(item.descricao ?? '').trim(),
           observacao: item.observacao ? String(item.observacao).trim() : undefined,
         }))
-        .filter((item) => item.descricao)
+        .filter((item: ContractServicoExtra) => item.descricao)
     }
   }
 
