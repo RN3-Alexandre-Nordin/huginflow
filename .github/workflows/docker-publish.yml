@@ -91,42 +91,37 @@ jobs:
             echo "ready=true" >> $GITHUB_OUTPUT
           fi
 
-      - name: Configurar SSH (passphrase)
+      - name: Validar chave SSH (passphrase)
         if: steps.deploy_ready.outputs.ready == 'true'
-        id: ssh_config
         run: |
-          if [ -n "${{ secrets.VPS_SSH_PASSPHRASE }}" ]; then
-            echo "has_passphrase=true" >> $GITHUB_OUTPUT
+          KEY_FILE="$RUNNER_TEMP/deploy_key"
+          printf '%s\n' "$VPS_SSH_KEY" > "$KEY_FILE"
+          chmod 600 "$KEY_FILE"
+          if ssh-keygen -y -f "$KEY_FILE" -P "" >/dev/null 2>&1; then
+            echo "Chave SSH OK (sem passphrase)."
+          elif [ -n "$VPS_SSH_PASSPHRASE" ]; then
+            if ssh-keygen -y -f "$KEY_FILE" -P "$VPS_SSH_PASSPHRASE" >/dev/null 2>&1; then
+              echo "Chave SSH OK (com passphrase)."
+            else
+              echo "::error::VPS_SSH_PASSPHRASE incorreta para VPS_SSH_KEY."
+              exit 1
+            fi
           else
-            echo "has_passphrase=false" >> $GITHUB_OUTPUT
+            echo "::error::VPS_SSH_KEY está protegida por passphrase. Configure o secret VPS_SSH_PASSPHRASE ou use chave sem senha (ragnar_deploy). Ver docs/deploy-vps-github-actions.md"
+            exit 1
           fi
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_SSH_PASSPHRASE: ${{ secrets.VPS_SSH_PASSPHRASE }}
 
-      - name: Deploy na VPS de produção (chave com passphrase)
-        if: steps.deploy_ready.outputs.ready == 'true' && steps.ssh_config.outputs.has_passphrase == 'true'
+      - name: Deploy na VPS de produção
+        if: steps.deploy_ready.outputs.ready == 'true'
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           passphrase: ${{ secrets.VPS_SSH_PASSPHRASE }}
-          port: 22
-          timeout: 60s
-          command_timeout: 10m
-          debug: true
-          script: |
-            set -e
-            cd /opt/ragnar
-            docker pull ghcr.io/${{ github.repository }}:latest
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps app
-            docker image prune -f
-
-      - name: Deploy na VPS de produção (chave sem passphrase)
-        if: steps.deploy_ready.outputs.ready == 'true' && steps.ssh_config.outputs.has_passphrase != 'true'
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
           port: 22
           timeout: 60s
           command_timeout: 10m
