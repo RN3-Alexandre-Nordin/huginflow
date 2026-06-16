@@ -72,9 +72,13 @@ jobs:
             NEXT_PUBLIC_LANDING_PAGE_TOKEN=${{ secrets.NEXT_PUBLIC_LANDING_PAGE_TOKEN }}
             GEMINI_API_KEY=${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
 
-      # Deploy automático só em produção (branch main). Dev roda localmente.
+  deploy-prod:
+    needs: build-and-push
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    steps:
       - name: Verificar secrets de deploy na VPS
-        if: github.ref == 'refs/heads/main'
         id: deploy_ready
         run: |
           if [ -z "${{ secrets.VPS_HOST }}" ] || [ -z "${{ secrets.VPS_USER }}" ] || [ -z "${{ secrets.VPS_SSH_KEY }}" ]; then
@@ -87,16 +91,48 @@ jobs:
             echo "ready=true" >> $GITHUB_OUTPUT
           fi
 
-      - name: Deploy na VPS de produção
-        if: github.ref == 'refs/heads/main' && steps.deploy_ready.outputs.ready == 'true'
+      - name: Configurar SSH (passphrase)
+        if: steps.deploy_ready.outputs.ready == 'true'
+        id: ssh_config
+        run: |
+          if [ -n "${{ secrets.VPS_SSH_PASSPHRASE }}" ]; then
+            echo "has_passphrase=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_passphrase=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Deploy na VPS de produção (chave com passphrase)
+        if: steps.deploy_ready.outputs.ready == 'true' && steps.ssh_config.outputs.has_passphrase == 'true'
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           passphrase: ${{ secrets.VPS_SSH_PASSPHRASE }}
+          port: 22
+          timeout: 60s
           command_timeout: 10m
+          debug: true
           script: |
+            set -e
+            cd /opt/ragnar
+            docker pull ghcr.io/${{ github.repository }}:latest
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps app
+            docker image prune -f
+
+      - name: Deploy na VPS de produção (chave sem passphrase)
+        if: steps.deploy_ready.outputs.ready == 'true' && steps.ssh_config.outputs.has_passphrase != 'true'
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: 22
+          timeout: 60s
+          command_timeout: 10m
+          debug: true
+          script: |
+            set -e
             cd /opt/ragnar
             docker pull ghcr.io/${{ github.repository }}:latest
             docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps app
