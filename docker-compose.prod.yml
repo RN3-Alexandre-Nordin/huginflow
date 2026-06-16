@@ -6,7 +6,7 @@
 
 services:
   app:
-    image: ghcr.io/RN3-Alexandre-Nordin/ragnar:latest
+    image: ghcr.io/rn3-alexandre-nordin/ragnar:latest
     restart: unless-stopped
     env_file:
       - .env

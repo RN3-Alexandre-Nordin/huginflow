@@ -1,78 +1,104 @@
 # Deploy automático na VPS (GitHub Actions)
 
-O workflow `docker-publish.yml` publica a imagem no GHCR e, na branch `main`, tenta deploy SSH na VPS.
+Fluxo em **`.github/workflows/docker-publish.yml`**:
 
-## Secrets obrigatórios
+1. **build-and-push** — build da imagem e push no GHCR (`ghcr.io/rn3-alexandre-nordin/ragnar:latest`)
+2. **deploy-prod** (só `main`) — envia `docker-compose*.yml` para `/opt/ragnar`, `docker pull` e `compose up`
 
-Em **GitHub → Settings → Secrets and variables → Actions**:
+## Arquitetura
 
-| Secret | Exemplo |
-|--------|---------|
-| `VPS_HOST` | `123.45.67.89` ou `vps.rn3.tec.br` |
-| `VPS_USER` | `root` |
-| `VPS_SSH_KEY` | Conteúdo **inteiro** do arquivo de chave **privada** |
-| `VPS_SSH_PASSPHRASE` | *(Opcional)* Senha da chave, se a privada tiver passphrase |
+| Item | Onde fica |
+|------|-----------|
+| Chave SSH do CI | GitHub Secret `VPS_SSH_KEY` (privada **sem passphrase**) |
+| Variáveis do app | `/opt/ragnar/.env` na VPS (nunca no GitHub) |
+| Compose | Enviado pelo CI a cada deploy; `.env` permanece na VPS |
+| Imagem | `ghcr.io/rn3-alexandre-nordin/ragnar:latest` (sempre minúsculas) |
 
-## Criar chave nova (recomendado para CI)
+## Setup único (fazer uma vez)
 
-Use um par **dedicado** só para GitHub Actions → VPS prod (não interfere na chave que você já usa no dia a dia).
+### 1. Chave SSH dedicada para o CI (`ragnar_deploy`)
+
+No **Windows** (PowerShell):
 
 ```powershell
 ssh-keygen -t ed25519 -C "github-actions-ragnar" -f $env:USERPROFILE\.ssh\ragnar_deploy -N '""'
+Get-Content $env:USERPROFILE\.ssh\ragnar_deploy | clip
 ```
 
-## Reutilizar a chave que você já usa no dev
+- Cole no GitHub → **Settings → Secrets → Actions → `VPS_SSH_KEY`** (chave **privada** completa)
+- **Não** use chave com passphrase no CI — não configure `VPS_SSH_PASSPHRASE`
 
-**Sim, pode.** Não precisa gerar outra no PC.
-
-1. **VPS prod** — adicione a **mesma chave pública** que já funciona no dev em `~/.ssh/authorized_keys` do usuário de `VPS_USER` (se ainda não estiver lá).
-2. **GitHub** — secret `VPS_SSH_KEY` = conteúdo da **mesma chave privada** que você usa no dev (arquivo local, ex. `id_ed25519` ou o path que já usa).
+Chave pública para a VPS:
 
 ```powershell
-# exemplo: copiar a privada que você já usa
-Get-Content $env:USERPROFILE\.ssh\id_ed25519 | clip
+Get-Content $env:USERPROFILE\.ssh\ragnar_deploy.pub
 ```
 
-3. Teste antes de salvar o secret:
-   ```powershell
-   ssh -i $env:USERPROFILE\.ssh\id_ed25519 VPS_USER@IP_OU_HOST_PROD "echo ok"
-   ```
+### 2. Secrets no GitHub
 
-**Prós:** mais simples, uma chave só para gerenciar.  
-**Contras:** a privada fica também no GitHub (secret); se vazar, afeta dev e prod — por isso muitos times preferem chave só para CI.
+| Secret | Valor |
+|--------|--------|
+| `VPS_HOST` | IP ou hostname da VPS prod |
+| `VPS_USER` | Usuário SSH (ex.: `root`) |
+| `VPS_SSH_KEY` | Conteúdo de `ragnar_deploy` (privada) |
 
----
+Secrets de **build** (já existentes): `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, etc.
 
-## Passos (chave nova ou reutilizada)
+### 3. VPS — authorized_keys + bootstrap
 
-1. Copie a **privada** para o secret `VPS_SSH_KEY` no GitHub (inclui `-----BEGIN OPENSSH PRIVATE KEY-----`).
+Na VPS, como `VPS_USER`:
 
-2. Na **VPS prod**, adicione a **pública** correspondente ao `authorized_keys` (pule se já estiver lá):
-   ```bash
-   # na VPS, como VPS_USER:
-   mkdir -p ~/.ssh && chmod 700 ~/.ssh
-   echo "conteúdo-do-arquivo-.pub" >> ~/.ssh/authorized_keys
-   chmod 600 ~/.ssh/authorized_keys
-   ```
+```bash
+mkdir -p ~/.ssh && chmod 700 ~/.ssh
+echo "ssh-ed25519 AAAA... github-actions-ragnar" >> ~/.ssh/authorized_keys
+chmod 600 ~/.ssh/authorized_keys
+```
 
-3. Teste localmente antes de reexecutar o workflow:
-   ```powershell
-   ssh -i CAMINHO_DA_SUA_CHAVE_PRIVADA VPS_USER@VPS_HOST "echo ok"
-   ```
+Bootstrap de `/opt/ragnar` (rede `rn3net` + `.env`):
 
-## Deploy manual (enquanto secrets não estão prontos)
+```bash
+mkdir -p /opt/ragnar && cd /opt/ragnar
+curl -fsSL -o vps-bootstrap.sh \
+  https://raw.githubusercontent.com/RN3-Alexandre-Nordin/ragnar/main/scripts/deploy/vps-bootstrap.sh
+curl -fsSL -o env.production.example \
+  https://raw.githubusercontent.com/RN3-Alexandre-Nordin/ragnar/main/env.production.example
+bash vps-bootstrap.sh
+nano /opt/ragnar/.env
+```
+
+Ou copie `scripts/deploy/vps-bootstrap.sh` do repositório e execute localmente.
+
+### 4. Validar antes do CI
+
+No Windows:
+
+```powershell
+ssh -i $env:USERPROFILE\.ssh\ragnar_deploy root@SEU_HOST "echo ok"
+```
+
+Deve retornar `ok` **sem pedir senha**.
+
+## Deploy automático
+
+- **Push em `main`** ou **Actions → Docker Image CI/CD → Run workflow**
+- O job `deploy-prod` copia os compose, faz pull e sobe o container `ragnar-app`
+
+## Deploy manual (emergência)
 
 ```bash
 cd /opt/ragnar
-docker pull ghcr.io/RN3-Alexandre-Nordin/ragnar:latest
+docker pull ghcr.io/rn3-alexandre-nordin/ragnar:latest
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps app
 ```
 
+Requer `docker-compose.yml`, `docker-compose.prod.yml` e `.env` em `/opt/ragnar`.
+
 ## Erros comuns
 
-- **`this private key is passphrase protected`** — a chave em `VPS_SSH_KEY` tem senha. Opções:
-  1. Crie secret **`VPS_SSH_PASSPHRASE`** com a senha da chave; ou
-  2. *(Recomendado para CI)* use **`ragnar_deploy`** (sem senha): `Get-Content ~/.ssh/ragnar_deploy | clip` → `VPS_SSH_KEY`, e coloque `ragnar_deploy.pub` no `authorized_keys` da VPS.
-- **Colar chave pública** em `VPS_SSH_KEY` → use a **privada**.
-- **Quebra de linha faltando** no final do secret → cole o arquivo completo.
-- **Usuário errado** em `VPS_USER` → deve ser quem tem a chave no `authorized_keys`.
+| Erro | Causa | Solução |
+|------|--------|---------|
+| `VPS_SSH_KEY está protegida por passphrase` | Chave pessoal com senha no secret | Use `ragnar_deploy` sem passphrase |
+| `must be lowercase` no docker pull | URL com maiúsculas | Use `ghcr.io/rn3-alexandre-nordin/ragnar:latest` |
+| `docker-compose.yml: no such file` | Compose ausente na VPS | CI envia automaticamente após setup correto |
+| `open /opt/ragnar/.env` | `.env` não criado | Rode bootstrap e preencha `.env` |
+| `network rn3net not found` | Rede Traefik ausente | `docker network create rn3net` ou bootstrap |

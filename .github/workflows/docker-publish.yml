@@ -9,7 +9,6 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   build-and-push:
@@ -21,6 +20,10 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Definir imagem GHCR (lowercase)
+        id: ghcr
+        run: echo "image=ghcr.io/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -49,7 +52,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: ${{ steps.ghcr.outputs.image }}
           tags: |
             type=raw,value=${{ steps.env.outputs.tag }}
             type=sha,prefix=,format=short
@@ -78,41 +81,78 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Definir imagem GHCR (lowercase)
+        id: ghcr
+        run: echo "image=${{ env.REGISTRY }}/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+
       - name: Verificar secrets de deploy na VPS
         id: deploy_ready
         run: |
           if [ -z "${{ secrets.VPS_HOST }}" ] || [ -z "${{ secrets.VPS_USER }}" ] || [ -z "${{ secrets.VPS_SSH_KEY }}" ]; then
             echo "ready=false" >> $GITHUB_OUTPUT
-            echo "::warning::Deploy SSH ignorado — faltam secrets na VPS."
-            echo "Configure em: Settings → Secrets and variables → Actions"
-            echo "  VPS_HOST, VPS_USER, VPS_SSH_KEY (chave privada OpenSSH completa)"
-            echo "Imagem publicada no GHCR; faça pull manual na VPS até configurar os secrets."
+            echo "::warning::Deploy SSH ignorado — faltam secrets VPS_HOST, VPS_USER ou VPS_SSH_KEY."
+            echo "Ver docs/deploy-vps-github-actions.md"
           else
             echo "ready=true" >> $GITHUB_OUTPUT
           fi
 
-      - name: Validar chave SSH (passphrase)
+      - name: Validar chave SSH do CI
         if: steps.deploy_ready.outputs.ready == 'true'
         run: |
           KEY_FILE="$RUNNER_TEMP/deploy_key"
           printf '%s\n' "$VPS_SSH_KEY" > "$KEY_FILE"
           chmod 600 "$KEY_FILE"
           if ssh-keygen -y -f "$KEY_FILE" -P "" >/dev/null 2>&1; then
-            echo "Chave SSH OK (sem passphrase)."
+            echo "Chave SSH OK (sem passphrase — padrão ragnar_deploy)."
           elif [ -n "$VPS_SSH_PASSPHRASE" ]; then
             if ssh-keygen -y -f "$KEY_FILE" -P "$VPS_SSH_PASSPHRASE" >/dev/null 2>&1; then
-              echo "Chave SSH OK (com passphrase)."
+              echo "::warning::Chave com passphrase detectada. Recomendado: ragnar_deploy sem senha (docs/deploy-vps-github-actions.md)."
             else
               echo "::error::VPS_SSH_PASSPHRASE incorreta para VPS_SSH_KEY."
               exit 1
             fi
           else
-            echo "::error::VPS_SSH_KEY está protegida por passphrase. Configure o secret VPS_SSH_PASSPHRASE ou use chave sem senha (ragnar_deploy). Ver docs/deploy-vps-github-actions.md"
+            echo "::error::VPS_SSH_KEY está protegida por passphrase."
+            echo "Solução: crie chave ragnar_deploy sem senha e atualize VPS_SSH_KEY. Ver docs/deploy-vps-github-actions.md"
             exit 1
           fi
         env:
           VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
           VPS_SSH_PASSPHRASE: ${{ secrets.VPS_SSH_PASSPHRASE }}
+
+      - name: Preparar diretório na VPS
+        if: steps.deploy_ready.outputs.ready == 'true'
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          passphrase: ${{ secrets.VPS_SSH_PASSPHRASE }}
+          port: 22
+          timeout: 60s
+          script: |
+            set -e
+            mkdir -p /opt/ragnar
+            if [ ! -f /opt/ragnar/.env ]; then
+              echo "ERRO: /opt/ragnar/.env não existe. Rode scripts/deploy/vps-bootstrap.sh na VPS."
+              exit 1
+            fi
+            docker network inspect rn3net >/dev/null 2>&1 || docker network create rn3net
+
+      - name: Enviar docker-compose para VPS
+        if: steps.deploy_ready.outputs.ready == 'true'
+        uses: appleboy/scp-action@v1.0.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          passphrase: ${{ secrets.VPS_SSH_PASSPHRASE }}
+          port: 22
+          source: "docker-compose.yml,docker-compose.prod.yml"
+          target: /opt/ragnar
 
       - name: Deploy na VPS de produção
         if: steps.deploy_ready.outputs.ready == 'true'
@@ -125,10 +165,10 @@ jobs:
           port: 22
           timeout: 60s
           command_timeout: 10m
-          debug: true
           script: |
             set -e
             cd /opt/ragnar
-            docker pull ghcr.io/${{ github.repository }}:latest
+            docker pull ${{ steps.ghcr.outputs.image }}:latest
             docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps app
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml ps app
             docker image prune -f
