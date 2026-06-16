@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useTransition } from 'react'
-import { BookOpen, Plus, Trash2, FileText, Upload, CheckCircle2, AlertCircle, Loader2, X, FileCheck } from 'lucide-react'
+import { BookOpen, Plus, Trash2, FileText, Upload, CheckCircle2, AlertCircle, Loader2, X, FileCheck, Download } from 'lucide-react'
 import { getKnowledgeBase, upsertKnowledge, deleteKnowledge } from './actions'
 import { useRouter } from 'next/navigation'
 import { getMyProfile } from '@/app/(app)/cockpit/actions'
@@ -17,6 +17,7 @@ export default function KnowledgeBasePage() {
   const [isLoading, setIsLoading] = useState(true)
   const [profile, setProfile] = useState<any>(null)
   const [isCheckingPermissions, setIsCheckingPermissions] = useState(true)
+  const [downloadingId, setDownloadingId] = useState<string | null>(null)
 
   useEffect(() => {
     async function init() {
@@ -84,6 +85,39 @@ export default function KnowledgeBasePage() {
         setError('Erro inesperado: ' + err.message)
       }
     })
+  }
+
+  async function handleDownload(id: string, fileName: string) {
+    setDownloadingId(id)
+    setError(null)
+    try {
+      const response = await fetch(`/api/knowledge/${encodeURIComponent(id)}/download`)
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}))
+        throw new Error(data.error || 'Falha ao baixar documento')
+      }
+
+      const blob = await response.blob()
+      const disposition = response.headers.get('Content-Disposition')
+      let downloadName = fileName
+      const match = disposition?.match(/filename\*=UTF-8''([^;]+)|filename="([^"]+)"/)
+      if (match) {
+        downloadName = decodeURIComponent(match[1] || match[2] || fileName)
+      }
+
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = downloadName
+      document.body.appendChild(anchor)
+      anchor.click()
+      anchor.remove()
+      URL.revokeObjectURL(url)
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Erro ao baixar documento')
+    } finally {
+      setDownloadingId(null)
+    }
   }
 
   async function handleDelete(id: string) {
@@ -231,14 +265,31 @@ export default function KnowledgeBasePage() {
                     </div>
                   </td>
                   <td className="px-6 py-5 text-right">
-                    {canDelete && (
-                      <button 
-                        onClick={() => handleDelete(item.id)}
-                        className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-all"
+                    <div className="flex items-center justify-end gap-1">
+                      <button
+                        type="button"
+                        onClick={() => handleDownload(item.id, item.file_name)}
+                        disabled={downloadingId === item.id}
+                        title="Baixar documento"
+                        className="p-2 text-gray-500 hover:text-[#2BAADF] hover:bg-[#2BAADF]/10 rounded-lg transition-all disabled:opacity-40"
                       >
-                        <Trash2 className="w-5 h-5" />
+                        {downloadingId === item.id ? (
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                        ) : (
+                          <Download className="w-5 h-5" />
+                        )}
                       </button>
-                    )}
+                      {canDelete && (
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(item.id)}
+                          title="Excluir"
+                          className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-all"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}

@@ -4,17 +4,23 @@ import { createClient } from "@/utils/supabase/server";
 import { createAdminClient } from "@/utils/supabase/admin";
 import { revalidatePath } from "next/cache";
 import { EvolutionApiService } from "@/lib/omnichannel/services/EvolutionApiService";
-import { getEvolutionCredentials, getRagnarEnvironment } from "@/lib/config/environment";
+import { buildEvolutionProviderConfig } from "@/lib/omnichannel/evolution-config";
 import { getMyProfile } from "@/app/(app)/cockpit/actions";
 
-function resolveEvolutionCredentials(apiUrl?: string, apiToken?: string) {
-  const env = getEvolutionCredentials();
-  if (getRagnarEnvironment() === "development") {
-    return { apiUrl: env.apiUrl, apiToken: env.apiKey };
-  }
+/** Credenciais Evolution: dev/prod sempre do .env (nunca settings clonados de outro ambiente). */
+function resolveEvolutionCredentials(
+  providerId: string,
+  apiUrl?: string,
+  apiToken?: string,
+) {
+  const config = buildEvolutionProviderConfig({
+    provider_id: providerId,
+    provider_token: apiToken,
+    settings: apiUrl ? { apiUrl } : null,
+  });
   return {
-    apiUrl: apiUrl || env.apiUrl,
-    apiToken: apiToken || env.apiKey,
+    apiUrl: (config.settings as { apiUrl?: string })?.apiUrl ?? "",
+    apiToken: config.provider_token ?? "",
   };
 }
 
@@ -63,7 +69,7 @@ export async function syncChannelStatus(id: string, provider: string, providerId
 
   if (provider === 'evolution') {
     try {
-      const creds = resolveEvolutionCredentials(apiUrl, apiToken);
+      const creds = resolveEvolutionCredentials(providerId, apiUrl, apiToken);
       const state = await EvolutionApiService.getConnectionStatus(
         providerId,
         creds.apiUrl,
@@ -106,7 +112,7 @@ export async function deleteChannel(id: string, provider: string, providerId: st
   try {
     // 1. Remover do provedor externo se for Evolution
     if (provider === 'evolution') {
-      const creds = resolveEvolutionCredentials(apiUrl, apiToken);
+      const creds = resolveEvolutionCredentials(providerId, apiUrl, apiToken);
       await EvolutionApiService.logoutInstance(providerId, creds.apiUrl, creds.apiToken);
     }
 
@@ -140,7 +146,7 @@ export async function deleteChannel(id: string, provider: string, providerId: st
  */
 export async function getReconnectQRCode(provider: string, providerId: string, apiUrl?: string, apiToken?: string) {
   if (provider === 'evolution') {
-    const creds = resolveEvolutionCredentials(apiUrl, apiToken);
+    const creds = resolveEvolutionCredentials(providerId, apiUrl, apiToken);
     const qrcode = await EvolutionApiService.getQRCode(
       providerId,
       creds.apiUrl,

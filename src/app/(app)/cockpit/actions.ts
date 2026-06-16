@@ -21,14 +21,20 @@ export async function createEmpresa(formData: FormData) {
     .from('empresas')
     .insert([{
       nome: formData.get('nome') as string,
+      tipo_societario: (formData.get('tipo_societario') as string) || null,
       cnpj: formData.get('cnpj') as string || null,
       email: formData.get('email') as string || null,
       telefone: formData.get('telefone') as string || null,
       website: formData.get('website') as string || null,
       endereco: formData.get('endereco') as string || null,
+      cidade: (formData.get('cidade') as string) || null,
       ramo_atividade: formData.get('ramo_atividade') as string || null,
       responsavel_nome: formData.get('responsavel_nome') as string || null,
       responsavel_cargo: formData.get('responsavel_cargo') as string || null,
+      responsavel_cpf: (formData.get('responsavel_cpf') as string) || null,
+      responsavel_nacionalidade: (formData.get('responsavel_nacionalidade') as string) || null,
+      responsavel_estado_civil: (formData.get('responsavel_estado_civil') as string) || null,
+      responsavel_profissao: (formData.get('responsavel_profissao') as string) || null,
       responsavel_email: formData.get('responsavel_email') as string || null,
       responsavel_telefone: formData.get('responsavel_telefone') as string || null,
       // Novos campos de IA (Gemini)
@@ -60,14 +66,20 @@ export async function updateEmpresa(empresaId: string, formData: FormData) {
     .from('empresas')
     .update({
       nome: formData.get('nome') as string,
+      tipo_societario: (formData.get('tipo_societario') as string) || null,
       cnpj: formData.get('cnpj') as string || null,
       email: formData.get('email') as string || null,
       telefone: formData.get('telefone') as string || null,
       website: formData.get('website') as string || null,
       endereco: formData.get('endereco') as string || null,
+      cidade: (formData.get('cidade') as string) || null,
       ramo_atividade: formData.get('ramo_atividade') as string || null,
       responsavel_nome: formData.get('responsavel_nome') as string || null,
       responsavel_cargo: formData.get('responsavel_cargo') as string || null,
+      responsavel_cpf: (formData.get('responsavel_cpf') as string) || null,
+      responsavel_nacionalidade: (formData.get('responsavel_nacionalidade') as string) || null,
+      responsavel_estado_civil: (formData.get('responsavel_estado_civil') as string) || null,
+      responsavel_profissao: (formData.get('responsavel_profissao') as string) || null,
       responsavel_email: formData.get('responsavel_email') as string || null,
       responsavel_telefone: formData.get('responsavel_telefone') as string || null,
       // Novos campos de IA

@@ -140,6 +140,31 @@ export const PERMISSION_CATEGORIES: PermissionCategory[] = [
         ]
       },
     ]
+  },
+  {
+    label: 'Financeiro',
+    color: '#E8A317',
+    modules: [
+      {
+        slug: 'financeiro',
+        label: 'Contas a Receber',
+        actions: [
+          { slug: 'view', label: 'Ver', icon: Eye },
+          { slug: 'create', label: 'Criar', icon: Plus },
+          { slug: 'edit', label: 'Baixar / Cancelar', icon: Pencil },
+        ]
+      },
+      {
+        slug: 'contratos',
+        label: 'Contratos Comerciais',
+        actions: [
+          { slug: 'view', label: 'Ver', icon: Eye },
+          { slug: 'create', label: 'Criar', icon: Plus },
+          { slug: 'edit', label: 'Editar', icon: Pencil },
+          { slug: 'delete', label: 'Excluir', icon: Trash2 },
+        ]
+      },
+    ]
   }
 ]
 

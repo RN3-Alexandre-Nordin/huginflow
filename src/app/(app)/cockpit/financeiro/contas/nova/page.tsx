@@ -1,0 +1,45 @@
+import Link from "next/link"
+import { ArrowLeft, Wallet } from "lucide-react"
+import { getMyProfile } from "@/app/(app)/cockpit/actions"
+import { hasPermission } from "@/utils/permissions"
+import { redirect } from "next/navigation"
+import { createClient } from "@/utils/supabase/server"
+import NovaContaForm from "./NovaContaForm"
+
+export const metadata = { title: "Nova Conta a Receber | Ragnar" }
+
+export default async function NovaContaPage() {
+  const me = await getMyProfile()
+  if (!hasPermission(me, "financeiro", "create")) {
+    redirect("/cockpit/acesso-negado")
+  }
+
+  const isSuperAdmin = me?.role_global === "superadmin"
+  const supabase = await createClient()
+  const { data: empresas } = isSuperAdmin
+    ? await supabase.from("empresas").select("id, nome").eq("ativo", true).order("nome")
+    : { data: null }
+
+  return (
+    <div className="max-w-3xl mx-auto space-y-6 pb-20 animate-in fade-in duration-500">
+      <div className="flex items-center gap-4">
+        <Link href="/cockpit/financeiro/contas" className="p-2 rounded-lg bg-[#ffffff05] hover:bg-[#ffffff0a] text-gray-400 hover:text-white transition-colors">
+          <ArrowLeft className="w-5 h-5" />
+        </Link>
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight text-white flex items-center gap-3">
+            <Wallet className="w-6 h-6 text-[#E8A317]" />
+            Nova conta a receber
+          </h2>
+          <p className="text-sm text-gray-400 mt-1">Lançamento manual via RPC segura.</p>
+        </div>
+      </div>
+
+      <NovaContaForm
+        empresas={empresas}
+        isSuperAdmin={isSuperAdmin}
+        defaultEmpresaId={me?.empresa_id ?? undefined}
+      />
+    </div>
+  )
+}

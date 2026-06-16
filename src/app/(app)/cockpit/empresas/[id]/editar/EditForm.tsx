@@ -3,7 +3,8 @@
 import { updateEmpresa, deleteEmpresa } from "@/app/(app)/cockpit/actions"
 import { Building2, User, Phone, Mail, Globe, MapPin, Briefcase, Save, Trash2, AlertTriangle, AlertCircle, Sparkles, ShieldCheck, Cpu, Clock } from "lucide-react"
 import { useTransition, useState } from "react"
-import { maskCNPJ, maskPhone, validateCNPJ } from "@/utils/brasilian-formatters"
+import { maskCNPJ, maskPhone, maskCPF, validateCNPJ, validateCPF } from "@/utils/brasilian-formatters"
+import { TIPOS_SOCIETARIOS, ESTADOS_CIVIS } from "@/constants/empresa-juridico"
 
 const inputCls = "w-full bg-[#0A0A0A] border border-[#ffffff12] focus:border-[#2BAADF] rounded-xl px-4 py-2.5 text-sm text-white outline-none transition-all placeholder-gray-600 focus:ring-1 focus:ring-[#2BAADF]/30"
 
@@ -43,14 +44,20 @@ function Field({
 interface Empresa {
   id: string
   nome: string
+  tipo_societario?: string | null
   cnpj: string | null
   email: string | null
   telefone: string | null
   website: string | null
   endereco: string | null
+  cidade?: string | null
   ramo_atividade: string | null
   responsavel_nome: string | null
   responsavel_cargo: string | null
+  responsavel_cpf?: string | null
+  responsavel_nacionalidade?: string | null
+  responsavel_estado_civil?: string | null
+  responsavel_profissao?: string | null
   responsavel_email: string | null
   responsavel_telefone: string | null
   gemini_api_key?: string | null
@@ -68,7 +75,9 @@ export default function EditForm({ empresa }: { empresa: Empresa }) {
   const [cnpj, setCnpj] = useState(maskCNPJ(empresa.cnpj ?? ""))
   const [phone, setPhone] = useState(maskPhone(empresa.telefone ?? ""))
   const [respPhone, setRespPhone] = useState(maskPhone(empresa.responsavel_telefone ?? ""))
+  const [respCpf, setRespCpf] = useState(maskCPF(empresa.responsavel_cpf ?? ""))
   const [isValidCnpj, setIsValidCnpj] = useState(empresa.cnpj ? validateCNPJ(empresa.cnpj) : true)
+  const [isValidCpf, setIsValidCpf] = useState(empresa.responsavel_cpf ? validateCPF(empresa.responsavel_cpf) : true)
 
   const handleCnpjChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value
@@ -80,6 +89,18 @@ export default function EditForm({ empresa }: { empresa: Empresa }) {
       setIsValidCnpj(validateCNPJ(digits))
     } else {
       setIsValidCnpj(true)
+    }
+  }
+
+  const handleCpfChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
+    const masked = maskCPF(value)
+    setRespCpf(masked)
+    const digits = value.replace(/\D/g, "")
+    if (digits.length === 11) {
+      setIsValidCpf(validateCPF(digits))
+    } else {
+      setIsValidCpf(true)
     }
   }
 
@@ -102,10 +123,10 @@ export default function EditForm({ empresa }: { empresa: Empresa }) {
       <div className="bg-[#111111] border border-[#ffffff0a] rounded-2xl p-6 space-y-5 relative overflow-hidden">
         <div className="absolute -top-20 -right-20 w-48 h-48 rounded-full opacity-[0.04] pointer-events-none"
           style={{ background: 'radial-gradient(circle, #2BAADF 0%, transparent 70%)', filter: 'blur(30px)' }} />
-        <SectionHeader icon={Building2} title="Dados Corporativos" subtitle="Informações oficiais da empresa" />
+        <SectionHeader icon={Building2} title="Dados Corporativos" subtitle="Informações oficiais para contrato e cadastro" />
         <div className="grid grid-cols-2 gap-4">
           <div className="col-span-2">
-            <Field label="Razão Social / Nome Fantasia" required>
+            <Field label="Razão Social" required>
               <input
                 type="text" name="nome" required
                 defaultValue={empresa.nome ?? ''}
@@ -114,10 +135,23 @@ export default function EditForm({ empresa }: { empresa: Empresa }) {
               />
             </Field>
           </div>
-          <Field label="CNPJ">
+          <Field label="Tipo Societário" required>
+            <select
+              name="tipo_societario"
+              required
+              defaultValue={empresa.tipo_societario ?? ''}
+              className={`${inputCls} appearance-none bg-[#0A0A0A]`}
+            >
+              <option value="" disabled>Selecione...</option>
+              {TIPOS_SOCIETARIOS.map((t) => (
+                <option key={t.value} value={t.value}>{t.label}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="CNPJ" required>
             <div className="relative">
               <input
-                type="text" name="cnpj"
+                type="text" name="cnpj" required
                 value={cnpj}
                 onChange={handleCnpjChange}
                 maxLength={18}
@@ -131,6 +165,14 @@ export default function EditForm({ empresa }: { empresa: Empresa }) {
                 </div>
               )}
             </div>
+          </Field>
+          <Field label="Cidade (sede)">
+            <input
+              type="text" name="cidade"
+              defaultValue={empresa.cidade ?? ''}
+              placeholder="Ex: São Paulo"
+              className={inputCls}
+            />
           </Field>
           <Field label="Ramo de Atividade">
             <input
@@ -149,6 +191,17 @@ export default function EditForm({ empresa }: { empresa: Empresa }) {
           style={{ background: 'radial-gradient(circle, #80B828 0%, transparent 70%)', filter: 'blur(30px)' }} />
         <SectionHeader icon={Phone} title="Contato da Empresa" subtitle="Canais de comunicação corporativos" />
         <div className="grid grid-cols-2 gap-4">
+          <Field label="E-mail Corporativo">
+            <div className="relative">
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+              <input
+                type="email" name="email"
+                defaultValue={empresa.email ?? ''}
+                placeholder="contato@empresa.com.br"
+                className={`${inputCls} pl-10`}
+              />
+            </div>
+          </Field>
           <Field label="Telefone Geral" required>
             <div className="relative">
               <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
@@ -192,9 +245,9 @@ export default function EditForm({ empresa }: { empresa: Empresa }) {
       <div className="bg-[#111111] border border-[#ffffff0a] rounded-2xl p-6 space-y-5 relative overflow-hidden">
         <div className="absolute -top-20 -right-20 w-48 h-48 rounded-full opacity-[0.04] pointer-events-none"
           style={{ background: 'radial-gradient(circle, #2BAADF 0%, transparent 70%)', filter: 'blur(30px)' }} />
-        <SectionHeader icon={User} title="Responsável / Ponto de Contato" subtitle="Pessoa que gerencia o contrato com a RN3" />
+        <SectionHeader icon={User} title="Representante Legal" subtitle="Qualificação para contrato MSA (preâmbulo e assinaturas)" />
         <div className="grid grid-cols-2 gap-4">
-          <Field label="Nome do Responsável" required>
+          <Field label="Nome Completo" required>
             <div className="relative">
               <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
               <input
@@ -205,18 +258,65 @@ export default function EditForm({ empresa }: { empresa: Empresa }) {
               />
             </div>
           </Field>
-          <Field label="Cargo / Função" required>
+          <Field label="CPF" required>
+            <div className="relative">
+              <input
+                type="text" name="responsavel_cpf" required
+                value={respCpf}
+                onChange={handleCpfChange}
+                maxLength={14}
+                placeholder="000.000.000-00"
+                className={`${inputCls} font-mono tracking-wider ${!isValidCpf ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20' : ''}`}
+              />
+              {!isValidCpf && (
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5 text-red-500">
+                  <AlertCircle className="w-4 h-4" />
+                  <span className="text-[10px] font-bold uppercase tracking-tight">Inválido</span>
+                </div>
+              )}
+            </div>
+          </Field>
+          <Field label="Nacionalidade" required>
+            <input
+              type="text" name="responsavel_nacionalidade" required
+              defaultValue={empresa.responsavel_nacionalidade ?? 'brasileiro(a)'}
+              placeholder="Ex: brasileiro(a)"
+              className={inputCls}
+            />
+          </Field>
+          <Field label="Estado Civil" required>
+            <select
+              name="responsavel_estado_civil"
+              required
+              defaultValue={empresa.responsavel_estado_civil ?? ''}
+              className={`${inputCls} appearance-none bg-[#0A0A0A]`}
+            >
+              <option value="" disabled>Selecione...</option>
+              {ESTADOS_CIVIS.map((ec) => (
+                <option key={ec} value={ec}>{ec.charAt(0).toUpperCase() + ec.slice(1)}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Profissão" required>
+            <input
+              type="text" name="responsavel_profissao" required
+              defaultValue={empresa.responsavel_profissao ?? ''}
+              placeholder="Ex: administrador de empresas"
+              className={inputCls}
+            />
+          </Field>
+          <Field label="Cargo / Qualidade" required>
             <div className="relative">
               <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
               <input
                 type="text" name="responsavel_cargo" required
                 defaultValue={empresa.responsavel_cargo ?? ''}
-                placeholder="Ex: Gerente de TI, CEO..."
+                placeholder="Ex: Sócio Administrador, CEO..."
                 className={`${inputCls} pl-10`}
               />
             </div>
           </Field>
-          <Field label="E-mail do Responsável" required>
+          <Field label="E-mail do Representante" required>
             <div className="relative">
               <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
               <input
