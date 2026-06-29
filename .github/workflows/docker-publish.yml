@@ -123,38 +123,7 @@ jobs:
           VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
           VPS_SSH_PASSPHRASE: ${{ secrets.VPS_SSH_PASSPHRASE }}
 
-      - name: Preparar diretório na VPS
-        if: steps.deploy_ready.outputs.ready == 'true'
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          passphrase: ${{ secrets.VPS_SSH_PASSPHRASE }}
-          port: 22
-          timeout: 60s
-          script: |
-            set -e
-            mkdir -p /opt/ragnar
-            if [ ! -f /opt/ragnar/.env ]; then
-              echo "ERRO: /opt/ragnar/.env não existe. Rode scripts/deploy/vps-bootstrap.sh na VPS."
-              exit 1
-            fi
-            docker network inspect rn3net >/dev/null 2>&1 || docker network create rn3net
-
-      - name: Enviar docker-compose para VPS
-        if: steps.deploy_ready.outputs.ready == 'true'
-        uses: appleboy/scp-action@v1.0.0
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          passphrase: ${{ secrets.VPS_SSH_PASSPHRASE }}
-          port: 22
-          source: "docker-compose.yml,docker-compose.prod.yml"
-          target: /opt/ragnar
-
-      - name: Deploy na VPS de produção
+      - name: Deploy Swarm na VPS de produção
         if: steps.deploy_ready.outputs.ready == 'true'
         uses: appleboy/ssh-action@v1.2.0
         with:
@@ -167,8 +136,16 @@ jobs:
           command_timeout: 10m
           script: |
             set -e
-            cd /opt/ragnar
-            docker pull ${{ steps.ghcr.outputs.image }}:latest
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps app
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml ps app
+            IMAGE="${{ steps.ghcr.outputs.image }}:latest"
+            SERVICE="ragnar-app_app"
+            docker pull "$IMAGE"
+            docker service update \
+              --image "$IMAGE" \
+              --env-add RAGNAR_ENV=production \
+              --env-add WHATSAPP_API_URL=https://evo.rn3.tec.br \
+              --env-add WHATSAPP_API_URL_PROD=https://evo.rn3.tec.br \
+              --env-add RAGNAR_WEBHOOK_URL=https://app.ragnar.ia.br/api/webhooks/evolution \
+              --env-add RAGNAR_WEBHOOK_URL_PROD=https://app.ragnar.ia.br/api/webhooks/evolution \
+              "$SERVICE"
+            docker service ps "$SERVICE" --no-trunc
             docker image prune -f
