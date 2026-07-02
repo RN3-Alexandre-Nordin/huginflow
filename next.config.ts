@@ -13,6 +13,11 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: [
     new URL(process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").hostname,
   ],
+  // Manual do usuário no standalone (reforço; Dockerfile também copia docs/)
+  outputFileTracingIncludes: {
+    '/api/ajuda/manual': ['./docs/manual-usuario-ragnar.html'],
+    '/api/ajuda/img/*': ['./docs/manual/img/**/*'],
+  },
   experimental: {
     serverActions: {
       allowedOrigins: [
@@ -20,11 +25,6 @@ const nextConfig: NextConfig = {
         "localhost:3000",
         "127.0.0.1:3000",
       ]
-    },
-    // Garante manual + imagens no bundle standalone (além do COPY no Dockerfile)
-    outputFileTracingIncludes: {
-      '/api/ajuda/manual': ['./docs/manual-usuario-ragnar.html'],
-      '/api/ajuda/img/*': ['./docs/manual/img/**/*'],
     },
   },
 
