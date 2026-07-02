@@ -3,7 +3,7 @@
 import { createClient } from '@/utils/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
-import { hasPermission } from '@/utils/permissions'
+import { isRn3SuperAdmin } from '@/utils/permissions'
 import { getMyProfile } from '@/app/(app)/cockpit/actions'
 import { parseMoneyInput } from '@/lib/finance/format'
 import type { ContratoFormExtra, FinanceContrato } from '@/lib/finance/contrato-types'
@@ -100,7 +100,7 @@ function parseContratoFields(formData: FormData, empresaId: string | null) {
 
 export async function listContratos(empresaId?: string): Promise<FinanceContrato[]> {
   const me = await getMyProfile()
-  if (!hasPermission(me, 'contratos', 'view')) return []
+  if (!isRn3SuperAdmin(me)) return []
 
   const supabase = await createClient()
   let query = supabase
@@ -122,7 +122,7 @@ export async function listContratos(empresaId?: string): Promise<FinanceContrato
 
 export async function getContrato(id: string): Promise<FinanceContrato | null> {
   const me = await getMyProfile()
-  if (!hasPermission(me, 'contratos', 'view')) return null
+  if (!isRn3SuperAdmin(me)) return null
 
   const supabase = await createClient()
   const { data, error } = await supabase
@@ -157,8 +157,8 @@ async function syncExtras(contratoId: string, empresaId: string, extras: Contrat
 
 export async function createContrato(formData: FormData) {
   const me = await getMyProfile()
-  if (!hasPermission(me, 'contratos', 'create')) {
-    return { error: 'Sem permissão para criar contratos.' }
+  if (!isRn3SuperAdmin(me)) {
+    return { error: 'Acesso restrito ao Super Admin RN3.' }
   }
 
   const empresaId = resolveEmpresaId(me, formData.get('empresa_id') as string)
@@ -189,8 +189,8 @@ export async function createContrato(formData: FormData) {
 
 export async function updateContrato(id: string, formData: FormData) {
   const me = await getMyProfile()
-  if (!hasPermission(me, 'contratos', 'edit')) {
-    return { error: 'Sem permissão para editar contratos.' }
+  if (!isRn3SuperAdmin(me)) {
+    return { error: 'Acesso restrito ao Super Admin RN3.' }
   }
 
   const existing = await getContrato(id)
@@ -248,8 +248,8 @@ export async function gerarContasReceberDoContrato(
   mensalidades?: number
 ): Promise<{ error?: string; result?: GerarContasResult }> {
   const me = await getMyProfile()
-  if (!hasPermission(me, 'contratos', 'edit') || !hasPermission(me, 'financeiro', 'create')) {
-    return { error: 'Sem permissão para gerar contas a receber.' }
+  if (!isRn3SuperAdmin(me)) {
+    return { error: 'Acesso restrito ao Super Admin RN3.' }
   }
 
   const supabase = await createClient()

@@ -2,13 +2,13 @@
 
 import { createClient } from '@/utils/supabase/server'
 import { revalidatePath } from 'next/cache'
-import { hasPermission } from '@/utils/permissions'
+import { isRn3SuperAdmin } from '@/utils/permissions'
 import { getMyProfile } from '@/app/(app)/cockpit/actions'
 
 export async function deleteContrato(id: string): Promise<{ error?: string }> {
   const me = await getMyProfile()
-  if (!hasPermission(me, 'contratos', 'delete')) {
-    return { error: 'Sem permissão para excluir contratos.' }
+  if (!isRn3SuperAdmin(me)) {
+    return { error: 'Acesso restrito ao Super Admin RN3.' }
   }
 
   const supabase = await createClient()

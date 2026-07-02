@@ -41,7 +41,7 @@ export default async function SimuladorPage() {
         
         <div className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-[#ffffff05] border border-[#ffffff0a] text-gray-400">
            <MessageSquare className="w-4 h-4" />
-           <span className="text-[10px] font-black uppercase tracking-widest">IA Powered by Google Gemini</span>
+           <span className="text-[10px] font-black uppercase tracking-widest">IA Powered by OpenAI</span>
         </div>
       </div>
 

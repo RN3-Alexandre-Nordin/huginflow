@@ -1,11 +1,15 @@
 'use server'
 
 import { createClient } from '@/utils/supabase/server'
-import { GoogleGenerativeAI } from '@google/generative-ai'
 import { revalidatePath } from 'next/cache'
 import pdf from 'pdf-parse/lib/pdf-parse'
 import { hasPermission } from '@/utils/permissions'
 import { getMyProfile } from '@/app/(app)/cockpit/actions'
+import {
+  generateEmbedding,
+  getAiConfigErrorMessage,
+  resolveEmpresaAiConfig,
+} from '@/lib/ai/empresa-ai'
 
 const KNOWLEDGE_BUCKET = 'knowledge_documents'
 
@@ -49,16 +53,22 @@ export async function getKnowledgeBase() {
 }
 
 /**
- * Gera Embeddings para um texto usando o modelo gemini-embedding-001
+ * Gera embeddings conforme o provedor configurado na empresa.
  */
-async function generateEmbedding(text: string, apiKey: string) {
-  const genAI = new GoogleGenerativeAI(apiKey)
-  // v1beta endpoint e gemini-embedding-001 conforme solicitado
-  const model = genAI.getGenerativeModel({ model: "models/gemini-embedding-001" }, { apiVersion: 'v1beta' })
+async function generateEmbeddingForEmpresa(text: string, empresaId: string, supabase: Awaited<ReturnType<typeof createClient>>) {
+  const { data: empresa } = await supabase
+    .from('empresas')
+    .select('ai_model')
+    .eq('id', empresaId)
+    .single()
 
-  const result = await model.embedContent(text)
-  const values = result.embedding.values
-  console.log(`[RAG DEBUG] Embedding length generated: ${values.length}`)
+  const aiConfig = empresa ? resolveEmpresaAiConfig(empresa) : null
+  if (!aiConfig) {
+    throw new Error(getAiConfigErrorMessage())
+  }
+
+  const values = await generateEmbedding(text, aiConfig)
+  console.log(`[RAG DEBUG] Embedding length generated (openai): ${values.length}`)
   return values
 }
 
@@ -99,17 +109,6 @@ export async function upsertKnowledge(formData: FormData) {
     }
     const empresaId = me?.empresa_id ?? ''
     const supabase = await createClient()
-
-    // Pegar API Key da empresa
-    const { data: empresa } = await supabase
-      .from('empresas')
-      .select('gemini_api_key')
-      .eq('id', empresaId)
-      .single()
-
-    if (!empresa?.gemini_api_key) {
-      throw new Error('Chave API Gemini não configurada. Vá em Empresas > Editar para configurar sua chave.')
-    }
 
     const type = formData.get('type') as 'text' | 'pdf'
     const category = formData.get('category') as string || 'Geral'
@@ -183,7 +182,7 @@ export async function upsertKnowledge(formData: FormData) {
     const insertData = []
 
     for (const chunk of chunks) {
-      const embedding = await generateEmbedding(chunk, empresa.gemini_api_key)
+      const embedding = await generateEmbeddingForEmpresa(chunk, empresaId, supabase)
       insertData.push({
         organization_id: empresaId,
         source_id: source.id,

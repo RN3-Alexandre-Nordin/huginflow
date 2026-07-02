@@ -3,8 +3,7 @@
 import { useTransition, useState, useEffect } from "react"
 import { updateUsuario, deleteUsuario, getGruposByEmpresa } from "@/app/(app)/cockpit/actions"
 import Link from "next/link"
-import { Users, ArrowLeft, Building2, Shield, User as UserIcon, Save, Trash2, ShieldAlert, Phone, Hash, MapPin, Calendar } from "lucide-react"
-import { createClient } from "@/utils/supabase/client"
+import { Users, ArrowLeft, Building2, Shield, User as UserIcon, Save, Trash2, ShieldAlert, Phone, Hash, MapPin, Calendar, KeyRound, Eye, EyeOff } from "lucide-react"
 import { maskPhone } from "@/utils/brasilian-formatters"
 import SearchableSelect from "@/components/SearchableSelect"
 
@@ -52,6 +51,12 @@ export default function EditForm({ user, companies, groups: initialGroups, isSup
   const [selectedGrupoId, setSelectedGrupoId] = useState(user.grupo_id || "")
   const [groups, setGroups] = useState(initialGroups)
   const [telefone, setTelefone] = useState(user.telefone || "")
+  const [novaSenha, setNovaSenha] = useState("")
+  const [confirmarSenha, setConfirmarSenha] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
+  const [senhaError, setSenhaError] = useState("")
+  const [formError, setFormError] = useState("")
 
   // Load groups whenever empresa changes (if superadmin)
   useEffect(() => {
@@ -67,8 +72,21 @@ export default function EditForm({ user, companies, groups: initialGroups, isSup
   }, [selectedEmpresa, isSuperAdmin, user.empresa_id, initialGroups])
 
   const handleSubmit = (formData: FormData) => {
-    startTransition(() => {
-      updateUsuario(user.id, formData)
+    setFormError("")
+    if (novaSenha || confirmarSenha) {
+      if (novaSenha !== confirmarSenha) {
+        setSenhaError("As senhas não coincidem.")
+        return
+      }
+      if (novaSenha.length < 6) {
+        setSenhaError("A senha deve ter no mínimo 6 caracteres.")
+        return
+      }
+    }
+    setSenhaError("")
+    startTransition(async () => {
+      const result = await updateUsuario(user.id, formData)
+      if (result?.error) setFormError(result.error)
     })
   }
 
@@ -278,6 +296,73 @@ export default function EditForm({ user, companies, groups: initialGroups, isSup
             </div>
           </Field>
         </div>
+
+        {/* ─── Seção 3: Redefinir senha ─── */}
+        <div className="bg-[#111111] border border-[#ffffff0a] rounded-2xl p-6 space-y-5 relative">
+          <div className="absolute inset-0 overflow-hidden rounded-2xl pointer-events-none">
+            <div className="absolute -top-20 -right-20 w-48 h-48 rounded-full opacity-[0.04]"
+                 style={{ background: 'radial-gradient(circle, #2BAADF 0%, transparent 70%)', filter: 'blur(30px)' }} />
+          </div>
+
+          <div className="flex flex-col gap-0.5 pb-4 border-b border-[#ffffff08]">
+            <p className="text-sm font-semibold text-white">Redefinir senha de acesso</p>
+            <p className="text-xs text-gray-500">Opcional — deixe em branco para manter a senha atual do usuário</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <Field label="Nova senha">
+              <div className="relative">
+                <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                <input
+                  type={showPassword ? "text" : "password"}
+                  name="nova_senha"
+                  minLength={6}
+                  autoComplete="new-password"
+                  value={novaSenha}
+                  onChange={(e) => { setNovaSenha(e.target.value); setSenhaError(""); setFormError("") }}
+                  placeholder="Mínimo 6 caracteres"
+                  className={`${inputCls} pl-10 pr-10`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </Field>
+
+            <Field label="Confirmar nova senha">
+              <div className="relative">
+                <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                <input
+                  type={showConfirm ? "text" : "password"}
+                  name="confirmar_senha"
+                  autoComplete="new-password"
+                  value={confirmarSenha}
+                  onChange={(e) => { setConfirmarSenha(e.target.value); setSenhaError(""); setFormError("") }}
+                  placeholder="Repita a nova senha"
+                  className={`${inputCls} pl-10 pr-10 ${senhaError ? 'border-red-500/50 focus:border-red-500' : ''}`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirm((v) => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
+                >
+                  {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              {senhaError && <p className="text-xs text-red-400 mt-1 flex items-center gap-1">⚠ {senhaError}</p>}
+            </Field>
+          </div>
+        </div>
+
+        {formError && (
+          <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3 text-sm text-red-400">
+            {formError}
+          </div>
+        )}
 
         {/* Footer Actions */}
         <div className="flex items-center justify-between pt-4 border-t border-[#ffffff0a]">

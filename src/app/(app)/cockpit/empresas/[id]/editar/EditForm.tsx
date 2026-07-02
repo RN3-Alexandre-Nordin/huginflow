@@ -1,10 +1,11 @@
 'use client'
 
 import { updateEmpresa, deleteEmpresa } from "@/app/(app)/cockpit/actions"
-import { Building2, User, Phone, Mail, Globe, MapPin, Briefcase, Save, Trash2, AlertTriangle, AlertCircle, Sparkles, ShieldCheck, Cpu, Clock } from "lucide-react"
+import { Building2, User, Phone, Mail, Globe, MapPin, Briefcase, Save, Trash2, AlertTriangle, AlertCircle } from "lucide-react"
 import { useTransition, useState } from "react"
 import { maskCNPJ, maskPhone, maskCPF, validateCNPJ, validateCPF } from "@/utils/brasilian-formatters"
 import { TIPOS_SOCIETARIOS, ESTADOS_CIVIS } from "@/constants/empresa-juridico"
+import EmpresaAiConfigFields from "@/components/empresas/EmpresaAiConfigFields"
 
 const inputCls = "w-full bg-[#0A0A0A] border border-[#ffffff12] focus:border-[#2BAADF] rounded-xl px-4 py-2.5 text-sm text-white outline-none transition-all placeholder-gray-600 focus:ring-1 focus:ring-[#2BAADF]/30"
 
@@ -60,7 +61,6 @@ interface Empresa {
   responsavel_profissao?: string | null
   responsavel_email: string | null
   responsavel_telefone: string | null
-  gemini_api_key?: string | null
   ai_context_prompt?: string | null
   ai_model?: string | null
   ia_silence_timeout?: number | null
@@ -341,73 +341,11 @@ export default function EditForm({ empresa }: { empresa: Empresa }) {
           </Field>
         </div>
       </div>
-      {/* ─── Seção 4: Cérebro IA (Gemini) ─── */}
-      <div className="bg-[#111111] border border-[#ffffff0a] rounded-2xl p-6 space-y-5 relative overflow-hidden">
-        <div className="absolute -top-20 -right-20 w-48 h-48 rounded-full opacity-[0.06] pointer-events-none"
-          style={{ background: 'radial-gradient(circle, #2BAADF 0%, transparent 70%)', filter: 'blur(30px)' }} />
-        
-        <div className="flex items-center justify-between">
-          <SectionHeader icon={Sparkles} title="Cérebro IA (Gemini)" subtitle="Configure o assistente virtual para esta empresa" />
-          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 shadow-sm animate-pulse">
-             <ShieldCheck className="w-3 h-3 text-[#2BAADF]" />
-             <span className="text-[10px] font-black text-[#2BAADF] uppercase tracking-widest">Credenciais Seguras</span>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Field label="Gemini API Key">
-            <div className="relative">
-              <ShieldCheck className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-              <input
-                type="password" name="gemini_api_key"
-                defaultValue={empresa.gemini_api_key ?? ''}
-                placeholder="Pressione para colar sua chave secreta..."
-                className={`${inputCls} pl-10`}
-              />
-            </div>
-          </Field>
-
-            <Field label="Modelo de IA">
-              <div className="relative">
-                 <Cpu className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                 <select 
-                    name="ai_model" 
-                    defaultValue={empresa.ai_model || 'gemini-2.0-flash-latest'}
-                    className={`${inputCls} pl-10 appearance-none bg-[#0A0A0A]`}
-                 >
-                    <option value="gemini-2.0-flash-latest">Gemini 2.0 Flash</option>
-                    <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
-                    <option value="gemini-3.1-flash-live-preview">Gemini 3.1 Flash Live (Novo)</option>
-
-                 </select>
-              </div>
-            </Field>
-
-            <Field label="Tempo de Silêncio IA (min)">
-              <div className="relative">
-                <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                <input
-                  type="number" name="ia_silence_timeout"
-                  defaultValue={empresa.ia_silence_timeout ?? 60}
-                  placeholder="60"
-                  className={`${inputCls} pl-10`}
-                />
-              </div>
-            </Field>
-
-          <div className="col-span-2">
-            <Field label="Instruções de Contexto (System Prompt)">
-              <textarea
-                name="ai_context_prompt" rows={8}
-                defaultValue={empresa.ai_context_prompt || 'Você é o assistente virtual inteligente da empresa.\nSua missão é atender os clientes com cordialidade, tirar dúvidas sobre os serviços e ajudar na conversão de novos leads.'}
-                placeholder="Defina a personalidade e as regras de negócio da IA..."
-                className={`${inputCls} resize-y p-4 min-h-[150px] leading-relaxed italic`}
-              />
-              <p className="text-[10px] text-gray-600 mt-1 ml-1 font-medium italic">As instruções acima definem o comportamento da IA em todas as interações do WhatsApp/Chat.</p>
-            </Field>
-          </div>
-        </div>
-      </div>
+      <EmpresaAiConfigFields
+        defaultModel={empresa.ai_model}
+        defaultSilenceTimeout={empresa.ia_silence_timeout}
+        defaultContextPrompt={empresa.ai_context_prompt}
+      />
 
       {/* Footer */}
       <div className="flex items-center justify-between pt-4 border-t border-[#ffffff0a]">

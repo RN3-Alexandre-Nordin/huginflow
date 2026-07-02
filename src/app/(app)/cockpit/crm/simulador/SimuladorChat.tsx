@@ -99,7 +99,7 @@ export default function SimuladorChat({ initialHistory = [] }: { initialHistory?
 
         <div className="mt-auto p-4 rounded-xl bg-[#2BAADF]/5 border border-[#2BAADF]/10">
           <p className="text-[10px] leading-relaxed text-[#2BAADF]/80 font-medium italic">
-            "Este simulador envia mensagens para a IA do Gemini como se viessem de um WhatsApp real. Útil para testar a personalidade e a criação automática de leads/cards."
+            "Este simulador envia mensagens para a IA da empresa como se viessem de um WhatsApp real. Útil para testar a personalidade e a criação automática de leads/cards."
           </p>
         </div>
       </div>

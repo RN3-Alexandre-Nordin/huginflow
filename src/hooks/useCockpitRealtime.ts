@@ -34,6 +34,8 @@ export function useCockpitRealtime(userId: string, userName: string) {
             // Invalidate caches (Sidebar and Dashboard feeds)
             queryClient.invalidateQueries({ queryKey: ["recent-conversations"] });
             queryClient.invalidateQueries({ queryKey: ["cockpit-stats"] });
+            queryClient.invalidateQueries({ queryKey: ["manager-dashboard-metrics"] });
+            queryClient.invalidateQueries({ queryKey: ["manager-dashboard-chart"] });
           }
         }
       )

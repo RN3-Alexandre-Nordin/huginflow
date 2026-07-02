@@ -8,36 +8,30 @@ description: >-
 
 # Supabase MCP (Ragnar)
 
-## Servidores configurados
+## Servidores (`.cursor/mcp.json`)
 
-Ler `.cursor/mcp.json` (ou `mcp.json.example` se ausente):
+| Servidor | Ref | Escrita |
+|----------|-----|---------|
+| `supabase-ragnar-dev` | `vujqukqsfwmoezwyuoum` | Sim |
+| `supabase-ragnar-prod` | `zmypzexefjbovuknjlid` | Sim |
 
-- **supabase-ragnar-dev** — projeto DEV, escrita permitida (migrations, schema)
-- **supabase-ragnar-prod-readonly** — projeto PROD (`zmypzexefjbovuknjlid`), só leitura
+Todas as entradas usam `"type": "http"`.
 
-Sempre preferir MCP **dev** para `apply_migration` e `execute_sql` destrutivo.
+## Reconectar OAuth
 
-## Tabelas críticas do Ragnar
+1. Cursor Settings → Tools & MCP
+2. Connect em cada servidor com status "Needs authentication"
+3. Login `rn3@rn3.com.br` → org RN3 → autorizar
+4. Reload Window
 
-`empresas`, `usuarios`, `grupos_acesso`, `departamentos`, `pipelines`, `pipeline_stages`, `crm_leads`, `crm_cards`, `crm_canais`, `crm_conversas`, `crm_interacoes`, `knowledge_base`, `knowledge_sources`, RPC `match_knowledge_base`.
+## Prod com escrita (exceção)
 
-## Workflow: novo Supabase dev
+Usar `.cursor/mcp.prod-write.json.example` temporariamente — **não** manter dev + prod-write + prod-readonly juntos.
 
-1. `list_tables` no prod-readonly (inventário).
-2. Gerar SQL de schema (migrations existentes em prod via `list_migrations` ou dump manual).
-3. `apply_migration` no dev com DDL (sem dados sensíveis).
-4. Validar RLS, storage `card_attachments`, função RAG.
-5. Atualizar `.env.local` com URL/keys do projeto dev (não commitar).
-6. Documentar em `docs/supabase-dev-prod.md`.
+Deploy prod preferido: `node scripts/supabase/prod-deploy/apply-bundle.mjs` com `SUPABASE_DB_PASSWORD_PROD` no `.env`.
 
 ## Regras
 
-- Não commitar senhas de Postgres nem PAT no repositório.
-- Não escrever em prod via MCP.
-- Após mudanças de schema, sugerir `generate_typescript_types` se o app precisar de types gerados.
-
-## Docs do projeto
-
-- `docs/supabase-dev-prod.md` — separação de ambientes
-- `docs/mcp-supabase-cursor.md` — instalação Cursor
-- `scripts/migrations/` — SQL avulso
+- `apply_migration` e DDL destrutivo → preferir **dev**
+- Não commitar PAT nem senha Postgres
+- Troubleshooting completo: `docs/mcp-supabase-cursor.md`

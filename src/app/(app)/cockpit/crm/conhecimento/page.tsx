@@ -1,14 +1,27 @@
 'use client'
 
-import { useState, useEffect, useTransition } from 'react'
+import { useState, useEffect, useTransition, useRef } from 'react'
 import { BookOpen, Plus, Trash2, FileText, Upload, CheckCircle2, AlertCircle, Loader2, X, FileCheck, Download } from 'lucide-react'
 import { getKnowledgeBase, upsertKnowledge, deleteKnowledge } from './actions'
-import { useRouter } from 'next/navigation'
 import { getMyProfile } from '@/app/(app)/cockpit/actions'
 import { hasPermission } from '@/utils/permissions'
 
+type KnowledgeItem = {
+  id: string
+  file_name: string
+  category?: string | null
+  created_at: string
+  storage_path?: string | null
+}
+
+function isDownloadableItem(item: KnowledgeItem): boolean {
+  const lower = item.file_name.toLowerCase()
+  const hasAllowedExt = lower.endsWith('.pdf') || lower.endsWith('.docx')
+  return hasAllowedExt && Boolean(item.storage_path)
+}
+
 export default function KnowledgeBasePage() {
-  const [items, setItems] = useState<any[]>([])
+  const [items, setItems] = useState<KnowledgeItem[]>([])
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [uploadType, setUploadType] = useState<'text' | 'pdf'>('text')
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
@@ -18,6 +31,7 @@ export default function KnowledgeBasePage() {
   const [profile, setProfile] = useState<any>(null)
   const [isCheckingPermissions, setIsCheckingPermissions] = useState(true)
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     async function init() {
@@ -167,18 +181,20 @@ export default function KnowledgeBasePage() {
   }
 
   return (
-    <div className="space-y-8 pb-20 max-w-7xl mx-auto">
-      <div className="flex justify-between items-end">
-        <div>
-          <h1 className="text-3xl font-bold text-white tracking-tight flex items-center gap-3">
-             <div className="p-2 bg-[#ffffff10] rounded-xl border border-[#ffffff20]">
-                <BookOpen className="w-6 h-6 text-[#2BAADF]" />
-             </div>
-             Base de Conhecimento
-          </h1>
-          <p className="text-gray-400 mt-2 text-lg">
-            Alimente o RAG com documentos e textos para treinar sua inteligência artificial.
-          </p>
+    <div className="space-y-6 pb-20 max-w-7xl mx-auto">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-[#ffffff10] rounded-xl border border-[#ffffff20]">
+            <BookOpen className="w-6 h-6 text-[#2BAADF]" />
+          </div>
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl font-bold text-white tracking-tight">Base de Conhecimento</h1>
+            {!isLoading && items.length > 0 && (
+              <span className="hidden sm:inline-flex items-center rounded-full bg-[#ffffff08] border border-[#ffffff10] px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-gray-400">
+                {items.length} {items.length === 1 ? 'documento' : 'documentos'}
+              </span>
+            )}
+          </div>
         </div>
 
         {canCreate && (
@@ -188,7 +204,7 @@ export default function KnowledgeBasePage() {
               setError(null)
               setSelectedFile(null)
             }}
-            className="flex items-center gap-2 bg-[#2BAADF] hover:bg-[#2090C0] text-white px-6 py-3 rounded-xl font-semibold transition-all shadow-lg shadow-[#2BAADF]/20 active:scale-95"
+            className="flex items-center justify-center gap-2 bg-[#2BAADF] hover:bg-[#2090C0] text-white px-6 py-3 rounded-xl font-semibold transition-all shadow-lg shadow-[#2BAADF]/20 active:scale-95 w-full sm:w-auto"
           >
             <Plus className="w-5 h-5" />
             Novo Conhecimento
@@ -217,33 +233,39 @@ export default function KnowledgeBasePage() {
             <div>
               <h3 className="text-xl font-bold text-white">Sua base está vazia</h3>
               <p className="text-gray-500 max-w-sm mt-2">
-                Adicione textos ou manuais em PDF para que o Gemini aprenda sobre seu negócio.
+                Adicione textos ou manuais em PDF para treinar a IA com informações do seu negócio.
               </p>
             </div>
           </div>
         ) : (
-          <table className="w-full text-left border-collapse">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[720px] text-left border-collapse">
             <thead>
               <tr className="bg-[#ffffff05] border-b border-[#ffffff10]">
-                <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-gray-500">Conteúdo / Documento</th>
-                <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-gray-500">Categoria</th>
-                <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-gray-500 text-center">IA Status</th>
-                <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-gray-500 text-right">Ações</th>
+                <th className="px-6 py-3.5 text-[11px] font-bold uppercase tracking-wider text-gray-500">Documento</th>
+                <th className="px-6 py-3.5 text-[11px] font-bold uppercase tracking-wider text-gray-500 w-40">Categoria</th>
+                <th className="px-6 py-3.5 text-[11px] font-bold uppercase tracking-wider text-gray-500 text-center w-32">Status</th>
+                <th className="px-6 py-3.5 text-[11px] font-bold uppercase tracking-wider text-gray-500 text-right w-28">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#ffffff08]">
-              {items.map(item => (
+              {items.map(item => {
+                const isPdf = item.file_name.toLowerCase().endsWith('.pdf')
+                const isDocx = item.file_name.toLowerCase().endsWith('.docx')
+                const canDownload = isDownloadableItem(item)
+
+                return (
                 <tr key={item.id} className="hover:bg-[#ffffff03] transition-colors group">
-                  <td className="px-6 py-5">
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 bg-[#ffffff05] rounded-xl flex items-center justify-center group-hover:bg-[#2BAADF]/10 transition-colors">
-                        {item.file_name.toLowerCase().endsWith('.pdf') ? (
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-4 min-w-0">
+                      <div className="w-10 h-10 shrink-0 bg-[#ffffff05] rounded-xl flex items-center justify-center group-hover:bg-[#2BAADF]/10 transition-colors">
+                        {isPdf || isDocx ? (
                           <FileCheck className="w-5 h-5 text-[#2BAADF]" />
                         ) : (
                           <FileText className="w-5 h-5 text-[#2BAADF]" />
                         )}
                       </div>
-                      <div className="flex-1 min-w-0">
+                      <div className="min-w-0">
                         <p className="text-sm font-semibold text-gray-200 truncate">
                           {item.file_name}
                         </p>
@@ -253,32 +275,34 @@ export default function KnowledgeBasePage() {
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-5">
-                    <span className="bg-[#ffffff08] border border-[#ffffff10] text-gray-400 text-[11px] font-bold px-3 py-1 rounded-full uppercase tracking-wider">
+                  <td className="px-6 py-4">
+                    <span className="inline-flex bg-[#ffffff08] border border-[#ffffff10] text-gray-400 text-[11px] font-bold px-3 py-1 rounded-full uppercase tracking-wider">
                       {item.category || 'Geral'}
                     </span>
                   </td>
-                  <td className="px-6 py-5 text-center">
-                    <div className="flex flex-col items-center gap-1 group/badge tooltip" data-tip="Embedding gerado no Supabase">
+                  <td className="px-6 py-4 text-center">
+                    <div className="inline-flex flex-col items-center gap-1">
                       <CheckCircle2 className="w-5 h-5 text-[#80B828]" />
-                      <span className="text-[9px] text-[#80B828]/50 font-bold uppercase tracking-tighter">Vectorized</span>
+                      <span className="text-[9px] text-[#80B828]/70 font-bold uppercase tracking-tighter">Vetorizado</span>
                     </div>
                   </td>
-                  <td className="px-6 py-5 text-right">
+                  <td className="px-6 py-4 text-right">
                     <div className="flex items-center justify-end gap-1">
-                      <button
-                        type="button"
-                        onClick={() => handleDownload(item.id, item.file_name)}
-                        disabled={downloadingId === item.id}
-                        title="Baixar documento"
-                        className="p-2 text-gray-500 hover:text-[#2BAADF] hover:bg-[#2BAADF]/10 rounded-lg transition-all disabled:opacity-40"
-                      >
-                        {downloadingId === item.id ? (
-                          <Loader2 className="w-5 h-5 animate-spin" />
-                        ) : (
-                          <Download className="w-5 h-5" />
-                        )}
-                      </button>
+                      {canDownload && (
+                        <button
+                          type="button"
+                          onClick={() => handleDownload(item.id, item.file_name)}
+                          disabled={downloadingId === item.id}
+                          title="Baixar PDF ou DOCX"
+                          className="p-2 text-gray-500 hover:text-[#2BAADF] hover:bg-[#2BAADF]/10 rounded-lg transition-all disabled:opacity-40"
+                        >
+                          {downloadingId === item.id ? (
+                            <Loader2 className="w-5 h-5 animate-spin" />
+                          ) : (
+                            <Download className="w-5 h-5" />
+                          )}
+                        </button>
+                      )}
                       {canDelete && (
                         <button
                           type="button"
@@ -292,9 +316,10 @@ export default function KnowledgeBasePage() {
                     </div>
                   </td>
                 </tr>
-              ))}
+              )})}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 
@@ -372,14 +397,25 @@ export default function KnowledgeBasePage() {
                     />
                   </div>
                 ) : (
-                  <div className={`border-2 border-dashed rounded-3xl p-12 flex flex-col items-center justify-center text-center space-y-4 transition-all cursor-pointer group relative ${selectedFile ? 'border-[#80B828]/50 bg-[#80B828]/5' : 'border-[#ffffff10] hover:border-[#2BAADF]/30'}`}>
-                    <input 
-                      type="file" 
-                      name="file" 
-                      accept=".pdf"
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => fileInputRef.current?.click()}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        fileInputRef.current?.click()
+                      }
+                    }}
+                    className={`border-2 border-dashed rounded-3xl p-12 flex flex-col items-center justify-center text-center space-y-4 transition-all cursor-pointer group ${selectedFile ? 'border-[#80B828]/50 bg-[#80B828]/5' : 'border-[#ffffff10] hover:border-[#2BAADF]/30'}`}
+                  >
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      name="file"
+                      accept="application/pdf,.pdf"
                       onChange={handleFileChange}
-                      required={uploadType === 'pdf'}
-                      className="absolute inset-0 opacity-0 cursor-pointer"
+                      className="sr-only"
                     />
                     
                     {selectedFile ? (
@@ -402,7 +438,7 @@ export default function KnowledgeBasePage() {
                         </div>
                         <div>
                           <p className="text-white font-semibold">Clique para selecionar PDF</p>
-                          <p className="text-gray-500 text-sm mt-1">O Gemini irá ler o arquivo e converter em conhecimento RAG.</p>
+                          <p className="text-gray-500 text-sm mt-1">O arquivo será lido e convertido em conhecimento para a IA (OpenAI).</p>
                         </div>
                       </>
                     )}

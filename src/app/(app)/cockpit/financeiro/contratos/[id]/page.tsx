@@ -1,7 +1,7 @@
 import Link from "next/link"
-import { notFound } from "next/navigation"
+import { notFound, redirect } from "next/navigation"
 import { getMyProfile } from "@/app/(app)/cockpit/actions"
-import { hasPermission } from "@/utils/permissions"
+import { isRn3SuperAdmin } from "@/utils/permissions"
 import { ArrowLeft, FileText, Pencil } from "lucide-react"
 import { getContrato, countContasDoContrato } from "../actions"
 import GerarContasButton from "./GerarContasButton"
@@ -15,15 +15,14 @@ export const metadata = { title: "Contrato | Ragnar" }
 export default async function ContratoDetalhePage(props: { params: Promise<{ id: string }> }) {
   const { id } = await props.params
   const me = await getMyProfile()
-  if (!hasPermission(me, "contratos", "view")) notFound()
+  if (!isRn3SuperAdmin(me)) redirect("/cockpit/acesso-negado")
 
   const contrato = await getContrato(id)
   if (!contrato) notFound()
 
-  const canEdit = hasPermission(me, "contratos", "edit")
-  const canGerarAr =
-    canEdit && hasPermission(me, "financeiro", "create") && contrato.status !== "cancelado"
-  const podeGerarContratoMsa = hasPermission(me, "empresas", "view")
+  const canEdit = true
+  const canGerarAr = contrato.status !== "cancelado"
+  const podeGerarContratoMsa = true
 
   const contasVinculadas = await countContasDoContrato(id)
   const mensalidadesPadrao =

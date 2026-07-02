@@ -1,7 +1,7 @@
 import Link from "next/link"
 import { ArrowLeft, Wallet } from "lucide-react"
 import { getMyProfile } from "@/app/(app)/cockpit/actions"
-import { hasPermission } from "@/utils/permissions"
+import { isRn3SuperAdmin } from "@/utils/permissions"
 import { redirect } from "next/navigation"
 import { createClient } from "@/utils/supabase/server"
 import NovaContaForm from "./NovaContaForm"
@@ -10,11 +10,9 @@ export const metadata = { title: "Nova Conta a Receber | Ragnar" }
 
 export default async function NovaContaPage() {
   const me = await getMyProfile()
-  if (!hasPermission(me, "financeiro", "create")) {
-    redirect("/cockpit/acesso-negado")
-  }
+  if (!isRn3SuperAdmin(me)) redirect("/cockpit/acesso-negado")
 
-  const isSuperAdmin = me?.role_global === "superadmin"
+  const isSuperAdmin = true
   const supabase = await createClient()
   const { data: empresas } = isSuperAdmin
     ? await supabase.from("empresas").select("id, nome").eq("ativo", true).order("nome")

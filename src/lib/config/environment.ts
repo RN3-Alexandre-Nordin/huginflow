@@ -121,7 +121,7 @@ export function getOmnichannelHealthSummary() {
     evolutionTokenConfigured: Boolean(config.evolutionApiToken),
     supabaseUrlConfigured: Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL),
     supabaseServiceRoleConfigured: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
-    geminiApiKeyConfigured: Boolean(process.env.GEMINI_API_KEY?.trim()),
+    openaiApiKeyConfigured: Boolean(process.env.OPENAI_API_KEY?.trim()),
   }
 }
 

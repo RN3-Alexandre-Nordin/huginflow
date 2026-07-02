@@ -1,7 +1,7 @@
 import Link from "next/link"
 import { ArrowLeft, FileText } from "lucide-react"
 import { getMyProfile } from "@/app/(app)/cockpit/actions"
-import { hasPermission } from "@/utils/permissions"
+import { isRn3SuperAdmin } from "@/utils/permissions"
 import { notFound, redirect } from "next/navigation"
 import { createClient } from "@/utils/supabase/server"
 import ContratoForm from "../../ContratoForm"
@@ -12,14 +12,12 @@ export const metadata = { title: "Editar Contrato | Ragnar" }
 export default async function EditarContratoPage(props: { params: Promise<{ id: string }> }) {
   const { id } = await props.params
   const me = await getMyProfile()
-  if (!hasPermission(me, "contratos", "edit")) {
-    redirect("/cockpit/acesso-negado")
-  }
+  if (!isRn3SuperAdmin(me)) redirect("/cockpit/acesso-negado")
 
   const contrato = await getContrato(id)
   if (!contrato) notFound()
 
-  const isSuperAdmin = me?.role_global === "superadmin"
+  const isSuperAdmin = true
   const supabase = await createClient()
   const { data: empresas } = isSuperAdmin
     ? await supabase.from("empresas").select("id, nome").eq("ativo", true).order("nome")

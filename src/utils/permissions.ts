@@ -15,6 +15,10 @@ export interface PermissionData {
   } | null
 }
 
+export function isRn3SuperAdmin(user: PermissionData | null | undefined): boolean {
+  return user?.role_global === 'superadmin'
+}
+
 /**
  * Verifica se um usuário possui uma permissão específica para um módulo e ação.
  */

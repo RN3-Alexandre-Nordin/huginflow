@@ -51,3 +51,47 @@ export async function logout() {
   await supabase.auth.signOut()
   redirect('/')
 }
+
+export async function changeMyPassword(formData: FormData) {
+  const senha_atual = (formData.get('senha_atual') as string)?.trim() ?? ''
+  const nova_senha = (formData.get('nova_senha') as string)?.trim() ?? ''
+  const confirmar_senha = (formData.get('confirmar_senha') as string)?.trim() ?? ''
+
+  if (!senha_atual || !nova_senha || !confirmar_senha) {
+    return { error: 'Preencha todos os campos.' }
+  }
+  if (nova_senha !== confirmar_senha) {
+    return { error: 'A nova senha e a confirmação devem ser iguais.' }
+  }
+  if (nova_senha.length < 6) {
+    return { error: 'A nova senha deve ter no mínimo 6 caracteres.' }
+  }
+  if (senha_atual === nova_senha) {
+    return { error: 'A nova senha deve ser diferente da senha atual.' }
+  }
+
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user?.email) {
+    return { error: 'Sessão inválida. Faça login novamente.' }
+  }
+
+  const { error: verifyError } = await supabase.auth.signInWithPassword({
+    email: user.email,
+    password: senha_atual,
+  })
+
+  if (verifyError) {
+    return { error: 'Senha atual incorreta.' }
+  }
+
+  const { error: updateError } = await supabase.auth.updateUser({ password: nova_senha })
+
+  if (updateError) {
+    return { error: updateError.message }
+  }
+
+  revalidatePath('/cockpit', 'layout')
+  redirect('/cockpit/minha-conta/senha?success=1')
+}

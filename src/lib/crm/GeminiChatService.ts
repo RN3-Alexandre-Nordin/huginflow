@@ -1,5 +1,10 @@
-import { GoogleGenerativeAI } from '@google/generative-ai'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import {
+  generateEmbedding,
+  generateText,
+  getAiConfigErrorMessage,
+  resolveEmpresaAiConfig,
+} from '@/lib/ai/empresa-ai'
 
 export type GeminiChatInput = {
   empresaId: string
@@ -14,16 +19,6 @@ export type GeminiChatResult =
   | { success: true; response: string; responseForWhatsApp: string; crmStatus?: string }
   | { success: false; error: string }
 
-async function generateEmbedding(text: string, apiKey: string) {
-  const genAI = new GoogleGenerativeAI(apiKey)
-  const model = genAI.getGenerativeModel(
-    { model: 'models/gemini-embedding-001' },
-    { apiVersion: 'v1beta' },
-  )
-  const result = await model.embedContent(text)
-  return result.embedding.values
-}
-
 /** Remove tags [STATUS_CRM: ...] e demais blocos entre colchetes para envio ao cliente. */
 export function stripOutboundTags(text: string): string {
   return text.replace(/\[STATUS_CRM:.*?\]/gi, '').replace(/\[.*?\]/g, '').trim()
@@ -35,7 +30,7 @@ export function parseCrmStatus(text: string): string | undefined {
 }
 
 /**
- * Mesma lógica do Simulador: RAG (match_knowledge_base) + Gemini + histórico do lead.
+ * RAG (match_knowledge_base) + OpenAI conforme modelo da empresa.
  */
 export class GeminiChatService {
   static async generateReply(
@@ -46,7 +41,7 @@ export class GeminiChatService {
 
     const { data: empresa, error: empresaError } = await supabase
       .from('empresas')
-      .select('ai_context_prompt, ai_model, gemini_api_key')
+      .select('ai_context_prompt, ai_model')
       .eq('id', empresaId)
       .single()
 
@@ -54,15 +49,10 @@ export class GeminiChatService {
       return { success: false, error: 'Empresa não encontrada para carregar IA.' }
     }
 
-    const geminiApiKey = empresa.gemini_api_key || process.env.GEMINI_API_KEY
-    if (!geminiApiKey) {
-      return {
-        success: false,
-        error: 'GEMINI_API_KEY não configurada (env ou cadastro da empresa).',
-      }
+    const aiConfig = resolveEmpresaAiConfig(empresa)
+    if (!aiConfig) {
+      return { success: false, error: getAiConfigErrorMessage() }
     }
-
-    const modelName = empresa.ai_model || 'gemini-3.5-flash'
 
     let historyQuery = supabase
       .from('crm_interacoes')
@@ -79,7 +69,7 @@ export class GeminiChatService {
 
     let extraContext = 'Nenhuma informação específica encontrada na base de conhecimento.'
     try {
-      const userEmbedding = await generateEmbedding(message, geminiApiKey)
+      const userEmbedding = await generateEmbedding(message, aiConfig)
       const { data: kbContext, error: rpcError } = await supabase.rpc('match_knowledge_base', {
         query_embedding: userEmbedding,
         match_threshold: 0.4,
@@ -93,7 +83,7 @@ export class GeminiChatService {
           .join('\n')
       }
     } catch (ragErr) {
-      console.error('[GeminiChat] Erro na busca semântica:', ragErr)
+      console.error('[EmpresaChat] Erro na busca semântica:', ragErr)
     }
 
     const systemPersonality = (
@@ -103,7 +93,7 @@ export class GeminiChatService {
       .trim()
 
     const formattedHistory = (history || [])
-      .map((msg) => `${msg.role === 'user' ? 'Cliente' : 'Mônica'}: ${msg.content}`)
+      .map((msg) => `${msg.role === 'user' ? 'Cliente' : 'Assistente'}: ${msg.content}`)
       .join('\n')
 
     const ragnarInstructions = `
@@ -128,10 +118,7 @@ export class GeminiChatService {
   `
 
     try {
-      const genAI = new GoogleGenerativeAI(geminiApiKey)
-      const model = genAI.getGenerativeModel({ model: modelName }, { apiVersion: 'v1beta' })
-      const result = await model.generateContent(fullPrompt)
-      const aiResponse = result.response.text()
+      const aiResponse = await generateText(fullPrompt, aiConfig)
 
       if (!aiResponse?.trim()) {
         return { success: false, error: 'IA retornou resposta vazia.' }
@@ -144,8 +131,8 @@ export class GeminiChatService {
         crmStatus: parseCrmStatus(aiResponse),
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Erro desconhecido no Gemini'
-      console.error('[GeminiChat] Erro no Gemini:', err)
+      const msg = err instanceof Error ? err.message : 'Erro desconhecido na IA'
+      console.error('[EmpresaChat] Erro ao gerar resposta:', err)
       return { success: false, error: msg }
     }
   }

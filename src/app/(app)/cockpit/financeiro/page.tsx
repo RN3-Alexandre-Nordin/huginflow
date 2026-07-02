@@ -1,7 +1,8 @@
 import Link from "next/link"
+import { redirect } from "next/navigation"
 import { getMyProfile } from "@/app/(app)/cockpit/actions"
-import { hasPermission } from "@/utils/permissions"
-import { Lock, Wallet, ArrowRight, Plus, List, FileText } from "lucide-react"
+import { isRn3SuperAdmin } from "@/utils/permissions"
+import { Wallet, ArrowRight, Plus, List, FileText } from "lucide-react"
 import { getFinanceDashboard } from "./actions"
 import { formatBRL } from "@/lib/finance/format"
 import { createClient } from "@/utils/supabase/server"
@@ -15,27 +16,12 @@ export default async function FinanceiroPage(props: {
   const me = await getMyProfile()
   const searchParams = await props.searchParams
 
-  if (!hasPermission(me, "financeiro", "view") && !hasPermission(me, "contratos", "view")) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 text-center animate-in fade-in duration-700">
-        <div className="w-20 h-20 rounded-full bg-red-500/10 flex items-center justify-center mb-6 border border-red-500/20">
-          <Lock className="w-10 h-10 text-red-500" />
-        </div>
-        <h2 className="text-3xl font-extrabold text-white mb-2 tracking-tight">Acesso Interditado</h2>
-        <p className="text-gray-400 max-w-md mx-auto mb-8 text-lg">
-          Seu grupo de acesso não possui permissão para o módulo Financeiro.
-        </p>
-        <Link href="/cockpit" className="px-6 py-3 bg-[#ffffff05] hover:bg-[#ffffff10] border border-[#ffffff10] rounded-xl text-white font-semibold transition-all">
-          Voltar ao Início
-        </Link>
-      </div>
-    )
-  }
+  if (!isRn3SuperAdmin(me)) redirect("/cockpit/acesso-negado")
 
-  const canCreate = hasPermission(me, "financeiro", "create")
-  const canViewContratos = hasPermission(me, "contratos", "view")
-  const canCreateContrato = hasPermission(me, "contratos", "create")
-  const isSuperAdmin = me?.role_global === "superadmin"
+  const canCreate = true
+  const canViewContratos = true
+  const canCreateContrato = true
+  const isSuperAdmin = true
   const empresaFilter = isSuperAdmin ? searchParams.empresa : undefined
 
   const supabase = await createClient()

@@ -23,7 +23,7 @@ import {
   type LucideIcon,
 } from "lucide-react"
 
-type NavItem = { name: string; href: string; icon: LucideIcon }
+type NavItem = { name: string; href: string; icon: LucideIcon; rn3Only?: boolean }
 
 type NavSection = {
   id: string
@@ -46,8 +46,8 @@ const sections: NavSection[] = [
     icon: Settings2,
     items: [
       { name: "Empresas", href: "/cockpit/empresas", icon: Building2 },
-      { name: "Financeiro", href: "/cockpit/financeiro", icon: Wallet },
-      { name: "Contratos", href: "/cockpit/financeiro/contratos", icon: FileText },
+      { name: "Financeiro", href: "/cockpit/financeiro", icon: Wallet, rn3Only: true },
+      { name: "Contratos", href: "/cockpit/financeiro/contratos", icon: FileText, rn3Only: true },
       { name: "Simulador de Chat", href: "/cockpit/crm/simulador", icon: MessageSquare },
     ],
   },
@@ -112,18 +112,27 @@ function NavLink({
   )
 }
 
+function filterNavItems(items: NavItem[], isSuperAdmin: boolean) {
+  return items.filter((item) => !item.rn3Only || isSuperAdmin)
+}
+
 function NavSectionBlock({
   section,
   pathname,
   open,
   onToggle,
+  isSuperAdmin,
 }: {
   section: NavSection
   pathname: string
   open: boolean
   onToggle: () => void
+  isSuperAdmin: boolean
 }) {
-  const hasActive = sectionHasActive(pathname, section.items)
+  const visibleItems = filterNavItems(section.items, isSuperAdmin)
+  const hasActive = sectionHasActive(pathname, visibleItems)
+
+  if (visibleItems.length === 0) return null
 
   return (
     <div className="pt-2">
@@ -144,13 +153,13 @@ function NavSectionBlock({
       </button>
       {open && (
         <div className="mt-1 space-y-0.5 border-l border-[#ffffff08] ml-4 pl-1">
-          {section.items.map((item) => (
+          {visibleItems.map((item) => (
             <NavLink
               key={item.href}
               item={item}
               pathname={pathname}
               nested
-              siblingHrefs={section.items.map((i) => i.href)}
+              siblingHrefs={visibleItems.map((i) => i.href)}
             />
           ))}
         </div>
@@ -159,7 +168,7 @@ function NavSectionBlock({
   )
 }
 
-export default function CockpitSidebarNav() {
+export default function CockpitSidebarNav({ isSuperAdmin }: { isSuperAdmin: boolean }) {
   const pathname = usePathname()
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     administracao: true,
@@ -169,10 +178,14 @@ export default function CockpitSidebarNav() {
   useEffect(() => {
     setOpenSections((prev) => ({
       ...prev,
-      administracao: prev.administracao || sectionHasActive(pathname, sections[0].items),
-      cadastros: prev.cadastros || sectionHasActive(pathname, sections[1].items),
+      administracao:
+        prev.administracao ||
+        sectionHasActive(pathname, filterNavItems(sections[0].items, isSuperAdmin)),
+      cadastros:
+        prev.cadastros ||
+        sectionHasActive(pathname, filterNavItems(sections[1].items, isSuperAdmin)),
     }))
-  }, [pathname])
+  }, [pathname, isSuperAdmin])
 
   const toggle = (id: string) => {
     setOpenSections((prev) => ({ ...prev, [id]: !prev[id] }))
@@ -193,6 +206,7 @@ export default function CockpitSidebarNav() {
           pathname={pathname}
           open={!!openSections[section.id]}
           onToggle={() => toggle(section.id)}
+          isSuperAdmin={isSuperAdmin}
         />
       ))}
     </nav>

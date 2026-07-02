@@ -1,7 +1,7 @@
 import Link from "next/link"
-import { notFound } from "next/navigation"
+import { notFound, redirect } from "next/navigation"
 import { getMyProfile } from "@/app/(app)/cockpit/actions"
-import { hasPermission } from "@/utils/permissions"
+import { isRn3SuperAdmin } from "@/utils/permissions"
 import { createClient } from "@/utils/supabase/server"
 import { ArrowLeft, Wallet } from "lucide-react"
 import { formatBRL, formatDateBR } from "@/lib/finance/format"
@@ -21,11 +21,9 @@ export default async function ContaDetalhePage(props: { params: Promise<{ id: st
   const { id } = await props.params
   const me = await getMyProfile()
 
-  if (!hasPermission(me, "financeiro", "view")) {
-    notFound()
-  }
+  if (!isRn3SuperAdmin(me)) redirect("/cockpit/acesso-negado")
 
-  const canEdit = hasPermission(me, "financeiro", "edit")
+  const canEdit = true
   const supabase = await createClient()
 
   const { data: conta } = await supabase

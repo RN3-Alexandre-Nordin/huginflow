@@ -3,7 +3,7 @@
 import { createClient } from '@/utils/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
-import { hasPermission } from '@/utils/permissions'
+import { isRn3SuperAdmin } from '@/utils/permissions'
 import { getMyProfile } from '@/app/(app)/cockpit/actions'
 import { parseMoneyInput } from '@/lib/finance/format'
 import type { FinanceDashboard, ContaReceberRelatorio } from '@/lib/finance/types'
@@ -17,7 +17,7 @@ function resolveEmpresaId(me: Awaited<ReturnType<typeof getMyProfile>>, formEmpr
 
 export async function getFinanceDashboard(empresaId?: string | null): Promise<FinanceDashboard | null> {
   const me = await getMyProfile()
-  if (!hasPermission(me, 'financeiro', 'view')) return null
+  if (!isRn3SuperAdmin(me)) return null
 
   const supabase = await createClient()
   const pEmpresa =
@@ -43,7 +43,7 @@ export async function listContasReceber(filters: {
   contratoId?: string
 }): Promise<ContaReceberRelatorio[]> {
   const me = await getMyProfile()
-  if (!hasPermission(me, 'financeiro', 'view')) return []
+  if (!isRn3SuperAdmin(me)) return []
 
   const supabase = await createClient()
   let query = supabase
@@ -83,8 +83,8 @@ export async function listContasReceber(filters: {
 
 export async function createContaReceber(formData: FormData) {
   const me = await getMyProfile()
-  if (!hasPermission(me, 'financeiro', 'create')) {
-    return { error: 'Sem permissão para criar contas a receber.' }
+  if (!isRn3SuperAdmin(me)) {
+    return { error: 'Acesso restrito ao Super Admin RN3.' }
   }
 
   const tipo = formData.get('tipo') as string
@@ -137,8 +137,8 @@ export async function createContaReceber(formData: FormData) {
 
 export async function registrarBaixa(contaId: string, formData: FormData) {
   const me = await getMyProfile()
-  if (!hasPermission(me, 'financeiro', 'edit')) {
-    return { error: 'Sem permissão para registrar baixas.' }
+  if (!isRn3SuperAdmin(me)) {
+    return { error: 'Acesso restrito ao Super Admin RN3.' }
   }
 
   const valorRaw = formData.get('valor') as string
@@ -172,8 +172,8 @@ export async function registrarBaixa(contaId: string, formData: FormData) {
 
 export async function cancelarContaReceber(contaId: string, formData: FormData) {
   const me = await getMyProfile()
-  if (!hasPermission(me, 'financeiro', 'edit')) {
-    return { error: 'Sem permissão para cancelar contas.' }
+  if (!isRn3SuperAdmin(me)) {
+    return { error: 'Acesso restrito ao Super Admin RN3.' }
   }
 
   const motivo = (formData.get('motivo') as string) || null

@@ -1,7 +1,8 @@
 import Link from "next/link"
+import { redirect } from "next/navigation"
 import { getMyProfile } from "@/app/(app)/cockpit/actions"
-import { hasPermission } from "@/utils/permissions"
-import { Lock, Wallet, ArrowLeft, Plus, Search, Eye } from "lucide-react"
+import { isRn3SuperAdmin } from "@/utils/permissions"
+import { Wallet, ArrowLeft, Plus, Search, Eye } from "lucide-react"
 import { listContasReceber } from "../actions"
 import { formatBRL, formatDateBR } from "@/lib/finance/format"
 import { FINANCE_STATUS_COLOR, FINANCE_STATUS_LABEL, FINANCE_TIPOS } from "@/lib/finance/constants"
@@ -16,18 +17,10 @@ export default async function ContasReceberPage(props: {
   const me = await getMyProfile()
   const searchParams = await props.searchParams
 
-  if (!hasPermission(me, "financeiro", "view")) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 text-center">
-        <Lock className="w-10 h-10 text-red-500 mb-4" />
-        <h2 className="text-2xl font-bold text-white">Acesso negado</h2>
-        <Link href="/cockpit" className="mt-6 text-[#2BAADF] hover:underline">Voltar</Link>
-      </div>
-    )
-  }
+  if (!isRn3SuperAdmin(me)) redirect("/cockpit/acesso-negado")
 
-  const canCreate = hasPermission(me, "financeiro", "create")
-  const isSuperAdmin = me?.role_global === "superadmin"
+  const canCreate = true
+  const isSuperAdmin = true
   const { q = "", status = "", tipo = "", empresa = "", contrato = "" } = searchParams
 
   const contas = await listContasReceber({

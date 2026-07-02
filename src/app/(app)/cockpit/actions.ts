@@ -38,9 +38,8 @@ export async function createEmpresa(formData: FormData) {
       responsavel_email: formData.get('responsavel_email') as string || null,
       responsavel_telefone: formData.get('responsavel_telefone') as string || null,
       // Novos campos de IA (Gemini)
-      gemini_api_key: formData.get('gemini_api_key') as string || null,
       ai_context_prompt: formData.get('ai_context_prompt') as string || null,
-      ai_model: formData.get('ai_model') as string || 'gemini-2.0-flash-latest',
+      ai_model: formData.get('ai_model') as string || 'gpt-4',
       ia_silence_timeout: Number(formData.get('ia_silence_timeout')) || 60,
       ativo: true,
       status: 'active',
@@ -83,9 +82,8 @@ export async function updateEmpresa(empresaId: string, formData: FormData) {
       responsavel_email: formData.get('responsavel_email') as string || null,
       responsavel_telefone: formData.get('responsavel_telefone') as string || null,
       // Novos campos de IA
-      gemini_api_key: formData.get('gemini_api_key') as string || null,
       ai_context_prompt: formData.get('ai_context_prompt') as string || null,
-      ai_model: formData.get('ai_model') as string || 'gemini-2.0-flash-latest',
+      ai_model: formData.get('ai_model') as string || 'gpt-4',
       ia_silence_timeout: Number(formData.get('ia_silence_timeout')) || 60,
     })
     .eq('id', empresaId)
@@ -423,8 +421,40 @@ export async function updateUsuario(id: string, formData: FormData) {
   const ramal = formData.get('ramal') as string || null
   const endereco = formData.get('endereco') as string || null
   const data_nascimento = formData.get('data_nascimento') as string || null
+  const nova_senha = (formData.get('nova_senha') as string)?.trim() ?? ''
+  const confirmar_senha = (formData.get('confirmar_senha') as string)?.trim() ?? ''
 
   const supabase = await createClient()
+
+  const { data: target, error: targetError } = await supabase
+    .from('usuarios')
+    .select('auth_user_id, empresa_id, role_global')
+    .eq('id', id)
+    .single()
+
+  if (targetError || !target) {
+    return { error: 'Usuário não encontrado.' }
+  }
+
+  if (me?.role_global !== 'superadmin' && target.empresa_id !== me?.empresa_id) {
+    return { error: 'Sem permissão para editar este usuário.' }
+  }
+
+  if (target.role_global === 'superadmin' && me?.role_global !== 'superadmin') {
+    return { error: 'Sem permissão para alterar este usuário.' }
+  }
+
+  if (nova_senha || confirmar_senha) {
+    if (nova_senha !== confirmar_senha) {
+      return { error: 'As senhas não coincidem.' }
+    }
+    if (nova_senha.length < 6) {
+      return { error: 'A senha deve ter no mínimo 6 caracteres.' }
+    }
+    if (!target.auth_user_id) {
+      return { error: 'Usuário sem conta de login vinculada.' }
+    }
+  }
 
   // Build update payload - only include is_superuser if it was explicitly sent
   const updatePayload: Record<string, unknown> = { nome_completo, role_global, grupo_id, empresa_id, telefone, ramal, endereco, data_nascimento }
@@ -440,6 +470,17 @@ export async function updateUsuario(id: string, formData: FormData) {
   if (error) {
     console.error("Erro ao atualizar usuário", error)
     return { error: error.message }
+  }
+
+  if (nova_senha) {
+    const supabaseAdmin = createAdminClient()
+    const { error: pwError } = await supabaseAdmin.auth.admin.updateUserById(target.auth_user_id, {
+      password: nova_senha,
+    })
+    if (pwError) {
+      console.error('Erro ao atualizar senha do usuário', pwError)
+      return { error: pwError.message }
+    }
   }
 
   revalidatePath('/cockpit/usuarios')
@@ -657,6 +698,370 @@ export async function getTodayMovementsDetails(userId: string) {
   }
 
   return { data }
+}
+
+export type ManagerDashboardMetrics = {
+  vendasMes: number
+  vendasVariacaoPct: number | null
+  leadsNoFunil: number
+  chatsOperacionais: number
+  gargalos: number
+}
+
+export type ManagerChartPeriodo = 'dia' | 'semana' | 'mes'
+
+export type ManagerChartMetric = 'conversao' | 'entrada' | 'receita' | 'whatsapp'
+
+export type ManagerChartPoint = {
+  label: string
+  valor: number
+  criados: number
+  concluidos: number
+  receita: number
+  threads: number
+}
+
+export type ManagerChartResponse = {
+  titulo: string
+  subtitulo: string
+  metrica: ManagerChartMetric
+  unidade: 'percent' | 'count' | 'currency'
+  pontos: ManagerChartPoint[]
+}
+
+const GARGALO_MIN_CARDS = 3
+const CHATS_JANELA_DIAS = 30
+const WEEKDAY_LABELS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'] as const
+
+function startOfTodayLocal(): Date {
+  const now = new Date()
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate())
+}
+
+function startOfCurrentWeekLocal(): Date {
+  const today = startOfTodayLocal()
+  const day = today.getDay()
+  const mondayOffset = day === 0 ? -6 : 1 - day
+  const monday = new Date(today)
+  monday.setDate(today.getDate() + mondayOffset)
+  return monday
+}
+
+function startOfCurrentMonthLocal(): Date {
+  const now = new Date()
+  return new Date(now.getFullYear(), now.getMonth(), 1)
+}
+
+function isBetween(isoDate: string, start: Date, end: Date): boolean {
+  const time = new Date(isoDate).getTime()
+  return time >= start.getTime() && time < end.getTime()
+}
+
+function buildChartBuckets(periodo: ManagerChartPeriodo): ManagerChartPoint[] {
+  const now = new Date()
+
+  if (periodo === 'dia') {
+    return Array.from({ length: 6 }, (_, index) => ({
+      label: `${String(index * 4).padStart(2, '0')}h`,
+      valor: 0,
+      criados: 0,
+      concluidos: 0,
+      receita: 0,
+      threads: 0,
+    }))
+  }
+
+  if (periodo === 'semana') {
+    return WEEKDAY_LABELS.map((label) => ({
+      label,
+      valor: 0,
+      criados: 0,
+      concluidos: 0,
+      receita: 0,
+      threads: 0,
+    }))
+  }
+
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
+  return Array.from({ length: daysInMonth }, (_, index) => ({
+    label: String(index + 1),
+    valor: 0,
+    criados: 0,
+    concluidos: 0,
+    receita: 0,
+    threads: 0,
+  }))
+}
+
+function getChartMetricMeta(metrica: ManagerChartMetric): {
+  subtitulo: string
+  unidade: ManagerChartResponse['unidade']
+} {
+  switch (metrica) {
+    case 'entrada':
+      return {
+        subtitulo: 'Novos cards adicionados ao funil no período.',
+        unidade: 'count',
+      }
+    case 'receita':
+      return {
+        subtitulo: 'Valor total dos negócios fechados no período.',
+        unidade: 'currency',
+      }
+    case 'whatsapp':
+      return {
+        subtitulo: 'Threads únicos de WhatsApp com atividade no período.',
+        unidade: 'count',
+      }
+    case 'conversao':
+    default:
+      return {
+        subtitulo: 'Taxa de cards concluídos sobre cards criados no período.',
+        unidade: 'percent',
+      }
+  }
+}
+
+function applyMetricValues(pontos: ManagerChartPoint[], metrica: ManagerChartMetric) {
+  for (const ponto of pontos) {
+    if (metrica === 'entrada') {
+      ponto.valor = ponto.criados
+    } else if (metrica === 'receita') {
+      ponto.valor = ponto.receita
+    } else if (metrica === 'whatsapp') {
+      ponto.valor = ponto.threads
+    } else {
+      ponto.valor = ponto.criados > 0 ? Math.round((ponto.concluidos / ponto.criados) * 100) : 0
+    }
+  }
+}
+
+function getBucketIndex(isoDate: string, periodo: ManagerChartPeriodo): number {
+  const date = new Date(isoDate)
+
+  if (periodo === 'dia') {
+    return Math.min(Math.floor(date.getHours() / 4), 5)
+  }
+
+  if (periodo === 'semana') {
+    const day = date.getDay()
+    return day === 0 ? 6 : day - 1
+  }
+
+  return date.getDate() - 1
+}
+
+function getChartPeriodRange(periodo: ManagerChartPeriodo): { start: Date; end: Date; titulo: string } {
+  const now = new Date()
+  const today = startOfTodayLocal()
+
+  if (periodo === 'dia') {
+    const end = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1)
+    return {
+      start: today,
+      end,
+      titulo: `Hoje (${today.toLocaleDateString('pt-BR')})`,
+    }
+  }
+
+  if (periodo === 'semana') {
+    const start = startOfCurrentWeekLocal()
+    const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 7)
+    return {
+      start,
+      end,
+      titulo: `Semana atual (${start.toLocaleDateString('pt-BR')} – ${new Date(end.getTime() - 1).toLocaleDateString('pt-BR')})`,
+    }
+  }
+
+  const start = startOfCurrentMonthLocal()
+  const end = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+  const monthName = start.toLocaleDateString('pt-BR', { month: 'long' })
+  return {
+    start,
+    end,
+    titulo: `Mês atual (${monthName.charAt(0).toUpperCase()}${monthName.slice(1)} ${start.getFullYear()})`,
+  }
+}
+
+function sumCardValues(cards: { valor?: number | null }[] | null): number {
+  return (cards ?? []).reduce((total, card) => total + Number(card.valor ?? 0), 0)
+}
+
+export async function getManagerDashboardChart(
+  periodo: ManagerChartPeriodo,
+  metrica: ManagerChartMetric = 'conversao',
+): Promise<{
+  data?: ManagerChartResponse
+  error?: string
+}> {
+  const me = await getMyProfile()
+  if (!me) return { error: 'Não autenticado' }
+
+  const empresaId = me.empresa_id
+  if (!empresaId) return { error: 'Empresa não vinculada ao perfil.' }
+
+  const { start, end, titulo } = getChartPeriodRange(periodo)
+  const { subtitulo, unidade } = getChartMetricMeta(metrica)
+  const supabase = await createClient()
+  const pontos = buildChartBuckets(periodo)
+
+  const needsCards = metrica !== 'whatsapp'
+  const needsConversas = metrica === 'whatsapp'
+
+  const [cardsResult, conversasResult] = await Promise.all([
+    needsCards
+      ? supabase
+          .from('crm_cards')
+          .select('created_at, updated_at, finalizado, valor')
+          .eq('empresa_id', empresaId)
+          .or(
+            `and(created_at.gte.${start.toISOString()},created_at.lt.${end.toISOString()}),and(finalizado.eq.true,updated_at.gte.${start.toISOString()},updated_at.lt.${end.toISOString()})`,
+          )
+      : Promise.resolve({ data: null, error: null }),
+    needsConversas
+      ? supabase
+          .from('crm_conversas')
+          .select('sessao_id, created_at')
+          .eq('empresa_id', empresaId)
+          .gte('created_at', start.toISOString())
+          .lt('created_at', end.toISOString())
+      : Promise.resolve({ data: null, error: null }),
+  ])
+
+  if (cardsResult.error) {
+    console.error('[ManagerDashboard] chart cards:', cardsResult.error.message)
+    return { error: cardsResult.error.message }
+  }
+
+  if (conversasResult.error) {
+    console.error('[ManagerDashboard] chart conversas:', conversasResult.error.message)
+    return { error: conversasResult.error.message }
+  }
+
+  for (const card of cardsResult.data ?? []) {
+    if (isBetween(card.created_at, start, end)) {
+      const bucket = getBucketIndex(card.created_at, periodo)
+      pontos[bucket].criados++
+    }
+
+    if (card.finalizado && card.updated_at && isBetween(card.updated_at, start, end)) {
+      const bucket = getBucketIndex(card.updated_at, periodo)
+      pontos[bucket].concluidos++
+      pontos[bucket].receita += Number(card.valor ?? 0)
+    }
+  }
+
+  if (needsConversas) {
+    const threadsPorBucket = pontos.map(() => new Set<string>())
+    for (const conversa of conversasResult.data ?? []) {
+      if (!conversa.sessao_id || !isBetween(conversa.created_at, start, end)) continue
+      const bucket = getBucketIndex(conversa.created_at, periodo)
+      threadsPorBucket[bucket].add(conversa.sessao_id)
+    }
+    pontos.forEach((ponto, index) => {
+      ponto.threads = threadsPorBucket[index].size
+    })
+  }
+
+  applyMetricValues(pontos, metrica)
+
+  return {
+    data: {
+      titulo,
+      subtitulo,
+      metrica,
+      unidade,
+      pontos,
+    },
+  }
+}
+
+export async function getManagerDashboardMetrics(): Promise<{
+  data?: ManagerDashboardMetrics
+  error?: string
+}> {
+  const me = await getMyProfile()
+  if (!me) return { error: 'Não autenticado' }
+
+  const empresaId = me.empresa_id
+  if (!empresaId) return { error: 'Empresa não vinculada ao perfil.' }
+
+  const supabase = await createClient()
+  const now = new Date()
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+  const startOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+  const startOfPrevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+  const chatsSince = new Date(now)
+  chatsSince.setDate(chatsSince.getDate() - CHATS_JANELA_DIAS)
+
+  const [
+    vendasMesResult,
+    vendasMesAnteriorResult,
+    leadsResult,
+    chatsResult,
+    cardsAtivosResult,
+  ] = await Promise.all([
+    supabase
+      .from('crm_cards')
+      .select('valor')
+      .eq('empresa_id', empresaId)
+      .eq('finalizado', true)
+      .gte('updated_at', startOfMonth.toISOString())
+      .lt('updated_at', startOfNextMonth.toISOString()),
+    supabase
+      .from('crm_cards')
+      .select('valor')
+      .eq('empresa_id', empresaId)
+      .eq('finalizado', true)
+      .gte('updated_at', startOfPrevMonth.toISOString())
+      .lt('updated_at', startOfMonth.toISOString()),
+    supabase
+      .from('crm_cards')
+      .select('*', { count: 'exact', head: true })
+      .eq('empresa_id', empresaId)
+      .eq('finalizado', false),
+    supabase
+      .from('crm_conversas')
+      .select('sessao_id')
+      .eq('empresa_id', empresaId)
+      .gte('created_at', chatsSince.toISOString()),
+    supabase
+      .from('crm_cards')
+      .select('stage_id')
+      .eq('empresa_id', empresaId)
+      .eq('finalizado', false),
+  ])
+
+  const vendasMes = sumCardValues(vendasMesResult.data)
+  const vendasMesAnterior = sumCardValues(vendasMesAnteriorResult.data)
+  let vendasVariacaoPct: number | null = null
+  if (vendasMesAnterior > 0) {
+    vendasVariacaoPct = ((vendasMes - vendasMesAnterior) / vendasMesAnterior) * 100
+  } else if (vendasMes > 0) {
+    vendasVariacaoPct = 100
+  }
+
+  const chatsOperacionais = new Set(
+    (chatsResult.data ?? []).map((row) => row.sessao_id).filter(Boolean),
+  ).size
+
+  const stageCounts: Record<string, number> = {}
+  for (const card of cardsAtivosResult.data ?? []) {
+    if (!card.stage_id) continue
+    stageCounts[card.stage_id] = (stageCounts[card.stage_id] ?? 0) + 1
+  }
+  const gargalos = Object.values(stageCounts).filter((count) => count >= GARGALO_MIN_CARDS).length
+
+  return {
+    data: {
+      vendasMes,
+      vendasVariacaoPct,
+      leadsNoFunil: leadsResult.count ?? 0,
+      chatsOperacionais,
+      gargalos,
+    },
+  }
 }
 
 export async function getGruposByEmpresa(empresaId: string) {

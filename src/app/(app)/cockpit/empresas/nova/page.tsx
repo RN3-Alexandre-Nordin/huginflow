@@ -6,8 +6,9 @@ import { hasPermission } from "@/utils/permissions"
 import { maskCNPJ, maskPhone, maskCPF, validateCNPJ, validateCPF } from "@/utils/brasilian-formatters"
 import { TIPOS_SOCIETARIOS, ESTADOS_CIVIS } from "@/constants/empresa-juridico"
 import Link from "next/link"
-import { Building2, ArrowLeft, User, Phone, Mail, Globe, MapPin, Briefcase, AlertCircle, Sparkles, ShieldCheck, Cpu, Lock, Clock } from "lucide-react"
+import { Building2, ArrowLeft, User, Phone, Mail, Globe, MapPin, Briefcase, AlertCircle, Lock } from "lucide-react"
 import { createClient } from "@/utils/supabase/client"
+import EmpresaAiConfigFields from "@/components/empresas/EmpresaAiConfigFields"
 
 function SectionHeader({ icon: Icon, title, subtitle }: { icon: any; title: string; subtitle: string }) {
   return (
@@ -315,72 +316,7 @@ export default function NovaEmpresaPage() {
           </div>
         </div>
  
-        {/* ─── Seção 4: Cérebro IA (Gemini) ─── */}
-        <div className="bg-[#111111] border border-[#ffffff0a] rounded-2xl p-6 space-y-5 relative overflow-hidden">
-          <div className="absolute -top-20 -right-20 w-48 h-48 rounded-full opacity-[0.06] pointer-events-none"
-            style={{ background: 'radial-gradient(circle, #2BAADF 0%, transparent 70%)', filter: 'blur(30px)' }} />
-          
-          <div className="flex items-center justify-between">
-            <SectionHeader icon={Sparkles} title="Cérebro IA (Gemini)" subtitle="Configure o assistente virtual para esta empresa" />
-            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 shadow-sm animate-pulse">
-               <ShieldCheck className="w-3 h-3 text-[#2BAADF]" />
-               <span className="text-[10px] font-black text-[#2BAADF] uppercase tracking-widest">Credenciais Seguras</span>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Field label="Gemini API Key">
-              <div className="relative">
-                <ShieldCheck className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                <input
-                  type="password" name="gemini_api_key"
-                  placeholder="Cole sua chave secreta aqui..."
-                  className={`${inputCls} pl-10`}
-                />
-              </div>
-            </Field>
-
-            <Field label="Modelo de IA">
-              <div className="relative">
-                 <Cpu className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                 <select 
-                    name="ai_model" 
-                    defaultValue="gemini-2.0-flash-latest"
-                    className={`${inputCls} pl-10 appearance-none bg-[#0A0A0A]`}
-                 >
-                    <option value="gemini-2.0-flash-latest">Gemini 2.0 Flash</option>
-                    <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
-                    <option value="gemini-3.1-flash-live-preview">Gemini 3.1 Flash Live (Novo)</option>
-                 </select>
-              </div>
-            </Field>
-
-            <Field label="Tempo de Silêncio IA (min)">
-              <div className="relative">
-                <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                <input
-                  type="number" name="ia_silence_timeout"
-                  defaultValue="60"
-                  placeholder="60"
-                  className={`${inputCls} pl-10`}
-                />
-              </div>
-            </Field>
-
-            <div className="col-span-2">
-              <Field label="Instruções de Contexto (System Prompt)">
-                <textarea
-                  name="ai_context_prompt" rows={8}
-                  defaultValue={`Você é o assistente virtual inteligente da empresa.\nSua missão é atender os clientes com cordialidade, tirar dúvidas sobre os serviços e ajudar na conversão de novos leads.`}
-                  placeholder="Defina a personalidade e as regras de negócio da IA..."
-                  className={`${inputCls} resize-y p-4 min-h-[150px] leading-relaxed italic`}
-                />
-                <p className="text-[10px] text-gray-600 mt-1 ml-1 font-medium italic">As instruções acima definem o comportamento da IA em todas as interações do WhatsApp/Chat.</p>
-              </Field>
-            </div>
-          </div>
-        </div>
-
+        <EmpresaAiConfigFields />
 
         {/* ─── Footer de Ações ─── */}
         {errorMsg && (

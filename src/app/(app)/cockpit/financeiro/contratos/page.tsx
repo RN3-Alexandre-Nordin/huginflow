@@ -1,7 +1,8 @@
 import Link from "next/link"
+import { redirect } from "next/navigation"
 import { getMyProfile } from "@/app/(app)/cockpit/actions"
-import { hasPermission } from "@/utils/permissions"
-import { Lock, FileText, ArrowLeft, Plus, Eye, Pencil } from "lucide-react"
+import { isRn3SuperAdmin } from "@/utils/permissions"
+import { FileText, ArrowLeft, Plus, Eye, Pencil } from "lucide-react"
 import { listContratos } from "./actions"
 import { formatBRL, formatDateBR } from "@/lib/finance/format"
 import { CONTRATO_STATUS_COLOR, CONTRATO_STATUS } from "@/lib/finance/contrato-constants"
@@ -17,20 +18,12 @@ export default async function ContratosPage(props: {
   const me = await getMyProfile()
   const searchParams = await props.searchParams
 
-  if (!hasPermission(me, "contratos", "view")) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 text-center">
-        <Lock className="w-10 h-10 text-red-500 mb-4" />
-        <h2 className="text-2xl font-bold text-white">Acesso negado</h2>
-        <Link href="/cockpit/financeiro" className="mt-6 text-[#E8A317] hover:underline">Voltar</Link>
-      </div>
-    )
-  }
+  if (!isRn3SuperAdmin(me)) redirect("/cockpit/acesso-negado")
 
-  const canCreate = hasPermission(me, "contratos", "create")
-  const canEdit = hasPermission(me, "contratos", "edit")
-  const canDelete = hasPermission(me, "contratos", "delete")
-  const isSuperAdmin = me?.role_global === "superadmin"
+  const canCreate = true
+  const canEdit = true
+  const canDelete = true
+  const isSuperAdmin = true
   const empresaFilter = isSuperAdmin ? searchParams.empresa : undefined
 
   const contratos = await listContratos(empresaFilter)

@@ -34,7 +34,7 @@ export async function GET() {
       webhookUrlIsPublic: summary.webhookUrl.startsWith('https://'),
       supabaseConfigured:
         summary.supabaseUrlConfigured && summary.supabaseServiceRoleConfigured,
-      geminiApiKeyConfigured: summary.geminiApiKeyConfigured,
+      openaiApiKeyConfigured: summary.openaiApiKeyConfigured,
       localDevWebhookWarning:
         summary.environment === 'development' &&
         summary.webhookUrl.includes('localhost'),
@@ -59,8 +59,8 @@ export async function GET() {
               'Use Cloudflare Tunnel ou aponte RAGNAR_WEBHOOK_URL_DEV para uma URL HTTPS pública.',
             ]
           : []),
-        ...(!checks.geminiApiKeyConfigured
-          ? ['GEMINI_API_KEY ausente: IA automática do omnichannel não funcionará (use .env ou gemini_api_key na empresa).']
+        ...(!checks.openaiApiKeyConfigured
+          ? ['OPENAI_API_KEY ausente: IA automática do omnichannel não funcionará (configure no .env do servidor).']
           : []),
       ],
     })
