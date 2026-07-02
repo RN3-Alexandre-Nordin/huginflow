@@ -5,6 +5,7 @@ import { TriageService } from '@/lib/omnichannel/TriageService';
 import { AiResponseService } from '@/lib/omnichannel/services/AiResponseService';
 import { isChannelAiEnabled } from '@/lib/omnichannel/channel-ai';
 import { normalizeWhatsAppPhone } from '@/lib/omnichannel/phone';
+import { getRoutingConfig } from '@/utils/crm/routing';
 import { RagnarEvent, RagnarMessage } from '@/types/omnichannel';
 
 function createWebhookSupabase() {
@@ -115,6 +116,33 @@ async function handleMessageUpsert(
       return NextResponse.json({ error: 'Erro ao criar lead' }, { status: 500 });
     }
     leadId = newLead?.id;
+  }
+
+  if (leadId) {
+    const routing = await getRoutingConfig(canal.id, canal.empresa_id);
+    const pipelineId = routing?.pipeline_id;
+    const stageId = routing?.stage_id;
+
+    if (pipelineId && stageId) {
+      const { data: existingCard } = await supabase
+        .from('crm_cards')
+        .select('id')
+        .eq('lead_id', leadId)
+        .eq('pipeline_id', pipelineId)
+        .maybeSingle();
+
+      if (!existingCard) {
+        await supabase.from('crm_cards').insert({
+          empresa_id: canal.empresa_id,
+          pipeline_id: pipelineId,
+          stage_id: stageId,
+          lead_id: leadId,
+          titulo: `WhatsApp: ${msg.sender_name || 'Contato'}`,
+          cliente_nome: msg.sender_name || 'Contato WhatsApp',
+          descricao: msg.content?.slice(0, 500) ?? '',
+        });
+      }
+    }
   }
 
   const sessaoId = await TriageService.recordInboundMessage(msg, canal.id, supabase, leadId);

@@ -7,6 +7,7 @@ import Providers from "@/components/Providers";
 import CockpitRealtimeManager from "./CockpitRealtimeManager";
 import CockpitSidebarNav from "./CockpitSidebarNav";
 import CockpitUserMenu from "./_components/CockpitUserMenu";
+import CockpitHelpButton from "@/components/CockpitHelpButton";
 
 export default async function CockpitLayout({
   children,
@@ -68,6 +69,7 @@ export default async function CockpitLayout({
               Cockpit de Operações
             </h1>
             <div className="flex items-center gap-4">
+              <CockpitHelpButton />
               <LanguageSwitcher />
 
               <div className="h-5 w-px bg-[#ffffff1a]"></div>

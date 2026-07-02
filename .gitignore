@@ -43,6 +43,7 @@ yarn-error.log*
 /tmp/
 /.continue/
 /scripts/supabase/migrations-prod.json
+/scripts/supabase/prod-deploy/out/
 
 # vercel
 .vercel
@@ -58,3 +59,10 @@ next-env.d.ts
 #File extensions
 *.txt
 Contas Ragnar.txt
+
+# Docs internos RN3 (não versionar novos arquivos desta lista)
+# O manual do usuário CONTINUA versionado: docs/manual-usuario-ragnar.html + docs/manual/
+/docs/plano-testes-go-live.md
+
+# Capturas duplicadas por falha de script
+/docs/manual/img/steps/steps/

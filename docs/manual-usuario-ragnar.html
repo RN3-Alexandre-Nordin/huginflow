@@ -201,6 +201,47 @@
       background: var(--surface);
       border-top: 1px solid var(--border);
     }
+    figure.step-shot {
+      margin: 0.75rem 0 0.25rem;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      background: #0a0a0a;
+      max-width: 520px;
+    }
+    figure.step-shot img {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+    figure.step-shot figcaption {
+      padding: 0.45rem 0.75rem;
+      font-size: 0.75rem;
+      color: var(--muted);
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+    }
+    .steps li figure.step-shot { margin-left: 0; }
+    .video-embed {
+      margin: 1rem 0;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      background: var(--surface);
+      max-width: 640px;
+    }
+    .video-embed video {
+      display: block;
+      width: 100%;
+      height: auto;
+      background: #000;
+    }
+    .video-embed p {
+      padding: 0.65rem 1rem;
+      margin: 0;
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
     table {
       width: 100%;
       border-collapse: collapse;
@@ -234,6 +275,48 @@
       color: var(--muted);
       font-size: 0.85rem;
     }
+
+    /* Scrollbars — padrão Ragnar (globals.css) */
+    html { color-scheme: dark; }
+    html, body, .toc, .content {
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255, 255, 255, 0.08) transparent;
+    }
+    html::-webkit-scrollbar,
+    body::-webkit-scrollbar,
+    .content::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .toc::-webkit-scrollbar {
+      width: 3px;
+      height: 3px;
+    }
+    html::-webkit-scrollbar-track,
+    body::-webkit-scrollbar-track,
+    .content::-webkit-scrollbar-track,
+    .toc::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    html::-webkit-scrollbar-thumb,
+    body::-webkit-scrollbar-thumb,
+    .content::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.06);
+      border-radius: 10px;
+    }
+    .toc::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.04);
+      border-radius: 10px;
+    }
+    html::-webkit-scrollbar-thumb:hover,
+    body::-webkit-scrollbar-thumb:hover,
+    .content::-webkit-scrollbar-thumb:hover {
+      background: rgba(43, 170, 223, 0.25);
+    }
+    .toc::-webkit-scrollbar-thumb:hover {
+      background: rgba(43, 170, 223, 0.2);
+    }
+
     @media print {
       .toc { display: none; }
       .layout { display: block; }
@@ -251,11 +334,15 @@
         <a href="#intro">Introdução</a>
         <a href="#perfis">Perfis e permissões</a>
         <a href="#login">Entrar no sistema</a>
+        <a href="#senha">Alterar senha</a>
         <a href="#navegacao">Navegação</a>
+        <a href="#dashboard">Dashboard do Cockpit</a>
+        <a href="#ajuda">Ajuda no app</a>
         <div class="section-label">Omnichannel</div>
         <a href="#whatsapp">Conectar WhatsApp</a>
         <a href="#canais">Gerenciar canais</a>
         <a href="#chat">Chat omnichannel</a>
+        <a href="#chat-interno">Chat interno da equipe</a>
         <div class="section-label">CRM</div>
         <a href="#leads">Base de leads</a>
         <a href="#funis">Funis (Kanban)</a>
@@ -268,6 +355,7 @@
         <a href="#empresas">Empresas e departamentos</a>
         <div class="section-label">Suporte</div>
         <a href="#problemas">Problemas comuns</a>
+        <a href="#videos">Vídeos tutoriais</a>
         <a href="#links">Links úteis</a>
       </nav>
     </aside>
@@ -275,12 +363,12 @@
     <main class="content">
       <header class="doc-header">
         <h1>Manual do Usuário — Ragnar</h1>
-        <p class="subtitle">Guia passo a passo para operar o Cockpit: WhatsApp, chat, leads, funis e configurações da equipe.</p>
-        <p class="meta">Versão jun/2026 · Produção: <a href="https://app.ragnar.ia.br">app.ragnar.ia.br</a> · Doc técnico de ambientes: <a href="ambientes-ragnar.html">ambientes-ragnar.html</a></p>
+        <p class="subtitle">Guia passo a passo para operar o Cockpit: WhatsApp, chat omnichannel, chat interno da equipe, leads, funis, dashboard e configurações.</p>
+        <p class="meta">Versão jul/2026 · Produção: <a href="https://app.ragnar.ia.br">app.ragnar.ia.br</a> · Acesso rápido no app: ícone <strong>?</strong> no Cockpit</p>
       </header>
 
       <div class="alert info">
-        <strong>Ilustrações:</strong> as capturas abaixo representam fielmente a interface do Ragnar. Para substituir por prints reais, salve PNG em <code>docs/manual/img/</code> e altere o atributo <code>src</code> das tags <code>&lt;img&gt;</code> (caminhos já preparados).
+        <strong>Ilustrações:</strong> cada passo pode ter um print real da tela. Rode <code>npm run manual:capture</code> (com o app em dev) para gerar PNGs em <code>docs/manual/img/steps/</code>. Enquanto não houver captura, o manual exibe desenho esquemático (SVG).
       </div>
 
       <!-- INTRO -->
@@ -289,6 +377,7 @@
       <ul>
         <li>Conecta canais (WhatsApp via Evolution API, landing pages)</li>
         <li>Atende clientes no chat em tempo real, com apoio do Agente de IA</li>
+        <li>Colabora com a equipe no chat interno (global, cards e mensagens diretas)</li>
         <li>Gerencia leads, funis de vendas (Kanban) e base de conhecimento para a IA</li>
         <li>Administra usuários, permissões e estrutura da empresa (conforme seu perfil)</li>
       </ul>
@@ -330,10 +419,28 @@
       <div class="procedure">
         <p class="procedure-title"><span>✓</span> Fazer login</p>
         <ol class="steps">
-          <li>Abra o endereço do Ragnar (produção: <code>https://app.ragnar.ia.br/login</code>).</li>
-          <li>Informe seu <strong>e-mail</strong> cadastrado.</li>
-          <li>Informe sua <strong>senha</strong> e clique em entrar.</li>
-          <li>Após autenticação, você será direcionado ao <strong>Cockpit</strong> (painel inicial conforme seu papel).</li>
+          <li>Abra o endereço do Ragnar (produção: <code>https://app.ragnar.ia.br/login</code>).
+            <figure class="step-shot">
+              <img src="manual/img/steps/01-login.png" alt="Passo 1 — tela de login"
+                   onerror="this.closest('figure').remove()" />
+              <figcaption>Passo 1 — Tela de login</figcaption>
+            </figure>
+          </li>
+          <li>Informe seu <strong>e-mail</strong> cadastrado e sua <strong>senha</strong>.
+            <figure class="step-shot">
+              <img src="manual/img/steps/02-login-preenchido.png" alt="Passo 2 — campos preenchidos"
+                   onerror="this.closest('figure').remove()" />
+              <figcaption>Passo 2 — E-mail e senha</figcaption>
+            </figure>
+          </li>
+          <li>Clique em <strong>Entrar</strong>.</li>
+          <li>Após autenticação, você será direcionado ao <strong>Cockpit</strong>.
+            <figure class="step-shot">
+              <img src="manual/img/steps/03-cockpit.png" alt="Passo 4 — Cockpit inicial"
+                   onerror="this.closest('figure').remove()" />
+              <figcaption>Passo 4 — Painel inicial (conforme seu perfil)</figcaption>
+            </figure>
+          </li>
         </ol>
       </div>
 
@@ -360,6 +467,20 @@
 
       <div class="alert">
         <strong>Erro no login?</strong> Verifique e-mail e senha. Se a mensagem de erro persistir, peça redefinição de senha ao administrador da empresa.
+      </div>
+
+      <h2 id="senha">3.1 Alterar senha</h2>
+      <p>Qualquer usuário pode trocar a própria senha após o primeiro acesso.</p>
+      <div class="procedure">
+        <ol class="steps">
+          <li>No rodapé do menu lateral, clique no seu <strong>nome / avatar</strong>.</li>
+          <li>Selecione <strong>Alterar senha</strong>.</li>
+          <li>Informe a senha atual e a nova senha (mínimo exigido pelo sistema).</li>
+          <li>Salve e faça login novamente se solicitado.</li>
+        </ol>
+      </div>
+      <div class="alert ok">
+        <strong>Go-live:</strong> após receber credenciais temporárias da RN3, troque a senha antes de operar no dia a dia.
       </div>
 
       <!-- NAVEGAÇÃO -->
@@ -404,8 +525,43 @@
         <figcaption>Figura 2 — Menu lateral: item selecionado fica destacado em azul.</figcaption>
       </figure>
 
+      <p>No canto inferior direito da tela há o botão flutuante de <strong>chat interno da equipe</strong> (ícone de mensagem). No topo do Cockpit, o ícone <strong>?</strong> abre este manual.</p>
+
+      <!-- DASHBOARD -->
+      <h2 id="dashboard">5. Dashboard do Cockpit</h2>
+      <p>A página inicial <strong>Cockpit</strong> exibe métricas conforme seu perfil:</p>
+      <table>
+        <thead><tr><th>Perfil</th><th>O que você vê</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="badge badge-admin">Gestor</span></td>
+            <td>KPIs da empresa: leads, cards no funil, conversão, receita fechada, threads WhatsApp; gráfico com período (semana/mês) e métricas alternáveis.</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-op">Operador</span></td>
+            <td>Visão operacional: atalhos para chat, cards atribuídos e atividades do dia.</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-sa">Superadmin</span></td>
+            <td>Panorama multi-empresa e indicadores globais da plataforma.</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="procedure">
+        <p class="procedure-title"><span>📊</span> Usar o gráfico do gestor</p>
+        <ol class="steps">
+          <li>Abra <strong>Cockpit</strong> no menu.</li>
+          <li>Selecione o período: <strong>Semana</strong> ou <strong>Mês</strong>.</li>
+          <li>Alterne a métrica: Conversão, Entrada no funil, Receita fechada ou WhatsApp.</li>
+          <li>Passe o mouse sobre os pontos do gráfico para ver detalhes do período.</li>
+        </ol>
+      </div>
+
+      <h2 id="ajuda">5.1 Ajuda no aplicativo</h2>
+      <p>Em qualquer tela do Cockpit, clique no ícone <strong>?</strong> no canto superior direito (ao lado do seletor de idioma) para abrir este manual sem sair do sistema. Use <strong>Nova aba</strong> na página de ajuda se preferir consultar em janela separada.</p>
+
       <!-- WHATSAPP -->
-      <h2 id="whatsapp">5. Conectar WhatsApp (Evolution API)</h2>
+      <h2 id="whatsapp">6. Conectar WhatsApp (Evolution API)</h2>
       <p>Use esta operação na <strong>primeira configuração</strong> ou quando precisar de um número novo. Requer perfil com acesso a <strong>Canais Inbound</strong>.</p>
 
       <div class="procedure">
@@ -448,7 +604,7 @@
       </div>
 
       <!-- CANAIS -->
-      <h2 id="canais">6. Gerenciar canais</h2>
+      <h2 id="canais">7. Gerenciar canais</h2>
       <p>Cada canal aparece como um <strong>card</strong> na página Canais Inbound, com status visual:</p>
       <div class="grid-2">
         <div class="card"><strong style="color:var(--green)">Ativo</strong> — WhatsApp conectado e recebendo mensagens.</div>
@@ -456,7 +612,7 @@
         <div class="card"><strong style="color:#ef4444">Desconectado</strong> — instância offline; reconecte com QR.</div>
       </div>
 
-      <h3>6.1 Reconectar WhatsApp</h3>
+      <h3>7.1 Reconectar WhatsApp</h3>
       <div class="procedure">
         <ol class="steps">
           <li>No card do canal desconectado, clique em <strong>ESTABELECER CONEXÃO</strong>.</li>
@@ -465,7 +621,7 @@
         </ol>
       </div>
 
-      <h3>6.2 Ativar ou desativar o Agente de IA</h3>
+      <h3>7.2 Ativar ou desativar o Agente de IA</h3>
       <div class="procedure">
         <ol class="steps">
           <li>No card do canal, localize o bloco <strong>Agente Ragnar</strong>.</li>
@@ -474,7 +630,17 @@
         </ol>
       </div>
 
-      <h3>6.3 Remover um canal</h3>
+      <h3>7.3 Roteamento para o funil (WhatsApp)</h3>
+      <p>Defina para qual <strong>funil</strong> e <strong>etapa</strong> novos cards serão criados quando a IA ou o sistema registrar uma oportunidade vinda do WhatsApp.</p>
+      <div class="procedure">
+        <ol class="steps">
+          <li>No card do canal WhatsApp, localize a seção de <strong>roteamento</strong> ou edição do canal.</li>
+          <li>Selecione o funil de destino e a etapa inicial (ex.: PROSPECÇÃO).</li>
+          <li>Salve. Novos cards inbound passam a cair nessa coluna do Kanban.</li>
+        </ol>
+      </div>
+
+      <h3>7.4 Remover um canal</h3>
       <div class="procedure">
         <ol class="steps">
           <li>Clique no botão <strong>Remover</strong> (ícone lixeira) no card.</li>
@@ -510,7 +676,7 @@
       </figure>
 
       <!-- CHAT -->
-      <h2 id="chat">7. Chat Omnichannel</h2>
+      <h2 id="chat">8. Chat Omnichannel</h2>
       <p>Central de atendimento para conversas vindas do WhatsApp (e outros canais configurados).</p>
 
       <div class="procedure">
@@ -560,8 +726,68 @@
         <li>Ícone <strong>laranja (pessoa)</strong> — conversa em gestão humana</li>
       </ul>
 
+      <h3>8.1 Assumir conversa (takeover humano)</h3>
+      <p>Quando a IA está atendendo, o operador pode <strong>assumir o controle</strong> respondendo diretamente no chat.</p>
+      <div class="procedure">
+        <ol class="steps">
+          <li>Abra a conversa com status <strong>Atendimento Robotizado</strong> (indicador verde).
+            <figure class="step-shot">
+              <img src="manual/img/steps/04-chat-omni.png" alt="Lista de conversas omnichannel"
+                   onerror="this.closest('figure').remove()" />
+              <figcaption>Chat omnichannel — conversa selecionada</figcaption>
+            </figure>
+          </li>
+          <li>Digite sua mensagem no campo inferior — o placeholder indica que a IA pausará ao enviar.</li>
+          <li>Pressione <strong>Enviar</strong>. O status muda para <strong>Gestão Humana</strong> (laranja).</li>
+          <li>Continue o atendimento manualmente; o cliente recebe suas mensagens pelo WhatsApp.</li>
+        </ol>
+      </div>
+      <div class="alert info">
+        <strong>Lead automático:</strong> na primeira mensagem de um número novo, o sistema pode criar lead e card no funil conforme roteamento do canal (seções 7.3 e 9).
+      </div>
+
+      <!-- CHAT INTERNO -->
+      <h2 id="chat-interno">9. Chat interno da equipe</h2>
+      <p>Comunicação <strong>entre colaboradores da mesma empresa</strong> — distinto do chat com clientes (WhatsApp). Use para alinhar operação, mencionar colegas e discutir cards.</p>
+
+      <h3>9.1 Canal global da equipe</h3>
+      <div class="procedure">
+        <ol class="steps">
+          <li>Clique no botão flutuante de mensagem no <strong>canto inferior direito</strong> da tela.
+            <figure class="step-shot">
+              <img src="manual/img/steps/08-chat-interno.png" alt="Painel de chat interno"
+                   onerror="this.closest('figure').remove()" />
+              <figcaption>Chat interno — painel lateral de conversas</figcaption>
+            </figure>
+          </li>
+          <li>Na aba de conversas, abra o <strong>Canal Geral da Equipe</strong> (broadcast para todos da empresa).</li>
+          <li>Digite e envie mensagens visíveis a gestores e operadores da conta.</li>
+          <li>Use o filtro <strong>Mencionados</strong> para ver apenas mensagens em que seu nome aparece.</li>
+          <li>O botão <strong>#</strong> no cabeçalho alterna a exibição de trechos vindos de discussões de cards.</li>
+        </ol>
+      </div>
+
+      <h3>9.2 Menções e direcionar cards</h3>
+      <div class="procedure">
+        <ol class="steps">
+          <li>No campo de mensagem, digite <code>@</code> para mencionar um <strong>colega</strong> — o nome vira <code>[Nome Completo]</code> na mensagem.</li>
+          <li>Digite <code>#</code> para mencionar um <strong>card do CRM</strong> — o título vira <code>[Card: Título]</code> (destaque laranja no chat).</li>
+          <li>Use isso para direcionar a equipe: ex. “@Maria, verifique [Card: Proposta ACME]”.</li>
+          <li>Clique em uma referência de card para abrir o modal do card na aba correta.</li>
+        </ol>
+      </div>
+
+      <h3>9.3 Chat no card e mensagem direta</h3>
+      <div class="procedure">
+        <ol class="steps">
+          <li>Abra um card no Kanban → aba <strong>Chat Interno</strong> para discussão restrita àquele processo.</li>
+          <li>Para falar em privado com um colega, use a busca no painel de conversas ou clique no ícone de mensagem ao lado do nome dele em uma thread.</li>
+          <li>Conversas diretas (DM) aparecem na lista lateral com avatar e status online.</li>
+        </ol>
+      </div>
+
       <!-- LEADS -->
-      <h2 id="leads">8. Base de leads</h2>
+      <h2 id="leads">10. Base de leads</h2>
       <div class="procedure">
         <p class="procedure-title"><span>👤</span> Cadastrar um lead manualmente</p>
         <ol class="steps">
@@ -582,7 +808,7 @@
       </div>
 
       <!-- FUNIS -->
-      <h2 id="funis">9. Funis (Kanban)</h2>
+      <h2 id="funis">11. Funis (Kanban)</h2>
       <p>Organize oportunidades em colunas (estágios) e mova cards entre etapas do processo comercial.</p>
 
       <div class="procedure">
@@ -625,8 +851,28 @@
         <figcaption>Figura 6 — Kanban: colunas por estágio; arraste cards entre elas.</figcaption>
       </figure>
 
+      <h3>11.1 Detalhes do card</h3>
+      <p>Clique em um card para abrir o modal com abas <strong>Dados &amp; Resumo</strong> e <strong>Chat Interno</strong>.</p>
+      <div class="procedure">
+        <p class="procedure-title"><span>✏</span> Editar, atribuir e anexar</p>
+        <ol class="steps">
+          <li><strong>Editar Card</strong> — altere título, cliente, valor estimado e observações; salve.</li>
+          <li><strong>Atribuir</strong> — escolha outro membro da equipe como responsável pelo card.</li>
+          <li><strong>Anexos</strong> — envie arquivos (contratos, propostas) vinculados ao card.</li>
+          <li><strong>Transferir funil</strong> — mova o card para outro pipeline/etapa quando disponível.</li>
+        </ol>
+      </div>
+
+      <div class="procedure">
+        <p class="procedure-title"><span>✓</span> Finalizar ou excluir</p>
+        <ol class="steps">
+          <li><strong>Finalizar</strong> — marca o card como concluído; ele sai do fluxo ativo (filtro “finalizados”).</li>
+          <li><strong>Excluir</strong> — remove o card permanentemente (requer permissão; use com cautela).</li>
+        </ol>
+      </div>
+
       <!-- CONHECIMENTO -->
-      <h2 id="conhecimento">10. Base de conhecimento (IA)</h2>
+      <h2 id="conhecimento">12. Base de conhecimento (IA)</h2>
       <p>Alimente o Agente de IA com informações da sua empresa. Quanto mais conteúdo relevante, melhores as respostas automáticas.</p>
 
       <div class="procedure">
@@ -647,8 +893,20 @@
         </ol>
       </div>
 
+      <h3>12.1 Baixar PDF enviado</h3>
+      <div class="procedure">
+        <ol class="steps">
+          <li>Na lista da Base de Conhecimento, localize o item do tipo arquivo.</li>
+          <li>Clique no ícone de <strong>download</strong> na linha do item.</li>
+          <li>O arquivo original (PDF ou DOCX) será baixado quando disponível no storage.</li>
+        </ol>
+      </div>
+      <div class="alert info">
+        Após o upload, aguarde a mensagem de <strong>vetorização</strong> concluída — só então a IA passa a usar o conteúdo nas respostas.
+      </div>
+
       <!-- LANDING -->
-      <h2 id="landing">11. Canal Landing Page</h2>
+      <h2 id="landing">13. Canal Landing Page</h2>
       <p>Capture leads de formulários externos e encaminhe automaticamente para um estágio do funil.</p>
 
       <div class="procedure">
@@ -663,7 +921,7 @@
       </div>
 
       <!-- SIMULADOR -->
-      <h2 id="simulador">12. Simulador de chat</h2>
+      <h2 id="simulador">14. Simulador de chat</h2>
       <p>Teste o comportamento da IA <strong>sem</strong> enviar mensagens reais pelo WhatsApp.</p>
       <div class="procedure">
         <ol class="steps">
@@ -675,7 +933,7 @@
       </div>
 
       <!-- USUÁRIOS -->
-      <h2 id="usuarios">13. Usuários</h2>
+      <h2 id="usuarios">15. Usuários</h2>
       <p><span class="badge badge-admin">Admin</span> Gestão de equipe com acesso ao Cockpit.</p>
 
       <div class="procedure">
@@ -698,7 +956,7 @@
       </div>
 
       <!-- GRUPOS -->
-      <h2 id="grupos">14. Grupos de acesso</h2>
+      <h2 id="grupos">16. Grupos de acesso</h2>
       <p>Define <strong>o que cada equipe pode fazer</strong>: ver funis, editar leads, administrar usuários, etc.</p>
 
       <div class="procedure">
@@ -712,7 +970,7 @@
       </div>
 
       <!-- EMPRESAS -->
-      <h2 id="empresas">15. Empresas e departamentos</h2>
+      <h2 id="empresas">17. Empresas e departamentos</h2>
       <p><span class="badge badge-sa">Superadmin</span> gerencia empresas (contas). <span class="badge badge-admin">Admin</span> gerencia departamentos da própria empresa.</p>
 
       <h3>Empresas (superadmin)</h3>
@@ -733,7 +991,7 @@
       </div>
 
       <!-- PROBLEMAS -->
-      <h2 id="problemas">16. Problemas comuns</h2>
+      <h2 id="problemas">18. Problemas comuns</h2>
       <table>
         <thead><tr><th>Sintoma</th><th>O que fazer</th></tr></thead>
         <tbody>
@@ -761,17 +1019,44 @@
             <td>WhatsApp desconectou sozinho</td>
             <td>Abra o card → <strong>ESTABELECER CONEXÃO</strong> → escaneie novo QR. Evite usar o mesmo número em outro aparelho simultaneamente.</td>
           </tr>
+          <tr>
+            <td>Não vejo Financeiro / Contratos</td>
+            <td>Esses módulos são exclusivos da RN3 (superadmin). Gestores e operadores não têm acesso — comportamento esperado.</td>
+          </tr>
+          <tr>
+            <td>Chat interno não notifica colega</td>
+            <td>Use <code>@nome</code> na mensagem. Verifique se o colega abriu o painel flutuante de conversas.</td>
+          </tr>
         </tbody>
       </table>
 
+      <h2 id="videos">19. Vídeos tutoriais (opcional)</h2>
+      <p>Quando disponíveis, tutoriais em vídeo aparecem abaixo. A equipe RN3 pode gerá-los com <code>npm run manual:video</code> (rascunho automático) ou gravar com Loom/OBS para narração.</p>
+
+      <div class="video-embed">
+        <video controls preload="metadata" poster="manual/img/steps/03-cockpit.png">
+          <source src="manual/img/videos/01-login-cockpit.webm" type="video/webm" />
+          Seu navegador não suporta vídeo HTML5.
+        </video>
+        <p><strong>Vídeo 1</strong> — Login e primeiro acesso ao Cockpit (adicione o arquivo em <code>docs/manual/img/videos/</code>)</p>
+      </div>
+
+      <div class="video-embed">
+        <video controls preload="metadata" poster="manual/img/steps/05-canais.png">
+          <source src="manual/img/videos/02-whatsapp-qr.webm" type="video/webm" />
+        </video>
+        <p><strong>Vídeo 2</strong> — Conectar WhatsApp e escanear QR Code</p>
+      </div>
+
       <!-- LINKS -->
-      <h2 id="links">17. Links úteis</h2>
+      <h2 id="links">20. Links úteis</h2>
       <table>
         <thead><tr><th>Recurso</th><th>Endereço / arquivo</th></tr></thead>
         <tbody>
           <tr><td>App produção</td><td><a href="https://app.ragnar.ia.br">https://app.ragnar.ia.br</a></td></tr>
           <tr><td>Login</td><td><a href="https://app.ragnar.ia.br/login">https://app.ragnar.ia.br/login</a></td></tr>
-          <tr><td>Doc ambientes (técnico)</td><td><a href="ambientes-ragnar.html">docs/ambientes-ragnar.html</a></td></tr>
+          <tr><td>Manual (dentro do app)</td><td>Ícone <strong>?</strong> no topo do Cockpit ou menu → <code>/cockpit/ajuda</code></td></tr>
+          <tr><td>Doc ambientes (técnico)</td><td>Solicite à equipe RN3</td></tr>
           <tr><td>Deploy CI/CD</td><td><code>docs/deploy-vps-github-actions.md</code></td></tr>
           <tr><td>Suporte RN3</td><td>Contate o administrador da sua conta ou equipe técnica RN3</td></tr>
         </tbody>

@@ -9,7 +9,9 @@
     "tunnel:setup": "powershell -ExecutionPolicy Bypass -File ./scripts/setup-cloudflare-tunnel.ps1",
     "build": "next build --webpack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "manual:capture": "node scripts/manual/capture-screenshots.mjs",
+    "manual:video": "node scripts/manual/capture-screenshots.mjs --video"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -37,6 +39,7 @@
     "cross-env": "^7.0.3",
     "eslint": "^9",
     "eslint-config-next": "16.2.1",
+    "playwright": "^1.61.1",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

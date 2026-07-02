@@ -20,7 +20,12 @@ const nextConfig: NextConfig = {
         "localhost:3000",
         "127.0.0.1:3000",
       ]
-    }
+    },
+    // Garante manual + imagens no bundle standalone (além do COPY no Dockerfile)
+    outputFileTracingIncludes: {
+      '/api/ajuda/manual': ['./docs/manual-usuario-ragnar.html'],
+      '/api/ajuda/img/*': ['./docs/manual/img/**/*'],
+    },
   },
 
   /**
