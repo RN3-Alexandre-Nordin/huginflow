@@ -103,13 +103,21 @@ Arquivos-chave: `src/types/omnichannel.ts`, webhooks, providers, `AiResponseServ
 
 ---
 
-## Fase 3 — Repo, pastas e infra (depois)
+## Fase 3 — Pastas e infra (repo já separado)
 
-1. Renomear GitHub `ragnar` → `huginflow`; atualizar Actions/clone/docs  
-2. Renomear arquivos: `manual-usuario-ragnar.html`, `ambientes-ragnar.html`, etc.  
+O código canônico do produto passa a viver em
+[`RN3-Alexandre-Nordin/huginflow`](https://github.com/RN3-Alexandre-Nordin/huginflow).
+O repo [`ragnar`](https://github.com/RN3-Alexandre-Nordin/ragnar) permanece **legado** (não renomear / não misturar cutover).
+
+Remote local sugerido:
+- `origin` → `ragnar` (congelado / emergência)
+- `huginflow` → novo produto (`git push huginflow develop`)
+
+1. No GitHub: default branch = `develop` (Settings → General)  
+2. Renomear arquivos locais: `manual-usuario-ragnar.html`, `ambientes-ragnar.html`, etc.  
 3. Imagens Docker / stack Portainer: tags `ragnar` → `huginflow` (período com tags duplas)  
 4. Pasta local do workspace (opcional)  
-5. **Manter** hostnames de infra RN3 (`*.rn3.tec.br`, tunnels) — não precisam se chamar HuginFlow  
+5. **Manter** hostnames de infra RN3 (`*.rn3.tec.br`, tunnels)  
 
 ### Aceite Fase 3
 
