@@ -153,6 +153,17 @@ async function handleMessageUpsert(
 
   console.log(`[Webhook Evolution][${timestampId}] crm_conversas OK sessao=${sessaoId}`);
 
+  const audioMeta =
+    msg.type === 'audio'
+      ? {
+          media_type: msg.metadata?.media_type,
+          mimetype: msg.metadata?.mimetype,
+          ptt: msg.metadata?.ptt,
+          duration_seconds: msg.metadata?.duration_seconds,
+          transcription: msg.metadata?.transcription,
+        }
+      : {}
+
   const { error: interacaoError } = await supabase.from('crm_interacoes').insert({
     empresa_id: canal.empresa_id,
     lead_id: leadId,
@@ -168,6 +179,7 @@ async function handleMessageUpsert(
       provider: 'evolution',
       instance: instanceName,
       provider_message_id: msg.id,
+      ...audioMeta,
     },
   });
 

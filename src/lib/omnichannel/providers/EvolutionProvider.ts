@@ -1,6 +1,8 @@
 import { RagnarMessage, BaseProvider, ProviderConfig, WebhookResult, RagnarEvent } from '@/types/omnichannel';
 import { getEvolutionCredentials } from '@/lib/config/environment';
 import { formatWhatsAppSignatureHeader } from '@/lib/omnichannel/whatsapp-outbound';
+import { AUDIO_PLACEHOLDER } from '@/lib/omnichannel/audio-transcription-constants';
+import { extractAudioMessagePayload } from '@/lib/omnichannel/services/EvolutionMediaService';
 
 /** Normaliza nomes de evento da Evolution (MESSAGES_UPSERT → messages.upsert). */
 export function normalizeEvolutionEvent(event: string | undefined): string {
@@ -164,14 +166,19 @@ export class EvolutionProvider implements BaseProvider {
         (data.message?.listResponseMessage?.title as string | undefined) ||
         '';
 
+      const audioMeta = extractAudioMessagePayload(data);
+
       // Determinando o tipo de mensagem simplificado
       let type: any = 'text';
       if (data.message?.imageMessage) type = 'image';
       if (data.message?.videoMessage) type = 'video';
-      if (data.message?.audioMessage) type = 'audio';
+      if (audioMeta) type = 'audio';
       if (data.message?.documentMessage) type = 'document';
 
-      if (!messageContent && type === 'text') return null;
+      const content =
+        type === 'audio' && !messageContent ? AUDIO_PLACEHOLDER : messageContent;
+
+      if (!content && type === 'text') return null;
 
       return {
         id: data.key.id,
@@ -180,13 +187,23 @@ export class EvolutionProvider implements BaseProvider {
         empresa_id: '', // Será preenchido pelo serviço de roteamento ao consultar o banco
         sender_id: senderPhone,
         sender_name: data.pushName || 'WhatsApp User',
-        content: messageContent,
+        content: content,
         type: type,
         created_at: new Date(data.messageTimestamp * 1000),
         direction: 'inbound',
         metadata: {
           raw: data,
-          instance: payload.instance
+          instance: payload.instance,
+          provider_message_id: data.key.id,
+          ...(audioMeta
+            ? {
+                media_type: 'audio',
+                mimetype: audioMeta.mimetype,
+                ptt: audioMeta.ptt,
+                duration_seconds: audioMeta.seconds,
+                transcription: { status: 'pending' as const },
+              }
+            : {}),
         }
       } as RagnarMessage;
     }

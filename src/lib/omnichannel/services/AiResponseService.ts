@@ -5,6 +5,7 @@ import { EvolutionProvider } from '@/lib/omnichannel/providers/EvolutionProvider
 import { RagnarMessage } from '@/types/omnichannel'
 import { ConversaHistoricoService } from '@/lib/omnichannel/ConversaHistoricoService'
 import { WHATSAPP_SENDER_LABELS } from '@/lib/omnichannel/whatsapp-outbound'
+import { AudioTranscriptionService } from '@/lib/omnichannel/services/AudioTranscriptionService'
 type CanalContext = {
   id: string
   provider_id: string
@@ -40,13 +41,32 @@ export class AiResponseService {
         supabase,
       )
 
+      let messageText = message.content
+
+      if (message.type === 'audio') {
+        const transcription = await AudioTranscriptionService.transcribeInboundAudio(
+          message,
+          canal,
+          supabase,
+          {
+            providerMessageId: message.id,
+            sessaoId,
+          },
+        )
+
+        console.log(`[AiResponse] Transcrição áudio: ${transcription.reasoning}`)
+
+        messageText = transcription.ok ? transcription.text : transcription.fallbackText
+        message.content = messageText
+      }
+
       const aiResult = await GeminiChatService.generateReply(supabase, {
         empresaId,
         leadId,
         conversaId: sessaoId,
         contactPhone: message.sender_id,
         contactName: message.sender_name || 'Usuário WhatsApp',
-        message: message.content,
+        message: messageText,
       })
 
       if (!aiResult.success) {

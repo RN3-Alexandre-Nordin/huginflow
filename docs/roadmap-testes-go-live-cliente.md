@@ -218,4 +218,4 @@ Todos os **P0** ✅ antes do cliente usar o sistema em produção.
 
 ## Registro de execução
 
-Resultados por fase em `docs/testes-go-live-resultados.md` (atualizado pelo agente a cada fase).
+Use o plano simplificado por blocos: [`docs/plano-testes-go-live.md`](./plano-testes-go-live.md)

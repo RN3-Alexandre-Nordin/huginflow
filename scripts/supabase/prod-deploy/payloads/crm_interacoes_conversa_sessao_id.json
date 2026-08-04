@@ -1,0 +1,4 @@
+{
+  "name": "crm_interacoes_conversa_sessao_id",
+  "query": "ALTER TABLE public.crm_interacoes DROP CONSTRAINT IF EXISTS crm_interacoes_conversa_id_fkey;\n\nCOMMENT ON COLUMN public.crm_interacoes.conversa_id IS\n  'ID do thread (crm_conversas.sessao_id). Sem FK — várias linhas compartilham o mesmo sessao_id.';"
+}

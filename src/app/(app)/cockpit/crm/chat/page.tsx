@@ -31,10 +31,35 @@ interface Mensagem {
   created_at: string
   conversa_id: string
   user_id?: string
-  metadata?: { is_ai?: boolean; sent_by?: string } | null
+  metadata?: {
+    is_ai?: boolean
+    sent_by?: string
+    media_type?: string
+    transcription?: {
+      status?: 'pending' | 'completed' | 'failed'
+      text?: string
+      error?: string
+    }
+  } | null
   usuarios?: {
     nome_completo: string
   } | null
+}
+
+function formatMessageContent(msg: Mensagem): string {
+  const meta = msg.metadata
+  if (meta?.media_type === 'audio') {
+    const status = meta.transcription?.status
+    if (status === 'pending') {
+      return msg.content || '🎤 Áudio recebido — transcrevendo…'
+    }
+    if (status === 'failed') {
+      return msg.content || 'Recebi seu áudio, mas não consegui transcrever.'
+    }
+    const text = meta.transcription?.text
+    if (text) return `🎤 ${text}`
+  }
+  return msg.content
 }
 
 function getResponderLabel(msg: Mensagem): string | null {
@@ -104,7 +129,7 @@ export default function ChatOmnichannelPage() {
 
     const channel = supabase.channel('chat-updates')
 
-    const interacoesConfig: {
+    const interacoesInsertConfig: {
       event: 'INSERT'
       schema: 'public'
       table: 'crm_interacoes'
@@ -114,15 +139,35 @@ export default function ChatOmnichannelPage() {
       schema: 'public',
       table: 'crm_interacoes',
     }
-    if (interacoesFilter) interacoesConfig.filter = interacoesFilter
+    if (interacoesFilter) interacoesInsertConfig.filter = interacoesFilter
 
-    channel.on('postgres_changes', interacoesConfig, (payload) => {
+    channel.on('postgres_changes', interacoesInsertConfig, (payload) => {
       const row = payload.new as { conversa_id?: string; empresa_id?: string }
       if (!isSuperadmin && row.empresa_id !== profile.empresa_id) return
       if (selectedChatRef.current && row.conversa_id === selectedChatRef.current.id) {
         fetchMensagens(selectedChatRef.current.id)
       }
       fetchConversas(profile)
+    })
+
+    const interacoesUpdateConfig: {
+      event: 'UPDATE'
+      schema: 'public'
+      table: 'crm_interacoes'
+      filter?: string
+    } = {
+      event: 'UPDATE',
+      schema: 'public',
+      table: 'crm_interacoes',
+    }
+    if (interacoesFilter) interacoesUpdateConfig.filter = interacoesFilter
+
+    channel.on('postgres_changes', interacoesUpdateConfig, (payload) => {
+      const row = payload.new as { conversa_id?: string; empresa_id?: string }
+      if (!isSuperadmin && row.empresa_id !== profile.empresa_id) return
+      if (selectedChatRef.current && row.conversa_id === selectedChatRef.current.id) {
+        fetchMensagens(selectedChatRef.current.id)
+      }
     })
 
     const conversasConfig: {
@@ -350,8 +395,8 @@ export default function ChatOmnichannelPage() {
                             : 'bg-gradient-to-br from-[#2BAADF] to-[#1A8FBF] text-white border-[#2BAADF]/20 rounded-tr-none'
                        }`}>
                           {msg.role === 'assistant'
-                            ? msg.content.replace(/\[STATUS_CRM:.*?\]/gi, '').replace(/\[.*?\]/g, '').trim()
-                            : msg.content}
+                            ? formatMessageContent(msg).replace(/\[STATUS_CRM:.*?\]/gi, '').replace(/\[.*?\]/g, '').trim()
+                            : formatMessageContent(msg)}
                        </div>
                     </div>
                   </div>

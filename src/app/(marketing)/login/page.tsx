@@ -124,13 +124,6 @@ function LoginForm() {
             >
               Senha
             </label>
-            <a
-              href="/forgot-password"
-              className="text-xs font-medium transition-colors duration-200 hover:underline"
-              style={{ color: "var(--ragnar-blue)" }}
-            >
-              Esqueceu a senha?
-            </a>
           </div>
           <div
             className="relative rounded-xl transition-all duration-300"

@@ -1,0 +1,4 @@
+{
+  "name": "knowledge_base_select_rls",
+  "query": "DROP POLICY IF EXISTS \"Usuários podem visualizar a base de conhecimento da sua empresa\" ON knowledge_base;\n\nCREATE POLICY \"Usuários podem visualizar a base de conhecimento da sua empresa\"\nON knowledge_base FOR SELECT\nTO public\nUSING (\n  EXISTS (\n    SELECT 1\n    FROM usuarios\n    WHERE usuarios.auth_user_id = auth.uid()\n      AND usuarios.empresa_id = knowledge_base.organization_id\n  )\n);"
+}

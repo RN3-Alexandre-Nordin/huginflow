@@ -5,22 +5,27 @@ import { revalidatePath } from 'next/cache'
 import { hasPermission } from '@/utils/permissions'
 import { getMyProfile } from '@/app/(app)/cockpit/actions'
 import { GeminiChatService } from '@/lib/crm/GeminiChatService'
+import { AUDIO_PLACEHOLDER } from '@/lib/omnichannel/audio-transcription-constants'
+import type { TranscriptionMetadata } from '@/lib/omnichannel/services/AudioTranscriptionService'
+import { AudioTranscriptionService } from '@/lib/omnichannel/services/AudioTranscriptionService'
 
-export async function processChat(phone: string, name: string, message: string) {
-  const me = await getMyProfile()
-  if (!hasPermission(me, 'simulador', 'view')) {
-    return { error: 'Sem permissão para utilizar o simulador.' }
-  }
+const MAX_AUDIO_BYTES = 25 * 1024 * 1024
 
-  const supabase = await createClient()
-  const targetEmpresaId = me?.empresa_id
+type SimulatorChatResult =
+  | {
+      success: true
+      response: string
+      userContent: string
+      transcriptionOk: boolean
+    }
+  | { error: string }
 
-  if (!targetEmpresaId) return { error: 'Empresa não identificada para carregar configurações de IA.' }
-
-  const cleanPhone = phone.replace(/\D/g, '')
-
-  let leadId: string
-
+async function resolveLeadId(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  targetEmpresaId: string,
+  cleanPhone: string,
+  name: string,
+): Promise<{ leadId: string } | { error: string }> {
   const { data: existingLead } = await supabase
     .from('crm_leads')
     .select('id, nome')
@@ -29,25 +34,36 @@ export async function processChat(phone: string, name: string, message: string) 
     .maybeSingle()
 
   if (existingLead) {
-    leadId = existingLead.id
-  } else {
-    const { data: newLead, error: leadError } = await supabase
-      .from('crm_leads')
-      .insert([
-        {
-          nome: name,
-          telefone: cleanPhone,
-          empresa_id: targetEmpresaId,
-          canal_id: null,
-        },
-      ])
-      .select('id')
-      .single()
-
-    if (leadError) return { error: 'Falha ao criar lead: ' + leadError.message }
-    leadId = newLead.id
+    return { leadId: existingLead.id }
   }
 
+  const { data: newLead, error: leadError } = await supabase
+    .from('crm_leads')
+    .insert([
+      {
+        nome: name,
+        telefone: cleanPhone,
+        empresa_id: targetEmpresaId,
+        canal_id: null,
+      },
+    ])
+    .select('id')
+    .single()
+
+  if (leadError) return { error: 'Falha ao criar lead: ' + leadError.message }
+  return { leadId: newLead.id }
+}
+
+async function runSimulatorExchange(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  targetEmpresaId: string,
+  cleanPhone: string,
+  name: string,
+  leadId: string,
+  messageText: string,
+  userContent: string,
+  userMetadata?: Record<string, unknown>,
+): Promise<SimulatorChatResult> {
   await supabase.from('crm_interacoes').insert([
     {
       empresa_id: targetEmpresaId,
@@ -55,7 +71,8 @@ export async function processChat(phone: string, name: string, message: string) 
       contact_phone: cleanPhone,
       contact_name: name,
       role: 'user',
-      content: message,
+      content: userContent,
+      metadata: userMetadata ?? { provider: 'simulator' },
     },
   ])
 
@@ -64,7 +81,7 @@ export async function processChat(phone: string, name: string, message: string) 
     leadId,
     contactPhone: cleanPhone,
     contactName: name,
-    message,
+    message: messageText,
   })
 
   if (!aiResult.success) {
@@ -79,11 +96,115 @@ export async function processChat(phone: string, name: string, message: string) 
       contact_name: name,
       role: 'assistant',
       content: aiResult.response,
+      metadata: { provider: 'simulator', is_ai: true },
     },
   ])
 
   revalidatePath('/cockpit/crm/simulador')
-  return { success: true, response: aiResult.response }
+  return {
+    success: true,
+    response: aiResult.response,
+    userContent,
+    transcriptionOk: true,
+  }
+}
+
+export async function processChat(phone: string, name: string, message: string) {
+  const me = await getMyProfile()
+  if (!hasPermission(me, 'simulador', 'view')) {
+    return { error: 'Sem permissão para utilizar o simulador.' }
+  }
+
+  const supabase = await createClient()
+  const targetEmpresaId = me?.empresa_id
+
+  if (!targetEmpresaId) return { error: 'Empresa não identificada para carregar configurações de IA.' }
+
+  const cleanPhone = phone.replace(/\D/g, '')
+  const leadResult = await resolveLeadId(supabase, targetEmpresaId, cleanPhone, name)
+  if ('error' in leadResult) return leadResult
+
+  return runSimulatorExchange(
+    supabase,
+    targetEmpresaId,
+    cleanPhone,
+    name,
+    leadResult.leadId,
+    message,
+    message,
+    { provider: 'simulator' },
+  )
+}
+
+export async function processChatAudio(formData: FormData) {
+  const me = await getMyProfile()
+  if (!hasPermission(me, 'simulador', 'view')) {
+    return { error: 'Sem permissão para utilizar o simulador.' }
+  }
+
+  const supabase = await createClient()
+  const targetEmpresaId = me?.empresa_id
+  if (!targetEmpresaId) {
+    return { error: 'Empresa não identificada para carregar configurações de IA.' }
+  }
+
+  const phone = String(formData.get('phone') ?? '')
+  const name = String(formData.get('name') ?? 'Cliente Teste')
+  const audio = formData.get('audio')
+
+  if (!(audio instanceof File) || audio.size === 0) {
+    return { error: 'Selecione um arquivo de áudio válido.' }
+  }
+  if (audio.size > MAX_AUDIO_BYTES) {
+    return { error: 'Áudio muito grande (máximo 25MB).' }
+  }
+
+  const cleanPhone = phone.replace(/\D/g, '')
+  const leadResult = await resolveLeadId(supabase, targetEmpresaId, cleanPhone, name)
+  if ('error' in leadResult) return leadResult
+
+  const arrayBuffer = await audio.arrayBuffer()
+  const buffer = Buffer.from(arrayBuffer)
+  const mimeType = audio.type || 'audio/webm'
+  const filename = audio.name || 'simulator-audio.webm'
+
+  const transcription = await AudioTranscriptionService.transcribeUploadedBuffer(
+    targetEmpresaId,
+    buffer,
+    mimeType,
+    filename,
+    supabase,
+    { ptt: true },
+  )
+
+  console.log(`[Simulador] Transcrição áudio: ${transcription.reasoning}`)
+
+  const messageText = transcription.ok ? transcription.text : transcription.fallbackText
+  const userContent = transcription.ok ? `🎤 ${transcription.text}` : transcription.fallbackText
+
+  const metadata: TranscriptionMetadata & { provider: string } = {
+    ...transcription.metadata,
+    provider: 'simulator',
+  }
+
+  const result = await runSimulatorExchange(
+    supabase,
+    targetEmpresaId,
+    cleanPhone,
+    name,
+    leadResult.leadId,
+    messageText,
+    userContent,
+    metadata,
+  )
+
+  if ('error' in result) return result
+
+  return {
+    ...result,
+    transcriptionOk: transcription.ok,
+    placeholder: AUDIO_PLACEHOLDER,
+  }
 }
 
 /**

@@ -55,3 +55,33 @@ export async function generateText(prompt: string, config: EmpresaAiConfig): Pro
   })
   return result.choices[0]?.message?.content?.trim() ?? ''
 }
+
+export type TranscribeAudioOptions = {
+  language?: string
+  filename?: string
+  mimeType?: string
+}
+
+/** Transcrição de áudio inbound (WhatsApp PTT) via OpenAI Whisper. */
+export async function transcribeAudio(
+  audioBuffer: Buffer,
+  config: EmpresaAiConfig,
+  options: TranscribeAudioOptions = {},
+): Promise<string> {
+  const client = new OpenAI({ apiKey: config.apiKey })
+  const filename = options.filename ?? 'audio.ogg'
+  const mimeType = options.mimeType ?? 'audio/ogg'
+  const file = await OpenAI.toFile(audioBuffer, filename, { type: mimeType })
+
+  const result = await client.audio.transcriptions.create({
+    model: 'whisper-1',
+    file,
+    language: options.language ?? 'pt',
+  })
+
+  const text = result.text?.trim() ?? ''
+  if (!text) {
+    throw new Error('Whisper retornou transcrição vazia.')
+  }
+  return text
+}

@@ -1,16 +1,17 @@
 'use client'
 
 import { useState, useEffect, useRef, useTransition } from 'react'
-import { Send, User, Phone, Bot, Sparkles, MessageSquare, Loader2 } from 'lucide-react'
-import { processChat } from './actions'
+import { Send, User, Phone, Bot, Sparkles, MessageSquare, Loader2, Mic } from 'lucide-react'
+import { processChat, processChatAudio } from './actions'
+import { AUDIO_PLACEHOLDER } from '@/lib/omnichannel/audio-transcription-constants'
 
 interface Message {
   id?: string
   role: 'user' | 'assistant' | 'system'
   content: string
   created_at?: string
+  isAudio?: boolean
 }
-
 export default function SimuladorChat({ initialHistory = [] }: { initialHistory?: Message[] }) {
   const [phone, setPhone] = useState('5511999999999')
   const [name, setName] = useState('Cliente Teste')
@@ -18,6 +19,7 @@ export default function SimuladorChat({ initialHistory = [] }: { initialHistory?
   const [input, setInput] = useState('')
   const [isPending, startTransition] = useTransition()
   const scrollRef = useRef<HTMLDivElement>(null)
+  const audioInputRef = useRef<HTMLInputElement>(null)
   
   const formatPhone = (value: string) => {
     if (!value) return ""
@@ -47,12 +49,65 @@ export default function SimuladorChat({ initialHistory = [] }: { initialHistory?
 
     startTransition(async () => {
       const res = await processChat(phone, name, userMessage)
-      
-      if (res.success && res.response) {
-        setMessages(prev => [...prev, { role: 'assistant', content: res.response!, id: (Date.now() + 1).toString() }])
-      } else if (res.error) {
+
+      if ('error' in res) {
         setMessages(prev => [...prev, { role: 'system', content: `ERRO: ${res.error}`, id: (Date.now() + 1).toString() }])
+      } else if (res.success && res.response) {
+        setMessages(prev => [...prev, { role: 'assistant', content: res.response, id: (Date.now() + 1).toString() }])
       }
+    })
+  }
+
+  const handleAudioSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file || isPending) return
+
+    const placeholderId = Date.now().toString()
+    setMessages((prev) => [
+      ...prev,
+      {
+        role: 'user',
+        content: AUDIO_PLACEHOLDER,
+        id: placeholderId,
+        isAudio: true,
+      },
+    ])
+
+    startTransition(async () => {
+      const formData = new FormData()
+      formData.set('phone', phone)
+      formData.set('name', name)
+      formData.set('audio', file)
+
+      const res = await processChatAudio(formData)
+
+      if ('error' in res) {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === placeholderId
+              ? { ...m, content: `ERRO: ${res.error}`, role: 'system' as const, isAudio: false }
+              : m,
+          ),
+        )
+        return
+      }
+
+      setMessages((prev) => {
+        const updated = prev.map((m) =>
+          m.id === placeholderId
+            ? { ...m, content: res.userContent, isAudio: true }
+            : m,
+        )
+        return [
+          ...updated,
+          {
+            role: 'assistant' as const,
+            content: res.response,
+            id: (Date.now() + 1).toString(),
+          },
+        ]
+      })
     })
   }
 
@@ -99,7 +154,7 @@ export default function SimuladorChat({ initialHistory = [] }: { initialHistory?
 
         <div className="mt-auto p-4 rounded-xl bg-[#2BAADF]/5 border border-[#2BAADF]/10">
           <p className="text-[10px] leading-relaxed text-[#2BAADF]/80 font-medium italic">
-            "Este simulador envia mensagens para a IA da empresa como se viessem de um WhatsApp real. Útil para testar a personalidade e a criação automática de leads/cards."
+            Envie texto ou um arquivo de áudio (PTT) para testar a transcrição Whisper + resposta da IA — mesmo fluxo do WhatsApp, sem Evolution.
           </p>
         </div>
       </div>
@@ -153,9 +208,16 @@ export default function SimuladorChat({ initialHistory = [] }: { initialHistory?
                   </div>
                 )}
                 <p className="text-sm whitespace-pre-wrap leading-relaxed">
-                  {msg.role === 'assistant' 
-                    ? msg.content.replace(/\[STATUS_CRM:.*?\]/g, '').trim() 
-                    : msg.content}
+                  {msg.role === 'assistant'
+                    ? msg.content.replace(/\[STATUS_CRM:.*?\]/g, '').trim()
+                    : msg.isAudio && msg.content === AUDIO_PLACEHOLDER
+                      ? (
+                        <span className="flex items-center gap-2 italic opacity-80">
+                          <Mic className="w-4 h-4 shrink-0" />
+                          {msg.content}
+                        </span>
+                      )
+                      : msg.content}
                 </p>
                 <span className="text-[8px] opacity-40 block mt-2 text-right uppercase font-bold">
                   {new Date(msg.created_at || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -168,7 +230,9 @@ export default function SimuladorChat({ initialHistory = [] }: { initialHistory?
             <div className="flex justify-start animate-in fade-in duration-300">
               <div className="bg-[#1A1A1A] border border-[#ffffff0a] rounded-2xl p-4 rounded-tl-none flex items-center gap-3">
                 <Loader2 className="w-4 h-4 text-[#2BAADF] animate-spin" />
-                <span className="text-xs text-gray-500 font-bold uppercase tracking-widest">IA analisando e respondendo...</span>
+                <span className="text-xs text-gray-500 font-bold uppercase tracking-widest">
+                  Transcrevendo áudio e gerando resposta…
+                </span>
               </div>
             </div>
           )}
@@ -176,7 +240,23 @@ export default function SimuladorChat({ initialHistory = [] }: { initialHistory?
 
         {/* Input */}
         <div className="p-4 bg-[#111111]/80 backdrop-blur-xl border-t border-[#ffffff0a]">
+          <input
+            ref={audioInputRef}
+            type="file"
+            accept="audio/*,.webm,.ogg,.mp3,.m4a,.wav"
+            className="hidden"
+            onChange={handleAudioSelect}
+          />
           <form className="flex items-center gap-3 max-w-5xl mx-auto" onSubmit={handleSend}>
+            <button
+              type="button"
+              disabled={isPending}
+              onClick={() => audioInputRef.current?.click()}
+              title="Enviar áudio (teste de transcrição)"
+              className="w-12 h-12 rounded-xl bg-[#0A0A0A] border border-[#ffffff10] flex items-center justify-center text-gray-400 hover:text-[#2BAADF] hover:border-[#2BAADF]/40 transition-all disabled:opacity-50"
+            >
+              <Mic className="w-5 h-5" />
+            </button>
             <input 
               value={input}
               onChange={e => setInput(e.target.value)}

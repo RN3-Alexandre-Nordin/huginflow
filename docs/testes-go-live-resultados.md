@@ -1,5 +1,7 @@
 # Resultados dos testes — Go-live
 
+> **Documento principal:** [`plano-testes-go-live.md`](./plano-testes-go-live.md) (blocos sequenciais, sucesso/falha). Este arquivo é histórico da Fase 1.
+
 Atualizado automaticamente a cada fase executada.
 
 ---

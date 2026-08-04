@@ -11,7 +11,9 @@
     "start": "next start",
     "lint": "eslint",
     "manual:capture": "node scripts/manual/capture-screenshots.mjs",
-    "manual:video": "node scripts/manual/capture-screenshots.mjs --video"
+    "manual:video": "node scripts/manual/capture-screenshots.mjs --video",
+    "homologacao:prod": "node scripts/supabase/run-homologacao-prod.mjs",
+    "homologacao:prod:reuse-tenant": "node scripts/supabase/run-homologacao-prod.mjs --skip-bootstrap"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

@@ -44,6 +44,7 @@ yarn-error.log*
 /.continue/
 /scripts/supabase/migrations-prod.json
 /scripts/supabase/prod-deploy/out/
+/scripts/supabase/out/
 
 # vercel
 .vercel
