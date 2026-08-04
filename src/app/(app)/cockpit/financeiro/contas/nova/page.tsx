@@ -6,7 +6,7 @@ import { redirect } from "next/navigation"
 import { createClient } from "@/utils/supabase/server"
 import NovaContaForm from "./NovaContaForm"
 
-export const metadata = { title: "Nova Conta a Receber | Ragnar" }
+export const metadata = { title: "Nova Conta a Receber | HuginFlow" }
 
 export default async function NovaContaPage() {
   const me = await getMyProfile()

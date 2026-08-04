@@ -1,4 +1,4 @@
-export const metadata = { title: "CRM Hub | Ragnar CRM" }
+export const metadata = { title: "CRM Hub | HuginFlow CRM" }
 import Link from 'next/link'
 import { LayoutTemplate, Inbox, Share2, LineChart, MoveRight } from 'lucide-react'
 

@@ -197,7 +197,7 @@ export default function ConnectionWizard({ onClose, onCreated, empresaId }: Conn
                   <span className="text-[10px] font-black text-[#2BAADF] uppercase tracking-[0.2em]">Ponto de Contato</span>
                 </div>
                 <h3 className="text-3xl font-black text-white tracking-tighter uppercase italic italic-ragnar">Nova Conexão</h3>
-                <p className="text-gray-500 text-sm font-medium tracking-tight">O que você deseja conectar hoje ao Ragnar CRM?</p>
+                <p className="text-gray-500 text-sm font-medium tracking-tight">O que você deseja conectar hoje ao HuginFlow CRM?</p>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {CATEGORIES.map((cat) => (
@@ -270,7 +270,7 @@ export default function ConnectionWizard({ onClose, onCreated, empresaId }: Conn
                 </button>
                 <div className="space-y-1">
                   <h3 className="text-2xl font-black text-white tracking-tighter uppercase italic italic-ragnar">Finalizar Setup</h3>
-                  <p className="text-xs text-gray-500 font-medium">Configure como este canal aparecerá no Ragnar.</p>
+                  <p className="text-xs text-gray-500 font-medium">Configure como este canal aparecerá no HuginFlow.</p>
                 </div>
               </div>
               <form onSubmit={handleStartConnection} className="space-y-8">

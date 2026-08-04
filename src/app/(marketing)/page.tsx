@@ -102,7 +102,7 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto px-6 h-full flex items-center justify-between">
           <Image 
             src="/logotipo.png" 
-            alt="Ragnar Logo" 
+            alt="HuginFlow Logo" 
             width={100} 
             height={50} 
             className="drop-shadow-sm transition-opacity hover:opacity-80"
@@ -174,13 +174,13 @@ export default function HomePage() {
                 <div className="w-2.5 h-2.5 rounded-full bg-zinc-700" />
               </div>
               <div className="h-5 w-52 bg-zinc-800/50 rounded-md mx-auto absolute left-1/2 -translate-x-1/2 border border-white/5 flex items-center justify-center">
-                <span className="text-[9px] text-zinc-500 font-medium tracking-wide">app.ragnar.com.br/cockpit</span>
+                <span className="text-[9px] text-zinc-500 font-medium tracking-wide">app.huginflow.com/cockpit</span>
               </div>
             </div>
             {/* Screenshot real */}
             <Image
               src="/images/cockpit-screenshot.png"
-              alt="Ragnar Cockpit - CRM e Workflow em tempo real"
+              alt="HuginFlow Cockpit - CRM e Workflow em tempo real"
               width={1920}
               height={1080}
               className="w-full h-auto"
@@ -198,12 +198,12 @@ export default function HomePage() {
           <h2 className="text-4xl sm:text-5xl md:text-6xl font-black mb-8 text-zinc-100 tracking-tighter leading-tight">
             Onde a automação comum para, <br/>
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-ragnar-blue to-ragnar-blue-light">
-              o Ragnar começa.
+              o HuginFlow começa.
             </span>
           </h2>
           <p className="text-lg sm:text-xl text-zinc-400 leading-relaxed font-medium">
             O mercado está saturado de CRMs estáticos que dependem que você alimente os dados. 
-            O Ragnar é diferente. Ele é o motor ativo que une seus dados ao movimento real do seu negócio. 
+            O HuginFlow é diferente. Ele é o motor ativo que une seus dados ao movimento real do seu negócio. 
             Um verdadeiro orquestrador desenhado não para arquivar, mas para <strong className="text-zinc-200">executar</strong>.
           </p>
         </div>
@@ -219,7 +219,7 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-20 reveal-on-scroll">
             <h2 className="text-4xl sm:text-5xl md:text-6xl font-black text-zinc-100 tracking-tighter leading-tight mb-6">
-              Ragnar: O Coração da Sua <br/>
+              HuginFlow: O Coração da Sua <br/>
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-ragnar-blue to-ragnar-blue-light">
                 Operação Omnichannel.
               </span>
@@ -241,7 +241,7 @@ export default function HomePage() {
                 <h3 className="text-xl font-bold text-zinc-100 tracking-tight">Entrada de Leads</h3>
               </div>
               <p className="text-zinc-400 text-sm font-medium leading-relaxed mb-8">
-                Leads chegam por múltiplos canais e são centralizados automaticamente no Ragnar, sem perda de contexto.
+                Leads chegam por múltiplos canais e são centralizados automaticamente no HuginFlow, sem perda de contexto.
               </p>
               <div className="space-y-4">
                 {/* WhatsApp */}
@@ -389,7 +389,7 @@ export default function HomePage() {
             </h2>
             
             <p className="text-lg sm:text-xl text-zinc-400 leading-relaxed font-medium mb-10">
-              Nas operações mais críticas, cada segundo e cada dado conta. O Ragnar processa grandes volumes de informação instantaneamente, garantindo a governança e a rastreabilidade que as maiores operações exigem para escalar com segurança.
+              Nas operações mais críticas, cada segundo e cada dado conta. O HuginFlow processa grandes volumes de informação instantaneamente, garantindo a governança e a rastreabilidade que as maiores operações exigem para escalar com segurança.
             </p>
             
             <ul className="space-y-5">
@@ -598,7 +598,7 @@ export default function HomePage() {
 
       {/* Footer */}
       <footer className="bg-zinc-950 py-10 border-t border-white/5 text-center text-zinc-600 text-sm font-medium relative z-10">
-        &copy; {new Date().getFullYear()} Ragnar Inteligência em Movimento. Todos os direitos reservados.
+        &copy; {new Date().getFullYear()} HuginFlow Inteligência em Movimento. Todos os direitos reservados.
       </footer>
     </div>
   );

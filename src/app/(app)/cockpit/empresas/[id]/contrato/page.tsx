@@ -3,7 +3,7 @@ import { getEmpresaContratoPayload } from '@/lib/contratos/getEmpresaContrato'
 import ContractViewer from './ContractViewer'
 
 export const metadata = {
-  title: 'Gerar Contrato MSA | Ragnar',
+  title: 'Gerar Contrato MSA | HuginFlow',
 }
 
 export default async function EmpresaContratoPage({

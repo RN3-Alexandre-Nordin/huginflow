@@ -193,7 +193,7 @@ export default async function UsuariosPage(props: {
                   <div className="mt-5 pt-4 border-t border-[#ffffff05] flex items-center justify-between">
                     <div className="flex items-center gap-4">
                       {user.role_global === 'superadmin' && (
-                        <span className="text-[9px] font-black uppercase text-[#80B828]/60 tracking-[0.2em] font-sans">Ragnar Core</span>
+                        <span className="text-[9px] font-black uppercase text-[#80B828]/60 tracking-[0.2em] font-sans">HuginFlow Core</span>
                       )}
                       <div className="flex items-center gap-1.5 text-[10px] text-gray-600 font-bold uppercase tracking-tighter">
                         <Calendar className="w-3.5 h-3.5 opacity-50" />

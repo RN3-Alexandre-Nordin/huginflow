@@ -10,7 +10,7 @@ import { createClient } from "@/utils/supabase/server"
 import EmpresaSearchSelect from "@/components/EmpresaSearchSelect"
 import ExcluirContratoButton from "./ExcluirContratoButton"
 
-export const metadata = { title: "Contratos | Ragnar" }
+export const metadata = { title: "Contratos | HuginFlow" }
 
 export default async function ContratosPage(props: {
   searchParams: Promise<{ empresa?: string }>

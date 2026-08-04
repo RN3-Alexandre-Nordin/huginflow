@@ -127,7 +127,7 @@ export default function ContratoForm({
                 id="titulo"
                 name="titulo"
                 defaultValue={contrato?.titulo ?? ""}
-                placeholder="Ex: Plataforma Ragnar — plano anual"
+                placeholder="Ex: Plataforma HuginFlow — plano anual"
                 className={inputCls}
               />
             </div>

@@ -336,7 +336,7 @@ export default function KnowledgeBasePage() {
             <form onSubmit={handleSubmit} className="p-8">
               <div className="flex justify-between items-center mb-8">
                 <div>
-                   <h2 className="text-2xl font-bold text-white">Alimentar Ragnar AI</h2>
+                   <h2 className="text-2xl font-bold text-white">Alimentar HuginFlow AI</h2>
                    <p className="text-gray-500 text-sm mt-1">Envie informações que serão usadas pela Mônica no chat.</p>
                 </div>
                 <button 

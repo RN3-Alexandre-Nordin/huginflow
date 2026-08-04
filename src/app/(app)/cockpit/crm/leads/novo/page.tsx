@@ -3,7 +3,7 @@ import { ArrowLeft, Users } from "lucide-react"
 import { createClient } from "@/utils/supabase/server"
 import NewLeadForm from "./NewLeadForm"
 
-export const metadata = { title: "Novo Lead | Ragnar CRM" }
+export const metadata = { title: "Novo Lead | HuginFlow CRM" }
 
 export default async function NovoLeadPage() {
   const supabase = await createClient()

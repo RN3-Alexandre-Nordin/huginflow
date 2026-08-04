@@ -8,7 +8,7 @@ import { formatBRL } from "@/lib/finance/format"
 import { createClient } from "@/utils/supabase/server"
 import EmpresaSearchSelect from "@/components/EmpresaSearchSelect"
 
-export const metadata = { title: "Financeiro | Ragnar" }
+export const metadata = { title: "Financeiro | HuginFlow" }
 
 export default async function FinanceiroPage(props: {
   searchParams: Promise<{ empresa?: string }>

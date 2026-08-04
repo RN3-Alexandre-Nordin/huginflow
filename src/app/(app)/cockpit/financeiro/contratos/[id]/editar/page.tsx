@@ -7,7 +7,7 @@ import { createClient } from "@/utils/supabase/server"
 import ContratoForm from "../../ContratoForm"
 import { getContrato } from "../../actions"
 
-export const metadata = { title: "Editar Contrato | Ragnar" }
+export const metadata = { title: "Editar Contrato | HuginFlow" }
 
 export default async function EditarContratoPage(props: { params: Promise<{ id: string }> }) {
   const { id } = await props.params

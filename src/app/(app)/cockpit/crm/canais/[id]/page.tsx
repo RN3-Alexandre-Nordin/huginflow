@@ -3,7 +3,7 @@ import { ArrowLeft, Target, Settings, Database, Code, Globe, ShieldCheck, Edit2 
 import { createClient } from "@/utils/supabase/server"
 import { notFound } from "next/navigation"
 
-export const metadata = { title: "Visão Geral do Canal | Ragnar CRM" }
+export const metadata = { title: "Visão Geral do Canal | HuginFlow CRM" }
 
 export default async function ChannelDetailPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params

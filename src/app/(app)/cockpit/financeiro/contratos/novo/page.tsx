@@ -6,7 +6,7 @@ import { redirect } from "next/navigation"
 import { createClient } from "@/utils/supabase/server"
 import ContratoForm from "../ContratoForm"
 
-export const metadata = { title: "Novo Contrato | Ragnar" }
+export const metadata = { title: "Novo Contrato | HuginFlow" }
 
 export default async function NovoContratoPage() {
   const me = await getMyProfile()

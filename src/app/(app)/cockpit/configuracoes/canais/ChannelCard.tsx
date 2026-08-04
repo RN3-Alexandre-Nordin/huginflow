@@ -237,7 +237,7 @@ export default function ChannelCard({ canal: initialCanal, onDelete }: { canal: 
                   <Bot className="w-4 h-4" />
                </div>
                <div>
-                  <p className="text-[10px] font-black text-white uppercase tracking-widest leading-none mb-1">Agente Ragnar</p>
+                  <p className="text-[10px] font-black text-white uppercase tracking-widest leading-none mb-1">Agente HuginFlow</p>
                   <p className={`text-[9px] font-bold uppercase tracking-widest ${isChannelAiEnabled(canal.ia_config) ? "text-[#2BAADF]/80" : "text-gray-600"}`}>{isChannelAiEnabled(canal.ia_config) ? "IA em Operação" : "Desativado"}</p>
                </div>
             </div>

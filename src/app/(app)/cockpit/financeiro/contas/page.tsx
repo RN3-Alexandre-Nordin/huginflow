@@ -9,7 +9,7 @@ import { FINANCE_STATUS_COLOR, FINANCE_STATUS_LABEL, FINANCE_TIPOS } from "@/lib
 import { createClient } from "@/utils/supabase/server"
 import EmpresaSearchSelect from "@/components/EmpresaSearchSelect"
 
-export const metadata = { title: "Contas a Receber | Ragnar" }
+export const metadata = { title: "Contas a Receber | HuginFlow" }
 
 export default async function ContasReceberPage(props: {
   searchParams: Promise<{ q?: string; status?: string; tipo?: string; empresa?: string; contrato?: string }>

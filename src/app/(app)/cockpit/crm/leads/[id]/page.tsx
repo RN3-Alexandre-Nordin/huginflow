@@ -3,7 +3,7 @@ import { ArrowLeft, User, Calendar, Mail, Phone, MapPin, Tag, Edit2 } from "luci
 import { createClient } from "@/utils/supabase/server"
 import { notFound } from "next/navigation"
 
-export const metadata = { title: "Perfil do Lead | Ragnar CRM" }
+export const metadata = { title: "Perfil do Lead | HuginFlow CRM" }
 
 export default async function LeadProfilePage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params

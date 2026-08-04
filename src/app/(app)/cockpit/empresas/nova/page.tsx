@@ -143,7 +143,7 @@ export default function NovaEmpresaPage() {
             Cadastrar Nova Empresa
           </h2>
           <p className="text-sm text-gray-400 mt-0.5">
-            Preencha os dados do novo cliente/tenant para ativá-lo no sistema Ragnar.
+            Preencha os dados do novo cliente/tenant para ativá-lo no sistema HuginFlow.
           </p>
         </div>
       </div>

@@ -34,7 +34,7 @@ export default async function CockpitLayout({
           <div className="h-20 flex items-center px-6 border-b border-[#ffffff0a]">
             <Image
               src="/logotipo.png"
-              alt="Ragnar"
+              alt="HuginFlow"
               width={120}
               height={60}
               style={{ filter: "brightness(0) invert(1) opacity(0.9)" }}

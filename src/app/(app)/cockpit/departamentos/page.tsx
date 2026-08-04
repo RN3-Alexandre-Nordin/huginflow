@@ -31,7 +31,7 @@ export default async function DepartamentosPage(props: {
     .select("*, empresas(id, nome)")
     .order("created_at", { ascending: false })
 
-  // Isolamento de Tenant (Lei Suprema do Ragnar)
+  // Isolamento de Tenant (Lei Suprema do HuginFlow)
   if (!isSuperAdmin) {
     supabaseQuery = supabaseQuery.eq('empresa_id', me.empresa_id)
   }

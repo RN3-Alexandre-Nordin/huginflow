@@ -5,7 +5,7 @@ import { deleteLead } from "./actions"
 import { getMyProfile } from "@/app/(app)/cockpit/actions"
 import { hasPermission } from "@/utils/permissions"
 
-export const metadata = { title: "Gestão de Leads | Ragnar CRM" }
+export const metadata = { title: "Gestão de Leads | HuginFlow CRM" }
 
 export default async function LeadsPage(props: { searchParams: Promise<{ q?: string }> }) {
   const me = await getMyProfile()

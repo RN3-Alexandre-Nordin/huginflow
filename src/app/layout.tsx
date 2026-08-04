@@ -1,5 +1,9 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import {
+  PLATFORM_META_DESCRIPTION,
+  PLATFORM_META_TITLE,
+} from "@/lib/branding/platform";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -13,8 +17,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Ragnar — Inteligência em Movimento",
-  description: "Plataforma Ragnar de inteligência e automação. Acesse sua conta.",
+  title: PLATFORM_META_TITLE,
+  description: PLATFORM_META_DESCRIPTION,
 };
 
 export default function RootLayout({

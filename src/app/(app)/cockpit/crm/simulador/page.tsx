@@ -4,7 +4,7 @@ import { getMyProfile } from "@/app/(app)/cockpit/actions"
 import { hasPermission } from "@/utils/permissions"
 import Link from "next/link"
 
-export const metadata = { title: "Simulador de WhatsApp | Ragnar CRM" }
+export const metadata = { title: "Simulador de WhatsApp | HuginFlow CRM" }
 
 export default async function SimuladorPage() {
   const me = await getMyProfile()

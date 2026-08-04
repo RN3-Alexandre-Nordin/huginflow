@@ -4,7 +4,7 @@ import { createClient } from "@/utils/supabase/server"
 import { notFound } from "next/navigation"
 import ChannelEditor from "../../_editar/ChannelEditor"
 
-export const metadata = { title: "Configurar Canal | Ragnar CRM" }
+export const metadata = { title: "Configurar Canal | HuginFlow CRM" }
 
 export default async function EditarCanalPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params

@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 :root {
-  /* Ragnar Brand Colors */
+  /* HuginFlow brand (aliases --ragnar-* mantidos até P2) */
   --ragnar-blue: #2BAADF;
   --ragnar-blue-dark: #1A8FBF;
   --ragnar-blue-light: #5DC4ED;
@@ -11,6 +11,11 @@
   --ragnar-gray-mid: #3D3D3D;
   --ragnar-gray-light: #6B7280;
   --ragnar-green: #80B828;
+
+  --huginflow-blue: var(--ragnar-blue);
+  --huginflow-blue-dark: var(--ragnar-blue-dark);
+  --huginflow-blue-light: var(--ragnar-blue-light);
+  --huginflow-green: var(--ragnar-green);
 
   --background: #0C0C0C;
   --foreground: #F5F5F5;
@@ -28,6 +33,10 @@
   --color-ragnar-gray-mid: var(--ragnar-gray-mid);
   --color-ragnar-gray-light: var(--ragnar-gray-light);
   --color-ragnar-green: var(--ragnar-green);
+  --color-huginflow-blue: var(--huginflow-blue);
+  --color-huginflow-blue-dark: var(--huginflow-blue-dark);
+  --color-huginflow-blue-light: var(--huginflow-blue-light);
+  --color-huginflow-green: var(--huginflow-green);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }

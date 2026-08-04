@@ -4,7 +4,7 @@ import { createClient } from "@/utils/supabase/server"
 import { notFound } from "next/navigation"
 import EditLeadForm from "./EditLeadForm"
 
-export const metadata = { title: "Editar Lead | Ragnar CRM" }
+export const metadata = { title: "Editar Lead | HuginFlow CRM" }
 
 export default async function EditarLeadPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params

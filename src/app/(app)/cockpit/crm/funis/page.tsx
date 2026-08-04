@@ -4,7 +4,7 @@ import { Search, Plus, Filter, RotateCcw, LayoutTemplate, Briefcase, EyeOff, Shi
 import { getMyProfile } from "@/app/(app)/cockpit/actions"
 import { hasPermission } from "@/utils/permissions"
 
-export const metadata = { title: "Funis | Ragnar CRM" }
+export const metadata = { title: "Funis | HuginFlow CRM" }
 
 export default async function FunisPage(props: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>

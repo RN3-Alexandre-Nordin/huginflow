@@ -7,7 +7,7 @@ export default function AjudaPage() {
       <div className="flex items-center justify-between gap-4 px-8 py-4 border-b border-[#ffffff0a] bg-[#0A0A0A]/80 backdrop-blur-md shrink-0">
         <div>
           <h2 className="text-lg font-bold text-white tracking-tight">Manual do Usuário</h2>
-          <p className="text-xs text-gray-500 mt-0.5">Guia completo do Cockpit Ragnar</p>
+          <p className="text-xs text-gray-500 mt-0.5">Guia completo do Cockpit HuginFlow</p>
         </div>
         <Link
           href="/api/ajuda/manual"
@@ -21,7 +21,7 @@ export default function AjudaPage() {
       </div>
       <iframe
         src="/api/ajuda/manual"
-        title="Manual do Usuário Ragnar"
+        title="Manual do Usuário HuginFlow"
         className="flex-1 w-full border-0 bg-[#0f1419] custom-scrollbar-main"
       />
     </div>

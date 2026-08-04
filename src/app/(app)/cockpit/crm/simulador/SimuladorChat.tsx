@@ -185,7 +185,7 @@ export default function SimuladorChat({ initialHistory = [] }: { initialHistory?
             <div className="h-full flex flex-col items-center justify-center text-center opacity-40">
                <Sparkles className="w-12 h-12 text-[#2BAADF] mb-4" />
                <p className="text-sm font-medium text-white">Nenhuma mensagem ainda.</p>
-               <p className="text-xs text-gray-500 max-w-xs">Envie um "Oi" para começar a simulação e ver a IA do Ragnar em ação.</p>
+               <p className="text-xs text-gray-500 max-w-xs">Envie um "Oi" para começar a simulação e ver a IA do HuginFlow em ação.</p>
             </div>
           )}
 
@@ -204,7 +204,7 @@ export default function SimuladorChat({ initialHistory = [] }: { initialHistory?
                 {msg.role === 'assistant' && (
                   <div className="flex items-center gap-2 mb-2 text-[#2BAADF] opacity-80">
                     <Bot className="w-3 h-3" />
-                    <span className="text-[9px] font-black uppercase tracking-widest">Ragnar IA</span>
+                    <span className="text-[9px] font-black uppercase tracking-widest">HuginFlow IA</span>
                   </div>
                 )}
                 <p className="text-sm whitespace-pre-wrap leading-relaxed">
@@ -273,7 +273,7 @@ export default function SimuladorChat({ initialHistory = [] }: { initialHistory?
             </button>
           </form>
           <div className="mt-2 text-center">
-            <p className="text-[9px] text-gray-600 uppercase tracking-widest font-black">Desenvolvido por Ragnar Inbound — Inteligência em Movimento</p>
+            <p className="text-[9px] text-gray-600 uppercase tracking-widest font-black">Desenvolvido por HuginFlow Inbound — Inteligência em Movimento</p>
           </div>
         </div>
 

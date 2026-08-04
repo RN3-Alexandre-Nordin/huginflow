@@ -442,7 +442,7 @@ export default function ChatOmnichannelPage() {
                  </div>
                  <div className="mt-3 flex items-center justify-center gap-4 opacity-30 grayscale hover:grayscale-0 transition-all duration-700">
                     <span className="text-[10px] text-gray-500 font-black uppercase tracking-[0.2em] flex items-center gap-2">
-                       <ShieldCheck className="w-3 h-3 text-[#2BAADF]" /> Criptografia Ponta-a-Ponta Ragnar
+                       <ShieldCheck className="w-3 h-3 text-[#2BAADF]" /> Criptografia Ponta-a-Ponta HuginFlow
                     </span>
                  </div>
               </div>

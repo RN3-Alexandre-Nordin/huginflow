@@ -10,7 +10,7 @@ import type { ContaReceberBaixa } from "@/lib/finance/types"
 import BaixaForm from "./BaixaForm"
 import CancelarForm from "./CancelarForm"
 
-export const metadata = { title: "Detalhe da Conta | Ragnar" }
+export const metadata = { title: "Detalhe da Conta | HuginFlow" }
 
 function meioLabel(value: string | null) {
   if (!value) return "—"

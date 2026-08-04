@@ -5,7 +5,7 @@ import { deleteCanal } from "./actions"
 import { getMyProfile } from "@/app/(app)/cockpit/actions"
 import { hasPermission } from "@/utils/permissions"
 
-export const metadata = { title: "Canais de Aquisição | Ragnar CRM" }
+export const metadata = { title: "Canais de Aquisição | HuginFlow CRM" }
 
 export default async function CanaisPage() {
   const me = await getMyProfile()

@@ -37,7 +37,7 @@ export default function ContractViewer({
       await html2pdf()
         .set({
           margin: [15, 12, 15, 12],
-          filename: `MSA-Ragnar-${safeFileName}.pdf`,
+          filename: `MSA-HuginFlow-${safeFileName}.pdf`,
           image: { type: 'jpeg', quality: 0.98 },
           html2canvas: {
             scale: 2,

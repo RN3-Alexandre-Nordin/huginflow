@@ -10,7 +10,7 @@ import { CONTRATO_STATUS, CONTRATO_STATUS_COLOR, CONTRATO_INDICE_REAJUSTE, CONTR
 import { FINANCE_MEIOS_PAGAMENTO } from "@/lib/finance/constants"
 import { createClient } from "@/utils/supabase/server"
 
-export const metadata = { title: "Contrato | Ragnar" }
+export const metadata = { title: "Contrato | HuginFlow" }
 
 export default async function ContratoDetalhePage(props: { params: Promise<{ id: string }> }) {
   const { id } = await props.params

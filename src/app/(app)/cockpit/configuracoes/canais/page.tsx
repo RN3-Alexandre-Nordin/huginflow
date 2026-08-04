@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import ChannelList from "./ChannelList";
 
 export const metadata = {
-  title: "Gestão de Canais | Ragnar",
+  title: "Gestão de Canais | HuginFlow",
 };
 
 export default async function ChannelsPage() {
@@ -52,7 +52,7 @@ export default async function ChannelsPage() {
         <div className="space-y-1">
           <p className="text-sm font-bold text-blue-100">Configuração de Webhooks</p>
           <p className="text-xs text-blue-400 leading-relaxed font-medium">
-            O Ragnar utiliza uma camada de abstração universal. Certifique-se de que a Evolution API está configurada para enviar eventos de <span className="text-blue-300 font-bold">messages.upsert</span> para o seu endpoint dinâmico.
+            O HuginFlow utiliza uma camada de abstração universal. Certifique-se de que a Evolution API está configurada para enviar eventos de <span className="text-blue-300 font-bold">messages.upsert</span> para o seu endpoint dinâmico.
           </p>
         </div>
       </div>
