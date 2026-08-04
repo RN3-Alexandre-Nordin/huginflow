@@ -1,5 +1,11 @@
 # Plano: Ragnar → HuginFlow (rebrand em fases)
 
+> **Documento canônico de migração completa (código + pasta local + domínio):**  
+> [`planejamento-migracao-completa-huginflow.md`](./planejamento-migracao-completa-huginflow.md)
+
+Este arquivo mantém o resumo em fases; o inventário detalhado, rename de pasta
+`D:\Sistemas\ragnar` → `D:\Sistemas\huginflow` e checklist `rg` estão no doc acima.
+
 **Status:** planejamento (ainda não executar cutover de domínio)  
 **Branch de trabalho:** `develop` (snapshot `e178250`; `main` intacta)  
 **Marca:** HuginFlow · **Domínio:** `huginflow.com`
