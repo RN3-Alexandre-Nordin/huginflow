@@ -151,17 +151,17 @@ Arquivo âncora: `src/app/globals.css` + uso pesado em `src/app/(marketing)/page
 
 ---
 
-## P4 — Docs e arquivos renomeados
+## P4 — Docs e arquivos renomeados ✅ (código em develop; URLs/infra legado até P6)
 
-1. Rename dos HTML:
+1. ✅ Rename dos HTML:
    - `manual-usuario-ragnar.html` → `manual-usuario-huginflow.html`
    - `ambientes-ragnar.html` → `ambientes-huginflow.html`
-2. Atualizar links internos (`docs/manual/README.md`, ajuda, deploy)
-3. Passada `docs/**/*.md` + HTML (incl. contrato: **revisão humana** jurídica)
-4. `.cursor/skills`, `.cursor/mcp.json.example` — labels HuginFlow
-5. Atualizar este plano e invalidar referências cruzadas
+2. ✅ Links: `docs/manual/README.md`, `src/app/api/ajuda/manual/route.ts`, `next.config.ts`, `Dockerfile`
+3. ✅ Marca product HuginFlow nos manuais/homolog/MCP docs; **contrato modelo** permanece com “Ragnar” até revisão jurídica humana
+4. ✅ `.cursor/skills`, `.cursor/mcp.json(.example)` — `supabase-huginflow-dev|prod`
+5. Menções `app.ragnar.ia.br`, `/opt/ragnar`, `ragnar-dev` (Supabase), GHCR/Swarm — **intencionais** até cutover (P6)
 
-**Aceite:** `rg -i ragnar docs` só em notas históricas explícitas (“antigo nome Ragnar”) ou jurídico aprovado.
+**Aceite parcial:** produto/docs de usuário sem marca Ragnar; infra/domínio legado documentados até P6.
 
 ---
 

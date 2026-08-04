@@ -120,7 +120,7 @@ Remote local sugerido:
 - `huginflow` → novo produto (`git push huginflow develop`)
 
 1. No GitHub: default branch = `develop` (Settings → General)  
-2. Renomear arquivos locais: `manual-usuario-ragnar.html`, `ambientes-ragnar.html`, etc.  
+2. ✅ Renomear arquivos locais: `manual-usuario-huginflow.html`, `ambientes-huginflow.html` (P4)  
 3. Imagens Docker / stack Portainer: tags `ragnar` → `huginflow` (período com tags duplas)  
 4. Pasta local do workspace (opcional)  
 5. **Manter** hostnames de infra RN3 (`*.rn3.tec.br`, tunnels)  

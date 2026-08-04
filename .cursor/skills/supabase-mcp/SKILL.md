@@ -2,18 +2,18 @@
 name: supabase-mcp
 description: >-
   Usar MCP Supabase oficial no Cursor para separar dev/prod, listar tabelas,
-  aplicar migrations e replicar schema do Ragnar. Use quando o usuário pedir
+  aplicar migrations e replicar schema do HuginFlow. Use quando o usuário pedir
   MCP Supabase, clonar banco, migrations, ou ambiente dev/prod Supabase.
 ---
 
-# Supabase MCP (Ragnar)
+# Supabase MCP (HuginFlow)
 
 ## Servidores (`.cursor/mcp.json`)
 
 | Servidor | Ref | Escrita |
 |----------|-----|---------|
-| `supabase-ragnar-dev` | `vujqukqsfwmoezwyuoum` | Sim |
-| `supabase-ragnar-prod` | `zmypzexefjbovuknjlid` | Sim |
+| `supabase-huginflow-dev` | `vujqukqsfwmoezwyuoum` | Sim |
+| `supabase-huginflow-prod` | `zmypzexefjbovuknjlid` | Sim |
 
 Todas as entradas usam `"type": "http"`.
 

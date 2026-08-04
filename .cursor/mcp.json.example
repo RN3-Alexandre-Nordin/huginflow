@@ -1,10 +1,10 @@
 {
   "mcpServers": {
-    "supabase-ragnar-dev": {
+    "supabase-huginflow-dev": {
       "type": "http",
       "url": "https://mcp.supabase.com/mcp?project_ref=vujqukqsfwmoezwyuoum&features=database,docs,development,debugging"
     },
-    "supabase-ragnar-prod": {
+    "supabase-huginflow-prod": {
       "type": "http",
       "url": "https://mcp.supabase.com/mcp?project_ref=zmypzexefjbovuknjlid&features=database,docs,development,debugging"
     }

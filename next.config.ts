@@ -14,7 +14,7 @@ const nextConfig: NextConfig = {
   ],
   // Manual: rename do arquivo HTML na P4
   outputFileTracingIncludes: {
-    '/api/ajuda/manual': ['./docs/manual-usuario-ragnar.html'],
+    '/api/ajuda/manual': ['./docs/manual-usuario-huginflow.html'],
     '/api/ajuda/img/*': ['./docs/manual/img/**/*'],
   },
   experimental: {

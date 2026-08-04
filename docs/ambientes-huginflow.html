@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Ragnar — Configuração de Ambientes (Dev e Produção)</title>
+  <title>HuginFlow — Configuração de Ambientes (Dev e Produção)</title>
   <style>
     :root {
       --bg: #0f1419;
@@ -158,9 +158,10 @@
 <body>
   <div class="wrap">
     <header>
-      <h1>Ragnar — Configuração de Ambientes</h1>
+      <h1>HuginFlow — Configuração de Ambientes</h1>
       <p class="subtitle">Referência operacional: desenvolvimento local vs produção (VPS). Documento base para a documentação final do projeto.</p>
-      <p class="meta">Repositório: <code>RN3-Alexandre-Nordin/ragnar</code> · Versão do doc: jun/2026 · Não commitar segredos neste arquivo.</p>
+      <p class="meta">Repositório: <code>RN3-Alexandre-Nordin/huginflow</code> · Versão do doc: ago/2026 · Não commitar segredos neste arquivo.</p>
+      <p class="meta"><strong>Nota:</strong> nomes de domínio, projeto Supabase, paths VPS e imagens GHCR ainda podem aparecer como <code>ragnar*</code> até o cutover (fase P6). O produto é <strong>HuginFlow</strong>.</p>
     </header>
 
     <div class="alert">
@@ -193,7 +194,7 @@
       <span class="arrow">→</span>
       <span>Evolution API (VPS dev ou prod)</span>
       <span class="arrow">→</span>
-      <span>Webhook HTTPS Ragnar</span>
+      <span>Webhook HTTPS HuginFlow</span>
       <span class="arrow">→</span>
       <span>Supabase (projeto do ambiente)</span>
       <span class="arrow">→</span>
@@ -211,12 +212,12 @@
       </thead>
       <tbody>
         <tr>
-          <td><strong>App Ragnar (UI)</strong></td>
+          <td><strong>App HuginFlow (UI)</strong></td>
           <td><code>http://localhost:3000</code></td>
           <td><code>https://app.ragnar.ia.br</code></td>
         </tr>
         <tr>
-          <td><strong>Webhook Evolution → Ragnar</strong></td>
+          <td><strong>Webhook Evolution → HuginFlow</strong></td>
           <td><code>https://ragnar-local.rn3.tec.br/api/webhooks/evolution</code><br><small>Túnel Cloudflare fixo (ver §6)</small></td>
           <td><code>https://app.ragnar.ia.br/api/webhooks/evolution</code></td>
         </tr>
@@ -232,8 +233,8 @@
         </tr>
         <tr>
           <td><strong>Imagem Docker (GHCR)</strong></td>
-          <td><code>ghcr.io/RN3-Alexandre-Nordin/ragnar:dev</code> <small>(build develop)</small></td>
-          <td><code>ghcr.io/RN3-Alexandre-Nordin/ragnar:latest</code></td>
+          <td><code>ghcr.io/RN3-Alexandre-Nordin/huginflow:dev</code> <small>(build develop)</small></td>
+          <td><code>ghcr.io/RN3-Alexandre-Nordin/huginflow:latest</code></td>
         </tr>
         <tr>
           <td><strong>Traefik Host rule</strong></td>
@@ -341,7 +342,7 @@ NEXT_PUBLIC_LANDING_PAGE_TOKEN=&lt;token&gt;</code></pre>
 
     <h2>5. VPS e infraestrutura</h2>
 
-    <h3>Produção — Ragnar app</h3>
+    <h3>Produção — HuginFlow app</h3>
     <table>
       <thead>
         <tr><th>Item</th><th>Valor / ação</th></tr>
@@ -470,7 +471,7 @@ NEXT_PUBLIC_LANDING_PAGE_TOKEN=&lt;token&gt;</code></pre>
         <tr><td><code>env.local.example</code> / <code>env.production.example</code></td><td>Templates de variáveis</td></tr>
         <tr><td><code>docs/supabase-dev-prod.md</code></td><td>Clone Supabase, MCP Cursor</td></tr>
         <tr><td><code>docs/deploy-vps-github-actions.md</code></td><td>Deploy SSH, chaves</td></tr>
-        <tr><td><code>docs/ambientes-ragnar.html</code></td><td>Este documento</td></tr>
+        <tr><td><code>docs/ambientes-huginflow.html</code></td><td>Este documento</td></tr>
       </tbody>
     </table>
 
@@ -486,7 +487,7 @@ túnel → webhook dev          webhook app.ragnar.ia.br
 branch develop               branch main → CI deploy</code></pre>
 
     <footer>
-      Ragnar · RN3 · Documentação operacional de ambientes. Atualize este HTML quando URLs, project refs ou fluxo de deploy mudarem.
+      HuginFlow · RN3 · Documentação operacional de ambientes. Atualize este HTML quando URLs, project refs ou fluxo de deploy mudarem.
     </footer>
   </div>
 </body>

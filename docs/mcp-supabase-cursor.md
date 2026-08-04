@@ -1,4 +1,4 @@
-# MCP Supabase no Cursor (Ragnar)
+# MCP Supabase no Cursor (HuginFlow)
 
 O Supabase mantém um **MCP oficial** (`https://mcp.supabase.com/mcp`) — não precisamos reinventar o servidor. Ele permite:
 
@@ -7,12 +7,12 @@ O Supabase mantém um **MCP oficial** (`https://mcp.supabase.com/mcp`) — não 
 - Gerar types TypeScript do schema
 - Buscar documentação Supabase
 
-## Projetos Ragnar
+## Projetos HuginFlow
 
 | Servidor MCP | Project ref | Modo | Uso |
 |--------------|-------------|------|-----|
-| `supabase-ragnar-dev` | `vujqukqsfwmoezwyuoum` | Leitura + escrita | Migrations, schema, testes |
-| `supabase-ragnar-prod` | `zmypzexefjbovuknjlid` | Leitura + escrita |
+| `supabase-huginflow-dev` | `vujqukqsfwmoezwyuoum` | Leitura + escrita | Migrations, schema, testes |
+| `supabase-huginflow-prod` | `zmypzexefjbovuknjlid` | Leitura + escrita |
 
 **Migrations em produção:** prefira `node scripts/supabase/prod-deploy/apply-bundle.mjs` (senha Postgres no `.env`). Para escrita via MCP em prod, use temporariamente `.cursor/mcp.prod-write.json.example` — veja seção abaixo.
 
@@ -23,14 +23,16 @@ O Supabase mantém um **MCP oficial** (`https://mcp.supabase.com/mcp`) — não 
 ### 1. Copiar config do projeto
 
 ```powershell
-cd D:\Sistemas\ragnar
+cd D:\Sistemas\ragnar   # após P5: D:\Sistemas\huginflow
 copy .cursor\mcp.json.example .cursor\mcp.json
 ```
+
+Reconecte OAuth nos servidores renomeados (`supabase-huginflow-dev` / `supabase-huginflow-prod`) se o Cursor ainda listar `supabase-ragnar-*`.
 
 ### 2. Conectar no Cursor (OAuth)
 
 1. **Cursor Settings → Tools & MCP**
-2. Deve aparecer `supabase-ragnar-dev` e `supabase-ragnar-prod-readonly`
+2. Deve aparecer `supabase-huginflow-dev` e `supabase-huginflow-prod-readonly`
 3. Se houver **"Needs authentication"** ou botão **Connect**, clique e faça login
 4. No browser Supabase, use a conta da org RN3 (`rn3@rn3.com.br`) e autorize o Cursor
 5. **Escolha a organização correta** — a que contém os projetos `ragnar-dev` e `ragnar-prod`
@@ -41,9 +43,9 @@ copy .cursor\mcp.json.example .cursor\mcp.json
 
 No chat do Cursor:
 
-> "Use o MCP supabase-ragnar-dev: liste as tabelas do schema public."
+> "Use o MCP supabase-huginflow-dev: liste as tabelas do schema public."
 
-> "Use supabase-ragnar-prod-readonly: quais migrations existem no prod?"
+> "Use supabase-huginflow-prod-readonly: quais migrations existem no prod?"
 
 ---
 
@@ -68,7 +70,7 @@ Se o Supabase aparecer **duas vezes** (plugin global + `.cursor/mcp.json`):
 
 1. Settings → Tools & MCP
 2. **Desative** o plugin Supabase global (ou o do projeto — mantenha só um)
-3. Prefira o `.cursor/mcp.json` do projeto Ragnar (refs corretos dev/prod)
+3. Prefira o `.cursor/mcp.json` do projeto HuginFlow (refs corretos dev/prod)
 
 ### `apply_migration` falha em prod-readonly
 
@@ -88,8 +90,8 @@ Esperado: prod-readonly usa `read_only=true`. DDL retorna:
 
 1. Faça backup no Dashboard prod
 2. Substitua temporariamente `.cursor/mcp.json` pelo conteúdo de `mcp.prod-write.json.example`
-3. **Remova** `supabase-ragnar-prod-readonly` (não use os dois no mesmo projeto ao mesmo tempo)
-4. Reload Window → Connect no `supabase-ragnar-prod`
+3. **Remova** `supabase-huginflow-prod-readonly` (não use os dois no mesmo projeto ao mesmo tempo)
+4. Reload Window → Connect no `supabase-huginflow-prod`
 5. Aplique migrations
 6. Restaure `mcp.json` do exemplo padrão (dev + prod-readonly)
 
@@ -102,7 +104,7 @@ Esperado: prod-readonly usa `read_only=true`. DDL retorna:
 ```json
 {
   "mcpServers": {
-    "supabase-ragnar-dev": {
+    "supabase-huginflow-dev": {
       "type": "http",
       "url": "https://mcp.supabase.com/mcp?project_ref=vujqukqsfwmoezwyuoum&features=database,docs,development,debugging",
       "headers": {

@@ -9,7 +9,7 @@ function prepareManualHtml(raw: string) {
 }
 
 export async function GET() {
-  const raw = readFileSync(join(process.cwd(), 'docs/manual-usuario-ragnar.html'), 'utf8')
+  const raw = readFileSync(join(process.cwd(), 'docs/manual-usuario-huginflow.html'), 'utf8')
   const html = prepareManualHtml(raw)
   return new NextResponse(html, {
     headers: {

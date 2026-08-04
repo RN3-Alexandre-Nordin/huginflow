@@ -1,6 +1,6 @@
 # Supabase: separar desenvolvimento e produção
 
-Hoje o Ragnar usa **um único projeto Supabase** para `npm run dev` e para o Docker na VPS. O objetivo é:
+Hoje o HuginFlow usa **um único projeto Supabase** para `npm run dev` e para o Docker na VPS. O objetivo é:
 
 | Ambiente | Onde roda | Supabase | Evolution |
 |----------|-----------|----------|-----------|
@@ -39,7 +39,7 @@ SUPABASE_SERVICE_ROLE_KEY=eyJ...
 
 **Sim, dá para replicar o esquema** (tabelas, índices, FKs, RLS, funções). **Dados** são opcionais (recomendado: dev vazio ou só seed de teste).
 
-### O que o Ragnar usa (checklist)
+### O que o HuginFlow usa (checklist)
 
 **Tabelas principais**
 

@@ -62,7 +62,7 @@ next-env.d.ts
 Contas Ragnar.txt
 
 # Docs internos RN3 (não versionar novos arquivos desta lista)
-# O manual do usuário CONTINUA versionado: docs/manual-usuario-ragnar.html + docs/manual/
+# O manual do usuário CONTINUA versionado: docs/manual-usuario-huginflow.html + docs/manual/
 /docs/plano-testes-go-live.md
 
 # Capturas duplicadas por falha de script

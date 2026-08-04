@@ -4,7 +4,7 @@
 
 Subir para o GitHub (necessário para produção):
 
-- `docs/manual-usuario-ragnar.html`
+- `docs/manual-usuario-huginflow.html`
 - `docs/manual/img/**/*.png` (prints gerados por `npm run manual:capture`)
 - `docs/manual/README.md` (este arquivo)
 
@@ -58,6 +58,6 @@ Sugestão de roteiro para 5 vídeos curtos (2–3 min cada): login, WhatsApp+QR,
 
 ## Como o manual usa as imagens
 
-- HTML fonte: `docs/manual-usuario-ragnar.html`
+- HTML fonte: `docs/manual-usuario-huginflow.html`
 - Servido no app: `/api/ajuda/manual` (paths `manual/img/…` viram `/api/ajuda/img/…`)
 - Se o PNG não existir, o manual mostra ilustração SVG de fallback

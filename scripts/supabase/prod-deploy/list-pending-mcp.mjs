@@ -1,6 +1,6 @@
 /**
  * Aplica migrations pendentes no prod via arquivos _mcp_*.json gerados em out/.
- * Uso pelo agente: ler cada JSON e chamar apply_migration no MCP supabase-ragnar-prod.
+ * Uso pelo agente: ler cada JSON e chamar apply_migration no MCP supabase-huginflow-prod.
  *
  *   node scripts/supabase/prod-deploy/list-pending-mcp.mjs
  */

@@ -1,4 +1,4 @@
-# Plano de stress / carga — Ragnar
+# Plano de stress / carga — HuginFlow
 
 Complemento opcional à [homologação funcional](./plano-homologacao-versao.md).  
 **Objetivo:** descobrir limites e regressões de performance antes que clientes sintam lentidão ou queda.

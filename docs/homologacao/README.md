@@ -1,4 +1,4 @@
-# Homologação de versão — Ragnar
+# Homologação de versão — HuginFlow
 
 Processo reutilizável para validar cada deploy em **produção** (`https://app.ragnar.ia.br`) antes de liberar clientes.
 
