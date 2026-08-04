@@ -1,6 +1,6 @@
 services:
   app:
-    container_name: ragnar-app
+    container_name: huginflow-app
     build: .
     restart: always
     ports:
@@ -9,5 +9,6 @@ services:
       - .env
     environment:
       - NODE_ENV=production
-      # Defina RAGNAR_ENV no .env do host (development | production). Padrão: development.
-      - RAGNAR_ENV=${RAGNAR_ENV:-development}
+      # Preferir HUGINFLOW_ENV; RAGNAR_ENV ainda lido pelo código como legado.
+      - HUGINFLOW_ENV=${HUGINFLOW_ENV:-${RAGNAR_ENV:-development}}
+      - RAGNAR_ENV=${RAGNAR_ENV:-${HUGINFLOW_ENV:-development}}

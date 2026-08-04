@@ -6,6 +6,7 @@ import { createClient } from '@supabase/supabase-js'
 import { readFileSync, existsSync } from 'fs'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
+import { getAppPublicUrl, getWebhookUrl } from './_platform-env.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const root = resolve(__dirname, '../..')
@@ -50,7 +51,7 @@ async function main() {
   const tenant = JSON.parse(readFileSync(tenantFile, 'utf8'))
   const evoUrl = env.WHATSAPP_API_URL_PROD || 'https://evo.rn3.tec.br'
   const evoToken = env.WHATSAPP_API_TOKEN_PROD
-  const APP_URL = env.NEXT_PUBLIC_APP_URL || 'https://app.ragnar.ia.br'
+  const APP_URL = getAppPublicUrl(env, { production: true })
   const instanceName = tenant.whatsapp_instance
   const canalId = tenant.whatsapp_canal_id
   const EMPRESA_ID = tenant.empresa_id

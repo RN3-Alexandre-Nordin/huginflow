@@ -49,7 +49,7 @@ async function handleConnectionUpdate(
     status: 'success',
     type: 'status_synced',
     instance: event.provider_id,
-    ragnarStatus: event.status,
+    platformStatus: event.status,
   });
 }
 

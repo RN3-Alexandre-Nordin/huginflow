@@ -125,11 +125,11 @@ export class EvolutionProvider implements BaseProvider {
         payload.data?.instance?.state ??
         payload.state;
       const state = typeof rawState === 'string' ? rawState.toLowerCase() : '';
-      let ragnarStatus: 'connected' | 'disconnected' | 'pairing' = 'disconnected';
+      let platformStatus: 'connected' | 'disconnected' | 'pairing' = 'disconnected';
 
-      if (state === 'open' || state === 'connected') ragnarStatus = 'connected';
+      if (state === 'open' || state === 'connected') platformStatus = 'connected';
       else if (state === 'connecting' || state === 'pairing' || state === 'qrcode')
-        ragnarStatus = 'pairing';
+        platformStatus = 'pairing';
       else if (
         state === 'close' ||
         state === 'closed' ||
@@ -137,13 +137,13 @@ export class EvolutionProvider implements BaseProvider {
         state === 'disconnected' ||
         state === 'logout'
       )
-        ragnarStatus = 'disconnected';
+        platformStatus = 'disconnected';
 
       return {
         event: 'status_update',
         provider: 'evolution',
         provider_id: payload.instance || '',
-        status: ragnarStatus,
+        status: platformStatus,
         metadata: { raw: payload.data }
       } as HuginEvent;
     }

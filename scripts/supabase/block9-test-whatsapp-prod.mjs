@@ -8,6 +8,7 @@ import { createClient } from '@supabase/supabase-js'
 import { readFileSync, existsSync, writeFileSync } from 'fs'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
+import { getAppPublicUrl, getWebhookUrl } from './_platform-env.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const root = resolve(__dirname, '../..')
@@ -64,8 +65,8 @@ async function main() {
   const evoUrl = env.WHATSAPP_API_URL_PROD || 'https://evo.rn3.tec.br'
   const evoToken = env.WHATSAPP_API_TOKEN_PROD
   const webhookUrl =
-    env.RAGNAR_WEBHOOK_URL_PROD || 'https://app.ragnar.ia.br/api/webhooks/evolution'
-  const APP_URL = env.NEXT_PUBLIC_APP_URL || 'https://app.ragnar.ia.br'
+    getWebhookUrl(env, { production: true })
+  const APP_URL = getAppPublicUrl(env, { production: true })
 
   if (!url || !serviceKey || !evoToken) {
     console.error('Configure Supabase e Evolution em .env.production')

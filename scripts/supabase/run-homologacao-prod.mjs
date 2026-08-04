@@ -9,6 +9,7 @@ import { spawn } from 'child_process'
 import { readFileSync, existsSync } from 'fs'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
+import { getAppPublicUrl, getWebhookUrl } from './_platform-env.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const root = resolve(__dirname, '../..')
@@ -44,7 +45,7 @@ function runNode(script) {
 
 async function block1Health() {
   const env = loadEnv(envProd)
-  const APP_URL = env.NEXT_PUBLIC_APP_URL || 'https://app.ragnar.ia.br'
+  const APP_URL = getAppPublicUrl(env, { production: true })
   const res = await fetch(`${APP_URL}/api/health/omnichannel`)
   const body = await res.json()
   if (!res.ok || !body.healthy) {

@@ -56,7 +56,7 @@ export async function GET() {
         ...(checks.localDevWebhookWarning
           ? [
               'Em npm run dev, a Evolution (VPS) não alcança localhost.',
-              'Use Cloudflare Tunnel ou aponte RAGNAR_WEBHOOK_URL_DEV para uma URL HTTPS pública.',
+              'Use Cloudflare Tunnel ou aponte HUGINFLOW_WEBHOOK_URL_DEV (ou RAGNAR_WEBHOOK_URL_DEV) para uma URL HTTPS pública.',
             ]
           : []),
         ...(!checks.openaiApiKeyConfigured

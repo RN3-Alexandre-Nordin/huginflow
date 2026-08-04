@@ -6,14 +6,13 @@ const nextConfig: NextConfig = {
 
   /**
    * allowedDevOrigins / allowedOrigins:
-   * Extraímos o hostname dinamicamente da variável de ambiente para que o
-   * sistema suporte túneis locais (dev-ragnar) ou produção (Vercel/Docker)
-   * sem modificações manuais no código.
+   * Hostname a partir de NEXT_PUBLIC_APP_URL (túnel local ou host do app).
+   * Cutover huginflow.com na P6 — não altera hosts de produção aqui.
    */
   allowedDevOrigins: [
     new URL(process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").hostname,
   ],
-  // Manual do usuário no standalone (reforço; Dockerfile também copia docs/)
+  // Manual: rename do arquivo HTML na P4
   outputFileTracingIncludes: {
     '/api/ajuda/manual': ['./docs/manual-usuario-ragnar.html'],
     '/api/ajuda/img/*': ['./docs/manual/img/**/*'],

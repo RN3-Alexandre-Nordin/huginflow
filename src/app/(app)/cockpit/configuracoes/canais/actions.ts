@@ -77,23 +77,23 @@ export async function syncChannelStatus(id: string, provider: string, providerId
       );
       console.log(`[actions] Sincronizando status para ${providerId}: Evo State = ${state}`);
       
-      let ragnarStatus = 'pairing';
+      let platformStatus = 'pairing';
 
       if (state === 'open' || state === 'connected') {
-        ragnarStatus = 'connected';
+        platformStatus = 'connected';
       } else if (state === 'close' || state === 'refused' || state === 'disconnected') {
-        ragnarStatus = 'disconnected';
+        platformStatus = 'disconnected';
       }
 
       const { error } = await supabase
         .from("crm_canais")
-        .update({ status: ragnarStatus })
+        .update({ status: platformStatus })
         .eq("id", id);
 
       if (error) throw error;
 
       revalidatePath("/cockpit/configuracoes/canais");
-      return { success: true, status: ragnarStatus };
+      return { success: true, status: platformStatus };
     } catch (e) {
       console.error(`Erro ao sincronizar status do canal ${id}:`, e);
       return { success: false, error: String(e) };

@@ -8,6 +8,7 @@ import { createClient } from '@supabase/supabase-js'
 import { readFileSync, existsSync, mkdirSync, writeFileSync } from 'fs'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
+import { getAppPublicUrl, getWebhookUrl } from './_platform-env.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const root = resolve(__dirname, '../..')
@@ -46,7 +47,7 @@ const CNPJ = `99.${SUFFIX.slice(0, 3)}.${SUFFIX.slice(3, 6)}/0001-90`
 const GESTOR_EMAIL = `golive-gestor-${SUFFIX}@teste.ragnar.ia.br`
 const OPERADOR_EMAIL = `golive-operador-${SUFFIX}@teste.ragnar.ia.br`
 const PASSWORD = 'RagnarProdTest1!'
-const APP_URL = env.NEXT_PUBLIC_APP_URL || 'https://app.ragnar.ia.br'
+const APP_URL = getAppPublicUrl(env, { production: true })
 
 const adminPerms = {
   crm: ['view', 'manage'],

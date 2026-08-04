@@ -37,10 +37,10 @@ if ((Get-Content $config -Raw) -match "COLE-O-UUID") {
 }
 
 Write-Host ""
-Write-Host "Tunel fixo -> http://localhost:3000" -ForegroundColor Green
+Write-Host "Tunel fixo HuginFlow (infra rn3) -> http://localhost:3000" -ForegroundColor Green
 Write-Host "URL publica: https://ragnar-local.rn3.tec.br" -ForegroundColor Green
 Write-Host "Webhook: https://ragnar-local.rn3.tec.br/api/webhooks/evolution" -ForegroundColor Cyan
-Write-Host "Ctrl+C para encerrar." -ForegroundColor DarkGray
+Write-Host "Configure HUGINFLOW_WEBHOOK_URL_DEV com a URL abaixo.`r`nCtrl+C para encerrar." -ForegroundColor DarkGray
 Write-Host ""
 
 & $cloudflared tunnel --config $config run

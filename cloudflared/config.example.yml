@@ -1,5 +1,6 @@
 # Copie para cloudflared/config.yml e preencha credentials-file apos o setup.
-# Hostname fixo para dev local (nao muda ao reiniciar o tunel).
+# Hostname fixo para dev local do HuginFlow (infra rn3.tec.br — rename DNS opcional).
+# No .env.local use HUGINFLOW_WEBHOOK_URL_DEV apontando para este hostname.
 #
 # Setup: npm run tunnel:setup
 

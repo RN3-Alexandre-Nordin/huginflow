@@ -9,6 +9,7 @@ import { randomUUID } from 'crypto'
 import { readFileSync, existsSync, writeFileSync } from 'fs'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
+import { getAppPublicUrl, getWebhookUrl } from './_platform-env.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const root = resolve(__dirname, '../..')
@@ -30,7 +31,7 @@ function loadEnv(path) {
 const env = loadEnv(envProd)
 const url = env.NEXT_PUBLIC_SUPABASE_URL
 const serviceKey = env.SUPABASE_SERVICE_ROLE_KEY
-const APP_URL = env.NEXT_PUBLIC_APP_URL || 'https://app.ragnar.ia.br'
+const APP_URL = getAppPublicUrl(env, { production: true })
 
 if (!url || !serviceKey) {
   console.error('Configure Supabase em .env.production')

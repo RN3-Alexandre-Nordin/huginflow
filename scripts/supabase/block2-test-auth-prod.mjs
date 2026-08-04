@@ -8,6 +8,7 @@ import { createClient } from '@supabase/supabase-js'
 import { readFileSync, existsSync } from 'fs'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
+import { getAppPublicUrl, getWebhookUrl } from './_platform-env.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const root = resolve(__dirname, '../..')
@@ -29,7 +30,7 @@ function loadEnv(path) {
 const env = loadEnv(envProd)
 const url = env.NEXT_PUBLIC_SUPABASE_URL
 const anonKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-const APP_URL = env.NEXT_PUBLIC_APP_URL || 'https://app.ragnar.ia.br'
+const APP_URL = getAppPublicUrl(env, { production: true })
 
 if (!url || !anonKey) {
   console.error('Configure Supabase em .env.production')
