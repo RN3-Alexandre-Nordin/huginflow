@@ -1,25 +1,21 @@
 /**
- * Ambientes Ragnar (dev vs produção).
+ * Ambientes da plataforma (dev vs produção).
  *
- * | Onde roda          | RAGNAR_ENV     | Evolution (_DEV / _PROD) | Webhook Ragnar        |
+ * | Onde roda          | ENV            | Evolution (_DEV / _PROD) | Webhook app           |
  * |--------------------|----------------|--------------------------|------------------------|
  * | npm run dev (local)| development    | VPS Evolution DEV        | URL público (túnel*)  |
- * | Docker VPS prod    | production     | VPS Evolution PROD       | app.ragnar.ia.br      |
+ * | Docker VPS prod    | production     | VPS Evolution PROD       | app.ragnar.ia.br*     |
  *
- * * A Evolution na VPS não alcança localhost. Em dev local use Cloudflare Tunnel
- *   ou teste recebimento de mensagens no deploy de produção.
+ * * Cutover de domínio (huginflow.com) é P3/P6 — defaults de produção intactos.
  *
- * Supabase: hoje um único projeto (credenciais em ambos os envs). Quando existir
- * projeto Supabase de produção, troque apenas NEXT_PUBLIC_* e SERVICE_ROLE na VPS.
- *
- * Prioridade RAGNAR_ENV: variável explícita > NODE_ENV.
- * Credenciais: WHATSAPP_*_DEV|_PROD e RAGNAR_WEBHOOK_URL_DEV|_PROD > genéricas.
+ * Prioridade ENV: HUGINFLOW_ENV > RAGNAR_ENV (legado) > NODE_ENV.
+ * Webhook: HUGINFLOW_WEBHOOK_URL_* > RAGNAR_WEBHOOK_URL_* (legado) > genéricas.
  */
 
-export type RagnarEnvironment = 'development' | 'production'
+export type PlatformEnvironment = 'development' | 'production'
 
 export interface OmnichannelConfig {
-  environment: RagnarEnvironment
+  environment: PlatformEnvironment
   evolutionApiUrl: string
   evolutionApiToken: string
   webhookUrl: string
@@ -27,7 +23,7 @@ export interface OmnichannelConfig {
 }
 
 const DEFAULTS: Record<
-  RagnarEnvironment,
+  PlatformEnvironment,
   { evolutionApiUrl: string; webhookUrl: string; appUrl: string }
 > = {
   development: {
@@ -37,13 +33,20 @@ const DEFAULTS: Record<
   },
   production: {
     evolutionApiUrl: 'https://evo.rn3.tec.br',
+    // Mantido até cutover de domínio (não alterar em produção agora)
     webhookUrl: 'https://app.ragnar.ia.br/api/webhooks/evolution',
     appUrl: 'https://app.ragnar.ia.br',
   },
 }
 
-export function getRagnarEnvironment(): RagnarEnvironment {
-  const explicit = process.env.RAGNAR_ENV?.trim().toLowerCase()
+export function getPlatformEnvironment(): PlatformEnvironment {
+  const explicit = (
+    process.env.HUGINFLOW_ENV ||
+    process.env.RAGNAR_ENV ||
+    ''
+  )
+    .trim()
+    .toLowerCase()
   if (explicit === 'development' || explicit === 'dev') return 'development'
   if (explicit === 'production' || explicit === 'prod') return 'production'
   return process.env.NODE_ENV === 'production' ? 'production' : 'development'
@@ -51,7 +54,7 @@ export function getRagnarEnvironment(): RagnarEnvironment {
 
 function readEnv(
   genericKey: string,
-  env: RagnarEnvironment,
+  env: PlatformEnvironment,
 ): string | undefined {
   const suffix = env === 'development' ? 'DEV' : 'PROD'
   const scoped = process.env[`${genericKey}_${suffix}`]?.trim()
@@ -60,7 +63,7 @@ function readEnv(
 }
 
 export function getAppPublicUrl(): string {
-  const env = getRagnarEnvironment()
+  const env = getPlatformEnvironment()
   const suffix = env === 'development' ? 'DEV' : 'PROD'
   return (
     process.env.NEXT_PUBLIC_APP_URL?.trim() ||
@@ -70,10 +73,10 @@ export function getAppPublicUrl(): string {
 }
 
 /**
- * Configuração omnichannel do ambiente atual (Evolution + webhook do Ragnar).
+ * Configuração omnichannel do ambiente atual (Evolution + webhook do app).
  */
 export function getOmnichannelConfig(): OmnichannelConfig {
-  const environment = getRagnarEnvironment()
+  const environment = getPlatformEnvironment()
   const defaults = DEFAULTS[environment]
 
   const evolutionApiUrl =
@@ -88,7 +91,9 @@ export function getOmnichannelConfig(): OmnichannelConfig {
   }
 
   const webhookUrl =
-    readEnv('RAGNAR_WEBHOOK_URL', environment) ?? defaults.webhookUrl
+    readEnv('HUGINFLOW_WEBHOOK_URL', environment) ||
+    readEnv('RAGNAR_WEBHOOK_URL', environment) ||
+    defaults.webhookUrl
 
   return {
     environment,
@@ -125,6 +130,6 @@ export function getOmnichannelHealthSummary() {
   }
 }
 
-export function isRagnarDevelopment(): boolean {
-  return getRagnarEnvironment() === 'development'
+export function isPlatformDevelopment(): boolean {
+  return getPlatformEnvironment() === 'development'
 }

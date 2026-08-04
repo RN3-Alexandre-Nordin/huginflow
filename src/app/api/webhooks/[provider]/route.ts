@@ -2,7 +2,7 @@ import { createClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
 import { ProviderFactory } from '@/lib/omnichannel/ProviderFactory';
 import { TriageService } from '@/lib/omnichannel/TriageService';
-import { RagnarMessage, RagnarEvent } from '@/types/omnichannel';
+import { HuginMessage, HuginEvent } from '@/types/omnichannel';
 
 export async function POST(
   request: Request,
@@ -25,8 +25,8 @@ export async function POST(
   }
 
   // 3. SE FOR ATUALIZAÇÃO DE STATUS: Atualizar banco diretamente
-  if ('event' in parsed && (parsed as RagnarEvent).event === 'status_update') {
-    const event = parsed as RagnarEvent;
+  if ('event' in parsed && (parsed as HuginEvent).event === 'status_update') {
+    const event = parsed as HuginEvent;
     
     const { error: statusError } = await supabase
       .from('crm_canais')
@@ -43,7 +43,7 @@ export async function POST(
   }
 
   // 4. SE FOR MENSAGENS: Iniciar processamento de negócio
-  const messages = Array.isArray(parsed) ? (parsed as RagnarMessage[]) : [parsed as RagnarMessage];
+  const messages = Array.isArray(parsed) ? (parsed as HuginMessage[]) : [parsed as HuginMessage];
 
   for (const msg of messages) {
     // Identificar o Canal e Empresa através do provider_id

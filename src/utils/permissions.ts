@@ -1,5 +1,5 @@
 /**
- * Ragnar Permission Engine (RBAC)
+ * HuginFlow Permission Engine (RBAC)
  * 
  * Regras de Precedência:
  * 1. SuperAdmin (RN3): Acesso 100% a tudo (dados e sistema).

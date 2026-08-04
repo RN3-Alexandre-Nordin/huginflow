@@ -1,4 +1,4 @@
-import { getEvolutionCredentials, getRagnarEnvironment } from '@/lib/config/environment'
+import { getEvolutionCredentials, getPlatformEnvironment } from '@/lib/config/environment'
 import type { ProviderConfig } from '@/types/omnichannel'
 
 type CanalEvolutionFields = {
@@ -14,7 +14,7 @@ type CanalEvolutionFields = {
  */
 export function buildEvolutionProviderConfig(canal: CanalEvolutionFields): ProviderConfig {
   const envCreds = getEvolutionCredentials()
-  const isDev = getRagnarEnvironment() === 'development'
+  const isDev = getPlatformEnvironment() === 'development'
   const canalSettings = (canal.settings ?? {}) as { apiUrl?: string }
 
   const apiUrl = isDev ? envCreds.apiUrl : canalSettings.apiUrl || envCreds.apiUrl

@@ -2,9 +2,9 @@ export type MessageType = 'text' | 'image' | 'video' | 'audio' | 'document' | 'l
 export type MessageDirection = 'inbound' | 'outbound';
 
 /**
- * Representa uma mensagem de chat unificada no Ragnar
+ * Representa uma mensagem de chat unificada no HuginFlow
  */
-export interface RagnarMessage {
+export interface HuginMessage {
   id: string; // ID original no provedor
   provider: string; // 'evolution', 'meta', etc
   provider_id: string; // instance_name, business_phone_id, etc
@@ -21,7 +21,7 @@ export interface RagnarMessage {
 /**
  * Representa um evento de sistema (ex: mudança de status da conexão)
  */
-export interface RagnarEvent {
+export interface HuginEvent {
   event: 'status_update';
   provider: string;
   provider_id: string;
@@ -29,7 +29,7 @@ export interface RagnarEvent {
   metadata?: any;
 }
 
-export type WebhookResult = RagnarMessage | RagnarMessage[] | RagnarEvent | null;
+export type WebhookResult = HuginMessage | HuginMessage[] | HuginEvent | null;
 
 export interface ProviderConfig {
   provider: string;

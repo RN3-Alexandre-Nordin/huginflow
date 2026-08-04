@@ -9,7 +9,7 @@ import {
   extractAudioMessagePayload,
   type EvolutionRawMessage,
 } from '@/lib/omnichannel/services/EvolutionMediaService'
-import type { RagnarMessage } from '@/types/omnichannel'
+import type { HuginMessage } from '@/types/omnichannel'
 import {
   AUDIO_PLACEHOLDER,
   AUDIO_TRANSCRIPTION_FAILED,
@@ -160,7 +160,7 @@ export class AudioTranscriptionService {
    * Baixa áudio na Evolution, transcreve com Whisper e atualiza crm_interacoes.
    */
   static async transcribeInboundAudio(
-    message: RagnarMessage,
+    message: HuginMessage,
     canal: CanalFields,
     supabase: SupabaseClient,
     opts?: { providerMessageId?: string; sessaoId?: string },
@@ -248,7 +248,7 @@ export class AudioTranscriptionService {
 
   private static async patchInteracaoContent(
     supabase: SupabaseClient,
-    message: RagnarMessage,
+    message: HuginMessage,
     opts: { providerMessageId?: string; sessaoId?: string } | undefined,
     content: string,
     transcriptionMeta: TranscriptionMetadata,

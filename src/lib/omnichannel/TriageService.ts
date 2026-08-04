@@ -1,4 +1,4 @@
-import { RagnarMessage } from '@/types/omnichannel'
+import { HuginMessage } from '@/types/omnichannel'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { normalizeWhatsAppPhone } from '@/lib/omnichannel/phone'
 import { ConversaHistoricoService } from '@/lib/omnichannel/ConversaHistoricoService'
@@ -8,7 +8,7 @@ export class TriageService {
    * Decide se a IA deve responder a uma mensagem recebida.
    */
   static async shouldAiRespond(
-    message: RagnarMessage,
+    message: HuginMessage,
     canalId: string,
     supabase: SupabaseClient,
   ): Promise<boolean> {
@@ -69,7 +69,7 @@ export class TriageService {
    * Grava uma nova linha em crm_conversas (mensagem recebida) e retorna o sessao_id do thread.
    */
   static async recordInboundMessage(
-    message: RagnarMessage,
+    message: HuginMessage,
     canalId: string,
     supabase: SupabaseClient,
     leadId?: string,
@@ -94,7 +94,7 @@ export class TriageService {
 
   /** @deprecated Use recordInboundMessage — mantido para compatibilidade interna */
   static async updateConversaState(
-    message: RagnarMessage,
+    message: HuginMessage,
     canalId: string,
     supabase: SupabaseClient,
     leadId?: string,

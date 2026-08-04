@@ -88,12 +88,12 @@ export default function HomePage() {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-50 font-sans selection:bg-ragnar-blue/30 relative overflow-x-hidden">
+    <div className="min-h-screen bg-zinc-950 text-zinc-50 font-sans selection:bg-brand-blue/30 relative overflow-x-hidden">
       
       {/* Background Overlays & Grid */}
       <div className="absolute inset-0 opacity-[0.07] pointer-events-none z-0" style={{ backgroundImage: "linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)", backgroundSize: "32px 32px" }} />
-      <div className="absolute top-[-10%] sm:top-[-20%] left-1/2 -translate-x-1/2 w-[800px] h-[400px] sm:h-[600px] bg-ragnar-blue/20 blur-[160px] rounded-full pointer-events-none z-0" />
-      <div className="absolute top-[30%] left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-ragnar-blue-dark/15 blur-[160px] rounded-full pointer-events-none z-0" />
+      <div className="absolute top-[-10%] sm:top-[-20%] left-1/2 -translate-x-1/2 w-[800px] h-[400px] sm:h-[600px] bg-brand-blue/20 blur-[160px] rounded-full pointer-events-none z-0" />
+      <div className="absolute top-[30%] left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-brand-blue-dark/15 blur-[160px] rounded-full pointer-events-none z-0" />
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {/* NAVBAR                                                            */}
@@ -111,7 +111,7 @@ export default function HomePage() {
           />
           <Link 
             href="/login" 
-            className="px-5 py-2.5 rounded-full bg-ragnar-blue hover:bg-ragnar-blue-light text-white text-sm font-semibold tracking-wide border border-ragnar-blue/50 transition-all hover:scale-105 active:scale-95 flex items-center gap-2 shadow-[0_0_20px_-5px_rgba(43,170,223,0.4)]"
+            className="px-5 py-2.5 rounded-full bg-brand-blue hover:bg-brand-blue-light text-white text-sm font-semibold tracking-wide border border-brand-blue/50 transition-all hover:scale-105 active:scale-95 flex items-center gap-2 shadow-[0_0_20px_-5px_rgba(43,170,223,0.4)]"
           >
             Acessar App
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
@@ -126,10 +126,10 @@ export default function HomePage() {
         <div className="max-w-5xl mx-auto text-center z-10 flex flex-col items-center">
 
           {/* Badge */}
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-ragnar-blue/5 border border-ragnar-blue/20 text-ragnar-blue text-xs font-bold tracking-widest uppercase mb-8 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-brand-blue/5 border border-brand-blue/20 text-brand-blue text-xs font-bold tracking-widest uppercase mb-8 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
             <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-ragnar-blue opacity-75" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-ragnar-blue" />
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-blue opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-brand-blue" />
             </span>
             Plataforma Operacional 2.0
           </div>
@@ -137,7 +137,7 @@ export default function HomePage() {
           {/* Slogan Principal */}
           <h1 className="text-5xl sm:text-6xl md:text-[5.5rem] lg:text-[6.5rem] font-black tracking-tighter leading-[1.05] mb-8 animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
             <span className="block text-zinc-100">Inteligência</span>
-            <span className="block text-transparent bg-clip-text bg-gradient-to-r from-white to-ragnar-blue-light pb-2">
+            <span className="block text-transparent bg-clip-text bg-gradient-to-r from-white to-brand-blue-light pb-2">
               em Movimento.
             </span>
           </h1>
@@ -162,7 +162,7 @@ export default function HomePage() {
         {/* ── Mockup do Produto Real (Screenshot Flutuante) ── */}
         <div className="mt-20 w-full max-w-6xl relative z-10 animate-fade-in-up" style={{ animationDelay: '0.55s' }}>
           {/* Neon Glow atrás do mockup */}
-          <div className="absolute -inset-4 bg-gradient-to-br from-ragnar-blue/25 via-transparent to-ragnar-green/15 blur-3xl rounded-[2rem] opacity-50 pointer-events-none" />
+          <div className="absolute -inset-4 bg-gradient-to-br from-brand-blue/25 via-transparent to-brand-green/15 blur-3xl rounded-[2rem] opacity-50 pointer-events-none" />
           
           {/* Frame do Browser */}
           <div className="relative rounded-2xl border border-zinc-800/60 bg-zinc-950 shadow-[0_20px_80px_-20px_rgba(43,170,223,0.25)] overflow-hidden ring-1 ring-white/[0.03] transition-transform duration-700 ease-out hover:scale-[1.01]">
@@ -197,7 +197,7 @@ export default function HomePage() {
         <div className="max-w-4xl mx-auto text-center reveal-on-scroll">
           <h2 className="text-4xl sm:text-5xl md:text-6xl font-black mb-8 text-zinc-100 tracking-tighter leading-tight">
             Onde a automação comum para, <br/>
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-ragnar-blue to-ragnar-blue-light">
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-blue to-brand-blue-light">
               o HuginFlow começa.
             </span>
           </h2>
@@ -214,13 +214,13 @@ export default function HomePage() {
       {/* ═══════════════════════════════════════════════════════════════════ */}
       <section className="py-24 sm:py-32 px-6 relative z-10 overflow-hidden">
         {/* Glow */}
-        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] bg-ragnar-blue/5 blur-[150px] rounded-full pointer-events-none" />
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] bg-brand-blue/5 blur-[150px] rounded-full pointer-events-none" />
 
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-20 reveal-on-scroll">
             <h2 className="text-4xl sm:text-5xl md:text-6xl font-black text-zinc-100 tracking-tighter leading-tight mb-6">
               HuginFlow: O Coração da Sua <br/>
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-ragnar-blue to-ragnar-blue-light">
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-blue to-brand-blue-light">
                 Operação Omnichannel.
               </span>
             </h2>
@@ -266,8 +266,8 @@ export default function HomePage() {
                 </div>
                 {/* Landing Pages */}
                 <div className="flex items-center gap-4 p-3 rounded-xl bg-zinc-800/40 border border-white/5">
-                  <div className="w-10 h-10 rounded-xl bg-ragnar-blue/15 flex items-center justify-center flex-shrink-0">
-                    <svg viewBox="0 0 24 24" className="w-5 h-5 text-ragnar-blue" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                  <div className="w-10 h-10 rounded-xl bg-brand-blue/15 flex items-center justify-center flex-shrink-0">
+                    <svg viewBox="0 0 24 24" className="w-5 h-5 text-brand-blue" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
                   </div>
                   <div>
                     <span className="text-zinc-200 font-semibold text-sm">Landing Pages</span>
@@ -283,12 +283,12 @@ export default function HomePage() {
             </div>
 
             {/* COLUNA 2 — Núcleo de IA (O Cérebro) */}
-            <div className="p-8 sm:p-10 rounded-3xl bg-zinc-900/50 border border-ragnar-blue/20 relative overflow-hidden reveal-on-scroll" style={{ transitionDelay: '100ms' }}>
-              <div className="absolute inset-0 bg-gradient-to-br from-ragnar-blue/5 to-transparent pointer-events-none" />
+            <div className="p-8 sm:p-10 rounded-3xl bg-zinc-900/50 border border-brand-blue/20 relative overflow-hidden reveal-on-scroll" style={{ transitionDelay: '100ms' }}>
+              <div className="absolute inset-0 bg-gradient-to-br from-brand-blue/5 to-transparent pointer-events-none" />
               
               <div className="flex items-center gap-3 mb-8 relative z-10">
-                <div className="w-12 h-12 rounded-2xl bg-ragnar-blue/15 flex items-center justify-center shadow-[0_0_25px_-5px_rgba(43,170,223,0.4)]">
-                  <Brain className="w-6 h-6 text-ragnar-blue" />
+                <div className="w-12 h-12 rounded-2xl bg-brand-blue/15 flex items-center justify-center shadow-[0_0_25px_-5px_rgba(43,170,223,0.4)]">
+                  <Brain className="w-6 h-6 text-brand-blue" />
                 </div>
                 <h3 className="text-xl font-bold text-zinc-100 tracking-tight">Núcleo de IA (LLMs)</h3>
               </div>
@@ -297,7 +297,7 @@ export default function HomePage() {
               </p>
               <div className="space-y-4 relative z-10">
                 {/* OpenAI */}
-                <div className="flex items-center gap-4 p-3 rounded-xl bg-zinc-800/30 border border-ragnar-blue/10">
+                <div className="flex items-center gap-4 p-3 rounded-xl bg-zinc-800/30 border border-brand-blue/10">
                   <div className="w-10 h-10 rounded-xl bg-emerald-500/15 flex items-center justify-center flex-shrink-0">
                     <svg viewBox="0 0 24 24" className="w-5 h-5 text-emerald-400" fill="currentColor"><path d="M22.282 9.821a5.985 5.985 0 0 0-.516-4.91 6.046 6.046 0 0 0-6.51-2.9A6.065 6.065 0 0 0 4.981 4.18a5.998 5.998 0 0 0-3.998 2.9 6.042 6.042 0 0 0 .743 7.097 5.98 5.98 0 0 0 .51 4.911 6.051 6.051 0 0 0 6.515 2.9A5.985 5.985 0 0 0 13.26 24a6.056 6.056 0 0 0 5.772-4.206 5.99 5.99 0 0 0 3.997-2.9 6.056 6.056 0 0 0-.747-7.073zM13.26 22.43a4.476 4.476 0 0 1-2.876-1.04l.141-.081 4.779-2.758a.795.795 0 0 0 .392-.681v-6.737l2.02 1.168a.071.071 0 0 1 .038.052v5.583a4.504 4.504 0 0 1-4.494 4.494zM3.6 18.304a4.47 4.47 0 0 1-.535-3.014l.142.085 4.783 2.759a.771.771 0 0 0 .78 0l5.843-3.369v2.332a.08.08 0 0 1-.033.062L9.74 19.95a4.5 4.5 0 0 1-6.14-1.646zM2.34 7.896a4.485 4.485 0 0 1 2.366-1.973V11.6a.766.766 0 0 0 .388.676l5.815 3.355-2.02 1.168a.076.076 0 0 1-.071 0l-4.83-2.786A4.504 4.504 0 0 1 2.34 7.872zm16.597 3.855l-5.833-3.387L15.119 7.2a.076.076 0 0 1 .071 0l4.83 2.791a4.494 4.494 0 0 1-.676 8.105v-5.678a.79.79 0 0 0-.407-.667zm2.01-3.023l-.141-.085-4.774-2.782a.776.776 0 0 0-.785 0L9.409 9.23V6.897a.066.066 0 0 1 .028-.061l4.83-2.787a4.5 4.5 0 0 1 6.68 4.66zm-12.64 4.135l-2.02-1.164a.08.08 0 0 1-.038-.057V6.075a4.5 4.5 0 0 1 7.375-3.453l-.142.08L8.704 5.46a.795.795 0 0 0-.393.681zm1.097-2.365l2.602-1.5 2.607 1.5v2.999l-2.597 1.5-2.607-1.5z"/></svg>
                   </div>
@@ -307,7 +307,7 @@ export default function HomePage() {
                   </div>
                 </div>
                 {/* RAG Knowledge */}
-                <div className="flex items-center gap-4 p-3 rounded-xl bg-zinc-800/30 border border-ragnar-blue/10">
+                <div className="flex items-center gap-4 p-3 rounded-xl bg-zinc-800/30 border border-brand-blue/10">
                   <div className="w-10 h-10 rounded-xl bg-amber-500/15 flex items-center justify-center flex-shrink-0">
                     <svg viewBox="0 0 24 24" className="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
                   </div>
@@ -327,8 +327,8 @@ export default function HomePage() {
             {/* COLUNA 3 — Ação (O Movimento) */}
             <div className="p-8 sm:p-10 rounded-3xl bg-zinc-900/50 border border-white/5 reveal-on-scroll" style={{ transitionDelay: '200ms' }}>
               <div className="flex items-center gap-3 mb-8">
-                <div className="w-12 h-12 rounded-2xl bg-ragnar-green/15 flex items-center justify-center">
-                  <Zap className="w-6 h-6 text-ragnar-green" />
+                <div className="w-12 h-12 rounded-2xl bg-brand-green/15 flex items-center justify-center">
+                  <Zap className="w-6 h-6 text-brand-green" />
                 </div>
                 <h3 className="text-xl font-bold text-zinc-100 tracking-tight">Ação (Workflow)</h3>
               </div>
@@ -337,8 +337,8 @@ export default function HomePage() {
               </p>
               <div className="space-y-4">
                 <div className="flex items-center gap-4 p-3 rounded-xl bg-zinc-800/40 border border-white/5">
-                  <div className="w-10 h-10 rounded-xl bg-ragnar-green/15 flex items-center justify-center flex-shrink-0">
-                    <CheckCircle2 className="w-5 h-5 text-ragnar-green" />
+                  <div className="w-10 h-10 rounded-xl bg-brand-green/15 flex items-center justify-center flex-shrink-0">
+                    <CheckCircle2 className="w-5 h-5 text-brand-green" />
                   </div>
                   <div>
                     <span className="text-zinc-200 font-semibold text-sm">Criar Ticket no CRM</span>
@@ -346,8 +346,8 @@ export default function HomePage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-4 p-3 rounded-xl bg-zinc-800/40 border border-white/5">
-                  <div className="w-10 h-10 rounded-xl bg-ragnar-green/15 flex items-center justify-center flex-shrink-0">
-                    <CheckCircle2 className="w-5 h-5 text-ragnar-green" />
+                  <div className="w-10 h-10 rounded-xl bg-brand-green/15 flex items-center justify-center flex-shrink-0">
+                    <CheckCircle2 className="w-5 h-5 text-brand-green" />
                   </div>
                   <div>
                     <span className="text-zinc-200 font-semibold text-sm">Agendar Entrega</span>
@@ -355,8 +355,8 @@ export default function HomePage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-4 p-3 rounded-xl bg-zinc-800/40 border border-white/5">
-                  <div className="w-10 h-10 rounded-xl bg-ragnar-green/15 flex items-center justify-center flex-shrink-0">
-                    <CheckCircle2 className="w-5 h-5 text-ragnar-green" />
+                  <div className="w-10 h-10 rounded-xl bg-brand-green/15 flex items-center justify-center flex-shrink-0">
+                    <CheckCircle2 className="w-5 h-5 text-brand-green" />
                   </div>
                   <div>
                     <span className="text-zinc-200 font-semibold text-sm">Atualizar Estoque</span>
@@ -373,17 +373,17 @@ export default function HomePage() {
       {/* BLOCO 4 — LOGÍSTICA DE ALTA PRECISÃO (Gráficos Operacionais)      */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
       <section className="py-24 sm:py-32 px-6 bg-zinc-950 border-t border-white/5 relative z-10 overflow-hidden">
-        <div className="absolute right-[-10%] top-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-ragnar-green/5 blur-[120px] rounded-full pointer-events-none" />
+        <div className="absolute right-[-10%] top-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-brand-green/5 blur-[120px] rounded-full pointer-events-none" />
         
         <div className="max-w-7xl mx-auto flex flex-col lg:flex-row items-center gap-16 lg:gap-24">
           <div className="flex-1 reveal-on-scroll">
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-ragnar-green/10 border border-ragnar-green/20 text-ragnar-green text-[10px] sm:text-xs font-bold tracking-[0.2em] uppercase mb-8">
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-brand-green/10 border border-brand-green/20 text-brand-green text-[10px] sm:text-xs font-bold tracking-[0.2em] uppercase mb-8">
               Logística & Eficiência
             </div>
             
             <h2 className="text-4xl md:text-5xl lg:text-6xl font-black mb-8 text-zinc-100 tracking-tighter leading-[1.1]">
               Construído para operações com <br/>
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-ragnar-green to-emerald-400">
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-green to-emerald-400">
                 Precisão Cirúrgica.
               </span>
             </h2>
@@ -399,8 +399,8 @@ export default function HomePage() {
                 'Dashboards táticos atualizados com telemetria real-time'
               ].map((item, i) => (
                 <li key={i} className="flex items-center gap-4 text-zinc-200 font-medium text-lg">
-                  <div className="w-8 h-8 rounded-full bg-ragnar-green/10 flex items-center justify-center flex-shrink-0">
-                    <CheckCircle2 className="w-5 h-5 text-ragnar-green" />
+                  <div className="w-8 h-8 rounded-full bg-brand-green/10 flex items-center justify-center flex-shrink-0">
+                    <CheckCircle2 className="w-5 h-5 text-brand-green" />
                   </div>
                   {item}
                 </li>
@@ -417,7 +417,7 @@ export default function HomePage() {
                 {[
                   { label: "WhatsApp", value: 92, color: "bg-green-400", time: "1.2s" },
                   { label: "Instagram DM", value: 78, color: "bg-pink-400", time: "3.8s" },
-                  { label: "E-mail", value: 65, color: "bg-ragnar-blue", time: "12s" },
+                  { label: "E-mail", value: 65, color: "bg-brand-blue", time: "12s" },
                   { label: "Formulário Web", value: 85, color: "bg-amber-400", time: "2.1s" },
                 ].map((bar, i) => (
                   <div key={i} className="flex items-center gap-4">
@@ -439,7 +439,7 @@ export default function HomePage() {
               <div className="relative w-28 h-28 flex-shrink-0">
                 <svg className="w-28 h-28 -rotate-90" viewBox="0 0 100 100">
                   <circle cx="50" cy="50" r="42" stroke="currentColor" strokeWidth="8" fill="none" className="text-zinc-800" />
-                  <circle cx="50" cy="50" r="42" stroke="currentColor" strokeWidth="8" fill="none" className="text-ragnar-green" strokeDasharray="264" strokeDashoffset="53" strokeLinecap="round" />
+                  <circle cx="50" cy="50" r="42" stroke="currentColor" strokeWidth="8" fill="none" className="text-brand-green" strokeDasharray="264" strokeDashoffset="53" strokeLinecap="round" />
                 </svg>
                 <div className="absolute inset-0 flex items-center justify-center">
                   <span className="text-2xl font-black text-zinc-100">80%</span>
@@ -466,7 +466,7 @@ export default function HomePage() {
           <div className="reveal-on-scroll">
             <h2 className="text-5xl sm:text-6xl lg:text-7xl font-black text-zinc-100 tracking-tighter leading-[1.05] mb-8">
               Pronto para colocar sua inteligência <br className="hidden sm:block" />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-ragnar-blue to-ragnar-blue-light">
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-blue to-brand-blue-light">
                 em movimento?
               </span>
             </h2>
@@ -488,9 +488,9 @@ export default function HomePage() {
           {/* Formulário Elegante */}
           <div className="reveal-on-scroll" style={{ transitionDelay: '150ms' }}>
             {status === "success" ? (
-              <div className="bg-zinc-950 p-12 sm:p-16 rounded-[2.5rem] border border-ragnar-blue/30 shadow-2xl flex flex-col items-center text-center gap-6 animate-in zoom-in duration-500">
-                <div className="w-20 h-20 rounded-full bg-ragnar-blue/10 flex items-center justify-center mb-2">
-                  <CheckCircle2 className="w-10 h-10 text-ragnar-blue" />
+              <div className="bg-zinc-950 p-12 sm:p-16 rounded-[2.5rem] border border-brand-blue/30 shadow-2xl flex flex-col items-center text-center gap-6 animate-in zoom-in duration-500">
+                <div className="w-20 h-20 rounded-full bg-brand-blue/10 flex items-center justify-center mb-2">
+                  <CheckCircle2 className="w-10 h-10 text-brand-blue" />
                 </div>
                 <h3 className="text-3xl font-black text-white tracking-tighter">Recebemos seu contato!</h3>
                 <p className="text-zinc-400 font-medium">
@@ -505,7 +505,7 @@ export default function HomePage() {
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="bg-zinc-950 p-8 sm:p-10 rounded-[2.5rem] border border-white/5 shadow-2xl flex flex-col gap-5 relative overflow-hidden transition-all duration-500">
-                <div className="absolute top-0 right-0 w-64 h-64 bg-ragnar-blue/5 blur-[100px] rounded-full pointer-events-none" />
+                <div className="absolute top-0 right-0 w-64 h-64 bg-brand-blue/5 blur-[100px] rounded-full pointer-events-none" />
                 
                 {errorMessage && (
                   <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-500 text-xs font-bold flex items-center gap-3 animate-in fade-in slide-in-from-top-2">
@@ -522,7 +522,7 @@ export default function HomePage() {
                       required
                       value={formData.nome}
                       onChange={e => setFormData({...formData, nome: e.target.value})}
-                      className="bg-zinc-900 border border-white/5 rounded-2xl p-4 text-zinc-100 text-sm outline-none focus:border-ragnar-blue/50 focus:bg-zinc-800/50 transition-all placeholder:text-zinc-600" 
+                      className="bg-zinc-900 border border-white/5 rounded-2xl p-4 text-zinc-100 text-sm outline-none focus:border-brand-blue/50 focus:bg-zinc-800/50 transition-all placeholder:text-zinc-600" 
                       placeholder="Ex: João Silva" 
                     />
                   </div>
@@ -534,7 +534,7 @@ export default function HomePage() {
                       required
                       value={formData.email}
                       onChange={e => setFormData({...formData, email: e.target.value})}
-                      className="bg-zinc-900 border border-white/5 rounded-2xl p-4 text-zinc-100 text-sm outline-none focus:border-ragnar-blue/50 focus:bg-zinc-800/50 transition-all placeholder:text-zinc-600" 
+                      className="bg-zinc-900 border border-white/5 rounded-2xl p-4 text-zinc-100 text-sm outline-none focus:border-brand-blue/50 focus:bg-zinc-800/50 transition-all placeholder:text-zinc-600" 
                       placeholder="joao@suaempresa.com.br" 
                     />
                   </div>
@@ -547,7 +547,7 @@ export default function HomePage() {
                       type="text" 
                       value={formData.empresa}
                       onChange={e => setFormData({...formData, empresa: e.target.value})}
-                      className="bg-zinc-900 border border-white/5 rounded-2xl p-4 text-zinc-100 text-sm outline-none focus:border-ragnar-blue/50 focus:bg-zinc-800/50 transition-all placeholder:text-zinc-600" 
+                      className="bg-zinc-900 border border-white/5 rounded-2xl p-4 text-zinc-100 text-sm outline-none focus:border-brand-blue/50 focus:bg-zinc-800/50 transition-all placeholder:text-zinc-600" 
                       placeholder="Nome da sua empresa" 
                     />
                   </div>
@@ -559,7 +559,7 @@ export default function HomePage() {
                       required
                       value={formData.telefone}
                       onChange={e => setFormData({...formData, telefone: e.target.value})}
-                      className="bg-zinc-900 border border-white/5 rounded-2xl p-4 text-zinc-100 text-sm outline-none focus:border-ragnar-blue/50 focus:bg-zinc-800/50 transition-all placeholder:text-zinc-600" 
+                      className="bg-zinc-900 border border-white/5 rounded-2xl p-4 text-zinc-100 text-sm outline-none focus:border-brand-blue/50 focus:bg-zinc-800/50 transition-all placeholder:text-zinc-600" 
                       placeholder="(DD) 99999-9999" 
                     />
                   </div>
@@ -571,7 +571,7 @@ export default function HomePage() {
                     rows={3} 
                     value={formData.mensagem}
                     onChange={e => setFormData({...formData, mensagem: e.target.value})}
-                    className="bg-zinc-900 border border-white/5 rounded-2xl p-4 text-zinc-100 text-sm outline-none focus:border-ragnar-blue/50 focus:bg-zinc-800/50 transition-all resize-none placeholder:text-zinc-600" 
+                    className="bg-zinc-900 border border-white/5 rounded-2xl p-4 text-zinc-100 text-sm outline-none focus:border-brand-blue/50 focus:bg-zinc-800/50 transition-all resize-none placeholder:text-zinc-600" 
                     placeholder="Descreva brevemente sua necessidade..." 
                   />
                 </div>

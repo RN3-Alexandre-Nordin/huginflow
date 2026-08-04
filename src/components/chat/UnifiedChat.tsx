@@ -224,7 +224,7 @@ export default function UnifiedChat({
            </div>
            <div>
               <h5 className="text-[11px] font-black text-white uppercase tracking-widest leading-none">
-                {contextType === 'global' ? 'Equipe Ragnar' : 'Chat do Card'}
+                {contextType === 'global' ? 'Equipe HuginFlow' : 'Chat do Card'}
               </h5>
               <p className="text-[9px] text-gray-500 font-bold uppercase tracking-tighter mt-1">Ambiente Seguro & Monitorado</p>
            </div>
@@ -347,7 +347,7 @@ export default function UnifiedChat({
              ref={inputRef}
              type="text"
              className="flex-1 bg-transparent border-none outline-none text-[13px] text-white px-2 py-3 placeholder:text-gray-600 font-medium"
-             placeholder={contextType === 'global' ? "Equipe Ragnar (use @ para contatos)..." : "Discussão Interna do Card (use @ ou #)..."}
+             placeholder={contextType === 'global' ? "Equipe HuginFlow (use @ para contatos)..." : "Discussão Interna do Card (use @ ou #)..."}
              value={newMessage}
              disabled={isPending}
              autoComplete="off"

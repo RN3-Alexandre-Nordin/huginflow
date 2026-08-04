@@ -75,7 +75,7 @@ function LoginForm() {
             className="relative rounded-xl transition-all duration-300"
             style={{
               border: focusedField === "email"
-                ? "1.5px solid var(--ragnar-blue)"
+                ? "1.5px solid var(--brand-blue)"
                 : "1.5px solid rgba(255,255,255,0.08)",
               boxShadow: focusedField === "email"
                 ? "0 0 0 4px rgba(43,170,223,0.12)"
@@ -84,7 +84,7 @@ function LoginForm() {
           >
             <div
               className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none transition-colors duration-300"
-              style={{ color: focusedField === "email" ? "var(--ragnar-blue)" : "rgba(255,255,255,0.3)" }}
+              style={{ color: focusedField === "email" ? "var(--brand-blue)" : "rgba(255,255,255,0.3)" }}
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
                 <path
@@ -129,7 +129,7 @@ function LoginForm() {
             className="relative rounded-xl transition-all duration-300"
             style={{
               border: focusedField === "password"
-                ? "1.5px solid var(--ragnar-blue)"
+                ? "1.5px solid var(--brand-blue)"
                 : "1.5px solid rgba(255,255,255,0.08)",
               boxShadow: focusedField === "password"
                 ? "0 0 0 4px rgba(43,170,223,0.12)"
@@ -138,7 +138,7 @@ function LoginForm() {
           >
             <div
               className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none transition-colors duration-300"
-              style={{ color: focusedField === "password" ? "var(--ragnar-blue)" : "rgba(255,255,255,0.3)" }}
+              style={{ color: focusedField === "password" ? "var(--brand-blue)" : "rgba(255,255,255,0.3)" }}
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
                 <rect x="3" y="11" width="18" height="11" rx="2" stroke="currentColor" strokeWidth="1.8" />
@@ -225,7 +225,7 @@ function LoginForm() {
       {/* Footer */}
       <p className="text-center text-xs mt-10" style={{ color: "rgba(245,245,245,0.25)" }}>
         Não tem uma conta?{" "}
-        <a href="/register" className="font-semibold transition-colors duration-200 hover:underline" style={{ color: "var(--ragnar-blue)" }}>
+        <a href="/register" className="font-semibold transition-colors duration-200 hover:underline" style={{ color: "var(--brand-blue)" }}>
           Fale com a equipe HuginFlow
         </a>
       </p>
@@ -251,7 +251,7 @@ export default function LoginPage() {
                 <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="#2BAADF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </div>
-            <span className="text-xs font-semibold tracking-widest uppercase" style={{ color: "var(--ragnar-blue)" }}>Plataforma Inteligente</span>
+            <span className="text-xs font-semibold tracking-widest uppercase" style={{ color: "var(--brand-blue)" }}>Plataforma Inteligente</span>
           </div>
           <div>
             <h1 className="text-5xl xl:text-6xl font-black leading-tight mb-4" style={{ color: "#F5F5F5" }}>Workflows<br /><span style={{ background: "linear-gradient(90deg, #2BAADF, #80B828)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>inteligentes</span></h1>

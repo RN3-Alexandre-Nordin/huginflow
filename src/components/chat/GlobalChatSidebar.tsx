@@ -354,7 +354,7 @@ export default function GlobalChatSidebar() {
         
         <div className="absolute bottom-4 left-[370px] pointer-events-none opacity-40">
            <p className="text-[9px] text-gray-700 font-black uppercase tracking-[0.3em]"> 
-              Ragnar Communications System
+              HuginFlow Communications System
            </p>
         </div>
       </div>

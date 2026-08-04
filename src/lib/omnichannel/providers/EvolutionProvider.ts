@@ -1,4 +1,4 @@
-import { RagnarMessage, BaseProvider, ProviderConfig, WebhookResult, RagnarEvent } from '@/types/omnichannel';
+import { HuginMessage, BaseProvider, ProviderConfig, WebhookResult, HuginEvent } from '@/types/omnichannel';
 import { getEvolutionCredentials } from '@/lib/config/environment';
 import { formatWhatsAppSignatureHeader } from '@/lib/omnichannel/whatsapp-outbound';
 import { AUDIO_PLACEHOLDER } from '@/lib/omnichannel/audio-transcription-constants';
@@ -113,7 +113,7 @@ export class EvolutionProvider implements BaseProvider {
   }
 
   /**
-   * Converte o payload bruto do webhook da Evolution para RagnarMessage ou RagnarEvent
+   * Converte o payload bruto do webhook da Evolution para HuginMessage ou HuginEvent
    */
   parseWebhook(payload: any): WebhookResult {
     const eventName = normalizeEvolutionEvent(payload.event);
@@ -145,7 +145,7 @@ export class EvolutionProvider implements BaseProvider {
         provider_id: payload.instance || '',
         status: ragnarStatus,
         metadata: { raw: payload.data }
-      } as RagnarEvent;
+      } as HuginEvent;
     }
 
     // 2. Tratamento de Recebimento de Mensagem
@@ -205,7 +205,7 @@ export class EvolutionProvider implements BaseProvider {
               }
             : {}),
         }
-      } as RagnarMessage;
+      } as HuginMessage;
     }
 
     return null;

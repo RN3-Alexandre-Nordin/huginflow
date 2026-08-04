@@ -6,7 +6,7 @@ import { AiResponseService } from '@/lib/omnichannel/services/AiResponseService'
 import { isChannelAiEnabled } from '@/lib/omnichannel/channel-ai';
 import { normalizeWhatsAppPhone } from '@/lib/omnichannel/phone';
 import { getRoutingConfig } from '@/utils/crm/routing';
-import { RagnarEvent, RagnarMessage } from '@/types/omnichannel';
+import { HuginEvent, HuginMessage } from '@/types/omnichannel';
 
 function createWebhookSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -19,7 +19,7 @@ function createWebhookSupabase() {
 
 async function handleConnectionUpdate(
   supabase: SupabaseClient,
-  event: RagnarEvent,
+  event: HuginEvent,
   timestampId: number,
 ) {
   if (!event.provider_id) {
@@ -56,7 +56,7 @@ async function handleConnectionUpdate(
 async function handleMessageUpsert(
   supabase: SupabaseClient,
   body: Record<string, unknown>,
-  msg: RagnarMessage,
+  msg: HuginMessage,
   timestampId: number,
 ) {
   const instanceName = body.instance as string;
@@ -244,11 +244,11 @@ export async function POST(request: Request) {
     }
 
     if ('event' in parsed && parsed.event === 'status_update') {
-      return handleConnectionUpdate(supabase, parsed as RagnarEvent, timestampId);
+      return handleConnectionUpdate(supabase, parsed as HuginEvent, timestampId);
     }
 
     if ('content' in parsed) {
-      return handleMessageUpsert(supabase, body, parsed as RagnarMessage, timestampId);
+      return handleMessageUpsert(supabase, body, parsed as HuginMessage, timestampId);
     }
 
     return NextResponse.json({ status: 'ignored', reason: 'unknown_payload' });

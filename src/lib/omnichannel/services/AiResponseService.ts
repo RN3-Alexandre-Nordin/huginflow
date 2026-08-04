@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { GeminiChatService } from '@/lib/crm/GeminiChatService'
 import { buildEvolutionProviderConfig } from '@/lib/omnichannel/evolution-config'
 import { EvolutionProvider } from '@/lib/omnichannel/providers/EvolutionProvider'
-import { RagnarMessage } from '@/types/omnichannel'
+import { HuginMessage } from '@/types/omnichannel'
 import { ConversaHistoricoService } from '@/lib/omnichannel/ConversaHistoricoService'
 import { WHATSAPP_SENDER_LABELS } from '@/lib/omnichannel/whatsapp-outbound'
 import { AudioTranscriptionService } from '@/lib/omnichannel/services/AudioTranscriptionService'
@@ -19,7 +19,7 @@ type CanalContext = {
  */
 export class AiResponseService {
   static async processAutoResponse(
-    message: RagnarMessage,
+    message: HuginMessage,
     canal: CanalContext,
     supabase: SupabaseClient,
   ) {
@@ -184,7 +184,7 @@ export class AiResponseService {
 
   private static async handleFailure(
     supabase: SupabaseClient,
-    message: RagnarMessage,
+    message: HuginMessage,
     leadId: string,
     sessaoId: string,
     reason: string,

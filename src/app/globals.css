@@ -1,21 +1,32 @@
 @import "tailwindcss";
 
 :root {
-  /* HuginFlow brand (aliases --ragnar-* mantidos até P2) */
-  --ragnar-blue: #2BAADF;
-  --ragnar-blue-dark: #1A8FBF;
-  --ragnar-blue-light: #5DC4ED;
-  --ragnar-black: #111111;
-  --ragnar-dark: #1A1A1A;
-  --ragnar-gray: #2A2A2A;
-  --ragnar-gray-mid: #3D3D3D;
-  --ragnar-gray-light: #6B7280;
-  --ragnar-green: #80B828;
+  /* HuginFlow / brand tokens */
+  --brand-blue: #2BAADF;
+  --brand-blue-dark: #1A8FBF;
+  --brand-blue-light: #5DC4ED;
+  --brand-black: #111111;
+  --brand-dark: #1A1A1A;
+  --brand-gray: #2A2A2A;
+  --brand-gray-mid: #3D3D3D;
+  --brand-gray-light: #6B7280;
+  --brand-green: #80B828;
 
-  --huginflow-blue: var(--ragnar-blue);
-  --huginflow-blue-dark: var(--ragnar-blue-dark);
-  --huginflow-blue-light: var(--ragnar-blue-light);
-  --huginflow-green: var(--ragnar-green);
+  /* Compat: nomes antigos apontam para brand (remover em P4+) */
+  --ragnar-blue: var(--brand-blue);
+  --ragnar-blue-dark: var(--brand-blue-dark);
+  --ragnar-blue-light: var(--brand-blue-light);
+  --ragnar-black: var(--brand-black);
+  --ragnar-dark: var(--brand-dark);
+  --ragnar-gray: var(--brand-gray);
+  --ragnar-gray-mid: var(--brand-gray-mid);
+  --ragnar-gray-light: var(--brand-gray-light);
+  --ragnar-green: var(--brand-green);
+
+  --huginflow-blue: var(--brand-blue);
+  --huginflow-blue-dark: var(--brand-blue-dark);
+  --huginflow-blue-light: var(--brand-blue-light);
+  --huginflow-green: var(--brand-green);
 
   --background: #0C0C0C;
   --foreground: #F5F5F5;
@@ -24,15 +35,15 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --color-ragnar-blue: var(--ragnar-blue);
-  --color-ragnar-blue-dark: var(--ragnar-blue-dark);
-  --color-ragnar-blue-light: var(--ragnar-blue-light);
-  --color-ragnar-black: var(--ragnar-black);
-  --color-ragnar-dark: var(--ragnar-dark);
-  --color-ragnar-gray: var(--ragnar-gray);
-  --color-ragnar-gray-mid: var(--ragnar-gray-mid);
-  --color-ragnar-gray-light: var(--ragnar-gray-light);
-  --color-ragnar-green: var(--ragnar-green);
+  --color-brand-blue: var(--brand-blue);
+  --color-brand-blue-dark: var(--brand-blue-dark);
+  --color-brand-blue-light: var(--brand-blue-light);
+  --color-brand-black: var(--brand-black);
+  --color-brand-dark: var(--brand-dark);
+  --color-brand-gray: var(--brand-gray);
+  --color-brand-gray-mid: var(--brand-gray-mid);
+  --color-brand-gray-light: var(--brand-gray-light);
+  --color-brand-green: var(--brand-green);
   --color-huginflow-blue: var(--huginflow-blue);
   --color-huginflow-blue-dark: var(--huginflow-blue-dark);
   --color-huginflow-blue-light: var(--huginflow-blue-light);
