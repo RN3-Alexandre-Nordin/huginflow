@@ -26,28 +26,6 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next()
   }
 
-  // ─── ROTAS DE AUTENTICAÇÃO (Supabase Session) ────────────────────────────
-  let supabaseResponse = NextResponse.next({ request })
-
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll()
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
-          supabaseResponse = NextResponse.next({ request })
-          cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
-          )
-        },
-      },
-    }
-  )
-
   // Normalizar pathname para remover prefixo de locale (ex: /pt/login → /login)
   const segments = pathname.split('/').filter(Boolean)
   const normalizedPathname =
@@ -55,14 +33,50 @@ export async function proxy(request: NextRequest) {
       ? '/' + (segments.slice(1).join('/') || '')
       : pathname
 
-  const publicRoutes = ['/', '/login']
+  const publicRoutes = ['/', '/login', '/privacidade', '/termos']
   const isPublicRoute = publicRoutes.includes(normalizedPathname)
 
-  // Rotas públicas passam sem precisar de getUser()
+  // NEXT_PUBLIC_* é embutido no build da imagem. Sem secrets no CI → string vazia
+  // e o createServerClient quebra com 500. Fallback para SUPABASE_* (também no build).
+  const supabaseUrl =
+    process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || ''
+  const supabaseKey =
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || ''
+
+  if (!supabaseUrl || !supabaseKey) {
+    if (isPublicRoute) {
+      return NextResponse.next()
+    }
+    return new NextResponse(
+      'Configuração incompleta: defina NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY no build (GitHub Secrets) e gere a imagem de novo.',
+      { status: 503, headers: { 'content-type': 'text/plain; charset=utf-8' } },
+    )
+  }
+
+  // ─── ROTAS DE AUTENTICAÇÃO (Supabase Session) ────────────────────────────
+  let supabaseResponse = NextResponse.next({ request })
+
+  const supabase = createServerClient(supabaseUrl, supabaseKey, {
+    cookies: {
+      getAll() {
+        return request.cookies.getAll()
+      },
+      setAll(cookiesToSet) {
+        cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
+        supabaseResponse = NextResponse.next({ request })
+        cookiesToSet.forEach(({ name, value, options }) =>
+          supabaseResponse.cookies.set(name, value, options)
+        )
+      },
+    },
+  })
+
+  // Rotas públicas: se logado na raiz, vai ao cockpit
   if (isPublicRoute) {
-    // Se está logado e tenta acessar a raiz, redireciona para o cockpit
-    const { data: { user } } = await supabase.auth.getUser()
-    if (user && pathname === '/') {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (user && normalizedPathname === '/') {
       const url = request.nextUrl.clone()
       url.pathname = '/cockpit'
       return NextResponse.redirect(url)
@@ -77,7 +91,7 @@ export async function proxy(request: NextRequest) {
 
   if (!user) {
     const url = request.nextUrl.clone()
-    url.pathname = '/'
+    url.pathname = '/login'
     return NextResponse.redirect(url)
   }
 
