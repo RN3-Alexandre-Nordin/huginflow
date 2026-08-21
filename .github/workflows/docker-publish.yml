@@ -3,8 +3,8 @@ name: Docker Image CI/CD (GHCR)
 on:
   push:
     branches:
-      - main      # deploy produção
-      - develop   # deploy dev (opcional)
+      - main      # deploy produção → tag :latest
+      - develop   # imagem de desenvolvimento → tag :dev
   workflow_dispatch:
 
 env:
@@ -39,12 +39,14 @@ jobs:
         id: env
         run: |
           if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-            echo "ragnar_env=production" >> $GITHUB_OUTPUT
-            echo "app_url=https://app.ragnar.ia.br" >> $GITHUB_OUTPUT
+            echo "huginflow_env=production" >> $GITHUB_OUTPUT
+            echo "app_url=https://app.huginflow.com" >> $GITHUB_OUTPUT
+            echo "site_url=https://huginflow.com" >> $GITHUB_OUTPUT
             echo "tag=latest" >> $GITHUB_OUTPUT
           else
-            echo "ragnar_env=development" >> $GITHUB_OUTPUT
-            echo "app_url=https://dev-ragnar.rn3.tec.br" >> $GITHUB_OUTPUT
+            echo "huginflow_env=development" >> $GITHUB_OUTPUT
+            echo "app_url=https://dev.huginflow.com" >> $GITHUB_OUTPUT
+            echo "site_url=https://dev.huginflow.com" >> $GITHUB_OUTPUT
             echo "tag=dev" >> $GITHUB_OUTPUT
           fi
 
@@ -72,6 +74,7 @@ jobs:
             SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
             SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
             NEXT_PUBLIC_APP_URL=${{ steps.env.outputs.app_url }}
+            NEXT_PUBLIC_SITE_URL=${{ steps.env.outputs.site_url }}
             NEXT_PUBLIC_LANDING_PAGE_TOKEN=${{ secrets.NEXT_PUBLIC_LANDING_PAGE_TOKEN }}
 
   deploy-prod:
@@ -94,6 +97,7 @@ jobs:
             echo "ready=false" >> $GITHUB_OUTPUT
             echo "::warning::Deploy SSH ignorado — faltam secrets VPS_HOST, VPS_USER ou VPS_SSH_KEY."
             echo "Ver docs/deploy-vps-github-actions.md"
+            echo "Com a imagem :latest publicada, atualize o stack huginflow-app no Portainer manualmente se o SSH não estiver configurado."
           else
             echo "ready=true" >> $GITHUB_OUTPUT
           fi
@@ -105,17 +109,17 @@ jobs:
           printf '%s\n' "$VPS_SSH_KEY" > "$KEY_FILE"
           chmod 600 "$KEY_FILE"
           if ssh-keygen -y -f "$KEY_FILE" -P "" >/dev/null 2>&1; then
-            echo "Chave SSH OK (sem passphrase — padrão ragnar_deploy)."
+            echo "Chave SSH OK (sem passphrase)."
           elif [ -n "$VPS_SSH_PASSPHRASE" ]; then
             if ssh-keygen -y -f "$KEY_FILE" -P "$VPS_SSH_PASSPHRASE" >/dev/null 2>&1; then
-              echo "::warning::Chave com passphrase detectada. Recomendado: ragnar_deploy sem senha (docs/deploy-vps-github-actions.md)."
+              echo "::warning::Chave com passphrase detectada. Preferível chave de deploy sem senha."
             else
               echo "::error::VPS_SSH_PASSPHRASE incorreta para VPS_SSH_KEY."
               exit 1
             fi
           else
             echo "::error::VPS_SSH_KEY está protegida por passphrase."
-            echo "Solução: crie chave ragnar_deploy sem senha e atualize VPS_SSH_KEY. Ver docs/deploy-vps-github-actions.md"
+            echo "Solução: chave de deploy sem senha e atualize VPS_SSH_KEY. Ver docs/deploy-vps-github-actions.md"
             exit 1
           fi
         env:
@@ -136,15 +140,20 @@ jobs:
           script: |
             set -e
             IMAGE="${{ steps.ghcr.outputs.image }}:latest"
-            SERVICE="ragnar-app_app"
+            SERVICE="huginflow-app_app"
             docker pull "$IMAGE"
             docker service update \
               --image "$IMAGE" \
+              --env-add HUGINFLOW_ENV=production \
               --env-add RAGNAR_ENV=production \
+              --env-add NEXT_PUBLIC_APP_URL=https://app.huginflow.com \
+              --env-add NEXT_PUBLIC_SITE_URL=https://huginflow.com \
               --env-add WHATSAPP_API_URL=https://evo.rn3.tec.br \
               --env-add WHATSAPP_API_URL_PROD=https://evo.rn3.tec.br \
-              --env-add RAGNAR_WEBHOOK_URL=https://app.ragnar.ia.br/api/webhooks/evolution \
-              --env-add RAGNAR_WEBHOOK_URL_PROD=https://app.ragnar.ia.br/api/webhooks/evolution \
+              --env-add HUGINFLOW_WEBHOOK_URL=https://app.huginflow.com/api/webhooks/evolution \
+              --env-add HUGINFLOW_WEBHOOK_URL_PROD=https://app.huginflow.com/api/webhooks/evolution \
+              --env-add RAGNAR_WEBHOOK_URL=https://app.huginflow.com/api/webhooks/evolution \
+              --env-add RAGNAR_WEBHOOK_URL_PROD=https://app.huginflow.com/api/webhooks/evolution \
               "$SERVICE"
             docker service ps "$SERVICE" --no-trunc
             docker image prune -f
