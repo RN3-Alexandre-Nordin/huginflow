@@ -1,4 +1,3 @@
-import Image from "next/image";
 import { logout } from "@/app/actions";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { getMyProfile } from "@/app/(app)/cockpit/actions";
@@ -32,12 +31,10 @@ export default async function CockpitLayout({
         {/* Sidebar */}
         <aside className="w-64 flex-shrink-0 flex flex-col border-r border-[#ffffff0a] bg-[#0F0F0F] relative z-20">
           <div className="h-20 flex items-center px-6 border-b border-[#ffffff0a]">
-            <Image
-              src="/logotipo.png"
-              alt="HuginFlow"
-              width={120}
-              height={60}
-              style={{ filter: "brightness(0) invert(1) opacity(0.9)" }}
+            <img
+              src="/logo-sidebar.png?v=20260824"
+              alt="Hugin Flow"
+              className="w-full h-auto max-h-14 object-contain object-left"
             />
           </div>
 

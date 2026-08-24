@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import { useState, Suspense } from "react";
 import { login } from "../../actions";
@@ -15,12 +14,12 @@ function LoginForm() {
     <div className="w-full max-w-md animate-fade-in-up">
       {/* Mobile logo */}
       <div className="flex justify-center mb-10 lg:hidden">
-        <Image
-          src="/logotipo.png"
-          alt="HuginFlow"
-          width={140}
+        <img
+          src="/logo-principal.png?v=20260824"
+          alt="Hugin Flow"
+          width={180}
           height={70}
-          style={{ filter: "brightness(0) invert(1) opacity(0.9)" }}
+          className="h-14 w-auto object-contain"
         />
       </div>
 
@@ -242,7 +241,7 @@ export default function LoginPage() {
         <div className="absolute top-[-80px] left-[-80px] w-[420px] h-[420px] rounded-full opacity-20" style={{ background: "radial-gradient(circle, #2BAADF 0%, transparent 70%)", filter: "blur(40px)" }} />
         <div className="absolute bottom-[-100px] right-[-60px] w-[360px] h-[360px] rounded-full opacity-15" style={{ background: "radial-gradient(circle, #80B828 0%, transparent 70%)", filter: "blur(50px)" }} />
         <div className="relative z-10">
-          <Image src="/logotipo.png" alt="HuginFlow" width={160} height={80} className="opacity-90" style={{ filter: "brightness(0) invert(1) opacity(0.9)" }} />
+          <img src="/logo-principal.png?v=20260824" alt="Hugin Flow" width={200} height={80} className="h-16 w-auto object-contain opacity-90" />
         </div>
         <div className="relative z-10 flex flex-col gap-8">
            <div className="flex items-center gap-3">
