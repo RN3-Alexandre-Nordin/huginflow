@@ -100,14 +100,12 @@ export default function HomePage() {
       {/* ═══════════════════════════════════════════════════════════════════ */}
       <nav className="fixed top-0 left-0 right-0 h-20 border-b border-white/5 bg-zinc-950/80 backdrop-blur-md z-50 animate-fade-in-up" style={{ animationDuration: '0.4s' }}>
         <div className="max-w-7xl mx-auto px-6 h-full flex items-center justify-between">
-          <Image 
-            src="/logotipo.png" 
-            alt="HuginFlow Logo" 
-            width={100} 
-            height={50} 
-            className="drop-shadow-sm transition-opacity hover:opacity-80"
-            style={{ filter: "brightness(0) invert(1)" }}
-            priority
+          <img
+            src="/logo-principal.png?v=20260824"
+            alt="Hugin Flow"
+            width={180}
+            height={48}
+            className="h-10 sm:h-12 w-auto object-contain drop-shadow-sm transition-opacity hover:opacity-80"
           />
           <Link 
             href="/login" 
