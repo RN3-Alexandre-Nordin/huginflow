@@ -139,7 +139,7 @@ export default function ChannelEditor({ canal }: ChannelEditorProps) {
                         <input 
                            name="instancia_nome" 
                            defaultValue={canal.instancia_nome}
-                           placeholder="ex: ragnar_vendas"
+                           placeholder="ex: hugin_vendas"
                            className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-2 text-sm text-white focus:border-blue-500 outline-none"
                         />
                      </div>

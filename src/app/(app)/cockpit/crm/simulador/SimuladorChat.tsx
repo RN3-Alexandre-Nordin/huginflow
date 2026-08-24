@@ -273,7 +273,7 @@ export default function SimuladorChat({ initialHistory = [] }: { initialHistory?
             </button>
           </form>
           <div className="mt-2 text-center">
-            <p className="text-[9px] text-gray-600 uppercase tracking-widest font-black">Desenvolvido por HuginFlow Inbound — Inteligência em Movimento</p>
+            <p className="text-[9px] text-gray-600 uppercase tracking-widest font-black">Desenvolvido por Hugin Flow — Onde processos ganham inteligência</p>
           </div>
         </div>
 

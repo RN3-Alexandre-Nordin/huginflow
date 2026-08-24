@@ -74,7 +74,7 @@ export default async function UsuariosPage(props: {
             Usuários & Equipe
           </h2>
           <p className="text-sm text-gray-400 mt-1 font-medium">
-            Gestão de perfis, permissões e acesso de equipe ao <span className="text-[#80B828]">RAGNAR</span>.
+            Gestão de perfis, permissões e acesso de equipe à <span className="text-[#80B828]">Hugin Flow</span>.
           </p>
         </div>
         {canCreate && (

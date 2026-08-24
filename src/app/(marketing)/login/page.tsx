@@ -15,11 +15,9 @@ function LoginForm() {
       {/* Mobile logo */}
       <div className="flex justify-center mb-10 lg:hidden">
         <img
-          src="/logo-principal.png?v=20260824"
+          src="/logo-principal.png?v=20260824b"
           alt="Hugin Flow"
-          width={180}
-          height={70}
-          className="h-14 w-auto object-contain"
+          className="h-24 w-auto max-w-[min(100%,420px)] object-contain bg-transparent"
         />
       </div>
 
@@ -32,7 +30,7 @@ function LoginForm() {
           Bem-vindo de volta
         </h2>
         <p className="text-sm" style={{ color: "rgba(245,245,245,0.45)" }}>
-          Faça login para acessar sua conta HuginFlow
+          Faça login para acessar sua conta Hugin Flow
         </p>
       </div>
 
@@ -225,7 +223,7 @@ function LoginForm() {
       <p className="text-center text-xs mt-10" style={{ color: "rgba(245,245,245,0.25)" }}>
         Não tem uma conta?{" "}
         <a href="/register" className="font-semibold transition-colors duration-200 hover:underline" style={{ color: "var(--brand-blue)" }}>
-          Fale com a equipe HuginFlow
+          Fale com a equipe Hugin Flow
         </a>
       </p>
     </div>
@@ -241,7 +239,11 @@ export default function LoginPage() {
         <div className="absolute top-[-80px] left-[-80px] w-[420px] h-[420px] rounded-full opacity-20" style={{ background: "radial-gradient(circle, #2BAADF 0%, transparent 70%)", filter: "blur(40px)" }} />
         <div className="absolute bottom-[-100px] right-[-60px] w-[360px] h-[360px] rounded-full opacity-15" style={{ background: "radial-gradient(circle, #80B828 0%, transparent 70%)", filter: "blur(50px)" }} />
         <div className="relative z-10">
-          <img src="/logo-principal.png?v=20260824" alt="Hugin Flow" width={200} height={80} className="h-16 w-auto object-contain opacity-90" />
+          <img
+            src="/logo-principal.png?v=20260824b"
+            alt="Hugin Flow"
+            className="h-28 w-auto max-w-[min(100%,520px)] object-contain bg-transparent"
+          />
         </div>
         <div className="relative z-10 flex flex-col gap-8">
            <div className="flex items-center gap-3">
@@ -250,11 +252,11 @@ export default function LoginPage() {
                 <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="#2BAADF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </div>
-            <span className="text-xs font-semibold tracking-widest uppercase" style={{ color: "var(--brand-blue)" }}>Plataforma Inteligente</span>
+            <span className="text-xs font-semibold tracking-widest uppercase" style={{ color: "var(--brand-blue)" }}>Workflows inteligentes, pessoas no comando</span>
           </div>
           <div>
             <h1 className="text-5xl xl:text-6xl font-black leading-tight mb-4" style={{ color: "#F5F5F5" }}>Workflows<br /><span style={{ background: "linear-gradient(90deg, #2BAADF, #80B828)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>inteligentes</span></h1>
-            <p className="text-lg leading-relaxed max-w-md" style={{ color: "rgba(245,245,245,0.55)" }}>Orquestre CRM, atendimento e processos com IA. Automatize, visualize e escale com o HuginFlow.</p>
+            <p className="text-lg leading-relaxed max-w-md" style={{ color: "rgba(245,245,245,0.55)" }}>Orquestre CRM, atendimento e processos em um só lugar. Visualize, conecte e escale com a Hugin Flow.</p>
           </div>
         </div>
       </div>
