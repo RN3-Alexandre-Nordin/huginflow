@@ -241,7 +241,7 @@ export default function NovoUsuarioPage() {
                     <option value="operador">Operador (Padrão)</option>
                     <option value="admin">Administrador Empresa</option>
                     <option value="visualizador">Apenas Visualização</option>
-                    {isSuperAdmin && <option value="superadmin">SuperAdmin (RAGNAR)</option>}
+                    {isSuperAdmin && <option value="superadmin">SuperAdmin (Hugin Flow)</option>}
                   </select>
                   <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500">
                     <svg className="w-4 h-4 fill-current" viewBox="0 0 20 20">

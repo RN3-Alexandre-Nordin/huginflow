@@ -72,7 +72,7 @@ export default async function EmpresasPage(props: {
           </h2>
           <p className="text-sm text-gray-400 mt-1">
             {isSuperAdmin 
-              ? 'Gerencie os tenants ativos na plataforma RAGNAR.'
+              ? 'Gerencie os tenants ativos na plataforma Hugin Flow.'
               : 'Visualize as informações cadastrais da sua empresa.'}
           </p>
         </div>

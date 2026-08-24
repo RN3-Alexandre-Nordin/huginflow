@@ -19,7 +19,9 @@ export default function LanguageSwitcher() {
     }
 
     // Check localStorage first
-    const saved = localStorage.getItem("ragnar-language") as Language;
+    const saved =
+      (localStorage.getItem("huginflow-language") as Language) ||
+      (localStorage.getItem("ragnar-language") as Language); // legado
     if (saved && ["pt-BR", "es", "en"].includes(saved)) {
       setCurrentLanguage(saved);
     } else {
@@ -29,7 +31,8 @@ export default function LanguageSwitcher() {
 
   const handleLanguageChange = (lang: Language) => {
     setCurrentLanguage(lang);
-    localStorage.setItem("ragnar-language", lang);
+    localStorage.setItem("huginflow-language", lang);
+    localStorage.removeItem("ragnar-language");
     // Note: This currently only updates the UI flag. 
     // Future i18n logic can be hooked here.
   };

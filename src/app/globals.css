@@ -168,3 +168,21 @@ body {
 .custom-scrollbar-main::-webkit-scrollbar-track { background: transparent; }
 .custom-scrollbar-main::-webkit-scrollbar-thumb { background: #ffffff10; border-radius: 10px; }
 .custom-scrollbar-main::-webkit-scrollbar-thumb:hover { background: #2BAADF30; }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in-up,
+  .animate-float,
+  .animate-pulse-ring,
+  .animate-ping {
+    animation: none !important;
+  }
+
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+:focus-visible {
+  outline: 2px solid var(--brand-blue);
+  outline-offset: 3px;
+}

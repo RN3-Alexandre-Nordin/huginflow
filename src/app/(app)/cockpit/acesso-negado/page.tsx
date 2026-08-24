@@ -44,7 +44,7 @@ export default function AcessoNegadoPage() {
       {/* System Note */}
       <div className="mt-16 pt-8 border-t border-[#ffffff05] w-full max-w-lg">
         <p className="text-[10px] text-gray-600 uppercase tracking-[0.2em] font-bold">
-          RAGNAR SECURITY ENFORCEMENT &bull; RBAC v2
+          HUGIN FLOW SECURITY ENFORCEMENT &bull; RBAC v2
         </p>
       </div>
     </div>

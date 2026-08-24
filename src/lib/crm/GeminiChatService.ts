@@ -97,7 +97,7 @@ export class GeminiChatService {
       .join('\n')
 
     const ragnarInstructions = `
-    INSTRUÇÕES DE SISTEMA (RAGNAR CRM):
+    INSTRUÇÕES DE SISTEMA (HUGIN FLOW CRM):
     1. Use os "DADOS DA BASE DE CONHECIMENTO" como única fonte de verdade.
     2. Se não houver dados, aja com o conhecimento geral mas seja cauteloso.
     3. Ao final da resposta, inclua metadados: [STATUS_CRM: NOVO_LEAD | EM_QUALIFICACAO | INTERESSADO | AGENDADO | PERDIDO | GANHO]

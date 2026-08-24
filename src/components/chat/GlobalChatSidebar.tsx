@@ -331,7 +331,7 @@ export default function GlobalChatSidebar() {
                 <div className="w-20 h-20 rounded-[32px] bg-white/5 border border-white/10 flex items-center justify-center mb-6 animate-pulse">
                    <MessageSquare className="w-8 h-8 text-gray-600" />
                 </div>
-                <h3 className="text-xl font-bold text-white mb-2 italic tracking-tighter">BEM-VINDO AO RAGNAR CHAT</h3>
+                <h3 className="text-xl font-bold text-white mb-2 italic tracking-tighter">BEM-VINDO AO HUGIN FLOW CHAT</h3>
                 <p className="text-xs text-gray-500 max-w-[280px] font-medium leading-relaxed">
                    Selecione uma conversa relevante ou um card para iniciar a colaboração.
                 </p>

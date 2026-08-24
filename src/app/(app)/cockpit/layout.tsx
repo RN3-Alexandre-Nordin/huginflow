@@ -30,11 +30,11 @@ export default async function CockpitLayout({
       <div className="h-screen flex bg-[#0A0A0A] text-gray-100 font-sans font-medium overflow-hidden">
         {/* Sidebar */}
         <aside className="w-64 flex-shrink-0 flex flex-col border-r border-[#ffffff0a] bg-[#0F0F0F] relative z-20">
-          <div className="h-20 flex items-center px-6 border-b border-[#ffffff0a]">
+          <div className="min-h-[5.25rem] flex items-center px-3 py-3 border-b border-[#ffffff0a]">
             <img
-              src="/logo-sidebar.png?v=20260824"
+              src="/logo-sidebar.png?v=20260824b"
               alt="Hugin Flow"
-              className="w-full h-auto max-h-14 object-contain object-left"
+              className="w-full h-auto max-h-[4.25rem] object-contain object-left"
             />
           </div>
 
