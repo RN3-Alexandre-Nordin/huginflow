@@ -3,7 +3,28 @@ import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { PASSWORD_CHANGE_PATH } from '@/lib/auth/password-change'
 import { fetchUsuarioLoginProfile } from '@/lib/auth/usuario-profile'
+import { getAppPublicUrl } from '@/lib/config/environment'
 import { getServerSupabaseAnonKey, getServerSupabaseUrl } from '@/lib/supabase/env'
+
+function requestOrigin(request: Request): string {
+  const configured = getAppPublicUrl()
+  if (configured && !configured.includes('0.0.0.0')) {
+    return configured.replace(/\/$/, '')
+  }
+
+  const forwardedHost = request.headers.get('x-forwarded-host')
+  const forwardedProto = request.headers.get('x-forwarded-proto') ?? 'https'
+  if (forwardedHost) {
+    return `${forwardedProto}://${forwardedHost.split(',')[0].trim()}`
+  }
+
+  const host = request.headers.get('host')
+  if (host && !host.includes('0.0.0.0')) {
+    return `${forwardedProto}://${host}`
+  }
+
+  return new URL(request.url).origin
+}
 
 function redirectWithCookies(path: string, cookiePairs: Array<{ name: string; value: string; options?: Parameters<NextResponse['cookies']['set']>[2] }>) {
   const response = NextResponse.redirect(path)
@@ -17,7 +38,7 @@ export async function POST(request: Request) {
   const formData = await request.formData()
   const email = ((formData.get('email') as string) ?? '').trim().toLowerCase()
   const password = ((formData.get('password') as string) ?? '').trim()
-  const origin = new URL(request.url).origin
+  const origin = requestOrigin(request)
 
   if (!email || !password) {
     return NextResponse.redirect(

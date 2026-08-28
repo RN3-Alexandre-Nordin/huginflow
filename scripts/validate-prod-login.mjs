@@ -50,7 +50,7 @@ async function testAppLogin(email) {
   const location = res.headers.get('location')
   const setCookie = res.headers.getSetCookie?.() ?? []
 
-  if (location?.includes('/cockpit')) {
+  if (location?.includes('/cockpit') && !location.includes('0.0.0.0')) {
     return { ok: true, location, hasCookie: setCookie.length > 0 }
   }
 
