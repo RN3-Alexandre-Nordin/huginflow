@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { PASSWORD_CHANGE_PATH } from '@/lib/auth/password-change'
+import { fetchUsuarioLoginProfile } from '@/lib/auth/usuario-profile'
 import { createClient } from '@/utils/supabase/server'
 
 export async function login(formData: FormData) {
@@ -16,17 +17,17 @@ export async function login(formData: FormData) {
   })
 
   if (error) {
-    redirect('/login?error=' + encodeURIComponent(error.message))
+    const message =
+      error.message === 'Invalid login credentials'
+        ? 'E-mail ou senha incorretos.'
+        : error.message
+    redirect('/login?error=' + encodeURIComponent(message))
   }
 
   // Verificar se a empresa do usuário está ativa
   const userId = data.session?.user?.id
   if (userId) {
-    const { data: usuarioData } = await supabase
-      .from('usuarios')
-      .select('empresa_id, must_change_password')
-      .eq('auth_user_id', userId)
-      .single()
+    const usuarioData = await fetchUsuarioLoginProfile(supabase, userId)
 
     if (usuarioData?.empresa_id) {
       const { data: empresaData } = await supabase
