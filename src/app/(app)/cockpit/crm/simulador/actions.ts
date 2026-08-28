@@ -2,7 +2,7 @@
 
 import { createClient } from '@/utils/supabase/server'
 import { revalidatePath } from 'next/cache'
-import { hasPermission } from '@/utils/permissions'
+import { canAccessSimulador } from '@/utils/permissions'
 import { getMyProfile } from '@/app/(app)/cockpit/actions'
 import { GeminiChatService } from '@/lib/crm/GeminiChatService'
 import { AUDIO_PLACEHOLDER } from '@/lib/omnichannel/audio-transcription-constants'
@@ -111,7 +111,7 @@ async function runSimulatorExchange(
 
 export async function processChat(phone: string, name: string, message: string) {
   const me = await getMyProfile()
-  if (!hasPermission(me, 'simulador', 'view')) {
+  if (!canAccessSimulador(me)) {
     return { error: 'Sem permissão para utilizar o simulador.' }
   }
 
@@ -138,7 +138,7 @@ export async function processChat(phone: string, name: string, message: string) 
 
 export async function processChatAudio(formData: FormData) {
   const me = await getMyProfile()
-  if (!hasPermission(me, 'simulador', 'view')) {
+  if (!canAccessSimulador(me)) {
     return { error: 'Sem permissão para utilizar o simulador.' }
   }
 
@@ -212,7 +212,7 @@ export async function processChatAudio(formData: FormData) {
  */
 export async function getChatHistory(phone: string) {
   const me = await getMyProfile()
-  if (!hasPermission(me, 'simulador', 'view')) {
+  if (!canAccessSimulador(me)) {
     return []
   }
 

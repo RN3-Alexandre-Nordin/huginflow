@@ -23,7 +23,7 @@ import {
   type LucideIcon,
 } from "lucide-react"
 
-type NavItem = { name: string; href: string; icon: LucideIcon; rn3Only?: boolean }
+type NavItem = { name: string; href: string; icon: LucideIcon; rn3Only?: boolean; adminOnly?: boolean }
 
 type NavSection = {
   id: string
@@ -48,7 +48,7 @@ const sections: NavSection[] = [
       { name: "Empresas", href: "/cockpit/empresas", icon: Building2 },
       { name: "Financeiro", href: "/cockpit/financeiro", icon: Wallet, rn3Only: true },
       { name: "Contratos", href: "/cockpit/financeiro/contratos", icon: FileText, rn3Only: true },
-      { name: "Simulador de Chat", href: "/cockpit/crm/simulador", icon: MessageSquare },
+      { name: "Simulador de Chat", href: "/cockpit/crm/simulador", icon: MessageSquare, adminOnly: true },
     ],
   },
   {
@@ -112,8 +112,12 @@ function NavLink({
   )
 }
 
-function filterNavItems(items: NavItem[], isSuperAdmin: boolean) {
-  return items.filter((item) => !item.rn3Only || isSuperAdmin)
+function filterNavItems(items: NavItem[], isSuperAdmin: boolean, isAdminOrSuperAdmin: boolean) {
+  return items.filter((item) => {
+    if (item.rn3Only && !isSuperAdmin) return false
+    if (item.adminOnly && !isAdminOrSuperAdmin) return false
+    return true
+  })
 }
 
 function NavSectionBlock({
@@ -122,14 +126,16 @@ function NavSectionBlock({
   open,
   onToggle,
   isSuperAdmin,
+  isAdminOrSuperAdmin,
 }: {
   section: NavSection
   pathname: string
   open: boolean
   onToggle: () => void
   isSuperAdmin: boolean
+  isAdminOrSuperAdmin: boolean
 }) {
-  const visibleItems = filterNavItems(section.items, isSuperAdmin)
+  const visibleItems = filterNavItems(section.items, isSuperAdmin, isAdminOrSuperAdmin)
   const hasActive = sectionHasActive(pathname, visibleItems)
 
   if (visibleItems.length === 0) return null
@@ -170,9 +176,11 @@ function NavSectionBlock({
 
 export default function CockpitSidebarNav({
   isSuperAdmin,
+  isAdminOrSuperAdmin,
   disabled = false,
 }: {
   isSuperAdmin: boolean
+  isAdminOrSuperAdmin: boolean
   disabled?: boolean
 }) {
   const pathname = usePathname()
@@ -186,12 +194,12 @@ export default function CockpitSidebarNav({
       ...prev,
       administracao:
         prev.administracao ||
-        sectionHasActive(pathname, filterNavItems(sections[0].items, isSuperAdmin)),
+        sectionHasActive(pathname, filterNavItems(sections[0].items, isSuperAdmin, isAdminOrSuperAdmin)),
       cadastros:
         prev.cadastros ||
-        sectionHasActive(pathname, filterNavItems(sections[1].items, isSuperAdmin)),
+        sectionHasActive(pathname, filterNavItems(sections[1].items, isSuperAdmin, isAdminOrSuperAdmin)),
     }))
-  }, [pathname, isSuperAdmin])
+  }, [pathname, isSuperAdmin, isAdminOrSuperAdmin])
 
   const toggle = (id: string) => {
     setOpenSections((prev) => ({ ...prev, [id]: !prev[id] }))
@@ -223,6 +231,7 @@ export default function CockpitSidebarNav({
           open={!!openSections[section.id]}
           onToggle={() => toggle(section.id)}
           isSuperAdmin={isSuperAdmin}
+          isAdminOrSuperAdmin={isAdminOrSuperAdmin}
         />
       ))}
     </nav>

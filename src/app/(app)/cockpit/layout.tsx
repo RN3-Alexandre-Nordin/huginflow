@@ -41,6 +41,9 @@ export default async function CockpitLayout({
 
           <CockpitSidebarNav
             isSuperAdmin={me?.role_global === "superadmin"}
+            isAdminOrSuperAdmin={
+              me?.role_global === "superadmin" || me?.role_global === "admin"
+            }
             disabled={mustChangePassword}
           />
 

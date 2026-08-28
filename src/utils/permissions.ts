@@ -19,6 +19,12 @@ export function isRn3SuperAdmin(user: PermissionData | null | undefined): boolea
   return user?.role_global === 'superadmin'
 }
 
+/** Simulador de IA: apenas admin da empresa ou superadmin RN3. */
+export function canAccessSimulador(user: PermissionData | null | undefined): boolean {
+  if (!user) return false
+  return user.role_global === 'superadmin' || user.role_global === 'admin'
+}
+
 /**
  * Verifica se um usuário possui uma permissão específica para um módulo e ação.
  */

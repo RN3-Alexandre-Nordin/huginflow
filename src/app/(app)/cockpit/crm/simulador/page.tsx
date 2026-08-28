@@ -1,7 +1,7 @@
 import SimuladorChat from "./SimuladorChat"
 import { MessageSquare, Sparkles, Lock } from "lucide-react"
 import { getMyProfile } from "@/app/(app)/cockpit/actions"
-import { hasPermission } from "@/utils/permissions"
+import { canAccessSimulador } from "@/utils/permissions"
 import Link from "next/link"
 
 export const metadata = { title: "Simulador de WhatsApp | HuginFlow CRM" }
@@ -9,7 +9,7 @@ export const metadata = { title: "Simulador de WhatsApp | HuginFlow CRM" }
 export default async function SimuladorPage() {
   const me = await getMyProfile()
 
-  if (!hasPermission(me, 'simulador', 'view')) {
+  if (!canAccessSimulador(me)) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center animate-in fade-in duration-700">
         <div className="w-20 h-20 rounded-full bg-red-500/10 flex items-center justify-center mb-6 border border-red-500/20">
@@ -17,7 +17,7 @@ export default async function SimuladorPage() {
         </div>
         <h2 className="text-3xl font-extrabold text-white mb-2 tracking-tight">Recurso Bloqueado</h2>
         <p className="text-gray-400 max-w-md mx-auto mb-8 text-lg">
-          Seu grupo de acesso não possui permissão para utilizar o Simulador de IA.
+          O Simulador de IA é exclusivo para administradores da empresa.
         </p>
         <Link href="/cockpit" className="px-6 py-3 bg-[#ffffff05] hover:bg-[#ffffff10] border border-[#ffffff10] rounded-xl text-white font-semibold transition-all">
           Voltar ao Início
