@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { login } from '../../actions'
 
 export default function LoginForm({ errorMsg }: { errorMsg?: string | null }) {
   const [showPassword, setShowPassword] = useState(false)
@@ -31,7 +30,7 @@ export default function LoginForm({ errorMsg }: { errorMsg?: string | null }) {
         </p>
       </div>
 
-      <form action={login} className="flex flex-col gap-5">
+      <form action="/api/auth/login" method="POST" className="flex flex-col gap-5">
         {displayError && (
           <div
             className="p-4 rounded-xl flex items-center gap-3 animate-shake"

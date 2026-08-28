@@ -21,6 +21,7 @@ export async function proxy(request: NextRequest) {
   if (
     pathname.startsWith('/_next') ||           // HMR, webpack, chunks
     pathname.startsWith('/api/webhooks') ||     // Evolution API webhooks (sem auth)
+    pathname.startsWith('/api/auth/login') ||   // Login form POST (sem sessão prévia)
     pathname.startsWith('/api/health') ||       // Diagnóstico omnichannel (sem auth)
     pathname.startsWith('/api/inbound') ||      // Inbound leads public API (sem auth)
     pathname.startsWith('/favicon') ||          // favicon
