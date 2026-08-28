@@ -144,6 +144,8 @@ jobs:
             docker pull "$IMAGE"
             docker service update \
               --image "$IMAGE" \
+              --env-rm SUPABASE_URL \
+              --env-rm SUPABASE_ANON_KEY \
               --env-add HUGINFLOW_ENV=production \
               --env-add RAGNAR_ENV=production \
               --env-add NEXT_PUBLIC_APP_URL=https://app.huginflow.com \
