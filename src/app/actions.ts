@@ -7,9 +7,13 @@ import { fetchUsuarioLoginProfile } from '@/lib/auth/usuario-profile'
 import { createClient } from '@/utils/supabase/server'
 
 export async function login(formData: FormData) {
-  const email = formData.get('email') as string
-  const password = formData.get('password') as string
+  const email = ((formData.get('email') as string) ?? '').trim().toLowerCase()
+  const password = ((formData.get('password') as string) ?? '').trim()
   const supabase = await createClient()
+
+  if (!email || !password) {
+    redirect('/login?error=' + encodeURIComponent('Preencha e-mail e senha.'))
+  }
 
   const { error, data } = await supabase.auth.signInWithPassword({
     email,

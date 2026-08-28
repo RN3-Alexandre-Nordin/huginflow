@@ -12,6 +12,8 @@
  * Webhook: HUGINFLOW_WEBHOOK_URL_* > RAGNAR_WEBHOOK_URL_* (legado) > genéricas.
  */
 
+import { getServerSupabaseUrl, getSupabaseProjectRef } from '@/lib/supabase/env'
+
 export type PlatformEnvironment = 'development' | 'production'
 
 export interface OmnichannelConfig {
@@ -118,13 +120,20 @@ export function getEvolutionCredentials(customUrl?: string, customKey?: string) 
 /** Resumo seguro para logs e health check (sem expor token). */
 export function getOmnichannelHealthSummary() {
   const config = getOmnichannelConfig()
+  let supabaseProjectRef: string | null = null
+  try {
+    supabaseProjectRef = getSupabaseProjectRef()
+  } catch {
+    supabaseProjectRef = null
+  }
   return {
     environment: config.environment,
     appUrl: config.appUrl,
     evolutionApiUrl: config.evolutionApiUrl,
     webhookUrl: config.webhookUrl,
     evolutionTokenConfigured: Boolean(config.evolutionApiToken),
-    supabaseUrlConfigured: Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL),
+    supabaseUrlConfigured: Boolean(getServerSupabaseUrl()),
+    supabaseProjectRef,
     supabaseServiceRoleConfigured: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
     openaiApiKeyConfigured: Boolean(process.env.OPENAI_API_KEY?.trim()),
   }

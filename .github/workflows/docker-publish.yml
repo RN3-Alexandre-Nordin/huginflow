@@ -148,6 +148,8 @@ jobs:
               --env-add RAGNAR_ENV=production \
               --env-add NEXT_PUBLIC_APP_URL=https://app.huginflow.com \
               --env-add NEXT_PUBLIC_SITE_URL=https://huginflow.com \
+              --env-add SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }} \
+              --env-add SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }} \
               --env-add WHATSAPP_API_URL=https://evo.rn3.tec.br \
               --env-add WHATSAPP_API_URL_PROD=https://evo.rn3.tec.br \
               --env-add HUGINFLOW_WEBHOOK_URL=https://app.huginflow.com/api/webhooks/evolution \

@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { isPasswordChangePath, PASSWORD_CHANGE_PATH } from '@/lib/auth/password-change'
 import { fetchUsuarioLoginProfile } from '@/lib/auth/usuario-profile'
+import { getServerSupabaseAnonKey, getServerSupabaseUrl } from '@/lib/supabase/env'
 
 /**
  * PROXY - Next.js 16 (substitui o middleware.ts depreciado)
@@ -40,10 +41,15 @@ export async function proxy(request: NextRequest) {
 
   // NEXT_PUBLIC_* é embutido no build da imagem. Sem secrets no CI → string vazia
   // e o createServerClient quebra com 500. Fallback para SUPABASE_* (também no build).
-  const supabaseUrl =
-    process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || ''
-  const supabaseKey =
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || ''
+  let supabaseUrl = ''
+  let supabaseKey = ''
+  try {
+    supabaseUrl = getServerSupabaseUrl()
+    supabaseKey = getServerSupabaseAnonKey()
+  } catch {
+    supabaseUrl = ''
+    supabaseKey = ''
+  }
 
   if (!supabaseUrl || !supabaseKey) {
     if (isPublicRoute) {

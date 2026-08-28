@@ -1,17 +1,18 @@
 import { createClient } from '@supabase/supabase-js'
+import { getServerSupabaseUrl } from '@/lib/supabase/env'
 
 export function createAdminClient() {
-  const supabaseUrl = process.env['NEXT_PUBLIC_SUPABASE_URL'] || process.env['SUPABASE_URL']
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const supabaseUrl = getServerSupabaseUrl()
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()
 
-  if (!supabaseUrl || !serviceRoleKey) {
-    throw new Error('Supabase URL or Service Role Key missing in environment variables')
+  if (!serviceRoleKey) {
+    throw new Error('SUPABASE_SERVICE_ROLE_KEY ausente nas variáveis de ambiente.')
   }
 
   return createClient(supabaseUrl, serviceRoleKey, {
     auth: {
       autoRefreshToken: false,
-      persistSession: false
-    }
+      persistSession: false,
+    },
   })
 }
