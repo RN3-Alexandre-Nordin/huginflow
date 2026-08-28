@@ -394,6 +394,7 @@ export async function createUsuario(formData: FormData) {
     ramal,
     endereco,
     data_nascimento,
+    must_change_password: true,
   }])
 
   if (error) {
@@ -480,6 +481,15 @@ export async function updateUsuario(id: string, formData: FormData) {
     if (pwError) {
       console.error('Erro ao atualizar senha do usuário', pwError)
       return { error: pwError.message }
+    }
+
+    const { error: flagError } = await supabase
+      .from('usuarios')
+      .update({ must_change_password: true })
+      .eq('id', id)
+
+    if (flagError) {
+      console.error('Erro ao marcar troca de senha obrigatória', flagError)
     }
   }
 

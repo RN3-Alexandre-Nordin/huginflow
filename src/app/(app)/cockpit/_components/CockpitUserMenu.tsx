@@ -8,9 +8,15 @@ interface CockpitUserMenuProps {
   userName: string
   userEmail: string
   userInitials: string
+  menuDisabled?: boolean
 }
 
-export default function CockpitUserMenu({ userName, userEmail, userInitials }: CockpitUserMenuProps) {
+export default function CockpitUserMenu({
+  userName,
+  userEmail,
+  userInitials,
+  menuDisabled = false,
+}: CockpitUserMenuProps) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
 
@@ -27,8 +33,9 @@ export default function CockpitUserMenu({ userName, userEmail, userInitials }: C
     <div ref={rootRef} className="relative">
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center gap-3 px-3 py-2 rounded-xl bg-[#ffffff03] border border-[#ffffff05] hover:bg-[#ffffff08] transition-all text-left group"
+        onClick={() => !menuDisabled && setOpen((v) => !v)}
+        disabled={menuDisabled}
+        className="w-full flex items-center gap-3 px-3 py-2 rounded-xl bg-[#ffffff03] border border-[#ffffff05] hover:bg-[#ffffff08] transition-all text-left group disabled:opacity-80 disabled:cursor-default"
         aria-expanded={open}
         aria-haspopup="menu"
       >

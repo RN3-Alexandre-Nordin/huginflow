@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
+import { PASSWORD_CHANGE_PATH } from '@/lib/auth/password-change'
 import { createClient } from '@/utils/supabase/server'
 
 export async function login(formData: FormData) {
@@ -23,7 +24,7 @@ export async function login(formData: FormData) {
   if (userId) {
     const { data: usuarioData } = await supabase
       .from('usuarios')
-      .select('empresa_id')
+      .select('empresa_id, must_change_password')
       .eq('auth_user_id', userId)
       .single()
 
@@ -39,6 +40,11 @@ export async function login(formData: FormData) {
         await supabase.auth.signOut()
         redirect('/login?error=' + encodeURIComponent('Acesso suspenso. Entre em contato com a RN3.'))
       }
+    }
+
+    if (usuarioData?.must_change_password) {
+      revalidatePath('/cockpit', 'layout')
+      redirect(`${PASSWORD_CHANGE_PATH}?required=1`)
     }
   }
 
@@ -92,6 +98,30 @@ export async function changeMyPassword(formData: FormData) {
     return { error: updateError.message }
   }
 
+  const { data: usuarioRow } = await supabase
+    .from('usuarios')
+    .select('id, empresa_id')
+    .eq('auth_user_id', user.id)
+    .single()
+
+  if (usuarioRow) {
+    const { error: profileError } = await supabase
+      .from('usuarios')
+      .update({ must_change_password: false })
+      .eq('id', usuarioRow.id)
+      .eq('empresa_id', usuarioRow.empresa_id)
+
+    if (profileError) {
+      console.error('Erro ao limpar must_change_password:', profileError)
+    }
+  }
+
   revalidatePath('/cockpit', 'layout')
+
+  const wasRequired = formData.get('required') === '1'
+  if (wasRequired) {
+    redirect('/cockpit?passwordChanged=1')
+  }
+
   redirect('/cockpit/minha-conta/senha?success=1')
 }

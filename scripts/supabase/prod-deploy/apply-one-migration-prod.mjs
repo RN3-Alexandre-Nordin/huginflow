@@ -14,6 +14,7 @@ import { fileURLToPath } from 'url'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const root = resolve(__dirname, '../../..')
 
+config({ path: resolve(root, '.env.production') })
 config({ path: resolve(root, '.env') })
 config({ path: resolve(root, '.env.local'), override: true })
 
