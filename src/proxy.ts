@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { isPasswordChangePath, PASSWORD_CHANGE_PATH } from '@/lib/auth/password-change'
 
 /**
  * PROXY - Next.js 16 (substitui o middleware.ts depreciado)
@@ -93,6 +94,21 @@ export async function proxy(request: NextRequest) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
+  }
+
+  if (normalizedPathname.startsWith('/cockpit')) {
+    const { data: usuario } = await supabase
+      .from('usuarios')
+      .select('must_change_password')
+      .eq('auth_user_id', user.id)
+      .maybeSingle()
+
+    if (usuario?.must_change_password && !isPasswordChangePath(normalizedPathname)) {
+      const url = request.nextUrl.clone()
+      url.pathname = PASSWORD_CHANGE_PATH
+      url.search = 'required=1'
+      return NextResponse.redirect(url)
+    }
   }
 
   return supabaseResponse

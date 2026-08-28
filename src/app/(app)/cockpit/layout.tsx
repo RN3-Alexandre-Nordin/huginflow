@@ -17,6 +17,7 @@ export default async function CockpitLayout({
   const userName = me?.nome_completo || "Usuário";
   const userEmail = me?.email || "";
   const userId = me?.id || "";
+  const mustChangePassword = me?.must_change_password === true;
   const userInitials = userName
     .split(" ")
     .map((n: string) => n[0])
@@ -38,13 +39,17 @@ export default async function CockpitLayout({
             />
           </div>
 
-          <CockpitSidebarNav isSuperAdmin={me?.role_global === "superadmin"} />
+          <CockpitSidebarNav
+            isSuperAdmin={me?.role_global === "superadmin"}
+            disabled={mustChangePassword}
+          />
 
           <div className="p-4 border-t border-[#ffffff0a]">
             <CockpitUserMenu
               userName={userName}
               userEmail={userEmail}
               userInitials={userInitials}
+              menuDisabled={mustChangePassword}
             />
           </div>
         </aside>
@@ -66,7 +71,7 @@ export default async function CockpitLayout({
               Cockpit de Operações
             </h1>
             <div className="flex items-center gap-4">
-              <CockpitHelpButton />
+              {!mustChangePassword && <CockpitHelpButton />}
               <LanguageSwitcher />
 
               <div className="h-5 w-px bg-[#ffffff1a]"></div>
@@ -82,7 +87,7 @@ export default async function CockpitLayout({
           <div className="flex-1 flex flex-col min-h-0 overflow-y-auto p-8">{children}</div>
           
           {/* Global Chat Sidebar (Floating Drawer) */}
-          <GlobalChatSidebar />
+          {!mustChangePassword && <GlobalChatSidebar />}
         </main>
       </div>
     </Providers>

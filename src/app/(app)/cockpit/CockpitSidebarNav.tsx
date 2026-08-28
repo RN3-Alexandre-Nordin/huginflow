@@ -168,7 +168,13 @@ function NavSectionBlock({
   )
 }
 
-export default function CockpitSidebarNav({ isSuperAdmin }: { isSuperAdmin: boolean }) {
+export default function CockpitSidebarNav({
+  isSuperAdmin,
+  disabled = false,
+}: {
+  isSuperAdmin: boolean
+  disabled?: boolean
+}) {
   const pathname = usePathname()
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     administracao: true,
@@ -189,6 +195,16 @@ export default function CockpitSidebarNav({ isSuperAdmin }: { isSuperAdmin: bool
 
   const toggle = (id: string) => {
     setOpenSections((prev) => ({ ...prev, [id]: !prev[id] }))
+  }
+
+  if (disabled) {
+    return (
+      <nav className="flex-1 overflow-y-auto py-4 px-3">
+        <div className="rounded-xl border border-[#2BAADF]/20 bg-[#2BAADF]/5 px-3 py-4 text-xs text-[#2BAADF] leading-relaxed">
+          Altere sua senha para liberar o menu e as demais áreas do sistema.
+        </div>
+      </nav>
+    )
   }
 
   return (

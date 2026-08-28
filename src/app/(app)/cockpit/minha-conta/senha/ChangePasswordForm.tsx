@@ -19,7 +19,13 @@ function Field({ label, required, children }: { label: string; required?: boolea
 const inputCls =
   'w-full bg-[#0A0A0A] border border-[#ffffff12] focus:border-[#2BAADF] rounded-xl px-4 py-2.5 text-sm text-white outline-none transition-all placeholder-gray-600 focus:ring-1 focus:ring-[#2BAADF]/30'
 
-export default function ChangePasswordForm({ success }: { success?: boolean }) {
+export default function ChangePasswordForm({
+  success,
+  required = false,
+}: {
+  success?: boolean
+  required?: boolean
+}) {
   const [isPending, startTransition] = useTransition()
   const [senhaAtual, setSenhaAtual] = useState('')
   const [novaSenha, setNovaSenha] = useState('')
@@ -48,6 +54,9 @@ export default function ChangePasswordForm({ success }: { success?: boolean }) {
     }
 
     startTransition(async () => {
+      if (required) {
+        formData.set('required', '1')
+      }
       const result = await changeMyPassword(formData)
       if (result?.error) {
         setFormError(result.error)
@@ -62,20 +71,33 @@ export default function ChangePasswordForm({ success }: { success?: boolean }) {
   return (
     <div className="max-w-lg mx-auto space-y-6 pb-12">
       <div className="flex items-center gap-4">
-        <Link
-          href="/cockpit"
-          className="p-2 rounded-lg bg-[#ffffff05] hover:bg-[#ffffff0a] text-gray-400 hover:text-white transition-colors"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </Link>
+        {!required && (
+          <Link
+            href="/cockpit"
+            className="p-2 rounded-lg bg-[#ffffff05] hover:bg-[#ffffff0a] text-gray-400 hover:text-white transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </Link>
+        )}
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-white flex items-center gap-3">
             <KeyRound className="w-6 h-6 text-[#2BAADF]" />
-            Alterar senha
+            {required ? 'Defina sua senha' : 'Alterar senha'}
           </h2>
-          <p className="text-sm text-gray-400 mt-0.5">Atualize a senha da sua conta de acesso</p>
+          <p className="text-sm text-gray-400 mt-0.5">
+            {required
+              ? 'Por segurança, troque a senha padrão antes de usar o Hugin Flow.'
+              : 'Atualize a senha da sua conta de acesso'}
+          </p>
         </div>
       </div>
+
+      {required && (
+        <div className="flex items-start gap-2 bg-amber-500/10 border border-amber-500/20 rounded-xl px-4 py-3 text-sm text-amber-200">
+          <ShieldCheck className="w-4 h-4 shrink-0 mt-0.5" />
+          Este é seu primeiro acesso (ou sua senha foi redefinida). Você só poderá usar o sistema após salvar uma nova senha pessoal.
+        </div>
+      )}
 
       {success && (
         <div className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-4 py-3 text-sm text-emerald-400">
