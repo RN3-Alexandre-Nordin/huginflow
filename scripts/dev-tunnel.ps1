@@ -25,19 +25,19 @@ if (-not $cloudflared) {
   exit 1
 }
 
-$port = $env:RAGNAR_DEV_PORT
+$port = $env:HUGINFLOW_DEV_PORT
 if (-not $port) { $port = "3000" }
 $target = "http://localhost:$port"
 
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "  Ragnar - Tunel de desenvolvimento" -ForegroundColor Cyan
+Write-Host "  Hugin Flow - Tunel de desenvolvimento" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "1. Deixe npm run dev rodando em outro terminal." -ForegroundColor Yellow
 Write-Host "2. Quando aparecer a URL https://....trycloudflare.com, copie-a." -ForegroundColor Yellow
 Write-Host "3. No .env.local, defina:" -ForegroundColor Yellow
-Write-Host '   RAGNAR_WEBHOOK_URL_DEV=https://SUA-URL/api/webhooks/evolution' -ForegroundColor White
+Write-Host '   HUGINFLOW_WEBHOOK_URL_DEV=https://SUA-URL/api/webhooks/evolution' -ForegroundColor White
 Write-Host "4. Reinicie o npm run dev e crie/reconecte o canal WhatsApp." -ForegroundColor Yellow
 Write-Host ""
 Write-Host "Encerre com Ctrl+C quando terminar de testar." -ForegroundColor DarkGray

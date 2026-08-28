@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Contrato Mestre — RN3 (Ragnar) × Cliente</title>
+<title>Contrato Mestre — RN3 (Hugin Flow) × Cliente</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
@@ -122,7 +122,7 @@
   <main class="document" id="documento-principal">
 
     <header class="doc-header">
-      <h1 class="doc-title">Contrato Mestre de Prestação de Serviços de Software como Serviço (SaaS) — Plataforma Ragnar</h1>
+      <h1 class="doc-title">Contrato Mestre de Prestação de Serviços de Software como Serviço (SaaS) — Plataforma Hugin Flow</h1>
     </header>
 
     <h2 class="preambulo" id="preambulo">Preâmbulo</h2>
@@ -137,9 +137,9 @@
 
     <h2 class="considerandos" id="considerandos">Considerandos</h2>
 
-    <p class="considerando"><strong>CONSIDERANDO</strong> que a RN3 é desenvolvedora e operadora da plataforma <strong>Ragnar</strong> (www.ragnar.ia.br), solução SaaS multi-tenant de atendimento automatizado via WhatsApp Business com integração de modelos de inteligência artificial generativa de terceiros, voltada à automação de fluxos de vendas, atendimento ao consumidor (SAC), agendamento e processos correlatos;</p>
+    <p class="considerando"><strong>CONSIDERANDO</strong> que a RN3 é desenvolvedora e operadora da plataforma <strong>Hugin Flow</strong> (www.huginflow.com), solução SaaS multi-tenant de atendimento automatizado via WhatsApp Business com integração de modelos de inteligência artificial generativa de terceiros, voltada à automação de fluxos de vendas, atendimento ao consumidor (SAC), agendamento e processos correlatos;</p>
 
-    <p class="considerando"><strong>CONSIDERANDO</strong> que o Cliente tem interesse em contratar o uso da Plataforma Ragnar como ferramenta de atendimento aos seus próprios clientes, contatos e leads, mediante configuração de fluxos personalizados;</p>
+    <p class="considerando"><strong>CONSIDERANDO</strong> que o Cliente tem interesse em contratar o uso da Plataforma Hugin Flow como ferramenta de atendimento aos seus próprios clientes, contatos e leads, mediante configuração de fluxos personalizados;</p>
 
     <p class="considerando"><strong>CONSIDERANDO</strong> que as Partes desejam estabelecer um instrumento mestre que regule as condições estruturais da contratação, ao qual se vincularão Ordens de Serviço específicas para cada conjunto de configurações comerciais e operacionais contratadas;</p>
 
@@ -160,7 +160,7 @@
         <tr><th>Item</th><th>Condição</th></tr>
       </thead>
       <tbody>
-        <tr><td>Plataforma</td><td>Ragnar — www.ragnar.ia.br</td></tr>
+        <tr><td>Plataforma</td><td>Hugin Flow — www.huginflow.com</td></tr>
         <tr><td>Modalidade</td><td>SaaS multi-tenant com IA generativa via API</td></tr>
         <tr><td>Estrutura contratual</td><td>MSA + Ordem(ns) de Serviço (cada OS detalha condições comerciais específicas)</td></tr>
         <tr><td>Vigência do MSA</td><td>Indeterminada, vinculada à existência de pelo menos uma OS ativa</td></tr>
@@ -169,7 +169,7 @@
         <tr><td>Data residency</td><td>Brasil, EUA (Supabase, OpenAI), Alemanha (Hetzner), UE (Google) — transferência internacional ativa nos termos do art. 33 LGPD</td></tr>
         <tr><td>Papéis LGPD</td><td>Cliente: Controlador. RN3: Operadora dos dados de leads/conversas tratados pela Plataforma</td></tr>
         <tr><td>SLA de disponibilidade</td><td>99,5% mensal, com créditos por descumprimento</td></tr>
-        <tr><td>Suporte</td><td>E-mail suporte@ragnar.ia.br, em horário comercial, com resposta inicial em até 1 dia útil</td></tr>
+        <tr><td>Suporte</td><td>E-mail suporte@huginflow.com, em horário comercial, com resposta inicial em até 1 dia útil</td></tr>
         <tr><td>Pagamento</td><td>Mensalidade recorrente via cartão de crédito (gateway Stripe), conforme valores da OS</td></tr>
         <tr><td>Reajuste</td><td>IPCA acumulado dos 12 meses anteriores, anualmente</td></tr>
         <tr><td>Cap de responsabilidade</td><td>Valor equivalente a 12 meses de mensalidades efetivamente pagas, com carve-outs</td></tr>
@@ -187,7 +187,7 @@
 
     <p>1.1. Para fins deste Contrato, os termos abaixo, quando iniciados em maiúscula, terão os seguintes significados:</p>
 
-    <p class="indent">(a) <strong>"Plataforma" ou "Ragnar"</strong>: a solução SaaS de propriedade da RN3, acessível por meio de www.ragnar.ia.br, que automatiza atendimento via WhatsApp Business com auxílio de modelos de inteligência artificial generativa;</p>
+    <p class="indent">(a) <strong>"Plataforma" ou "Hugin Flow"</strong>: a solução SaaS de propriedade da RN3, acessível por meio de www.huginflow.com, que automatiza atendimento via WhatsApp Business com auxílio de modelos de inteligência artificial generativa;</p>
 
     <p class="indent">(b) <strong>"Serviços"</strong>: o acesso e uso da Plataforma, o setup inicial, as integrações contratadas, o suporte e demais serviços descritos nas Ordens de Serviço;</p>
 
@@ -213,7 +213,7 @@
 
     <h2 class="clausula" id="clausula-2">Cláusula 2ª — Objeto e Estrutura Contratual</h2>
 
-    <p>2.1. Este Contrato Mestre estabelece os termos e condições gerais aplicáveis à prestação, pela RN3 ao Cliente, dos Serviços relacionados à Plataforma Ragnar.</p>
+    <p>2.1. Este Contrato Mestre estabelece os termos e condições gerais aplicáveis à prestação, pela RN3 ao Cliente, dos Serviços relacionados à Plataforma Hugin Flow.</p>
 
     <p>2.2. As condições comerciais e operacionais específicas de cada contratação serão formalizadas em Ordens de Serviço, que aderem a este MSA e dele se tornam parte integrante.</p>
 
@@ -229,11 +229,11 @@
 
     <p>2.5. Eventuais exceções ou complementos ao MSA somente serão válidos se expressamente identificados como tal na OS, em seção destacada, e aprovados por escrito pelas Partes.</p>
 
-    <h2 class="clausula" id="clausula-3">Cláusula 3ª — Descrição Técnica da Plataforma Ragnar</h2>
+    <h2 class="clausula" id="clausula-3">Cláusula 3ª — Descrição Técnica da Plataforma Hugin Flow</h2>
 
-    <p>3.1. A Plataforma Ragnar consiste em solução SaaS multi-tenant que provê ao Cliente:</p>
+    <p>3.1. A Plataforma Hugin Flow consiste em solução SaaS multi-tenant que provê ao Cliente:</p>
 
-    <p class="indent">(a) interface web acessível por www.ragnar.ia.br para configuração e gestão de fluxos de atendimento;</p>
+    <p class="indent">(a) interface web acessível por www.huginflow.com para configuração e gestão de fluxos de atendimento;</p>
 
     <p class="indent">(b) integração com a API do WhatsApp Business para envio e recebimento de mensagens;</p>
 
@@ -301,7 +301,7 @@
 
     <p>5.1. A RN3 obriga-se a:</p>
 
-    <p class="indent">(a) disponibilizar a Plataforma Ragnar ao Cliente conforme escopo da OS;</p>
+    <p class="indent">(a) disponibilizar a Plataforma Hugin Flow ao Cliente conforme escopo da OS;</p>
 
     <p class="indent">(b) cumprir o SLA de disponibilidade previsto na Cláusula 7ª;</p>
 
@@ -496,7 +496,7 @@
 
     <p>9.7. <strong>Subprocessadores.</strong></p>
 
-    <p>9.7.1. O Cliente autoriza expressamente, neste ato, a contratação dos subprocessadores listados na Cláusula 3.3, bem como dos demais subprocessadores cuja relação atualizada estará disponível em www.ragnar.ia.br ou mediante solicitação.</p>
+    <p>9.7.1. O Cliente autoriza expressamente, neste ato, a contratação dos subprocessadores listados na Cláusula 3.3, bem como dos demais subprocessadores cuja relação atualizada estará disponível em www.huginflow.com ou mediante solicitação.</p>
 
     <p>9.7.2. A RN3 comunicará alterações na relação de subprocessadores com antecedência mínima de 30 (trinta) dias, prazo no qual o Cliente poderá objetar fundamentadamente. Caso a objeção não possa ser acomodada e seja relacionada a subprocessador essencial, o Cliente poderá resolver a OS afetada sem multa, mediante notificação dentro do prazo.</p>
 
@@ -548,7 +548,7 @@
 
     <h2 class="clausula" id="clausula-11">Cláusula 11ª — Propriedade Intelectual</h2>
 
-    <p>11.1. <strong>Plataforma Ragnar.</strong> Todos os direitos de propriedade intelectual sobre a Plataforma Ragnar, incluindo, sem limitação, código-fonte, código-objeto, arquitetura, banco de dados, interfaces, marcas, logos, documentação, materiais técnicos e quaisquer melhorias, permanecem de titularidade exclusiva da RN3 ou de seus licenciadores, sendo este Contrato uma licença de uso, não exclusiva, intransferível, não sublicenciável e revogável conforme prazos e condições da OS.</p>
+    <p>11.1. <strong>Plataforma Hugin Flow.</strong> Todos os direitos de propriedade intelectual sobre a Plataforma Hugin Flow, incluindo, sem limitação, código-fonte, código-objeto, arquitetura, banco de dados, interfaces, marcas, logos, documentação, materiais técnicos e quaisquer melhorias, permanecem de titularidade exclusiva da RN3 ou de seus licenciadores, sendo este Contrato uma licença de uso, não exclusiva, intransferível, não sublicenciável e revogável conforme prazos e condições da OS.</p>
 
     <p>11.2. <strong>Modelos e templates fornecidos pela RN3.</strong> Os modelos e templates dos Materiais de Configuração da IA fornecidos pela RN3 (Cláusula 5.1(g)) permanecem de titularidade da RN3 e são licenciados ao Cliente para uso exclusivo no âmbito deste Contrato.</p>
 
@@ -770,7 +770,7 @@
         <h1 class="doc-title">Template — Ordem de Serviço Nº <span class="placeholder">[PREENCHER]</span></h1>
       </header>
 
-      <p style="text-align: center; font-style: italic; color: var(--color-text-secondary); margin-bottom: 32px;">Referente ao Contrato Mestre de Prestação de Serviços de SaaS — Plataforma Ragnar firmado em <span class="placeholder">[PREENCHER: data do MSA]</span>.</p>
+      <p style="text-align: center; font-style: italic; color: var(--color-text-secondary); margin-bottom: 32px;">Referente ao Contrato Mestre de Prestação de Serviços de SaaS — Plataforma Hugin Flow firmado em <span class="placeholder">[PREENCHER: data do MSA]</span>.</p>
 
       <h2 class="clausula" id="os-1">1. Identificação das Partes</h2>
 
@@ -894,7 +894,7 @@
           <tr><th>Canal</th><th>Endereço</th><th>Horário</th><th>SLA resposta inicial</th></tr>
         </thead>
         <tbody>
-          <tr><td>E-mail</td><td>suporte@ragnar.ia.br</td><td>Dias úteis, 9h às 18h (horário de Brasília)</td><td>Até 1 (um) dia útil</td></tr>
+          <tr><td>E-mail</td><td>suporte@huginflow.com</td><td>Dias úteis, 9h às 18h (horário de Brasília)</td><td>Até 1 (um) dia útil</td></tr>
         </tbody>
       </table>
 
@@ -948,7 +948,7 @@
         <li><strong>OS — Item 5 (Workflows) eliminado:</strong> fluxos são parametrizáveis pelo Cliente.</li>
         <li><strong>OS — Item 5 (Setup) reformulado:</strong> entrega em 5 dias úteis, treinamento online de até 4 horas em data acordada, acompanhamento técnico de 7 dias corridos pós-setup/treinamento.</li>
         <li><strong>OS — Item 6 (Materiais) reformulado:</strong> RN3 fornece templates; Cliente preenche e faz upload.</li>
-        <li><strong>OS — Item 8 (Suporte) ajustado:</strong> exclusivamente por e-mail suporte@ragnar.ia.br, com escopo claro (e exclusões expressas).</li>
+        <li><strong>OS — Item 8 (Suporte) ajustado:</strong> exclusivamente por e-mail suporte@huginflow.com, com escopo claro (e exclusões expressas).</li>
         <li><strong>OS — Item 10 (Condições Específicas) eliminado.</strong></li>
       </ul>
     </div>
@@ -989,12 +989,12 @@
       <p>A cláusula transfere ao Cliente toda a operação junto à Meta. Para que ela funcione na prática:</p>
       <ul>
         <li>Garanta que o número do WhatsApp é cadastrado <strong>na conta da Meta do próprio Cliente</strong>, não em conta da RN3. Se a conta Meta estiver em nome da RN3 por conveniência operacional, a defesa enfraquece.</li>
-        <li>No onboarding, documente por e-mail (ou no painel do Ragnar) que o Cliente foi orientado sobre opt-in e qualidade do número.</li>
+        <li>No onboarding, documente por e-mail (ou no painel do Hugin Flow) que o Cliente foi orientado sobre opt-in e qualidade do número.</li>
         <li>Se a RN3 atuar como BSP (Business Solution Provider) intermediária, é necessária cláusula adicional regulando essa intermediação — me avise se for o caso.</li>
       </ul>
 
       <h4>2. Templates de Materiais — disponibilize internamente</h4>
-      <p>A Cláusula 5.1(g) do MSA + item 6.1 da OS obrigam a RN3 a entregar templates editáveis. Sugiro centralizar esses templates no próprio Ragnar (ex.: área "Modelos para configuração da IA" no painel do cliente) para entrega automática no momento da contratação. Isso elimina o risco operacional de esquecimento de envio.</p>
+      <p>A Cláusula 5.1(g) do MSA + item 6.1 da OS obrigam a RN3 a entregar templates editáveis. Sugiro centralizar esses templates no próprio Hugin Flow (ex.: área "Modelos para configuração da IA" no painel do cliente) para entrega automática no momento da contratação. Isso elimina o risco operacional de esquecimento de envio.</p>
 
       <h4>3. Prazo de 5 dias úteis para setup — gatilho do prazo</h4>
       <p>O prazo conta do recebimento dos Materiais preenchidos pelo Cliente + credenciais de integração (item 5 da OS). Se o Cliente atrasar, item 6.4 da OS protege a RN3 com extensão proporcional. Mas é importante que sua equipe registre por e-mail a data exata de recebimento dos materiais — isso vira a prova do dies a quo.</p>
@@ -1003,14 +1003,14 @@
       <p>A redação adotada faz o prazo contar da data <strong>posterior</strong> entre setup e treinamento. Isso evita que o cliente que atrasa o treinamento perca o benefício do acompanhamento. Se você preferir começar a contar do setup independentemente do treinamento (mais favorável à RN3), avise que ajusto.</p>
 
       <h4>5. Suporte exclusivamente por e-mail</h4>
-      <p>A Cláusula 8 da OS é explícita. Quando você quiser escalar (chat dentro do Ragnar, WhatsApp interno, telefone, plantão), basta criar nova versão da OS com canal adicional — o MSA não precisa mudar.</p>
+      <p>A Cláusula 8 da OS é explícita. Quando você quiser escalar (chat dentro do Hugin Flow, WhatsApp interno, telefone, plantão), basta criar nova versão da OS com canal adicional — o MSA não precisa mudar.</p>
 
       <h4>6. Item 10 (Condições Específicas) eliminado — implicação</h4>
       <p>Sem o item 10, qualquer desvio do MSA precisa ser feito por <strong>aditivo</strong> à OS. Se você prevê que vai ter clientes pedindo ajustes pontuais ("queremos suporte por WhatsApp interno", "queremos número adicional de usuários"), recomendo reintroduzir um item simples chamado "Condições Específicas" só com uma linha "Nenhuma" como default. Posso reincluir se quiser.</p>
 
       <h4>7. Reforço operacional sugerido (fora do contrato)</h4>
       <ul>
-        <li>Crie um <strong>checklist de onboarding</strong> no Ragnar que registre: (a) confirmação do Cliente de que o número WhatsApp é da titularidade dele; (b) confirmação de opt-in da base; (c) data de envio dos templates; (d) data de upload dos materiais; (e) data do setup; (f) data do treinamento.</li>
+        <li>Crie um <strong>checklist de onboarding</strong> no Hugin Flow que registre: (a) confirmação do Cliente de que o número WhatsApp é da titularidade dele; (b) confirmação de opt-in da base; (c) data de envio dos templates; (d) data de upload dos materiais; (e) data do setup; (f) data do treinamento.</li>
         <li>Esses logs viram evidência de cumprimento contratual em caso de disputa.</li>
       </ul>
     </div>
@@ -1024,7 +1024,7 @@
         <li><span class="check">✓</span> RN3 com qualificação completa</li>
         <li><span class="check">✓</span> Cliente com placeholders [PREENCHER] explícitos</li>
         <li><span class="check">✓</span> Numeração hierárquica consistente após inserção da Cláusula 6.3-6.5 e 11.2</li>
-        <li><span class="check">✓</span> Quadro-Resumo Executivo atualizado (suporte por e-mail suporte@ragnar.ia.br)</li>
+        <li><span class="check">✓</span> Quadro-Resumo Executivo atualizado (suporte por e-mail suporte@huginflow.com)</li>
       </ul>
 
       <h4>Precisão jurídica</h4>

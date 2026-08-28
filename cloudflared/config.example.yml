@@ -4,10 +4,10 @@
 #
 # Setup: npm run tunnel:setup
 
-tunnel: ragnar-dev-local
+tunnel: huginflow-dev-local
 credentials-file: C:\Users\AlexandreNordin\.cloudflared\COLE-O-UUID-AQUI.json
 
 ingress:
-  - hostname: ragnar-local.rn3.tec.br
+  - hostname: huginflow-local.rn3.tec.br
     service: http://localhost:3000
   - service: http_status:404

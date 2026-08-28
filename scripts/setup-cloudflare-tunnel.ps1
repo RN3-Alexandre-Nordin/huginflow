@@ -5,8 +5,8 @@ $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 $configExample = Join-Path $root "cloudflared\config.example.yml"
 $configReal = Join-Path $root "cloudflared\config.yml"
-$hostname = "ragnar-local.rn3.tec.br"
-$tunnelName = "ragnar-dev-local"
+$hostname = "huginflow-local.rn3.tec.br"
+$tunnelName = "huginflow-dev-local"
 
 $cloudflared = $null
 @(
@@ -58,7 +58,7 @@ Write-Host "4) Criar DNS no dominio rn3.tec.br (CNAME automatico):" -ForegroundC
 Write-Host "   & `"$cloudflared`" tunnel route dns $tunnelName $hostname" -ForegroundColor Gray
 Write-Host ""
 Write-Host "5) No .env.local:" -ForegroundColor White
-Write-Host "   RAGNAR_WEBHOOK_URL_DEV=https://$hostname/api/webhooks/evolution" -ForegroundColor Gray
+Write-Host "   HUGINFLOW_WEBHOOK_URL_DEV=https://$hostname/api/webhooks/evolution" -ForegroundColor Gray
 Write-Host ""
 Write-Host "6) Subir o tunel fixo (deixe aberto ao desenvolver):" -ForegroundColor White
 Write-Host "   npm run tunnel:fixed" -ForegroundColor Gray

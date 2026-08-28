@@ -1,5 +1,5 @@
 1. Visão do Produto (O Conceito)
-O Ragnar não é apenas um CRM ou um Chatbot. É um Business OS (Sistema Operacional de Negócios) baseado em Workflows Inteligentes. Ele deve orquestrar processos (Vendas, Logística, Atendimento) de forma modular, onde a IA é o motor de decisão e o usuário humano é o supervisor.
+O Hugin Flow não é apenas um CRM ou um Chatbot. É um Business OS (Sistema Operacional de Negócios) baseado em Workflows Inteligentes. Ele deve orquestrar processos (Vendas, Logística, Atendimento) de forma modular, onde a IA é o motor de decisão e o usuário humano é o supervisor.
 
 2. Segurança e Multi-tenancy (Lei Suprema)
 Isolamento de Dados (Tenant): Toda e qualquer query ao banco de dados (Supabase/Postgres) DEVE incluir obrigatoriamente o filtro organization_id. Nenhuma informação pode vazar entre empresas.
@@ -29,7 +29,7 @@ Schema-Driven: Nenhuma regra de negócio deve ser fixa no código. O comportamen
 Interatividade: Um fluxo pode disparar outro. (Ex: O fechamento de uma venda no Workflow de CRM dispara automaticamente um card no Workflow de Logística).
 
 5. Ecossistema e Integrações (ERPs & Especialistas)
-API-First: O Ragnar deve ser fácil de integrar. Toda ação importante deve possuir um Webhook de saída e um Endpoint de entrada.
+API-First: O Hugin Flow deve ser fácil de integrar. Toda ação importante deve possuir um Webhook de saída e um Endpoint de entrada.
 
 Sistemas Especialistas: O sistema deve estar pronto para consultar sistemas externos (ex: JD Edwards, Protheus, SAP) para validar créditos, consultar estoques reais ou emitir notas fiscais em tempo real.
 

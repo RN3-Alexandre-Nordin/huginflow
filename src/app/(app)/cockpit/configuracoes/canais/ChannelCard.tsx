@@ -202,7 +202,7 @@ export default function ChannelCard({ canal: initialCanal, onDelete }: { canal: 
 
         {/* Title & Info */}
         <div className="space-y-1.5 flex-1">
-          <h4 className="text-xl font-bold text-white tracking-widest truncate uppercase italic italic-ragnar leading-none">{canal.nome}</h4>
+          <h4 className="text-xl font-bold text-white tracking-widest truncate uppercase italic italic-brand leading-none">{canal.nome}</h4>
           <p className="text-gray-500 text-[10px] font-black uppercase tracking-[0.2em] flex items-center gap-2">
             {info.name} <span className="w-1 h-1 rounded-full bg-gray-800" /> {info.label}
           </p>

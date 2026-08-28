@@ -139,7 +139,7 @@ async function main() {
 
   const payload = {
     nome: `Lead Inbound ${suffix}`,
-    email: `inbound-${suffix}@teste.ragnar.ia.br`,
+    email: `inbound-${suffix}@teste.huginflow.com`,
     telefone: `1198${suffix}`,
     mensagem: 'Mensagem de teste go-live bloco 6 prod',
     token,

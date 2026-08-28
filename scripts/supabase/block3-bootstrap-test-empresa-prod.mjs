@@ -44,9 +44,9 @@ const admin = createClient(url, serviceKey, {
 const SUFFIX = Date.now().toString().slice(-6)
 const EMPRESA_NOME = `Empresa Teste Go-Live ${SUFFIX}`
 const CNPJ = `99.${SUFFIX.slice(0, 3)}.${SUFFIX.slice(3, 6)}/0001-90`
-const GESTOR_EMAIL = `golive-gestor-${SUFFIX}@teste.ragnar.ia.br`
-const OPERADOR_EMAIL = `golive-operador-${SUFFIX}@teste.ragnar.ia.br`
-const PASSWORD = 'RagnarProdTest1!'
+const GESTOR_EMAIL = `golive-gestor-${SUFFIX}@teste.huginflow.com`
+const OPERADOR_EMAIL = `golive-operador-${SUFFIX}@teste.huginflow.com`
+const PASSWORD = 'HuginProdTest1!'
 const APP_URL = getAppPublicUrl(env, { production: true })
 
 const adminPerms = {
@@ -91,7 +91,7 @@ async function main() {
       nome: EMPRESA_NOME,
       tipo_societario: 'ltda',
       cnpj: CNPJ,
-      email: `contato-${SUFFIX}@teste.ragnar.ia.br`,
+      email: `contato-${SUFFIX}@teste.huginflow.com`,
       telefone: '(11) 3000-0000',
       endereco: 'Rua Teste, 100 - São Paulo/SP',
       cidade: 'São Paulo',
@@ -102,7 +102,7 @@ async function main() {
       responsavel_estado_civil: 'solteiro',
       responsavel_profissao: 'administrador',
       responsavel_cargo: 'Sócia Administradora',
-      responsavel_email: `resp-${SUFFIX}@teste.ragnar.ia.br`,
+      responsavel_email: `resp-${SUFFIX}@teste.huginflow.com`,
       responsavel_telefone: '(11) 99000-0000',
       ai_model: 'gpt-4o',
       ai_provider: 'openai',

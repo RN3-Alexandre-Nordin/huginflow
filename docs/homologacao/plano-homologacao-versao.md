@@ -2,7 +2,7 @@
 
 **Data:** _______________  
 **Commit / imagem Docker:** _______________  
-**Ambiente:** produção — `https://app.ragnar.ia.br`  
+**Ambiente:** produção — `https://app.huginflow.com`  
 **Executor:** _______________
 
 ## Regras

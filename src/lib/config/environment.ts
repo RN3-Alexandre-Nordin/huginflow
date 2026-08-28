@@ -1,15 +1,13 @@
 /**
  * Ambientes da plataforma (dev vs produção).
  *
- * | Onde roda          | ENV            | Evolution (_DEV / _PROD) | Webhook app           |
- * |--------------------|----------------|--------------------------|------------------------|
- * | npm run dev (local)| development    | VPS Evolution DEV        | URL público (túnel*)  |
- * | Docker VPS prod    | production     | VPS Evolution PROD       | app.ragnar.ia.br*     |
+ * | Onde roda          | ENV            | Evolution (_DEV / _PROD) | Webhook app              |
+ * |--------------------|----------------|--------------------------|---------------------------|
+ * | npm run dev (local)| development    | VPS Evolution DEV        | URL público (túnel*)      |
+ * | Docker VPS prod    | production     | VPS Evolution PROD       | app.huginflow.com         |
  *
- * * Cutover de domínio (huginflow.com) é P3/P6 — defaults de produção intactos.
- *
- * Prioridade ENV: HUGINFLOW_ENV > RAGNAR_ENV (legado) > NODE_ENV.
- * Webhook: HUGINFLOW_WEBHOOK_URL_* > RAGNAR_WEBHOOK_URL_* (legado) > genéricas.
+ * Prioridade ENV: HUGINFLOW_ENV > NODE_ENV.
+ * Webhook: HUGINFLOW_WEBHOOK_URL_* (ou genéricas WHATSAPP_*).
  */
 
 import { getServerSupabaseUrl, getSupabaseCredentialDiagnostics } from '@/lib/supabase/env'
@@ -30,25 +28,18 @@ const DEFAULTS: Record<
 > = {
   development: {
     evolutionApiUrl: 'https://evo-dev.rn3.tec.br',
-    webhookUrl: 'https://dev-ragnar.rn3.tec.br/api/webhooks/evolution',
+    webhookUrl: 'https://huginflow-local.rn3.tec.br/api/webhooks/evolution',
     appUrl: 'http://localhost:3000',
   },
   production: {
     evolutionApiUrl: 'https://evo.rn3.tec.br',
-    // Mantido até cutover de domínio (não alterar em produção agora)
-    webhookUrl: 'https://app.ragnar.ia.br/api/webhooks/evolution',
-    appUrl: 'https://app.ragnar.ia.br',
+    webhookUrl: 'https://app.huginflow.com/api/webhooks/evolution',
+    appUrl: 'https://app.huginflow.com',
   },
 }
 
 export function getPlatformEnvironment(): PlatformEnvironment {
-  const explicit = (
-    process.env.HUGINFLOW_ENV ||
-    process.env.RAGNAR_ENV ||
-    ''
-  )
-    .trim()
-    .toLowerCase()
+  const explicit = (process.env.HUGINFLOW_ENV || '').trim().toLowerCase()
   if (explicit === 'development' || explicit === 'dev') return 'development'
   if (explicit === 'production' || explicit === 'prod') return 'production'
   return process.env.NODE_ENV === 'production' ? 'production' : 'development'
@@ -93,9 +84,7 @@ export function getOmnichannelConfig(): OmnichannelConfig {
   }
 
   const webhookUrl =
-    readEnv('HUGINFLOW_WEBHOOK_URL', environment) ||
-    readEnv('RAGNAR_WEBHOOK_URL', environment) ||
-    defaults.webhookUrl
+    readEnv('HUGINFLOW_WEBHOOK_URL', environment) || defaults.webhookUrl
 
   return {
     environment,

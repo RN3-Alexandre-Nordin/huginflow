@@ -15,10 +15,10 @@ const envLocal = resolve(root, '.env.local')
 
 const EMPRESA_ID = '645679bd-3f41-4f7d-ba10-98d97cab2a46'
 const PIPELINE_ID = '5b3a3415-d096-4a80-8c73-d6e2bf398bb4'
-const GESTOR_EMAIL = 'golive-gestor-510160@teste.ragnar.dev'
+const GESTOR_EMAIL = 'golive-gestor-510160@teste.huginflow.com'
 const OPERADOR_ID = '0e312f20-dfbd-454e-87da-8b01eda0e03a'
 const GESTOR_ID = 'f0367060-0f06-40b1-94e1-7692f6abacf7'
-const PASSWORD = 'RagnarDevTest1!'
+const PASSWORD = 'HuginDevTest1!'
 
 function loadEnvLocal() {
   if (!existsSync(envLocal)) return {}

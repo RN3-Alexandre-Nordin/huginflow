@@ -1,7 +1,5 @@
 /**
  * Helpers compartilhados para scripts de homolog / tunnels.
- * Preferência HUGINFLOW_* com fallback RAGNAR_* (legado) e defaults atuais em produção.
- * Cutover huginflow.com = fase posterior — não altera URLs ao vivo por padrão.
  */
 import { readFileSync, existsSync } from 'fs'
 import { resolve, dirname } from 'path'
@@ -29,37 +27,27 @@ export function loadProdEnv(root = resolve(__dirname, '../..')) {
   }
 }
 
-/**
- * URL pública do app. Em produção, default permanece app.ragnar.ia.br até o cutover.
- */
 export function getAppPublicUrl(env = process.env, { production = true } = {}) {
   const fromEnv =
     env.NEXT_PUBLIC_APP_URL ||
     env.HUGINFLOW_APP_URL ||
     (production ? env.NEXT_PUBLIC_APP_URL_PROD : env.NEXT_PUBLIC_APP_URL_DEV)
   if (fromEnv) return fromEnv.replace(/\/$/, '')
-  return production ? 'https://app.ragnar.ia.br' : 'http://localhost:3000'
+  return production ? 'https://app.huginflow.com' : 'http://localhost:3000'
 }
 
-/**
- * Webhook Evolution. Prefer HUGINFLOW_WEBHOOK_URL_* com fallback RAGNAR_*.
- */
 export function getWebhookUrl(env = process.env, { production = true } = {}) {
   if (production) {
     return (
       env.HUGINFLOW_WEBHOOK_URL_PROD ||
       env.HUGINFLOW_WEBHOOK_URL ||
-      env.RAGNAR_WEBHOOK_URL_PROD ||
-      env.RAGNAR_WEBHOOK_URL ||
       `${getAppPublicUrl(env, { production: true })}/api/webhooks/evolution`
     )
   }
   return (
     env.HUGINFLOW_WEBHOOK_URL_DEV ||
     env.HUGINFLOW_WEBHOOK_URL ||
-    env.RAGNAR_WEBHOOK_URL_DEV ||
-    env.RAGNAR_WEBHOOK_URL ||
-    'https://ragnar-local.rn3.tec.br/api/webhooks/evolution'
+    'https://huginflow-local.rn3.tec.br/api/webhooks/evolution'
   )
 }
 

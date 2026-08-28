@@ -9,6 +9,6 @@ services:
       - .env
     environment:
       - NODE_ENV=production
-      # Preferir HUGINFLOW_ENV; RAGNAR_ENV ainda lido pelo código como legado.
-      - HUGINFLOW_ENV=${HUGINFLOW_ENV:-${RAGNAR_ENV:-development}}
-      - RAGNAR_ENV=${RAGNAR_ENV:-${HUGINFLOW_ENV:-development}}
+      # Preferir HUGINFLOW_ENV; HUGINFLOW_ENV ainda lido pelo código como legado.
+      - HUGINFLOW_ENV=${HUGINFLOW_ENV:-${HUGINFLOW_ENV:-development}}
+      - HUGINFLOW_ENV=${HUGINFLOW_ENV:-${HUGINFLOW_ENV:-development}}

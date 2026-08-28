@@ -9,7 +9,7 @@ Atualizado automaticamente a cada fase executada.
 ## Fase 1 — Quarta: Fundação
 
 **Executado em:** 2026-06-03  
-**Ambiente verificado:** produção (`app.ragnar.ia.br`) + Supabase prod + dev local (`localhost:3000`)
+**Ambiente verificado:** produção (`app.huginflow.com`) + Supabase prod + dev local (`localhost:3000`)
 
 ### Resumo
 
@@ -29,7 +29,7 @@ Atualizado automaticamente a cada fase executada.
 |----|-------|-----------|-----------|
 | INF-01 | Site prod responde | ✅ | `GET /login` → HTTP 200 |
 | INF-02 | Deploy CI/CD atual | ⚠️ | Código local com OpenAI/RN3 finance **não commitado**; health prod ainda reporta `geminiApiKeyConfigured` (build antigo) |
-| INF-03 | Variáveis Portainer | ⚠️ | Prod: Supabase OK, token Evolution OK; **Evolution URL** `evo.supa.rn3.tec.br` inacessível; webhook `ragnar.supa.rn3.tec.br` (não `app.ragnar.ia.br`) |
+| INF-03 | Variáveis Portainer | ⚠️ | Prod: Supabase OK, token Evolution OK; **Evolution URL** `evo.supa.rn3.tec.br` inacessível; webhook `evo.supa.rn3.tec.br` (não `app.huginflow.com`) |
 | INF-04 | SSL HTTPS | ✅ | Health: `webhookUrlIsPublic: true` |
 | OMN-01 | Health omnichannel prod | ❌ | `evolutionReachable: false`, `evolutionStatus: error` |
 | OMN-01 | Health omnichannel **dev local** | ✅ | Evolution 200, OpenAI configurado, webhook HTTPS |
@@ -57,7 +57,7 @@ Atualizado automaticamente a cada fase executada.
 | EMP-03 | Config IA | ⚠️ | Prod ainda com `ai_model: gemini-2.0-flash-latest` — migrar para GPT + `OPENAI_API_KEY` no deploy |
 | EMP-04 | Isolamento tenant | ⚠️ | 4 empresas em prod; isolamento depende de RLS — testar na Fase 3 com 2 usuários |
 
-**Empresas em prod:** Monte Sinai, NASU, Ragnar, RN3 Soluções (todas ativas).
+**Empresas em prod:** Monte Sinai, NASU, Hugin Flow, RN3 Soluções (todas ativas).
 
 ---
 
@@ -98,7 +98,7 @@ Atualizado automaticamente a cada fase executada.
 ### Bloqueadores P0 para corrigir antes da Fase 2
 
 1. **Deploy** — commit + push `main` → Swarm com código OpenAI, dashboard, financeiro RN3-only.
-2. **Portainer prod** — `OPENAI_API_KEY`, URLs Evolution/webhook alinhadas ao `.env.production` (`evo.rn3.tec.br`, `app.ragnar.ia.br/api/webhooks/evolution`).
+2. **Portainer prod** — `OPENAI_API_KEY`, URLs Evolution/webhook alinhadas ao `.env.production` (`evo.rn3.tec.br`, `app.huginflow.com/api/webhooks/evolution`).
 3. **Evolution prod** — instância `evo.supa.rn3.tec.br` inacessível; validar DNS/serviço.
 4. **Setup NASU** — criar gestor + operador, funil, canal inbound, atualizar `ai_model` para GPT.
 5. **AUTH-06** — remover link esqueci senha ou criar rota (P2, mas confunde no go-live).

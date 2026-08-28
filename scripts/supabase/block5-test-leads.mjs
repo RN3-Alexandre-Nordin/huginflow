@@ -13,8 +13,8 @@ const root = resolve(__dirname, '../..')
 const envLocal = resolve(root, '.env.local')
 
 const EMPRESA_ID = '645679bd-3f41-4f7d-ba10-98d97cab2a46'
-const GESTOR_EMAIL = 'golive-gestor-510160@teste.ragnar.dev'
-const PASSWORD = 'RagnarDevTest1!'
+const GESTOR_EMAIL = 'golive-gestor-510160@teste.huginflow.com'
+const PASSWORD = 'HuginDevTest1!'
 
 function loadEnvLocal() {
   if (!existsSync(envLocal)) return {}
@@ -49,7 +49,7 @@ async function main() {
       nome,
       telefone,
       whatsapp: telefone,
-      email: `lead-${suffix}@teste.ragnar.dev`,
+      email: `lead-${suffix}@teste.huginflow.com`,
       empresa_cliente: 'Empresa Cliente Teste',
       cargo: 'Comprador',
       empresa_id: EMPRESA_ID,

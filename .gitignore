@@ -59,7 +59,7 @@ next-env.d.ts
 
 #File extensions
 *.txt
-Contas Ragnar.txt
+Contas HuginFlow.txt
 
 # Docs internos RN3 (não versionar novos arquivos desta lista)
 # O manual do usuário CONTINUA versionado: docs/manual-usuario-huginflow.html + docs/manual/

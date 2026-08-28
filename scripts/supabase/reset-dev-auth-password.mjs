@@ -4,7 +4,7 @@
  *
  * Uso:
  *   node scripts/supabase/reset-dev-auth-password.mjs admin@rn3.com.br "SuaSenhaDev"
- *   DEV_BOOTSTRAP_PASSWORD=xxx node scripts/supabase/reset-dev-auth-password.mjs admin@ragnar.ia.br
+ *   DEV_BOOTSTRAP_PASSWORD=xxx node scripts/supabase/reset-dev-auth-password.mjs admin@huginflow.com
  */
 import { createClient } from '@supabase/supabase-js'
 import { readFileSync, existsSync } from 'fs'

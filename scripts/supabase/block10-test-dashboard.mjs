@@ -15,8 +15,8 @@ const root = resolve(__dirname, '../..')
 const envLocal = resolve(root, '.env.local')
 
 const EMPRESA_ID = '645679bd-3f41-4f7d-ba10-98d97cab2a46'
-const GESTOR_EMAIL = 'golive-gestor-510160@teste.ragnar.dev'
-const PASSWORD = 'RagnarDevTest1!'
+const GESTOR_EMAIL = 'golive-gestor-510160@teste.huginflow.com'
+const PASSWORD = 'HuginDevTest1!'
 
 const GARGALO_MIN_CARDS = 3
 const CHATS_JANELA_DIAS = 30

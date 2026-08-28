@@ -125,7 +125,7 @@ export default function LandingPageEditModal({ canal, onClose, onUpdated }: Land
                 <span className="text-[10px] font-black text-orange-500 uppercase tracking-[0.2em]">Landing Page</span>
               </div>
             </div>
-            <h3 className="text-2xl font-black text-white tracking-tighter uppercase italic italic-ragnar">
+            <h3 className="text-2xl font-black text-white tracking-tighter uppercase italic italic-brand">
               Editar Destino
             </h3>
             <p className="text-gray-500 text-sm font-medium">

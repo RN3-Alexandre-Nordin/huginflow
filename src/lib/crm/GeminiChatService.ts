@@ -96,7 +96,7 @@ export class GeminiChatService {
       .map((msg) => `${msg.role === 'user' ? 'Cliente' : 'Assistente'}: ${msg.content}`)
       .join('\n')
 
-    const ragnarInstructions = `
+    const platformInstructions = `
     INSTRUÇÕES DE SISTEMA (HUGIN FLOW CRM):
     1. Use os "DADOS DA BASE DE CONHECIMENTO" como única fonte de verdade.
     2. Se não houver dados, aja com o conhecimento geral mas seja cauteloso.
@@ -106,7 +106,7 @@ export class GeminiChatService {
     const fullPrompt = `
     ${systemPersonality}
     
-    ${ragnarInstructions}
+    ${platformInstructions}
     
     [INFORMAÇÕES DA BASE DE CONHECIMENTO]:
     ${extraContext}

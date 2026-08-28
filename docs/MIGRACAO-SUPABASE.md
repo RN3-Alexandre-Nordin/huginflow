@@ -4,8 +4,8 @@
 
 | Ambiente | Project ref | Dashboard |
 |----------|-------------|-----------|
-| **Dev** | `vujqukqsfwmoezwyuoum` | [ragnar-dev](https://supabase.com/dashboard/project/vujqukqsfwmoezwyuoum) |
-| **Prod** | `zmypzexefjbovuknjlid` | [ragnar-prod](https://supabase.com/dashboard/project/zmypzexefjbovuknjlid) |
+| **Dev** | `vujqukqsfwmoezwyuoum` | [huginflow-dev](https://supabase.com/dashboard/project/vujqukqsfwmoezwyuoum) |
+| **Prod** | `zmypzexefjbovuknjlid` | [huginflow-prod](https://supabase.com/dashboard/project/zmypzexefjbovuknjlid) |
 
 **Última migration no prod:** `fix_channel_cascade_delete` (abril/2026)
 
@@ -15,7 +15,7 @@
 node scripts/supabase/prod-deploy/build-bundle.mjs
 ```
 
-**Saída:** `scripts/supabase/prod-deploy/out/ragnar-prod-pending.sql`
+**Saída:** `scripts/supabase/prod-deploy/out/huginflow-prod-pending.sql`
 
 ---
 
@@ -66,7 +66,7 @@ node scripts/supabase/prod-deploy/build-bundle.mjs
 
 1. Backup no Dashboard prod.
 2. Regenerar bundle: `node scripts/supabase/prod-deploy/build-bundle.mjs`
-3. Revisar `scripts/supabase/prod-deploy/out/ragnar-prod-pending.sql`
+3. Revisar `scripts/supabase/prod-deploy/out/huginflow-prod-pending.sql`
 4. Executar no SQL Editor do prod (por blocos `-- BUNDLE:` se preferir).
 5. Atualizar coluna **Prod** neste changelog para ✅.
 

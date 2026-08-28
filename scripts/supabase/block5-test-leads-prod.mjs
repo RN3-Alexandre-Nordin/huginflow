@@ -74,7 +74,7 @@ async function main() {
       nome,
       telefone,
       whatsapp: telefone,
-      email: `lead-${suffix}@teste.ragnar.ia.br`,
+      email: `lead-${suffix}@teste.huginflow.com`,
       empresa_cliente: 'Empresa Cliente Teste',
       cargo: 'Comprador',
       empresa_id: EMPRESA_ID,

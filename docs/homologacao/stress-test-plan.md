@@ -78,7 +78,7 @@ Registrar p50/p95 de referência.
 
 - **App:** p50/p95/p99 latência, throughput, 4xx/5xx
 - **Supabase:** conexões ativas, slow queries, CPU projeto
-- **Swarm/VPS:** CPU, memória, rede do serviço `ragnar-app`
+- **Swarm/VPS:** CPU, memória, rede do serviço `huginflow-app`
 - **Evolution:** fila webhook, instâncias `open` vs `connecting`
 - **Negócio:** leads/cards duplicados, conversas órfãs, IA respondendo após takeover
 

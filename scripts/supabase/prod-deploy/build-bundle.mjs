@@ -5,7 +5,7 @@
  *   node scripts/supabase/prod-deploy/build-bundle.mjs
  *
  * Saída:
- *   scripts/supabase/prod-deploy/out/ragnar-prod-pending.sql
+ *   scripts/supabase/prod-deploy/out/huginflow-prod-pending.sql
  *   scripts/supabase/prod-deploy/out/MANIFEST.json
  */
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "fs";
@@ -140,13 +140,13 @@ mkdirSync(outDir, { recursive: true });
 const parts = [];
 const manifest = {
   generatedAt: new Date().toISOString(),
-  target: "zmypzexefjbovuknjlid (ragnar-prod)",
-  source: "vujqukqsfwmoezwyuoum (ragnar-dev)",
+  target: "zmypzexefjbovuknjlid (huginflow-prod)",
+  source: "vujqukqsfwmoezwyuoum (huginflow-dev)",
   bundleFiles: [],
   devOnlyWithoutLocalSql: DEV_ONLY_MCP_MIGRATIONS,
   applyInstructions: [
     "1. Backup do banco prod (Dashboard → Database → Backups).",
-    "2. Revisar out/ragnar-prod-pending.sql em staging ou horário de baixo tráfego.",
+    "2. Revisar out/huginflow-prod-pending.sql em staging ou horário de baixo tráfego.",
     "3. Executar no SQL Editor do projeto prod OU via supabase db push linkado ao prod.",
     "4. Registrar no schema_migrations do prod (se usar CLI) ou manter log interno.",
     "5. Validar: tabelas finance_*, RPC sp_finance_*, view vw_finance_contas_receber_relatorio.",
@@ -189,7 +189,7 @@ const footer = [
 ].join("\n");
 
 const outputSql = parts.join("\n") + footer;
-const sqlPath = resolve(outDir, "ragnar-prod-pending.sql");
+const sqlPath = resolve(outDir, "huginflow-prod-pending.sql");
 const manifestPath = resolve(outDir, "MANIFEST.json");
 
 writeFileSync(sqlPath, outputSql, "utf8");

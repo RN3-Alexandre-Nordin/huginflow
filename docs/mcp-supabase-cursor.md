@@ -23,11 +23,11 @@ O Supabase mantém um **MCP oficial** (`https://mcp.supabase.com/mcp`) — não 
 ### 1. Copiar config do projeto
 
 ```powershell
-cd D:\Sistemas\ragnar   # após P5: D:\Sistemas\huginflow
+cd D:\Sistemas\huginflow
 copy .cursor\mcp.json.example .cursor\mcp.json
 ```
 
-Reconecte OAuth nos servidores renomeados (`supabase-huginflow-dev` / `supabase-huginflow-prod`) se o Cursor ainda listar `supabase-ragnar-*`.
+Reconecte OAuth nos servidores renomeados (`supabase-huginflow-dev` / `supabase-huginflow-prod`) se o Cursor ainda listar `supabase-huginflow-*`.
 
 ### 2. Conectar no Cursor (OAuth)
 
@@ -35,7 +35,7 @@ Reconecte OAuth nos servidores renomeados (`supabase-huginflow-dev` / `supabase-
 2. Deve aparecer `supabase-huginflow-dev` e `supabase-huginflow-prod-readonly`
 3. Se houver **"Needs authentication"** ou botão **Connect**, clique e faça login
 4. No browser Supabase, use a conta da org RN3 (`rn3@rn3.com.br`) e autorize o Cursor
-5. **Escolha a organização correta** — a que contém os projetos `ragnar-dev` e `ragnar-prod`
+5. **Escolha a organização correta** — a que contém os projetos `huginflow-dev` e `huginflow-prod`
 6. Repita **Connect** para **cada** servidor (dev e prod-readonly são OAuth separados)
 7. **Reinicie o Cursor** (Ctrl+Shift+P → "Reload Window") se as tools não aparecerem
 

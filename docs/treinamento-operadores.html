@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Hugin Flow — Guia do Operador</title>
+  <style>
+    :root {
+      --bg: #0f1419; --surface: #1a2332; --surface2: #243044; --text: #e7ecf3;
+      --muted: #9aa8bc; --accent: #2baadf; --green: #3dd68c; --orange: #f97316;
+      --warn: #ffb020; --border: #2d3a4f; --code-bg: #121820; --step: #80b828;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; color-scheme: dark; }
+    body { margin: 0; font-family: "Segoe UI", system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; font-size: 15px; }
+    .layout { display: grid; grid-template-columns: 280px 1fr; min-height: 100vh; }
+    @media (max-width: 960px) { .layout { grid-template-columns: 1fr; } .toc { position: static; height: auto; } }
+    .toc { position: sticky; top: 0; height: 100vh; overflow-y: auto; background: var(--surface); border-right: 1px solid var(--border); padding: 1.25rem 1rem 2rem; scrollbar-width: thin; }
+    .toc-logo { font-size: 1.05rem; font-weight: 800; margin-bottom: 0.2rem; }
+    .toc-sub { font-size: 0.72rem; color: var(--muted); margin-bottom: 1rem; line-height: 1.4; }
+    .toc nav a { display: block; padding: 0.38rem 0.6rem; font-size: 0.8rem; color: var(--muted); text-decoration: none; border-radius: 6px; border-left: 2px solid transparent; margin-bottom: 0.1rem; }
+    .toc nav a:hover { color: var(--text); background: rgba(255,255,255,0.04); }
+    .toc .section-label { font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 0.85rem 0 0.35rem 0.6rem; }
+    .content { padding: 2rem 2rem 5rem; max-width: 920px; }
+    header.doc-header { border-bottom: 1px solid var(--border); padding-bottom: 1.5rem; margin-bottom: 2rem; }
+    h1 { font-size: 1.85rem; margin: 0 0 0.5rem; font-weight: 900; letter-spacing: -0.02em; }
+    .subtitle { color: var(--muted); margin: 0; font-size: 1rem; max-width: 42rem; }
+    .meta { margin-top: 1rem; font-size: 0.85rem; color: var(--muted); }
+    h2 { font-size: 1.28rem; margin: 2.75rem 0 0.85rem; padding-bottom: 0.35rem; border-bottom: 2px solid var(--accent); color: var(--accent); scroll-margin-top: 1rem; }
+    h3 { font-size: 1.02rem; margin: 1.6rem 0 0.65rem; color: var(--text); }
+    h4 { font-size: 0.9rem; margin: 1.2rem 0 0.5rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+    p { margin: 0.45rem 0 0.9rem; }
+    a { color: var(--accent); }
+    ul, ol { margin: 0.45rem 0 0.9rem; padding-left: 1.35rem; }
+    li { margin: 0.3rem 0; }
+    code { font-family: Consolas, monospace; font-size: 0.86em; background: var(--code-bg); padding: 0.1em 0.35em; border-radius: 4px; color: var(--accent); }
+    .alert { border-radius: 8px; padding: 0.85rem 1rem; margin: 1rem 0; border-left: 4px solid var(--warn); background: rgba(255,176,32,0.08); font-size: 0.9rem; }
+    .alert.info { border-left-color: var(--accent); background: rgba(43,170,223,0.08); }
+    .alert.ok { border-left-color: var(--green); background: rgba(61,214,140,0.08); }
+    .alert.danger { border-left-color: #ef4444; background: rgba(239,68,68,0.08); }
+    .badge { display: inline-block; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; padding: 0.18rem 0.5rem; border-radius: 4px; }
+    .badge-op { background: rgba(43,170,223,0.15); color: var(--accent); }
+    .badge-admin { background: rgba(249,115,22,0.15); color: var(--orange); }
+    .procedure { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.2rem 1.4rem; margin: 1.1rem 0; }
+    .procedure-title { font-weight: 700; font-size: 0.94rem; margin: 0 0 0.85rem; display: flex; align-items: center; gap: 0.5rem; }
+    .procedure-title span { background: var(--step); color: #0a0a0a; width: 1.45rem; height: 1.45rem; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 0.72rem; font-weight: 800; flex-shrink: 0; }
+    .steps { list-style: none; padding: 0; margin: 0; counter-reset: step; }
+    .steps li { counter-increment: step; padding: 0.6rem 0 0.6rem 2.45rem; position: relative; border-bottom: 1px solid var(--border); font-size: 0.94rem; }
+    .steps li:last-child { border-bottom: none; }
+    .steps li::before { content: counter(step); position: absolute; left: 0; top: 0.6rem; width: 1.55rem; height: 1.55rem; background: var(--surface2); border: 1px solid var(--border); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.72rem; font-weight: 700; color: var(--accent); }
+    .steps li .hint { display: block; margin-top: 0.35rem; font-size: 0.84rem; color: var(--muted); }
+    figure.screenshot, figure.step-shot { margin: 1rem 0 1.5rem; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: #0a0a0a; max-width: 640px; }
+    figure.screenshot img, figure.step-shot img { display: block; width: 100%; height: auto; }
+    figure.screenshot figcaption, figure.step-shot figcaption { padding: 0.55rem 0.9rem; font-size: 0.8rem; color: var(--muted); background: var(--surface); border-top: 1px solid var(--border); }
+    table { width: 100%; border-collapse: collapse; margin: 0.85rem 0 1.1rem; font-size: 0.88rem; }
+    th, td { border: 1px solid var(--border); padding: 0.55rem 0.7rem; text-align: left; vertical-align: top; }
+    th { background: var(--surface2); font-weight: 600; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+    tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+    .card-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin: 1rem 0; }
+    @media (max-width: 640px) { .card-grid { grid-template-columns: 1fr; } }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 0.9rem 1rem; font-size: 0.88rem; }
+    .card strong { display: block; margin-bottom: 0.25rem; color: var(--text); }
+    .flow-box { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1rem 1.25rem; margin: 1rem 0; font-size: 0.88rem; line-height: 1.75; font-family: Consolas, monospace; color: var(--muted); white-space: pre-wrap; }
+    .checklist { list-style: none; padding: 0; margin: 0.75rem 0; }
+    .checklist li { padding: 0.35rem 0 0.35rem 1.65rem; position: relative; font-size: 0.9rem; }
+    .checklist li::before { content: "☐"; position: absolute; left: 0; color: var(--accent); }
+    .scenario { border-left: 3px solid var(--green); padding: 0.75rem 0 0.75rem 1rem; margin: 1rem 0; background: rgba(61,214,140,0.04); border-radius: 0 8px 8px 0; }
+    .scenario h4 { margin: 0 0 0.5rem; color: var(--green); text-transform: none; letter-spacing: 0; font-size: 0.95rem; }
+    footer { margin-top: 3rem; padding-top: 1.25rem; border-top: 1px solid var(--border); font-size: 0.82rem; color: var(--muted); }
+    @media print { .toc { display: none; } .layout { display: block; } }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <aside class="toc">
+      <div class="toc-logo">Hugin Flow</div>
+      <div class="toc-sub">Guia do Operador<br />Treinamento + consulta permanente</div>
+      <nav>
+        <div class="section-label">Comece aqui</div>
+        <a href="#sobre">Sobre este guia</a>
+        <a href="#conceitos">Conceitos essenciais</a>
+        <a href="#perfil">Seu perfil de operador</a>
+        <div class="section-label">Acesso</div>
+        <a href="#login">Entrar no sistema</a>
+        <a href="#senha">Alterar senha</a>
+        <a href="#navegacao">Navegação no Cockpit</a>
+        <div class="section-label">Atendimento</div>
+        <a href="#whatsapp">Chat Omnichannel (WhatsApp)</a>
+        <a href="#whatsapp-assumir">Assumir conversa da IA</a>
+        <a href="#whatsapp-boas-praticas">Boas práticas no atendimento</a>
+        <div class="section-label">Equipe</div>
+        <a href="#interno">Chat interno — visão geral</a>
+        <a href="#interno-badge">8.1 Avisos de mensagens</a>
+        <a href="#interno-encaminhar">8.2 Abrir card pelo chat</a>
+        <a href="#interno-mencoes">8.3 Marcar usuário (@ / #)</a>
+        <div class="section-label">CRM — Cards</div>
+        <a href="#cards">Funil (Kanban)</a>
+        <a href="#cards-atendimento">9.1 Atendimento WhatsApp ↔ card</a>
+        <a href="#cards-encaminhar">9.2 Encaminhar a outro atendente</a>
+        <a href="#cards-pipeline">9.3 Enviar a outro pipeline</a>
+        <a href="#cards-chat-interno">9.4 Chat interno do card</a>
+        <a href="#cards-mencoes">9.5 Menções @ e # no card</a>
+        <a href="#cards-anexos">9.6 Anexar documentos</a>
+        <a href="#cards-filtros">Filtros e busca</a>
+        <div class="section-label">Operação</div>
+        <a href="#fluxo">Fluxo do dia a dia</a>
+        <a href="#cenarios">Cenários práticos</a>
+        <a href="#problemas">Problemas comuns</a>
+        <a href="#glossario">Glossário</a>
+        <div class="section-label">Treinamento ao vivo</div>
+        <a href="#aula-90">Roteiro da aula (1h30)</a>
+        <a href="#checklist">Checklist do operador</a>
+      </nav>
+    </aside>
+
+    <main class="content">
+      <header class="doc-header">
+        <h1>Guia do Operador — Hugin Flow</h1>
+        <p class="subtitle">Material completo para aprender a operar o sistema e consultar depois, sempre que tiver dúvidas no dia a dia.</p>
+        <p class="meta">
+          Acesso: <a href="https://app.huginflow.com/login" target="_blank" rel="noopener">app.huginflow.com/login</a> ·
+          Ajuda dentro do app: ícone <strong>?</strong> no topo ·
+          Versão ago/2026
+        </p>
+      </header>
+
+      <div class="alert info">
+        <strong>Como usar este guia:</strong> durante o treinamento online, siga a ordem das seções. Depois, use o índice à esquerda para ir direto ao tema (senha, WhatsApp, chat interno, cards). Cada procedimento está numerado passo a passo.
+      </div>
+
+      <!-- SOBRE -->
+      <h2 id="sobre">1. Sobre este guia</h2>
+      <p>O <strong>Hugin Flow</strong> é a plataforma onde sua empresa concentra atendimento, vendas e operação. Como <strong>operador</strong>, você usará principalmente:</p>
+      <ul>
+        <li><strong>Chat Omnichannel</strong> — conversar com clientes pelo WhatsApp (e outros canais configurados)</li>
+        <li><strong>Funis (Kanban)</strong> — registrar e acompanhar negócios, pedidos ou demandas em cards</li>
+        <li><strong>Chat interno</strong> — alinhar com colegas e gestores <em>sem</em> que o cliente veja</li>
+      </ul>
+      <p>Este guia <strong>não substitui</strong> o manual completo da plataforma (disponível no ícone <strong>?</strong>), mas foca no que você precisa no dia a dia como operador.</p>
+
+      <!-- CONCEITOS -->
+      <h2 id="conceitos">2. Conceitos essenciais</h2>
+      <table>
+        <thead><tr><th>Termo</th><th>O que significa para você</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Lead</strong></td><td>Pessoa ou empresa contato (nome, telefone, e-mail). Pode ser criada automaticamente quando alguém manda WhatsApp.</td></tr>
+          <tr><td><strong>Card</strong></td><td>Registro de uma oportunidade, pedido ou demanda no funil. Tem título, responsável, etapa e histórico.</td></tr>
+          <tr><td><strong>Funil / Kanban</strong></td><td>Quadro com colunas (etapas). Você move cards entre colunas conforme o andamento.</td></tr>
+          <tr><td><strong>Conversa</strong></td><td>Thread de mensagens com um cliente no Chat Omnichannel.</td></tr>
+          <tr><td><strong>Agente de IA</strong></td><td>Respostas automáticas antes de um humano assumir.</td></tr>
+          <tr><td><strong>Takeover / Gestão Humana</strong></td><td>Quando você responde e a conversa passa a ser conduzida por pessoa, não pela IA.</td></tr>
+          <tr><td><strong>Chat interno</strong></td><td>Mensagens só entre colegas da empresa — nunca vão para o WhatsApp do cliente.</td></tr>
+        </tbody>
+      </table>
+
+      <div class="alert ok">
+        <strong>Regra de ouro:</strong> tudo que o cliente precisa saber → <strong>WhatsApp</strong>. Tudo que é alinhamento interno → <strong>chat interno</strong> ou <strong>observações no card</strong>.
+      </div>
+
+      <!-- PERFIL -->
+      <h2 id="perfil">3. Seu perfil de operador</h2>
+      <p>Você entra como <span class="badge badge-op">Operador</span>. Isso define o que aparece na sua tela:</p>
+      <table>
+        <thead><tr><th>Você pode</th><th>Depende do grupo de acesso</th></tr></thead>
+        <tbody>
+          <tr><td>Atender WhatsApp no Chat Omnichannel</td><td>Sim (conversas atribuídas a você ou sem responsável)</td></tr>
+          <tr><td>Ver e mover cards no funil</td><td>Sim, se o grupo permitir <code>cards.view</code> e <code>cards.move</code></td></tr>
+          <tr><td>Criar novos cards</td><td>Se o grupo permitir <code>cards.create</code></td></tr>
+          <tr><td>Anexar arquivos no card</td><td>Se o grupo permitir anexos</td></tr>
+          <tr><td>Usar chat interno</td><td>Sim (todos da empresa)</td></tr>
+          <tr><td>Conectar WhatsApp / criar canais</td><td>Não — função do gestor ou admin</td></tr>
+          <tr><td>Cadastrar usuários</td><td>Não — função do gestor ou admin</td></tr>
+        </tbody>
+      </table>
+      <p>Se aparecer <strong>Acesso Interditado</strong> ou <strong>Acesso Restrito</strong>, seu grupo não tem permissão para aquela tela. Peça ao gestor para ajustar em <strong>Grupos de Acesso</strong>.</p>
+
+      <!-- LOGIN -->
+      <h2 id="login">4. Entrar no sistema</h2>
+      <div class="procedure">
+        <p class="procedure-title"><span>1</span> Fazer login</p>
+        <ol class="steps">
+          <li>Abra o navegador (Chrome ou Edge recomendados) e acesse <code>https://app.huginflow.com/login</code>.
+            <figure class="step-shot">
+              <img src="manual/img/treinamento/01-login.png" alt="Tela de login Hugin Flow" onerror="this.src='manual/img/steps/01-login.png'" />
+              <figcaption>Tela de login — logo Hugin Flow e campos de e-mail e senha</figcaption>
+            </figure>
+          </li>
+          <li>Digite o <strong>e-mail corporativo</strong> que a empresa ou a RN3 cadastrou para você.</li>
+          <li>Digite a <strong>senha</strong> (no primeiro acesso, será a senha padrão entregue pelo gestor).</li>
+          <li>Clique em <strong>Entrar na plataforma</strong>.</li>
+          <li>Se tudo estiver correto, você será levado ao <strong>Cockpit</strong> (painel inicial).
+            <span class="hint">O Cockpit do operador mostra atalhos e fila de trabalho; o do gestor mostra KPIs da empresa.</span>
+          </li>
+        </ol>
+      </div>
+      <div class="alert danger">
+        <strong>Sem “Esqueci minha senha”:</strong> se errar a senha várias vezes ou esquecer, contacte o <strong>gestor da empresa</strong> ou o <strong>suporte RN3</strong>. Eles redefinem em Usuários → Editar.
+      </div>
+      <table>
+        <thead><tr><th>Mensagem de erro</th><th>O que fazer</th></tr></thead>
+        <tbody>
+          <tr><td>Credenciais inválidas</td><td>Confira e-mail e senha (maiúsculas contam). No 1º acesso, use a senha padrão recebida.</td></tr>
+          <tr><td>Acesso suspenso</td><td>A empresa está inativa no sistema. Fale com gestor ou RN3.</td></tr>
+        </tbody>
+      </table>
+
+      <!-- SENHA -->
+      <h2 id="senha">5. Alterar senha (obrigatório no 1º acesso)</h2>
+      <p>No treinamento, todos recebem a <strong>mesma senha padrão</strong>. O sistema <strong>obriga</strong> a troca no primeiro login: após entrar, você é levado automaticamente à tela <em>Defina sua senha</em> e não consegue usar o restante do Cockpit até concluir.</p>
+
+      <div class="alert info">
+        <strong>Automático:</strong> você não precisa procurar o menu — ao fazer login pela primeira vez (ou após o gestor redefinir sua senha), a tela de troca abre sozinha.
+      </div>
+
+      <div class="procedure">
+        <p class="procedure-title"><span>2</span> Trocar sua senha</p>
+        <ol class="steps">
+          <li>Faça login com e-mail e <strong>senha padrão</strong> entregues pelo gestor.</li>
+          <li>O sistema abrirá a tela <strong>Defina sua senha</strong> (título no topo). O menu lateral ficará bloqueado até você concluir.</li>
+          <li>Preencha os três campos:
+            <span class="hint"><strong>Senha atual</strong> (a padrão) · <strong>Nova senha</strong> · <strong>Confirmar nova senha</strong></span>
+          </li>
+          <li>Use o ícone de olho para mostrar/ocultar a senha enquanto digita.</li>
+          <li>Clique em <strong>Salvar nova senha</strong>.</li>
+          <li>Após salvar, você será levado ao Cockpit com acesso liberado. Opcionalmente, faça logout (<strong>Encerrar Sessão</strong> no topo) e entre de novo com a <strong>nova senha</strong> para confirmar.</li>
+        </ol>
+      </div>
+
+      <h3>Regras da nova senha</h3>
+      <ul>
+        <li>Mínimo de <strong>6 caracteres</strong></li>
+        <li>Deve ser <strong>diferente</strong> da senha atual</li>
+        <li>Os campos <strong>Nova senha</strong> e <strong>Confirmar</strong> devem ser <strong>iguais</strong></li>
+      </ul>
+
+      <table>
+        <thead><tr><th>Mensagem na tela</th><th>Significado</th></tr></thead>
+        <tbody>
+          <tr><td>Senha atual incorreta</td><td>A senha padrão foi digitada errada. Tente de novo ou peça ao gestor.</td></tr>
+          <tr><td>A nova senha e a confirmação devem ser iguais</td><td>Repita os dois últimos campos igualmente.</td></tr>
+          <tr><td>A nova senha deve ter no mínimo 6 caracteres</td><td>Escolha uma senha um pouco mais longa.</td></tr>
+          <tr><td>A nova senha deve ser diferente da senha atual</td><td>Não reutilize a senha padrão — crie uma nova.</td></tr>
+        </tbody>
+      </table>
+
+      <div class="alert ok">
+        <strong>Dica:</strong> use uma senha que só você saiba. Não anote em post-it na mesa. Não compartilhe com colegas.
+      </div>
+
+      <!-- NAVEGAÇÃO -->
+      <h2 id="navegacao">6. Navegação no Cockpit</h2>
+      <p>O menu lateral esquerdo é sua base. Itens mais usados pelo operador:</p>
+      <table>
+        <thead><tr><th>Menu</th><th>Para quê</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Cockpit</strong></td><td>Painel inicial — visão do dia</td></tr>
+          <tr><td><strong>CRM Workspace</strong></td><td>Atalhos para Funis, Leads e Chat</td></tr>
+          <tr><td><strong>Chat Omnichannel</strong></td><td>Atender WhatsApp e outros canais</td></tr>
+          <tr><td><strong>Funis</strong></td><td>Quadro Kanban de cards</td></tr>
+          <tr><td><strong>Base de Leads</strong></td><td>Lista de contatos (consulta e edição)</td></tr>
+        </tbody>
+      </table>
+
+      <figure class="screenshot">
+        <img src="manual/img/02-sidebar.png" alt="Menu lateral" onerror="this.closest('figure').remove()" />
+        <figcaption>Menu lateral — item selecionado fica destacado em azul</figcaption>
+      </figure>
+
+      <figure class="screenshot">
+        <img src="manual/img/03-cockpit-dashboard.png" alt="Cockpit do operador" onerror="this.closest('figure').remove()" />
+        <figcaption>Cockpit — painel inicial com atalhos e fila de trabalho</figcaption>
+      </figure>
+
+      <div class="card-grid">
+        <div class="card"><strong>Botão flutuante (canto inferior direito)</strong>Abre o painel de <strong>chat interno</strong> da equipe, em qualquer tela.</div>
+        <div class="card"><strong>Ícone ? (topo)</strong>Abre o manual completo sem sair do sistema.</div>
+        <div class="card"><strong>Encerrar Sessão (topo)</strong>Sai da conta com segurança. Use ao fim do expediente.</div>
+        <div class="card"><strong>Seu nome (rodapé do menu)</strong>Acesso a <strong>Alterar senha</strong>.</div>
+      </div>
+
+      <!-- WHATSAPP -->
+      <h2 id="whatsapp">7. Chat Omnichannel (WhatsApp)</h2>
+      <p>Central de atendimento: todas as conversas de WhatsApp (e outros canais) aparecem aqui em tempo real.</p>
+
+      <div class="procedure">
+        <p class="procedure-title"><span>3</span> Abrir o Chat Omnichannel</p>
+        <ol class="steps">
+          <li>No menu lateral, clique em <strong>Chat Omnichannel</strong>.</li>
+          <li>A tela divide em duas partes:
+            <span class="hint"><strong>Esquerda:</strong> lista de conversas · <strong>Direita:</strong> mensagens da conversa selecionada</span>
+          </li>
+          <li>No topo da lista, use <strong>Buscar lead ou telefone…</strong> para achar alguém rapidamente.</li>
+          <li>Clique em uma conversa para abrir o histórico à direita.</li>
+        </ol>
+      </div>
+
+      <figure class="screenshot">
+        <img src="manual/img/05-chat-omni.png" alt="Chat omnichannel" onerror="this.src='manual/img/05-chat.png'" />
+        <figcaption>Chat Omnichannel — lista à esquerda, conversa à direita</figcaption>
+      </figure>
+
+      <h3>Como ler a conversa</h3>
+      <ul>
+        <li>Mensagens do <strong>cliente</strong> aparecem de um lado (balão escuro)</li>
+        <li>Respostas da <strong>IA</strong> ou do <strong>atendente</strong> aparecem do outro (balão azul/verde)</li>
+        <li>Respostas da IA são identificadas como <strong>Agente de IA</strong></li>
+        <li>Suas mensagens saem com seu <strong>nome</strong> ou como <strong>Atendente</strong></li>
+      </ul>
+
+      <h3 id="whatsapp-assumir">7.1 Assumir a conversa (takeover humano)</h3>
+      <p>Quando a IA está atendendo, a conversa fica em <strong>Atendimento Robotizado</strong>. Para você assumir:</p>
+
+      <div class="procedure">
+        <p class="procedure-title"><span>4</span> Assumir e responder ao cliente</p>
+        <ol class="steps">
+          <li>Abra a conversa com indicador <strong>Atendimento Robotizado</strong> (ícone verde / robô).</li>
+          <li>Leia <strong>todo o histórico</strong> — entenda o que o cliente já perguntou e o que a IA já respondeu.</li>
+          <li>Clique no campo de texto na parte inferior. O placeholder diz: <em>Responda aqui para assumir o controle… (IA pausará)</em>.</li>
+          <li>Digite sua mensagem.</li>
+          <li>Envie com o botão <strong>Enviar Mensagem</strong> ou tecla <strong>Enter</strong> (use <strong>Shift+Enter</strong> para quebrar linha sem enviar).</li>
+          <li>O status muda para <strong>Gestão Humana</strong> (laranja). A partir daí, você conduz o atendimento.</li>
+          <li>O cliente recebe sua mensagem no <strong>WhatsApp</strong> normalmente.</li>
+        </ol>
+      </div>
+
+      <figure class="screenshot">
+        <img src="manual/img/treinamento/whatsapp-assumir.png" alt="Assumir conversa no WhatsApp" onerror="this.src='manual/img/05-chat-omni.png'" />
+        <figcaption>Chat Omnichannel — status <em>Atendimento Robotizado</em> e campo para assumir ao enviar a primeira mensagem</figcaption>
+      </figure>
+
+      <div class="alert info">
+        <strong>Não existe botão “Assumir”:</strong> o ato de <strong>enviar a primeira mensagem</strong> já transfere o controle para você. A IA permanece em silêncio enquanto houver interação humana recente.
+      </div>
+
+      <table>
+        <thead><tr><th>Status na tela</th><th>Quem responde</th><th>Sua ação</th></tr></thead>
+        <tbody>
+          <tr><td>Atendimento Robotizado</td><td>Agente de IA</td><td>Leia e, quando for atender, <strong>responda</strong></td></tr>
+          <tr><td>Gestão Humana</td><td>Você ou outro atendente</td><td>Continue o atendimento; registre no card se necessário</td></tr>
+        </tbody>
+      </table>
+
+      <h3 id="whatsapp-boas-praticas">7.2 Boas práticas no atendimento</h3>
+      <ul>
+        <li><strong>Sempre leia o histórico</strong> antes de responder — evita repetir perguntas.</li>
+        <li><strong>Não prometa</strong> prazo, valor ou condição que não confirmou — use chat interno ou card para validar.</li>
+        <li><strong>Mantenha o tom</strong> profissional e alinhado à empresa.</li>
+        <li><strong>Registre</strong> combinados importantes nas observações do card.</li>
+        <li><strong>Não use</strong> chat interno para falar <em>sobre</em> o cliente na frente de capturas de tela compartilhadas com ele.</li>
+      </ul>
+
+      <h3>Fila do operador</h3>
+      <p>Como operador, você vê conversas:</p>
+      <ul>
+        <li><strong>Atribuídas a você</strong> (<code>atribuido_a_id</code> = seu usuário), ou</li>
+        <li><strong>Sem responsável</strong> (ainda não pegas por ninguém)</li>
+      </ul>
+      <p>Se não encontrar uma conversa que deveria ver, ela pode estar com outro colega — fale com o gestor.</p>
+
+      <!-- CHAT INTERNO -->
+      <h2 id="interno">8. Chat interno da equipe</h2>
+      <p>Canal <strong>interno</strong> para alinhar com colegas. O cliente <strong>nunca</strong> vê estas mensagens — use sempre que precisar combinar prazo, valor ou repasse de caso.</p>
+
+      <div class="procedure">
+        <p class="procedure-title"><span>5</span> Abrir o chat interno</p>
+        <ol class="steps">
+          <li>Em qualquer tela do Cockpit, clique no <strong>botão flutuante azul</strong> (ícone de mensagem) no <strong>canto inferior direito</strong>.</li>
+          <li>Abre o painel <strong>Conversas</strong> — lista à esquerda, mensagens à direita.</li>
+          <li>Use <strong>Buscar chats ou cards…</strong> para achar um colega ou um card pelo nome.</li>
+          <li>Selecione a conversa na lista e digite sua mensagem no campo inferior.</li>
+        </ol>
+      </div>
+
+      <figure class="screenshot">
+        <img src="manual/img/09-chat-interno.png" alt="Painel de chat interno" onerror="this.src='manual/img/steps/08-chat-interno.png'" />
+        <figcaption>Painel de chat interno — lista de conversas (DM e cards) e área de mensagens</figcaption>
+      </figure>
+
+      <h3>Três formas de conversar internamente</h3>
+      <table>
+        <thead><tr><th>Tipo</th><th>Como identificar</th><th>Quando usar</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>Conversa direta (DM)</strong></td>
+            <td>Avatar com iniciais do colega; bolinha verde de “online”</td>
+            <td>Dúvida rápida, repasse urgente, alinhamento 1:1</td>
+          </tr>
+          <tr>
+            <td><strong>Thread do card</strong></td>
+            <td>Ícone <strong>#</strong> laranja e etiqueta <strong>Card</strong> na lista</td>
+            <td>Discutir aquele negócio/pedido com toda a equipe envolvida</td>
+          </tr>
+          <tr>
+            <td><strong>Chat privado ligado ao card</strong></td>
+            <td>Aberto a partir do modal do card → aba <strong>Chat Interno</strong> → ícone de mensagem ao lado do responsável</td>
+            <td>Falar só com o responsável sobre aquele card</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3 id="interno-badge">8.1 Avisos quando há mensagens internas</h3>
+      <p>Enquanto você trabalha em qualquer tela, o sistema avisa quando chegam mensagens internas:</p>
+      <ul>
+        <li><strong>Badge vermelho no botão flutuante</strong> — número total de mensagens não lidas em todas as conversas.</li>
+        <li><strong>Badge na lista</strong> — cada conversa com pendência mostra um contador vermelho ao lado da última mensagem.</li>
+        <li>Ao <strong>abrir e ler</strong> a conversa, o contador zera automaticamente para aquela thread.</li>
+      </ul>
+
+      <figure class="screenshot">
+        <img src="manual/img/treinamento/chat-badge-nao-lidas.png" alt="Badge de mensagens não lidas" onerror="this.src='manual/img/09-chat-interno.png'" />
+        <figcaption>Botão flutuante com badge vermelho e contadores nas conversas da lista</figcaption>
+      </figure>
+
+      <div class="alert info">
+        <strong>Dica para treinamento remoto:</strong> peça a um colega para enviar uma mensagem interna com seu <code>@</code> — assim você vê o badge aparecer e pratica abrir o painel.
+      </div>
+
+      <h3 id="interno-encaminhar">8.2 Abrir e encaminhar um card pelo chat interno</h3>
+      <p>Quando alguém menciona um card com <code>#</code> ou quando a conversa já é uma <strong>thread de card</strong>, você pode ir direto à gestão completa:</p>
+
+      <div class="procedure">
+        <p class="procedure-title"><span>6</span> Ir do chat interno para o card</p>
+        <ol class="steps">
+          <li>No painel <strong>Conversas</strong>, selecione uma thread com etiqueta <strong>Card</strong> (ícone laranja <strong>#</strong>).</li>
+          <li>No topo da área de mensagens, clique em <strong>Gestão do Card</strong> (botão laranja com ícone de link externo).</li>
+          <li>O modal <strong>Gestão de Lead</strong> abre na aba <strong>Dados &amp; Resumo</strong> — lá você edita responsável, prazo, observações e anexos.</li>
+          <li>Para <strong>encaminhar o caso</strong>: altere o <strong>Responsável</strong> (Editar Card) e deixe no chat interno do card um resumo do contexto para o novo atendente.</li>
+        </ol>
+      </div>
+
+      <figure class="screenshot">
+        <img src="manual/img/treinamento/chat-gestao-card.png" alt="Botão Gestão do Card" onerror="this.src='manual/img/09-chat-interno.png'" />
+        <figcaption>Thread do card no chat interno — botão <strong>Gestão do Card</strong> no cabeçalho</figcaption>
+      </figure>
+
+      <p>Você também pode buscar o card pelo campo <strong>Buscar chats ou cards…</strong> — a busca encontra cards pelo título mesmo que ainda não tenham mensagens recentes.</p>
+
+      <h3 id="interno-mencoes">8.3 Marcar colega ou card (@ e #)</h3>
+      <div class="procedure">
+        <p class="procedure-title"><span>7</span> Mencionar no chat interno global</p>
+        <ol class="steps">
+          <li>No campo de mensagem, digite <code>@</code> seguido do nome — aparece a lista <strong>Mencionar Contato</strong>.</li>
+          <li>Use as setas <strong>↑ ↓</strong> para navegar, <strong>Enter</strong> para escolher ou <strong>Esc</strong> para fechar a lista.</li>
+          <li>O nome vira <code>[Nome Completo]</code> na mensagem (formato interno do sistema).</li>
+          <li>Digite <code>#</code> para referenciar um <strong>card</strong> — escolha na lista <strong>Mencionar Card</strong>; vira <code>[Card: Título]</code>.</li>
+          <li>Envie a mensagem. Colegas mencionados com <code>@</code> entram na sua lista e podem filtrar por <strong>Mencionados</strong> dentro da thread.</li>
+        </ol>
+      </div>
+
+      <figure class="screenshot">
+        <img src="manual/img/treinamento/chat-mencionar.png" alt="Autocomplete de menções" onerror="this.src='manual/img/09-chat-interno.png'" />
+        <figcaption>Autocomplete ao digitar <code>@</code> ou <code>#</code> — lista de contatos e cards</figcaption>
+      </figure>
+
+      <table>
+        <thead><tr><th>Atalho</th><th>Resultado na mensagem</th><th>Efeito</th></tr></thead>
+        <tbody>
+          <tr><td><code>@Maria</code></td><td><code>[Maria Silva],</code></td><td>Notifica / destaca o colega</td></tr>
+          <tr><td><code>#Pedido</code></td><td><code>[Card: Pedido 4521],</code></td><td>Vincula visualmente o card (destaque laranja)</td></tr>
+        </tbody>
+      </table>
+
+      <p>Exemplo completo: <em>Preciso de ajuda [Maria Silva], sobre prazo do [Card: Pedido 4521], cliente aguardando no WhatsApp.</em></p>
+
+      <div class="alert">
+        <strong>Lembrete:</strong> mensagem no chat interno <strong>não</strong> avisa o cliente no WhatsApp. Se precisar falar com o cliente, volte ao <strong>Chat Omnichannel</strong>.
+      </div>
+
+      <!-- CARDS -->
+      <h2 id="cards">9. Cards e funil (Kanban)</h2>
+      <p>Cada oportunidade, pedido ou demanda importante vira um <strong>card</strong> que você move entre <strong>etapas</strong> (colunas). O card concentra dados do cliente, histórico, anexos, chat interno da equipe e ligação com o WhatsApp.</p>
+
+      <div class="procedure">
+        <p class="procedure-title"><span>8</span> Abrir o funil</p>
+        <ol class="steps">
+          <li>Menu → <strong>Funis</strong> (ou CRM Workspace → Funis).</li>
+          <li>Na lista, clique no funil da sua empresa (ex.: Comercial, Atendimento).</li>
+          <li>Você verá colunas como <strong>PROSPECÇÃO</strong>, <strong>NEGOCIAÇÃO</strong>, <strong>FECHADO</strong> (nomes podem variar).</li>
+          <li>Cada cartão na coluna é um <strong>card</strong>.</li>
+        </ol>
+      </div>
+
+      <figure class="screenshot">
+        <img src="manual/img/06-kanban.png" alt="Kanban" onerror="this.src='manual/img/steps/06-funis.png'" />
+        <figcaption>Funil Kanban — colunas de etapas e cards; arraste entre colunas para avançar o processo</figcaption>
+      </figure>
+
+      <div class="procedure">
+        <p class="procedure-title"><span>9</span> Mover um card de etapa</p>
+        <ol class="steps">
+          <li>Clique e <strong>segure</strong> o card na coluna atual.</li>
+          <li><strong>Arraste</strong> até a coluna da nova etapa.</li>
+          <li>Solte o mouse. O card muda de etapa e o sistema registra na <strong>Timeline</strong>.</li>
+        </ol>
+      </div>
+
+      <div class="alert info">
+        <strong>Abrir o modal do card:</strong> clique no ícone <strong>↔ Transferir para Outro Funil</strong> (setas laranjas) no canto do tile — <em>não</em> basta clicar no título. Também é possível abrir pelo botão <strong>Gestão do Card</strong> no chat interno ou por link com <code>?cardId=</code> compartilhado pela equipe.
+      </div>
+
+      <figure class="screenshot">
+        <img src="manual/img/treinamento/kanban-tile-acoes.png" alt="Ícones do card no Kanban" onerror="this.src='manual/img/06-kanban.png'" />
+        <figcaption>Tile do card — ícones: finalizar (✓), transferir/abrir modal (↔), expandir detalhes (▼)</figcaption>
+      </figure>
+
+      <h3 id="cards-atendimento">9.1 Atendimento — ligar WhatsApp ao card</h3>
+      <p>O card e a conversa de WhatsApp do cliente ficam conectados quando o canal cria lead e card automaticamente (configuração da empresa). Para atender:</p>
+
+      <div class="procedure">
+        <ol class="steps">
+          <li>Atenda o cliente no <strong>Chat Omnichannel</strong> (§7).</li>
+          <li>No funil, localize o card do cliente (filtro <strong>Meus Cards</strong> ou busca).</li>
+          <li>Clique na seta <strong>▼</strong> do tile para <strong>expandir</strong> o card no Kanban.</li>
+          <li>Se houver conversa vinculada, aparece o botão verde <strong>Chat</strong> — clique para abrir a thread do WhatsApp em nova aba.</li>
+          <li>Registre no card o que foi combinado: abra o modal (ícone ↔) → <strong>Editar Card</strong> → campo <strong>Anotações Estratégicas</strong>.</li>
+        </ol>
+      </div>
+
+      <figure class="screenshot">
+        <img src="manual/img/treinamento/card-atendimento-whatsapp.png" alt="Card expandido com link Chat" onerror="this.src='manual/img/06-kanban.png'" />
+        <figcaption>Card expandido no Kanban — botão <strong>Chat</strong> abre a conversa de WhatsApp vinculada</figcaption>
+      </figure>
+
+      <h3 id="cards-encaminhar">9.2 Encaminhar para outro atendente</h3>
+      <p>Quando outro colega deve assumir o caso:</p>
+
+      <div class="procedure">
+        <ol class="steps">
+          <li>Abra o modal do card (ícone ↔ no Kanban).</li>
+          <li>Clique em <strong>Editar Card</strong>.</li>
+          <li>No campo <strong>Responsável</strong>, selecione o colega e clique em <strong>Salvar Alterações</strong>.</li>
+          <li>Na aba <strong>Chat Interno</strong>, escreva o contexto (o que o cliente quer, o que já foi dito, próximo passo).</li>
+          <li>Opcional: clique no ícone de mensagem ao lado do nome do responsável na aba Resumo — abre <strong>chat privado</strong> sobre este card.</li>
+          <li>O novo responsável assume a conversa no WhatsApp quando enviar a primeira mensagem (§7.1).</li>
+        </ol>
+      </div>
+
+      <figure class="screenshot">
+        <img src="manual/img/treinamento/card-encaminhar-responsavel.png" alt="Campo Responsável no card" onerror="this.src='manual/img/06-kanban.png'" />
+        <figcaption>Modal do card — alterar <strong>Responsável</strong> e ícone de chat privado ao lado do nome</figcaption>
+      </figure>
+
+      <h3 id="cards-pipeline">9.3 Enviar card para outro pipeline (funil)</h3>
+      <p>Quando o processo muda de área (ex.: vendas → logística), use a <strong>Transferência Rápida de Funil</strong> dentro do modal:</p>
+
+      <div class="procedure">
+        <ol class="steps">
+          <li>Abra o modal do card (ícone ↔).</li>
+          <li>Na aba <strong>Dados &amp; Resumo</strong>, role até <strong>Transferência Rápida de Funil</strong>.</li>
+          <li>Escolha o <strong>Pipeline Destino</strong> e o <strong>Estágio Inicial</strong>.</li>
+          <li>Clique em <strong>Mover Agora</strong>. O card sai deste funil e aparece no destino; a Timeline registra a migração.</li>
+        </ol>
+      </div>
+
+      <figure class="screenshot">
+        <img src="manual/img/treinamento/card-transferir-funil.png" alt="Transferência Rápida de Funil" onerror="this.src='manual/img/06-kanban.png'" />
+        <figcaption>Transferência Rápida de Funil — pipeline destino, estágio e botão <strong>Mover Agora</strong></figcaption>
+      </figure>
+
+      <h3 id="cards-chat-interno">9.4 Enviar mensagem no chat interno do card</h3>
+      <p>Cada card tem uma thread interna visível só para a equipe:</p>
+
+      <div class="procedure">
+        <ol class="steps">
+          <li>Abra o modal do card (ícone ↔).</li>
+          <li>Clique na aba <strong>Chat Interno</strong> (ponto laranja indica atividade).</li>
+          <li>Digite a nota para a equipe e envie — <strong>não vai para o WhatsApp</strong> do cliente.</li>
+          <li>Use os filtros <strong>Todos</strong> / <strong>Mencionados</strong> para ver só mensagens em que você foi citado.</li>
+          <li>A mesma thread aparece no painel flutuante de chat interno (§8), com etiqueta <strong>Card</strong>.</li>
+        </ol>
+      </div>
+
+      <figure class="screenshot">
+        <img src="manual/img/treinamento/card-chat-interno.png" alt="Aba Chat Interno do card" onerror="this.src='manual/img/09-chat-interno.png'" />
+        <figcaption>Aba <strong>Chat Interno</strong> no modal — filtros Todos / Mencionados</figcaption>
+      </figure>
+
+      <h3 id="cards-mencoes">9.5 Marcar usuário ou card (@ e #)</h3>
+      <p>Dentro do chat interno do card (ou no painel global), use os caracteres especiais:</p>
+      <ul>
+        <li><code>@</code> + nome → autocomplete → vira <code>[Nome do Colega],</code></li>
+        <li><code>#</code> + título → autocomplete → vira <code>[Card: Título],</code></li>
+        <li>Atalhos: <strong>↑ ↓</strong> navegar lista · <strong>Enter</strong> confirmar · <strong>Esc</strong> fechar</li>
+      </ul>
+
+      <figure class="screenshot">
+        <img src="manual/img/treinamento/card-mencao-at.png" alt="Menção no chat do card" onerror="this.src='manual/img/09-chat-interno.png'" />
+        <figcaption>Menção com <code>@</code> no chat do card — colega recebe destaque na thread</figcaption>
+      </figure>
+
+      <h3 id="cards-anexos">9.6 Anexar documentos no card</h3>
+      <div class="procedure">
+        <ol class="steps">
+          <li>Abra o modal → aba <strong>Dados &amp; Resumo</strong>.</li>
+          <li>Localize a seção <strong>Anexos e Documentos</strong>.</li>
+          <li><strong>Clique</strong> na área tracejada ou <strong>arraste</strong> o arquivo (PDF, PNG, JPG, DOC, DOCX, XLS, XLSX).</li>
+          <li>Tamanho máximo: <strong>5 MB</strong> por arquivo.</li>
+          <li>Após o upload, baixe pelo ícone de download ou remova pelo ícone de lixeira (se sua permissão permitir).</li>
+          <li>Cada anexo gera evento na <strong>Timeline</strong> (Anexo / Remoção).</li>
+        </ol>
+      </div>
+
+      <figure class="screenshot">
+        <img src="manual/img/treinamento/card-anexos.png" alt="Anexos no card" onerror="this.src='manual/img/06-kanban.png'" />
+        <figcaption>Seção <strong>Anexos e Documentos</strong> — arrastar arquivos ou clicar para selecionar</figcaption>
+      </figure>
+
+      <figure class="screenshot">
+        <img src="manual/img/treinamento/card-modal-resumo.png" alt="Modal Gestão de Lead" onerror="this.src='manual/img/06-kanban.png'" />
+        <figcaption>Modal <strong>Gestão de Lead</strong> — abas Dados &amp; Resumo, Chat Interno e Timeline à direita</figcaption>
+      </figure>
+
+      <h3>Outras ações no card</h3>
+      <table>
+        <thead><tr><th>Ação</th><th>Onde</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Editar dados</strong></td><td>Modal → <strong>Editar Card</strong> → Salvar</td></tr>
+          <tr><td><strong>Finalizar / Reabrir</strong></td><td>Ícone ✓ no tile do Kanban (verde quando finalizado)</td></tr>
+          <tr><td><strong>Ver histórico</strong></td><td>Coluna <strong>Timeline</strong> no modal (movimentos, edições, anexos)</td></tr>
+          <tr><td><strong>Criar card novo</strong></td><td>Botão <strong>Novo Card</strong> no funil (se permissão <code>cards.create</code>)</td></tr>
+        </tbody>
+      </table>
+
+      <div class="alert ok">
+        <strong>WhatsApp e card juntos:</strong> na primeira mensagem do cliente, o sistema pode criar lead e card automaticamente. Você <strong>complementa</strong> o card — não precisa recadastrar tudo manualmente.
+      </div>
+
+      <h3 id="cards-filtros">9.7 Filtros útiles no funil</h3>
+      <p>No topo do funil:</p>
+      <table>
+        <thead><tr><th>Filtro</th><th>Função</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Meus Cards</strong></td><td>Mostra só cards onde você é responsável</td></tr>
+          <tr><td><strong>Exibir Finalizados</strong></td><td>Inclui cards já encerrados</td></tr>
+          <tr><td><strong>Prazo / Entrou no Estágio</strong></td><td>Filtra por datas</td></tr>
+          <tr><td><strong>Filtros Ativos</strong></td><td>Indica que algum filtro está ligado</td></tr>
+        </tbody>
+      </table>
+
+      <!-- FLUXO -->
+      <h2 id="fluxo">10. Fluxo do dia a dia (visão completa)</h2>
+      <p>Use este fluxo como referência sempre que não souber o próximo passo:</p>
+      <div class="flow-box">Cliente envia WhatsApp
+    ↓
+Conversa aparece no Chat Omnichannel
+    ↓
+Você lê o histórico e assume (Gestão Humana)
+    ↓
+Responde ao cliente pelo chat
+    ↓
+Abre o card relacionado no funil
+    ↓
+Atualiza dados, observações e anexos
+    ↓
+Se precisar de ajuda → chat interno (@ colega ou aba do card)
+    ↓
+Move card para etapa correta
+    ↓
+Finaliza card quando concluir</div>
+
+      <ul class="checklist">
+        <li>Troquei a senha padrão no primeiro acesso</li>
+        <li>Li o histórico antes de responder no WhatsApp</li>
+        <li>Assumi a conversa (Gestão Humana) quando fui atender</li>
+        <li>Atualizei o card relacionado</li>
+        <li>Usei chat interno para dúvidas com a equipe</li>
+        <li>Salvei anexos importantes no card</li>
+        <li>Card na etapa certa ou finalizado</li>
+      </ul>
+
+      <!-- CENÁRIOS -->
+      <h2 id="cenarios">11. Cenários práticos</h2>
+
+      <div class="scenario">
+        <h4>Cenário A — Cliente pergunta prazo de entrega no WhatsApp</h4>
+        <ol>
+          <li>Abra a conversa no <strong>Chat Omnichannel</strong>.</li>
+          <li>Assuma e responda: <em>Vou confirmar e já retorno.</em></li>
+          <li>Abra o <strong>card</strong> do cliente no funil.</li>
+          <li>No <strong>chat interno do card</strong>, escreva: <em>@Logística, qual prazo do [Card: …]?</em></li>
+          <li>Quando souber a resposta, volte ao WhatsApp e informe o cliente.</li>
+          <li>Registre a resposta nas <strong>observações</strong> do card.</li>
+        </ol>
+      </div>
+
+      <div class="scenario">
+        <h4>Cenário B — Lead novo que a IA já atendeu</h4>
+        <ol>
+          <li>Veja conversa em <strong>Atendimento Robotizado</strong>.</li>
+          <li>Leia o que a IA respondeu — mantenha consistência.</li>
+          <li>Assuma com mensagem personalizada (nome do cliente, próximo passo claro).</li>
+          <li>Verifique se já existe <strong>card</strong>; se sim, atualize responsável para você.</li>
+          <li>Agende follow-up movendo o card e anotando data nas observações.</li>
+        </ol>
+      </div>
+
+      <div class="scenario">
+        <h4>Cenário C — Passar caso para outro colega</h4>
+        <ol>
+          <li>No card, altere o campo <strong>Responsável</strong> para o colega.</li>
+          <li>No <strong>chat interno do card</strong>, explique o contexto: o que o cliente quer, o que já foi dito.</li>
+          <li>Se necessário, avise o colega com <code>@</code> no chat interno.</li>
+          <li>A conversa no WhatsApp pode continuar com o novo responsável quando ele assumir.</li>
+        </ol>
+      </div>
+
+      <!-- PROBLEMAS -->
+      <h2 id="problemas">12. Problemas comuns</h2>
+      <table>
+        <thead><tr><th>Problema</th><th>Solução</th></tr></thead>
+        <tbody>
+          <tr><td>Esqueci minha senha</td><td>Peça ao gestor ou RN3 redefinir em Usuários → Editar. Não há link “esqueci senha” no login.</td></tr>
+          <tr><td>Não acho uma conversa no WhatsApp</td><td>Busque por telefone/nome. Pode estar atribuída a outro operador — fale com o gestor.</td></tr>
+          <tr><td>IA ainda responde depois que assumi</td><td>Confirme se o status é <strong>Gestão Humana</strong>. Se persistir, avise o gestor/RN3.</td></tr>
+          <tr><td>Cliente não recebeu minha mensagem</td><td>Verifique conexão do canal (gestor). Veja se aparece “Enviando…” ou erro na thread.</td></tr>
+          <tr><td>Não consigo mover card</td><td>Seu grupo pode não ter permissão <code>cards.move</code>. Peça ao gestor.</td></tr>
+          <tr><td>Não vejo botão Novo Card</td><td>Permissão <code>cards.create</code> ausente — peça ao gestor.</td></tr>
+          <tr><td>Anexo não sobe</td><td>Arquivo maior que 5 MB ou formato bloqueado. Reduza ou converta o arquivo.</td></tr>
+          <tr><td>Chat interno — colega não respondeu</td><td>Use <code>@</code> com o nome. Em urgência, ligue ou fale pelo canal oficial da empresa.</td></tr>
+          <tr><td>Tela “Acesso Restrito”</td><td>Sem permissão para aquela função. Gestor ajusta Grupos de Acesso.</td></tr>
+          <tr><td>Empresa suspensa / Acesso suspenso</td><td>Contacte RN3 ou gestor administrativo.</td></tr>
+        </tbody>
+      </table>
+
+      <p>Para mais detalhes, use o manual completo: ícone <strong>?</strong> no Cockpit ou peça ajuda ao suporte.</p>
+
+      <!-- GLOSSÁRIO -->
+      <h2 id="glossario">13. Glossário</h2>
+      <table>
+        <thead><tr><th>Termo</th><th>Definição</th></tr></thead>
+        <tbody>
+          <tr><td>Cockpit</td><td>Painel principal após login</td></tr>
+          <tr><td>CRM Workspace</td><td>Hub com atalhos para módulos de CRM</td></tr>
+          <tr><td>Omnichannel</td><td>Vários canais (WhatsApp, etc.) no mesmo chat</td></tr>
+          <tr><td>Takeover</td><td>Operador assume conversa da IA ao responder</td></tr>
+          <tr><td>Pipeline / Funil</td><td>Sequência de etapas comerciais ou operacionais</td></tr>
+          <tr><td>Estágio / Coluna</td><td>Etapa do funil onde o card está</td></tr>
+          <tr><td>Timeline</td><td>Histórico de eventos do card</td></tr>
+          <tr><td>DM</td><td>Mensagem direta entre dois usuários no chat interno</td></tr>
+          <tr><td>Grupo de acesso</td><td>Conjunto de permissões do seu usuário</td></tr>
+        </tbody>
+      </table>
+
+      <!-- AULA 90 -->
+      <h2 id="aula-90">Apêndice A — Roteiro da aula online (1h30)</h2>
+      <p>Se você está participando do treinamento ao vivo, o instrutor seguirá este cronograma. Use as seções acima como material de apoio durante a aula.</p>
+      <table>
+        <thead><tr><th>Horário</th><th>Tópico</th><th>Seção do guia</th></tr></thead>
+        <tbody>
+          <tr><td>0:00 – 0:05</td><td>Apresentação e login</td><td>§4, §6</td></tr>
+          <tr><td>0:05 – 0:15</td><td>Trocar senha padrão (todos)</td><td>§5</td></tr>
+          <tr><td>0:15 – 0:45</td><td>Chat WhatsApp: abrir, assumir, responder</td><td>§7</td></tr>
+          <tr><td>0:45 – 1:05</td><td>Chat interno: badge, card, menções</td><td>§8</td></tr>
+          <tr><td>1:05 – 1:25</td><td>Cards: atendimento, encaminhar, pipeline, anexos</td><td>§9</td></tr>
+          <tr><td>1:25 – 1:30</td><td>Fluxo integrado e dúvidas</td><td>§10, §12</td></tr>
+        </tbody>
+      </table>
+
+      <h2 id="checklist">Apêndice B — Checklist do operador</h2>
+      <p>Imprima ou salve este checklist. Marque mentalmente a cada atendimento:</p>
+      <ul class="checklist">
+        <li>Senha pessoal definida (não uso mais a padrão)</li>
+        <li>Li o histórico completo da conversa</li>
+        <li>Status Gestão Humana quando estou atendendo</li>
+        <li>Card atualizado (dados + observações)</li>
+        <li>Chat interno usado para dúvidas com a equipe</li>
+        <li>Anexos salvos no card quando relevante</li>
+        <li>Card na etapa correta ou finalizado</li>
+        <li>Logout ao sair (<strong>Encerrar Sessão</strong>)</li>
+      </ul>
+
+      <div class="alert ok">
+        <strong>Consulta futura:</strong> guarde o link ou favorito deste material. Em dúvida, busque no índice à esquerda o tema (senha, WhatsApp, chat interno, cards) e siga o passo a passo numerado.
+      </div>
+
+      <footer>
+        Hugin Flow — Guia do Operador · RN3 Soluções Digitais<br />
+        Arquivo: <code>docs/treinamento-operadores.html</code> · Consulta permanente pós-treinamento<br />
+        Suporte operacional: gestor da empresa · Suporte plataforma: RN3
+      </footer>
+    </main>
+  </div>
+</body>
+</html>

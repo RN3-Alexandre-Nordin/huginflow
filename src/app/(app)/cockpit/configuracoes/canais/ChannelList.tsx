@@ -26,7 +26,7 @@ export default function ChannelList({ initialChannels, empresaId }: { initialCha
     <div className="space-y-8 animate-in fade-in duration-1000">
       {/* Action Bar */}
       <div className="flex items-center justify-between">
-        <h3 className="text-xl font-bold text-white/90 tracking-tight uppercase italic italic-ragnar flex items-center gap-2">
+        <h3 className="text-xl font-bold text-white/90 tracking-tight uppercase italic italic-brand flex items-center gap-2">
           Suas Conexões Ativas
         </h3>
         <button

@@ -46,6 +46,8 @@ Variáveis opcionais:
 MANUAL_EMAIL=gestor@empresa.com MANUAL_PASSWORD='...' npm run manual:capture
 ```
 
+Por padrão o script usa `vendedor@montesinaiatacado.com.br` no dev local (`localhost:3000`) para gerar prints com logo **Hugin Flow** atualizado.
+
 ## Vídeos tutoriais (alternativas)
 
 | Ferramenta | Quando usar |

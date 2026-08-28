@@ -18,8 +18,8 @@ const root = resolve(__dirname, '../..')
 const envLocal = resolve(root, '.env.local')
 
 const EMPRESA_ID = '645679bd-3f41-4f7d-ba10-98d97cab2a46'
-const GESTOR_EMAIL = 'golive-gestor-510160@teste.ragnar.dev'
-const PASSWORD = 'RagnarDevTest1!'
+const GESTOR_EMAIL = 'golive-gestor-510160@teste.huginflow.com'
+const PASSWORD = 'HuginDevTest1!'
 const KNOWLEDGE_BUCKET = 'knowledge_documents'
 const EMBEDDING_MODEL = 'text-embedding-3-large'
 
@@ -142,7 +142,7 @@ async function main() {
   if (loginErr) throw new Error(`Login: ${loginErr.message}`)
 
   const suffix = Date.now().toString().slice(-6)
-  const pdfText = `Ragnar conhecimento teste go live bloco sete ${suffix} conteudo suficiente para vetorizacao.`
+  const pdfText = `Hugin Flow conhecimento teste go live bloco sete ${suffix} conteudo suficiente para vetorizacao.`
   const pdfBuffer = buildMinimalPdf(pdfText)
   let extracted = pdfText
   try {

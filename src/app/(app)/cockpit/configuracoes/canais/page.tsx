@@ -34,7 +34,7 @@ export default async function ChannelsPage() {
             <Share2 className="w-7 h-7 text-orange-500" />
           </div>
           <div>
-            <h2 className="text-3xl font-black text-white tracking-tighter uppercase italic italic-ragnar">
+            <h2 className="text-3xl font-black text-white tracking-tighter uppercase italic italic-brand">
               Canais Omnichannel
             </h2>
             <p className="text-gray-500 text-sm font-medium mt-1">

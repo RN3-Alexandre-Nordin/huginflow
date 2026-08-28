@@ -69,8 +69,8 @@ async function main() {
 
   // 9.1 — criar instância Evolution + QR
   const webhookUrl =
-    env.RAGNAR_WEBHOOK_URL_DEV ||
-    'https://ragnar-local.rn3.tec.br/api/webhooks/evolution'
+    env.HUGINFLOW_WEBHOOK_URL_DEV ||
+    'https://huginflow-local.rn3.tec.br/api/webhooks/evolution'
 
   const createRes = await fetch(`${evoUrl}/instance/create`, {
     method: 'POST',

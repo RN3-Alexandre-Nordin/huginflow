@@ -196,7 +196,7 @@ export default function ConnectionWizard({ onClose, onCreated, empresaId }: Conn
                   <Zap className="w-3 h-3 text-[#2BAADF]" />
                   <span className="text-[10px] font-black text-[#2BAADF] uppercase tracking-[0.2em]">Ponto de Contato</span>
                 </div>
-                <h3 className="text-3xl font-black text-white tracking-tighter uppercase italic italic-ragnar">Nova Conexão</h3>
+                <h3 className="text-3xl font-black text-white tracking-tighter uppercase italic italic-brand">Nova Conexão</h3>
                 <p className="text-gray-500 text-sm font-medium tracking-tight">O que você deseja conectar hoje ao HuginFlow CRM?</p>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -235,7 +235,7 @@ export default function ConnectionWizard({ onClose, onCreated, empresaId }: Conn
                   <ChevronRight className="w-5 h-5 rotate-180" />
                 </button>
                 <div className="space-y-1">
-                  <h3 className="text-2xl font-black text-white tracking-tighter uppercase italic italic-ragnar">Escolha o Provedor</h3>
+                  <h3 className="text-2xl font-black text-white tracking-tighter uppercase italic italic-brand">Escolha o Provedor</h3>
                   <p className="text-xs text-gray-500 font-medium tracking-tight">Selecione o motor de infraestrutura para {selectedCategory?.name}.</p>
                 </div>
               </div>
@@ -269,7 +269,7 @@ export default function ConnectionWizard({ onClose, onCreated, empresaId }: Conn
                   <ChevronRight className="w-5 h-5 rotate-180" />
                 </button>
                 <div className="space-y-1">
-                  <h3 className="text-2xl font-black text-white tracking-tighter uppercase italic italic-ragnar">Finalizar Setup</h3>
+                  <h3 className="text-2xl font-black text-white tracking-tighter uppercase italic italic-brand">Finalizar Setup</h3>
                   <p className="text-xs text-gray-500 font-medium">Configure como este canal aparecerá no HuginFlow.</p>
                 </div>
               </div>
@@ -313,7 +313,7 @@ export default function ConnectionWizard({ onClose, onCreated, empresaId }: Conn
           {step === 3 && (
             <div className="space-y-8 animate-in fade-in zoom-in-95 duration-1000 text-center">
               <div className="space-y-2">
-                <h3 className="text-3xl font-black text-white tracking-tighter uppercase italic italic-ragnar">Escaneie o QR Code</h3>
+                <h3 className="text-3xl font-black text-white tracking-tighter uppercase italic italic-brand">Escaneie o QR Code</h3>
                 <p className="text-gray-500 text-sm font-medium">Use seu WhatsApp para autorizar este ponto de contato.</p>
               </div>
               <div className="bg-white p-6 rounded-[32px] mx-auto inline-block border-8 border-white/5 shadow-[0_0_50px_-10px_rgba(255,255,255,0.05)] min-h-[232px] min-w-[232px] flex items-center justify-center">
@@ -361,7 +361,7 @@ export default function ConnectionWizard({ onClose, onCreated, empresaId }: Conn
                   <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-green-500 border-2 border-[#0C0C0C] animate-pulse" />
                 </div>
                 <div className="space-y-2">
-                  <h3 className="text-3xl font-black text-white tracking-tighter uppercase italic italic-ragnar">Canal Ativo!</h3>
+                  <h3 className="text-3xl font-black text-white tracking-tighter uppercase italic italic-brand">Canal Ativo!</h3>
                   <p className="text-gray-400 text-sm font-medium max-w-xs mx-auto leading-relaxed">
                     O canal <span className="text-white font-bold">&quot;{nome}&quot;</span> está ativo e pronto para receber leads.
                   </p>
@@ -391,7 +391,7 @@ export default function ConnectionWizard({ onClose, onCreated, empresaId }: Conn
                   <ChevronRight className="w-5 h-5 rotate-180" />
                 </button>
                 <div className="space-y-1">
-                  <h3 className="text-2xl font-black text-orange-500 tracking-tighter uppercase italic italic-ragnar">Configurar Destino</h3>
+                  <h3 className="text-2xl font-black text-orange-500 tracking-tighter uppercase italic italic-brand">Configurar Destino</h3>
                   <p className="text-xs text-gray-500 font-medium">Defina onde os leads desta Landing Page cairão no Kanban.</p>
                 </div>
               </div>

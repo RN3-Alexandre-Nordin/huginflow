@@ -1,7 +1,7 @@
 # Roadmap de testes — Go-live do primeiro cliente
 
 **Go-live:** sábado  
-**Ambiente principal de validação E2E:** produção (`https://app.ragnar.ia.br`)
+**Ambiente principal de validação E2E:** produção (`https://app.huginflow.com`)
 
 ## Objetivo
 

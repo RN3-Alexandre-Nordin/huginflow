@@ -12,17 +12,6 @@
   --brand-gray-light: #6B7280;
   --brand-green: #80B828;
 
-  /* Compat: nomes antigos apontam para brand (remover em P4+) */
-  --ragnar-blue: var(--brand-blue);
-  --ragnar-blue-dark: var(--brand-blue-dark);
-  --ragnar-blue-light: var(--brand-blue-light);
-  --ragnar-black: var(--brand-black);
-  --ragnar-dark: var(--brand-dark);
-  --ragnar-gray: var(--brand-gray);
-  --ragnar-gray-mid: var(--brand-gray-mid);
-  --ragnar-gray-light: var(--brand-gray-light);
-  --ragnar-green: var(--brand-green);
-
   --huginflow-blue: var(--brand-blue);
   --huginflow-blue-dark: var(--brand-blue-dark);
   --huginflow-blue-light: var(--brand-blue-light);

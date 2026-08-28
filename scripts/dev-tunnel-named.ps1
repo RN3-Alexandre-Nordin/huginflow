@@ -1,4 +1,4 @@
-# Tunel Cloudflare NOMEADO (URL fixa: ragnar-local.rn3.tec.br).
+# Tunel Cloudflare NOMEADO (URL fixa: huginflow-local.rn3.tec.br).
 # Requer setup: npm run tunnel:setup
 # Uso: npm run tunnel:fixed
 
@@ -38,8 +38,8 @@ if ((Get-Content $config -Raw) -match "COLE-O-UUID") {
 
 Write-Host ""
 Write-Host "Tunel fixo HuginFlow (infra rn3) -> http://localhost:3000" -ForegroundColor Green
-Write-Host "URL publica: https://ragnar-local.rn3.tec.br" -ForegroundColor Green
-Write-Host "Webhook: https://ragnar-local.rn3.tec.br/api/webhooks/evolution" -ForegroundColor Cyan
+Write-Host "URL publica: https://huginflow-local.rn3.tec.br" -ForegroundColor Green
+Write-Host "Webhook: https://huginflow-local.rn3.tec.br/api/webhooks/evolution" -ForegroundColor Cyan
 Write-Host "Configure HUGINFLOW_WEBHOOK_URL_DEV com a URL acima." -ForegroundColor DarkGray
 Write-Host "Ctrl+C para encerrar." -ForegroundColor DarkGray
 Write-Host ""

@@ -177,7 +177,7 @@ async function main() {
   if (loginErr) throw new Error(`Login: ${loginErr.message}`)
 
   const suffix = Date.now().toString().slice(-6)
-  const pdfText = `Ragnar conhecimento teste go live bloco sete prod ${suffix} conteudo suficiente para vetorizacao.`
+  const pdfText = `Hugin Flow conhecimento teste go live bloco sete prod ${suffix} conteudo suficiente para vetorizacao.`
   const pdfBuffer = buildMinimalPdf(pdfText)
   let extracted = pdfText
   try {

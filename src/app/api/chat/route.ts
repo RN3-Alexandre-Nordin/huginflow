@@ -63,7 +63,7 @@ export async function POST(req: Request) {
       .replace(/%22/g, '"')
       .trim()
 
-    const ragnarInstructions = `
+    const platformInstructions = `
       --- INSTRUÇÕES CRÍTICAS DE PRIORIDADE (RAG) ---
       1. VOCÊ DEVE CONSULTAR OS "DADOS DA BASE DE CONHECIMENTO" ABAIXO PARA QUALQUER PERGUNTA SOBRE PRODUTOS, PREÇOS, REGRAS OU FAQ.
       2. ESTA BASE É A ÚNICA FONTE DE VERDADE. SE A RESPOSTA ESTIVER LÁ, USE-A EXCLUSIVAMENTE.
@@ -80,7 +80,7 @@ export async function POST(req: Request) {
       - Baseie o status no progresso desta conversa específica.
     `
 
-    const fullPrompt = `${ragnarInstructions}\n\nPergunta do Cliente: ${prompt.trim()}`
+    const fullPrompt = `${platformInstructions}\n\nPergunta do Cliente: ${prompt.trim()}`
     const text = await generateText(fullPrompt, aiConfig)
 
     const statusMatch = text.match(/\[STATUS_CRM:\s*(.*?)\]/i)

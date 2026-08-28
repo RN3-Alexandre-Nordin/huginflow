@@ -13,9 +13,9 @@ const root = resolve(__dirname, '../..')
 const envLocal = resolve(root, '.env.local')
 
 const EMPRESA_ID = '645679bd-3f41-4f7d-ba10-98d97cab2a46'
-const GESTOR_EMAIL = 'golive-gestor-510160@teste.ragnar.dev'
-const OPERADOR_EMAIL = 'golive-operador-510160@teste.ragnar.dev'
-const PASSWORD = 'RagnarDevTest1!'
+const GESTOR_EMAIL = 'golive-gestor-510160@teste.huginflow.com'
+const OPERADOR_EMAIL = 'golive-operador-510160@teste.huginflow.com'
+const PASSWORD = 'HuginDevTest1!'
 const OUTRA_EMPRESA_ID = '415854c0-84a4-489f-a357-2cc0142b6b65'
 
 function loadEnvLocal() {

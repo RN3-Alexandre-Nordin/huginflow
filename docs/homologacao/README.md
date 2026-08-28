@@ -1,6 +1,6 @@
 # Homologação de versão — HuginFlow
 
-Processo reutilizável para validar cada deploy em **produção** (`https://app.ragnar.ia.br`) antes de liberar clientes.
+Processo reutilizável para validar cada deploy em **produção** (`https://app.huginflow.com`) antes de liberar clientes.
 
 ## Quando usar
 
@@ -43,7 +43,7 @@ node scripts/supabase/block2-test-auth-prod.mjs
 
 - `.env.production` com Supabase service role, Evolution prod, `OPENAI_API_KEY`
 - Node 20+
-- Rede até `app.ragnar.ia.br` e `evo.rn3.tec.br`
+- Rede até `app.huginflow.com` e `evo.rn3.tec.br`
 
 ## Histórico go-live NASU (2026-07-02)
 

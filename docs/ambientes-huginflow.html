@@ -161,11 +161,11 @@
       <h1>HuginFlow — Configuração de Ambientes</h1>
       <p class="subtitle">Referência operacional: desenvolvimento local vs produção (VPS). Documento base para a documentação final do projeto.</p>
       <p class="meta">Repositório: <code>RN3-Alexandre-Nordin/huginflow</code> · Versão do doc: ago/2026 · Não commitar segredos neste arquivo.</p>
-      <p class="meta"><strong>Nota:</strong> nomes de domínio, projeto Supabase, paths VPS e imagens GHCR ainda podem aparecer como <code>ragnar*</code> até o cutover (fase P6). O produto é <strong>HuginFlow</strong>.</p>
+      <p class="meta"><strong>Produto:</strong> HuginFlow · <strong>App produção:</strong> <code>app.huginflow.com</code></p>
     </header>
 
     <div class="alert">
-      <strong>Regra de ouro:</strong> nunca misturar credenciais entre ambientes. Dev usa Supabase <code>ragnar-dev</code> + Evolution <code>evo-dev</code>. Produção usa Supabase prod + Evolution prod + domínio <code>app.ragnar.ia.br</code>.
+      <strong>Regra de ouro:</strong> nunca misturar credenciais entre ambientes. Dev usa Supabase <code>huginflow-dev</code> + Evolution <code>evo-dev</code>. Produção usa Supabase prod + Evolution prod + domínio <code>app.huginflow.com</code>.
     </div>
 
     <h2>1. Visão geral</h2>
@@ -174,7 +174,7 @@
         <span class="badge badge-dev">Desenvolvimento</span>
         <h3>Onde roda</h3>
         <p>PC local — <code>npm run dev</code></p>
-        <p><strong>RAGNAR_ENV:</strong> <code>development</code></p>
+        <p><strong>HUGINFLOW_ENV:</strong> <code>development</code></p>
         <p><strong>Arquivo de env:</strong> <code>.env.local</code> (gitignore)</p>
         <p><strong>Branch Git:</strong> <code>develop</code></p>
       </div>
@@ -182,8 +182,8 @@
         <span class="badge badge-prod">Produção</span>
         <h3>Onde roda</h3>
         <p>VPS — Docker Compose + Traefik</p>
-        <p><strong>RAGNAR_ENV:</strong> <code>production</code></p>
-        <p><strong>Arquivo de env:</strong> <code>/opt/ragnar/.env</code></p>
+        <p><strong>HUGINFLOW_ENV:</strong> <code>production</code></p>
+        <p><strong>Arquivo de env:</strong> <code>/opt/huginflow/.env</code></p>
         <p><strong>Branch Git:</strong> <code>main</code> (CI/CD deploy)</p>
       </div>
     </div>
@@ -214,17 +214,17 @@
         <tr>
           <td><strong>App HuginFlow (UI)</strong></td>
           <td><code>http://localhost:3000</code></td>
-          <td><code>https://app.ragnar.ia.br</code></td>
+          <td><code>https://app.huginflow.com</code></td>
         </tr>
         <tr>
           <td><strong>Webhook Evolution → HuginFlow</strong></td>
-          <td><code>https://ragnar-local.rn3.tec.br/api/webhooks/evolution</code><br><small>Túnel Cloudflare fixo (ver §6)</small></td>
-          <td><code>https://app.ragnar.ia.br/api/webhooks/evolution</code></td>
+          <td><code>https://huginflow-local.rn3.tec.br/api/webhooks/evolution</code><br><small>Túnel Cloudflare fixo (ver §6)</small></td>
+          <td><code>https://app.huginflow.com/api/webhooks/evolution</code></td>
         </tr>
         <tr>
           <td><strong>Health check omnichannel</strong></td>
           <td><code>http://localhost:3000/api/health/omnichannel</code></td>
-          <td><code>https://app.ragnar.ia.br/api/health/omnichannel</code></td>
+          <td><code>https://app.huginflow.com/api/health/omnichannel</code></td>
         </tr>
         <tr>
           <td><strong>Evolution API</strong></td>
@@ -239,7 +239,7 @@
         <tr>
           <td><strong>Traefik Host rule</strong></td>
           <td>— (local)</td>
-          <td><code>Host(`app.ragnar.ia.br`)</code></td>
+          <td><code>Host(`app.huginflow.com`)</code></td>
         </tr>
       </tbody>
     </table>
@@ -256,8 +256,8 @@
       <tbody>
         <tr>
           <td><strong>Projeto</strong></td>
-          <td>ragnar-dev</td>
-          <td>ragnar-prod (atual)</td>
+          <td>huginflow-dev</td>
+          <td>huginflow-prod (atual)</td>
         </tr>
         <tr>
           <td><strong>Project ref</strong></td>
@@ -277,7 +277,7 @@
         <tr>
           <td><strong>Arquivo local</strong></td>
           <td><code>.env.local</code></td>
-          <td><code>/opt/ragnar/.env</code> + secrets GitHub Actions (build)</td>
+          <td><code>/opt/huginflow/.env</code> + secrets GitHub Actions (build)</td>
         </tr>
         <tr>
           <td><strong>Realtime omnichannel</strong></td>
@@ -302,12 +302,12 @@
 
     <h3>Desenvolvimento — <code>.env.local</code></h3>
     <p>Template: <code>env.local.example</code></p>
-    <pre><code>RAGNAR_ENV=development
+    <pre><code>HUGINFLOW_ENV=development
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 
 WHATSAPP_API_URL_DEV=https://evo-dev.rn3.tec.br
 WHATSAPP_API_TOKEN_DEV=&lt;token evo-dev&gt;
-RAGNAR_WEBHOOK_URL_DEV=https://ragnar-local.rn3.tec.br/api/webhooks/evolution
+HUGINFLOW_WEBHOOK_URL_DEV=https://huginflow-local.rn3.tec.br/api/webhooks/evolution
 
 NEXT_PUBLIC_SUPABASE_URL=https://vujqukqsfwmoezwyuoum.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=&lt;anon dev&gt;
@@ -315,11 +315,11 @@ SUPABASE_SERVICE_ROLE_KEY=&lt;service_role dev&gt;
 
 GEMINI_API_KEY=&lt;chave&gt;</code></pre>
 
-    <h3>Produção — <code>/opt/ragnar/.env</code></h3>
+    <h3>Produção — <code>/opt/huginflow/.env</code></h3>
     <p>Template: <code>env.production.example</code></p>
     <pre><code>NODE_ENV=production
-RAGNAR_ENV=production
-NEXT_PUBLIC_APP_URL=https://app.ragnar.ia.br
+HUGINFLOW_ENV=production
+NEXT_PUBLIC_APP_URL=https://app.huginflow.com
 
 NEXT_PUBLIC_SUPABASE_URL=https://zmypzexefjbovuknjlid.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=&lt;anon prod&gt;
@@ -327,7 +327,7 @@ SUPABASE_SERVICE_ROLE_KEY=&lt;service_role prod&gt;
 
 WHATSAPP_API_URL_PROD=https://evo.rn3.tec.br
 WHATSAPP_API_TOKEN_PROD=&lt;token evo prod&gt;
-RAGNAR_WEBHOOK_URL_PROD=https://app.ragnar.ia.br/api/webhooks/evolution
+HUGINFLOW_WEBHOOK_URL_PROD=https://app.huginflow.com/api/webhooks/evolution
 
 GEMINI_API_KEY=&lt;chave&gt;
 NEXT_PUBLIC_LANDING_PAGE_TOKEN=&lt;token&gt;</code></pre>
@@ -335,9 +335,9 @@ NEXT_PUBLIC_LANDING_PAGE_TOKEN=&lt;token&gt;</code></pre>
     <h3>Prioridade de leitura (código)</h3>
     <p>Arquivo: <code>src/lib/config/environment.ts</code></p>
     <ul>
-      <li><code>RAGNAR_ENV</code> explícito vence sobre <code>NODE_ENV</code></li>
+      <li><code>HUGINFLOW_ENV</code> explícito vence sobre <code>NODE_ENV</code></li>
       <li>Em dev, <code>buildEvolutionProviderConfig</code> força credenciais <code>*_DEV</code> do env (não usa token clonado do canal no DB)</li>
-      <li>Sufixos: <code>WHATSAPP_API_URL_DEV|PROD</code>, <code>WHATSAPP_API_TOKEN_DEV|PROD</code>, <code>RAGNAR_WEBHOOK_URL_DEV|PROD</code></li>
+      <li>Sufixos: <code>WHATSAPP_API_URL_DEV|PROD</code>, <code>WHATSAPP_API_TOKEN_DEV|PROD</code>, <code>HUGINFLOW_WEBHOOK_URL_DEV|PROD</code></li>
     </ul>
 
     <h2>5. VPS e infraestrutura</h2>
@@ -348,12 +348,12 @@ NEXT_PUBLIC_LANDING_PAGE_TOKEN=&lt;token&gt;</code></pre>
         <tr><th>Item</th><th>Valor / ação</th></tr>
       </thead>
       <tbody>
-        <tr><td>Diretório deploy</td><td><code>/opt/ragnar</code></td></tr>
+        <tr><td>Diretório deploy</td><td><code>/opt/huginflow</code></td></tr>
         <tr><td>Compose</td><td><code>docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d</code></td></tr>
         <tr><td>Rede Docker</td><td><code>rn3net</code> (externa)</td></tr>
         <tr><td>Proxy / TLS</td><td>Traefik — Let's Encrypt (<code>letsencryptresolver</code>)</td></tr>
         <tr><td>Porta interna app</td><td><code>3000</code></td></tr>
-        <tr><td>DNS</td><td><code>app.ragnar.ia.br</code> → IP da VPS prod</td></tr>
+        <tr><td>DNS</td><td><code>app.huginflow.com</code> → IP da VPS prod</td></tr>
       </tbody>
     </table>
 
@@ -371,7 +371,7 @@ NEXT_PUBLIC_LANDING_PAGE_TOKEN=&lt;token&gt;</code></pre>
         <tr>
           <td>Prod</td>
           <td><code>https://evo.rn3.tec.br</code></td>
-          <td><code>https://app.ragnar.ia.br/api/webhooks/evolution</code></td>
+          <td><code>https://app.huginflow.com/api/webhooks/evolution</code></td>
         </tr>
       </tbody>
     </table>
@@ -389,7 +389,7 @@ NEXT_PUBLIC_LANDING_PAGE_TOKEN=&lt;token&gt;</code></pre>
         <tr><td><code>npm run tunnel</code></td><td>Túnel temporário (trycloudflare)</td></tr>
       </tbody>
     </table>
-    <p>Hostname fixo documentado: <code>ragnar-local.rn3.tec.br</code> → apontar em <code>RAGNAR_WEBHOOK_URL_DEV</code>.</p>
+    <p>Hostname fixo documentado: <code>huginflow-local.rn3.tec.br</code> → apontar em <code>HUGINFLOW_WEBHOOK_URL_DEV</code>.</p>
     <p>Config exemplo: <code>cloudflared/config.example.yml</code> (credenciais em <code>cloudflared/config.yml</code>, gitignore).</p>
 
     <h2>7. GitHub Actions (CI/CD)</h2>
@@ -403,13 +403,13 @@ NEXT_PUBLIC_LANDING_PAGE_TOKEN=&lt;token&gt;</code></pre>
           <td><code>main</code></td>
           <td><code>:latest</code></td>
           <td>Sim → VPS prod</td>
-          <td><code>https://app.ragnar.ia.br</code></td>
+          <td><code>https://app.huginflow.com</code></td>
         </tr>
         <tr>
           <td><code>develop</code></td>
           <td><code>:dev</code></td>
           <td>Não</td>
-          <td><code>https://dev-ragnar.rn3.tec.br</code> (legado build)</td>
+          <td><code>https://dev-huginflow.rn3.tec.br</code> (legado build)</td>
         </tr>
       </tbody>
     </table>
@@ -426,7 +426,7 @@ NEXT_PUBLIC_LANDING_PAGE_TOKEN=&lt;token&gt;</code></pre>
         <tr><td><code>NEXT_PUBLIC_LANDING_PAGE_TOKEN</code></td><td>Build landing</td></tr>
         <tr><td><code>VPS_HOST</code></td><td>IP/hostname VPS prod</td></tr>
         <tr><td><code>VPS_USER</code></td><td>Usuário SSH</td></tr>
-        <tr><td><code>VPS_SSH_KEY</code></td><td>Chave privada OpenSSH (recomendado: <code>ragnar_deploy</code> sem passphrase)</td></tr>
+        <tr><td><code>VPS_SSH_KEY</code></td><td>Chave privada OpenSSH (recomendado: <code>huginflow_deploy</code> sem passphrase)</td></tr>
         <tr><td><code>VPS_SSH_PASSPHRASE</code></td><td>Opcional — só se a chave tiver senha</td></tr>
       </tbody>
     </table>
@@ -436,9 +436,9 @@ NEXT_PUBLIC_LANDING_PAGE_TOKEN=&lt;token&gt;</code></pre>
 
     <h3>Desenvolvimento (antes de testar WhatsApp local)</h3>
     <ul class="checklist">
-      <li><code>.env.local</code> com <code>RAGNAR_ENV=development</code> e Supabase dev</li>
+      <li><code>.env.local</code> com <code>HUGINFLOW_ENV=development</code> e Supabase dev</li>
       <li><code>WHATSAPP_API_TOKEN_DEV</code> válido para evo-dev</li>
-      <li>Túnel Cloudflare ativo (<code>npm run tunnel:fixed</code>) e <code>RAGNAR_WEBHOOK_URL_DEV</code> apontando para o hostname público</li>
+      <li>Túnel Cloudflare ativo (<code>npm run tunnel:fixed</code>) e <code>HUGINFLOW_WEBHOOK_URL_DEV</code> apontando para o hostname público</li>
       <li>Webhook registrado na instância Evolution dev</li>
       <li><code>npm run dev</code> rodando; logs mostram Supabase dev (<code>vujqukqsfwmoezwyuoum</code>)</li>
       <li>Migration <code>crm_conversas_one_row_per_message</code> aplicada no Supabase dev</li>
@@ -447,11 +447,11 @@ NEXT_PUBLIC_LANDING_PAGE_TOKEN=&lt;token&gt;</code></pre>
 
     <h3>Produção (antes de go-live / após deploy)</h3>
     <ul class="checklist">
-      <li>DNS <code>app.ragnar.ia.br</code> aponta para VPS prod</li>
-      <li>Traefik com certificado TLS válido para <code>app.ragnar.ia.br</code></li>
-      <li><code>/opt/ragnar/.env</code> com URLs prod (<code>app.ragnar.ia.br</code>, não domínios antigos)</li>
+      <li>DNS <code>app.huginflow.com</code> aponta para VPS prod</li>
+      <li>Traefik com certificado TLS válido para <code>app.huginflow.com</code></li>
+      <li><code>/opt/huginflow/.env</code> com URLs prod (<code>app.huginflow.com</code>, não domínios antigos)</li>
       <li>Supabase prod — migration <code>sessao_id</code> aplicada</li>
-      <li>Evolution prod — webhook = <code>https://app.ragnar.ia.br/api/webhooks/evolution</code></li>
+      <li>Evolution prod — webhook = <code>https://app.huginflow.com/api/webhooks/evolution</code></li>
       <li>Instância WhatsApp prod conectada; canal <code>crm_canais</code> com <code>provider_id</code> correto</li>
       <li>GitHub Actions verde; container <code>docker ps</code> saudável na VPS</li>
       <li><code>GET /api/health/omnichannel</code> → <code>healthy: true</code>, <code>environment: production</code></li>
@@ -478,12 +478,12 @@ NEXT_PUBLIC_LANDING_PAGE_TOKEN=&lt;token&gt;</code></pre>
     <h2>10. Mapa rápido (não misturar)</h2>
     <pre><code>DEV                          PROD
 ────────────────────────────────────────────────────────────
-npm run dev                  Docker VPS /opt/ragnar
-.env.local                   /opt/ragnar/.env
+npm run dev                  Docker VPS /opt/huginflow
+.env.local                   /opt/huginflow/.env
 Supabase vujqukqsfwmoezwyuoum  Supabase zmypzexefjbovuknjlid
 evo-dev.rn3.tec.br           evo.rn3.tec.br
-localhost:3000               app.ragnar.ia.br
-túnel → webhook dev          webhook app.ragnar.ia.br
+localhost:3000               app.huginflow.com
+túnel → webhook dev          webhook app.huginflow.com
 branch develop               branch main → CI deploy</code></pre>
 
     <footer>

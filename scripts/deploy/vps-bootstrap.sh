@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Bootstrap único na VPS de produção (/opt/ragnar).
+# Bootstrap único na VPS de produção (/opt/huginflow).
 # Uso: bash vps-bootstrap.sh
 set -euo pipefail
 
-DEPLOY_DIR="${DEPLOY_DIR:-/opt/ragnar}"
+DEPLOY_DIR="${DEPLOY_DIR:-/opt/huginflow}"
 
 echo "==> Diretório de deploy: $DEPLOY_DIR"
 mkdir -p "$DEPLOY_DIR"
@@ -21,14 +21,14 @@ if [[ ! -f .env ]]; then
   else
     cat > .env <<'EOF'
 NODE_ENV=production
-RAGNAR_ENV=production
-NEXT_PUBLIC_APP_URL=https://app.ragnar.ia.br
+HUGINFLOW_ENV=production
+NEXT_PUBLIC_APP_URL=https://app.huginflow.com
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
 WHATSAPP_API_URL_PROD=https://evo.rn3.tec.br
 WHATSAPP_API_TOKEN_PROD=
-RAGNAR_WEBHOOK_URL_PROD=https://app.ragnar.ia.br/api/webhooks/evolution
+HUGINFLOW_WEBHOOK_URL_PROD=https://app.huginflow.com/api/webhooks/evolution
 OPENAI_API_KEY=
 NEXT_PUBLIC_LANDING_PAGE_TOKEN=
 EOF
@@ -41,6 +41,6 @@ fi
 echo ""
 echo "Próximos passos:"
 echo "  1. Preencha $DEPLOY_DIR/.env com credenciais de PRODUÇÃO"
-echo "  2. Adicione a chave pública ragnar_deploy.pub em ~/.ssh/authorized_keys"
+echo "  2. Adicione a chave pública huginflow_deploy.pub em ~/.ssh/authorized_keys"
 echo "  3. Configure secrets VPS_HOST, VPS_USER, VPS_SSH_KEY no GitHub Actions"
 echo "  4. Push em main ou Run workflow — o CI envia docker-compose e faz deploy"

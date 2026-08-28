@@ -1,6 +1,6 @@
 -- =============================================================================
 -- Etapa 1/3 — Contas a Receber (AR): schema, multi-tenant, RLS, meio de pagamento
--- Projeto: Ragnar | Supabase Postgres
+-- Projeto: Hugin Flow | Supabase Postgres
 -- Referências: public.empresas(id uuid), public.usuarios(empresa_id, auth_user_id, role_global)
 -- Superadmin: usuarios.role_global = 'superadmin' (padrão do app)
 -- =============================================================================

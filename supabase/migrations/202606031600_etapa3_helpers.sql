@@ -6,7 +6,7 @@ BEGIN;
 
 -- ---------------------------------------------------------------------------
 -- Contexto do caller (JWT quando existir; fallback usuarios — ver nota)
--- Nota: Ragnar hoje NÃO injeta empresa_id no JWT por padrão; fallback via usuarios.
+-- Nota: Hugin Flow hoje NÃO injeta empresa_id no JWT por padrão; fallback via usuarios.
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.current_empresa_id()
 RETURNS uuid

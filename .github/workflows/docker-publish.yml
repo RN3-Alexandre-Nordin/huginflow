@@ -145,7 +145,7 @@ jobs:
             docker service ls
 
             SERVICE=""
-            for candidate in huginflow-app_app ragnar-app_app; do
+            for candidate in huginflow-app_app; do
               if docker service inspect "$candidate" >/dev/null 2>&1; then
                 SERVICE="$candidate"
                 break
@@ -153,7 +153,7 @@ jobs:
             done
 
             if [ -z "$SERVICE" ]; then
-              echo "ERROR: Nenhum service huginflow-app_app ou ragnar-app_app encontrado."
+              echo "ERROR: Service huginflow-app_app não encontrado."
               exit 1
             fi
             echo "==> Service alvo: $SERVICE"
@@ -169,7 +169,6 @@ jobs:
             docker service update \
               --image "$IMAGE" \
               --env-add HUGINFLOW_ENV=production \
-              --env-add RAGNAR_ENV=production \
               --env-add NEXT_PUBLIC_APP_URL=https://app.huginflow.com \
               --env-add NEXT_PUBLIC_SITE_URL=https://huginflow.com \
               --env-add SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }} \
@@ -178,8 +177,6 @@ jobs:
               --env-add WHATSAPP_API_URL_PROD=https://evo.rn3.tec.br \
               --env-add HUGINFLOW_WEBHOOK_URL=https://app.huginflow.com/api/webhooks/evolution \
               --env-add HUGINFLOW_WEBHOOK_URL_PROD=https://app.huginflow.com/api/webhooks/evolution \
-              --env-add RAGNAR_WEBHOOK_URL=https://app.huginflow.com/api/webhooks/evolution \
-              --env-add RAGNAR_WEBHOOK_URL_PROD=https://app.huginflow.com/api/webhooks/evolution \
               "$SERVICE"
 
             docker service ps "$SERVICE" --no-trunc

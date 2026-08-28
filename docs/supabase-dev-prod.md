@@ -4,8 +4,8 @@ Hoje o HuginFlow usa **um único projeto Supabase** para `npm run dev` e para o 
 
 | Ambiente | Onde roda | Supabase | Evolution |
 |----------|-----------|----------|-----------|
-| **Dev** | PC (`npm run dev`) | Projeto **ragnar-dev** (novo) | `evo-dev.rn3.tec.br` |
-| **Prod** | VPS (`docker-compose.prod.yml`) | Projeto **ragnar-prod** (atual ou novo) | `evo.rn3.tec.br` |
+| **Dev** | PC (`npm run dev`) | Projeto **huginflow-dev** (novo) | `evo-dev.rn3.tec.br` |
+| **Prod** | VPS (`docker-compose.prod.yml`) | Projeto **huginflow-prod** (atual ou novo) | `evo.rn3.tec.br` |
 
 O código **já suporta** URLs diferentes por arquivo `.env` — não precisa alterar `environment.ts` para Supabase (só Evolution usa `_DEV`/`_PROD`).
 
@@ -14,7 +14,7 @@ O código **já suporta** URLs diferentes por arquivo `.env` — não precisa al
 ## 1. Criar o projeto Supabase de desenvolvimento
 
 1. Acesse [https://supabase.com/dashboard](https://supabase.com/dashboard)
-2. **New project** → nome sugerido: `ragnar-dev`
+2. **New project** → nome sugerido: `huginflow-dev`
 3. Região: mesma da produção (latência e compliance)
 4. Anote:
    - **Project URL** → `NEXT_PUBLIC_SUPABASE_URL`
@@ -29,7 +29,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
 SUPABASE_SERVICE_ROLE_KEY=eyJ...
 ```
 
-6. Na VPS `/opt/ragnar/.env` (produção): mantenha as chaves do projeto **atual/prod**.
+6. Na VPS `/opt/huginflow/.env` (produção): mantenha as chaves do projeto **atual/prod**.
 
 7. GitHub Actions (build Docker): secrets `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_ANON_KEY` = **produção**.
 
@@ -141,7 +141,7 @@ Usa `SUPABASE_SERVICE_ROLE_KEY` de `.env` (prod) e `.env.local` (dev).
 ## 5. O que **não** misturar entre ambientes
 
 - `service_role` / `anon` keys de prod no `.env.local`
-- Webhooks da Evolution prod apontando para túnel local (use sempre `evo-dev` + `ragnar-local`)
+- Webhooks da Evolution prod apontando para túnel local (use sempre `evo-dev` + `huginflow-local`)
 
 **Seed mínimo (se preferir dev vazio em vez de clone)**
 
@@ -168,8 +168,8 @@ Usa `SUPABASE_SERVICE_ROLE_KEY` de `.env` (prod) e `.env.local` (dev).
 ## 6. Produção (VPS)
 
 - `.env` na VPS: **somente** chaves Supabase **prod**
-- `RAGNAR_ENV=production`
-- `WHATSAPP_*_PROD`, `RAGNAR_WEBHOOK_URL_PROD=https://app.ragnar.ia.br/...`
+- `HUGINFLOW_ENV=production`
+- `WHATSAPP_*_PROD`, `HUGINFLOW_WEBHOOK_URL_PROD=https://app.huginflow.com/...`
 - CI/CD: secrets GitHub = prod
 - **Nunca** commitar `.env.local` / `.env.production`
 
@@ -180,7 +180,7 @@ Usa `SUPABASE_SERVICE_ROLE_KEY` de `.env` (prod) e `.env.local` (dev).
 Configuração pronta no repositório:
 
 1. `copy .cursor\mcp.json.example .cursor\mcp.json`
-2. Confirme `project_ref=vujqukqsfwmoezwyuoum` em `.cursor/mcp.json` (ragnar-dev)
+2. Confirme `project_ref=vujqukqsfwmoezwyuoum` em `.cursor/mcp.json` (huginflow-dev)
 3. Siga `docs/mcp-supabase-cursor.md` (login OAuth no Cursor)
 
 Com MCP, o agente pode `list_tables`, `apply_migration` no **dev** e consultar o **prod** em `read_only`.
@@ -212,7 +212,7 @@ flowchart LR
 
   subgraph prod [Produção]
     VPS[Docker VPS]
-    EnvP[/opt/ragnar/.env]
+    EnvP[/opt/huginflow/.env]
     SBprod[(Supabase PROD)]
     EvoProd[evo.rn3.tec.br]
     VPS --> EnvP --> SBprod

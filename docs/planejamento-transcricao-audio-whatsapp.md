@@ -54,7 +54,7 @@ Antes de `GeminiChatService.generateReply`:
 sequenceDiagram
   participant WA as WhatsApp
   participant EVO as Evolution API
-  participant WH as Webhook Ragnar
+  participant WH as Webhook Hugin Flow
   participant TR as TranscriptionService
   participant DB as Supabase
   participant IA as AiResponseService

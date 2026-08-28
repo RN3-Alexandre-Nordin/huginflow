@@ -1,4 +1,4 @@
-import { ExternalLink } from 'lucide-react'
+import { ExternalLink, GraduationCap } from 'lucide-react'
 import Link from 'next/link'
 
 export default function AjudaPage() {
@@ -9,15 +9,24 @@ export default function AjudaPage() {
           <h2 className="text-lg font-bold text-white tracking-tight">Manual do Usuário</h2>
           <p className="text-xs text-gray-500 mt-0.5">Guia completo do Cockpit HuginFlow</p>
         </div>
-        <Link
-          href="/api/ajuda/manual"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold uppercase tracking-wider text-[#2BAADF] border border-[#2BAADF]/30 hover:bg-[#2BAADF]/10 transition-colors"
-        >
-          <ExternalLink className="w-3.5 h-3.5" />
-          Nova aba
-        </Link>
+        <div className="flex items-center gap-2 shrink-0">
+          <Link
+            href="/cockpit/ajuda/treinamento"
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold uppercase tracking-wider text-orange-400 border border-orange-500/30 hover:bg-orange-500/10 transition-colors"
+          >
+            <GraduationCap className="w-3.5 h-3.5" />
+            Treinamento Operador
+          </Link>
+          <Link
+            href="/api/ajuda/manual"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold uppercase tracking-wider text-[#2BAADF] border border-[#2BAADF]/30 hover:bg-[#2BAADF]/10 transition-colors"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+            Nova aba
+          </Link>
+        </div>
       </div>
       <iframe
         src="/api/ajuda/manual"

@@ -6,8 +6,8 @@ Comparativo entre projetos:
 
 | Ambiente | Project ref | Dashboard |
 |----------|-------------|-----------|
-| **Dev** | `vujqukqsfwmoezwyuoum` | [ragnar-dev](https://supabase.com/dashboard/project/vujqukqsfwmoezwyuoum) |
-| **Prod** | `zmypzexefjbovuknjlid` | [ragnar-prod](https://supabase.com/dashboard/project/zmypzexefjbovuknjlid) |
+| **Dev** | `vujqukqsfwmoezwyuoum` | [huginflow-dev](https://supabase.com/dashboard/project/vujqukqsfwmoezwyuoum) |
+| **Prod** | `zmypzexefjbovuknjlid` | [huginflow-prod](https://supabase.com/dashboard/project/zmypzexefjbovuknjlid) |
 
 **Última migration no prod:** `fix_channel_cascade_delete` (abril/2026)
 
@@ -37,7 +37,7 @@ node scripts/supabase/prod-deploy/build-bundle.mjs
 | 10 | `finance_ar_parcelas` | `supabase/migrations/202606041200_finance_ar_parcelas.sql` | Parcelas/mensalidades, `p_parcelas_total`, view atualizada |
 | 11 | `finance_contratos` | `supabase/migrations/202606161200_finance_contratos.sql` | Contratos comerciais + serviços extras |
 
-**SQL consolidado:** `scripts/supabase/prod-deploy/out/ragnar-prod-pending.sql`
+**SQL consolidado:** `scripts/supabase/prod-deploy/out/huginflow-prod-pending.sql`
 
 **Manifesto JSON:** `scripts/supabase/prod-deploy/out/MANIFEST.json`
 
@@ -48,7 +48,7 @@ node scripts/supabase/prod-deploy/build-bundle.mjs
 ### Opção A — SQL Editor (recomendado para revisão)
 
 1. Backup no Dashboard prod.
-2. Abra `scripts/supabase/prod-deploy/out/ragnar-prod-pending.sql`.
+2. Abra `scripts/supabase/prod-deploy/out/huginflow-prod-pending.sql`.
 3. Execute no **SQL Editor** do projeto prod (pode dividir por blocos `-- BUNDLE:` se preferir).
 4. Confira erros; a view de parcelas usa `DROP VIEW` antes de recriar.
 

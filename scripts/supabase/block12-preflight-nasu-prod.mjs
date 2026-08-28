@@ -13,7 +13,7 @@ const root = resolve(__dirname, '../..')
 const envProd = resolve(root, '.env.production')
 
 const NASU_EMPRESA_ID = '2b87fa27-a1da-4a6b-b7c9-8cfef5685ce7'
-const APP_URL = 'https://app.ragnar.ia.br'
+const APP_URL = 'https://app.huginflow.com'
 
 function loadEnv(path) {
   if (!existsSync(path)) return {}
@@ -46,7 +46,7 @@ async function main() {
   checks['health_site'] = health.status === 200
   checks['health_evolution'] = h.checks?.evolutionReachable === true
   checks['health_openai'] = h.checks?.openaiApiKeyConfigured === true || h.openaiApiKeyConfigured === true
-  checks['health_webhook_app'] = String(h.webhookUrl ?? '').includes('app.ragnar.ia.br')
+  checks['health_webhook_app'] = String(h.webhookUrl ?? '').includes('app.huginflow.com')
 
   // Supabase NASU tenant (via MCP SQL would need service role — use fetch to REST if key present)
   const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL
@@ -128,7 +128,7 @@ async function main() {
       : [
           !checks.health_evolution && 'Corrigir Evolution prod + deploy (Bloco 1 prod)',
           !checks.health_openai && 'Configurar OPENAI_API_KEY em prod + deploy',
-          !checks.health_webhook_app && 'Webhook → app.ragnar.ia.br/api/webhooks/evolution',
+          !checks.health_webhook_app && 'Webhook → app.huginflow.com/api/webhooks/evolution',
           !checks.nasu_openai && 'Atualizar NASU: ai_provider=openai, ai_model=gpt-4o',
           !checks.nasu_gestor && 'Criar gestor NASU (block12-bootstrap-nasu-prod.mjs)',
           !checks.nasu_operador && 'Criar operador NASU (block12-bootstrap-nasu-prod.mjs)',
