@@ -138,14 +138,36 @@ jobs:
           timeout: 60s
           command_timeout: 10m
           script: |
-            set -e
+            set -euo pipefail
             IMAGE="${{ steps.ghcr.outputs.image }}:latest"
-            SERVICE="huginflow-app_app"
+
+            echo "==> Services Swarm disponíveis:"
+            docker service ls
+
+            SERVICE=""
+            for candidate in huginflow-app_app ragnar-app_app; do
+              if docker service inspect "$candidate" >/dev/null 2>&1; then
+                SERVICE="$candidate"
+                break
+              fi
+            done
+
+            if [ -z "$SERVICE" ]; then
+              echo "ERROR: Nenhum service huginflow-app_app ou ragnar-app_app encontrado."
+              exit 1
+            fi
+            echo "==> Service alvo: $SERVICE"
+
+            if [ -n "${{ secrets.GHCR_PULL_TOKEN }}" ]; then
+              echo "${{ secrets.GHCR_PULL_TOKEN }}" | docker login ghcr.io -u "${{ github.repository_owner }}" --password-stdin
+            fi
+
+            echo "==> Pull $IMAGE"
             docker pull "$IMAGE"
+
+            echo "==> Atualizando service"
             docker service update \
               --image "$IMAGE" \
-              --env-rm SUPABASE_URL \
-              --env-rm SUPABASE_ANON_KEY \
               --env-add HUGINFLOW_ENV=production \
               --env-add RAGNAR_ENV=production \
               --env-add NEXT_PUBLIC_APP_URL=https://app.huginflow.com \
@@ -159,5 +181,7 @@ jobs:
               --env-add RAGNAR_WEBHOOK_URL=https://app.huginflow.com/api/webhooks/evolution \
               --env-add RAGNAR_WEBHOOK_URL_PROD=https://app.huginflow.com/api/webhooks/evolution \
               "$SERVICE"
+
             docker service ps "$SERVICE" --no-trunc
             docker image prune -f
+            echo "==> Deploy concluído"
