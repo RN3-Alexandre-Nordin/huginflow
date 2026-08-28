@@ -5,7 +5,10 @@ import Link from "next/link"
 import { useCockpitRealtime } from "@/hooks/useCockpitRealtime"
 import { useEffect, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
+import { formatDistanceToNow } from "date-fns"
+import { ptBR } from "date-fns/locale"
 import { getCockpitMetrics } from "../actions"
+import { getOmniConversas } from "../crm/omni-chat-actions"
 import ActivityFeed from "./ActivityFeed"
 import ProductivityModal from "./ProductivityModal"
 import BottleneckModal from "./BottleneckModal"
@@ -21,6 +24,13 @@ export default function OperatorDashboard({ userName, userId }: { userName: stri
     refetchInterval: 30000, // Sync cada 30 segundos (heartbeat SaaS)
   });
 
+  const { data: conversasResult, isLoading: loadingConversas } = useQuery({
+    queryKey: ["cockpit-omni-preview", userId],
+    queryFn: () => getOmniConversas(),
+    refetchInterval: 30000,
+  });
+
+  const conversas = conversasResult?.data ?? [];
   const metrics = metricsResult?.data || { atrasados: 0, hoje: 0, movimentacoes: 0, gargalo: 'Fluindo', chats: 0 };
   const [isProductivityModalOpen, setIsProductivityModalOpen] = useState(false);
   const [isBottleneckModalOpen, setIsBottleneckModalOpen] = useState(false);
@@ -132,30 +142,55 @@ export default function OperatorDashboard({ userName, userId }: { userName: stri
               <MessageCircle className="w-5 h-5 text-orange-500" />
               Fila de Atendimento (WhatsApp)
             </h3>
-            <Link href="/cockpit/chat" className="text-xs text-orange-500 hover:underline font-medium">Ver Todos</Link>
+            <Link href="/cockpit/crm/chat" className="text-xs text-orange-500 hover:underline font-medium">Ver Todos</Link>
           </div>
           <div className="flex-1 overflow-y-auto space-y-4 custom-scrollbar-sidebar pr-1">
-            {[
-              { name: "Carlos Eduardo", time: "Há 2 min", msg: "Olá, gostaria de saber o valor do plano...", unread: true },
-              { name: "Bruno Oliveira", time: "Há 15 min", msg: "Beleza, vou mandar o comprovante.", unread: false },
-              { name: "Maria Fernanda", time: "Há 40 min", msg: "Vocês conseguem instalar na segunda?", unread: false },
-            ].map((cht, i) => (
-              <div key={i} className="flex items-start gap-4 p-3 rounded-xl hover:bg-[#ffffff05] transition-colors border border-transparent hover:border-[#ffffff0a] cursor-pointer">
-                <div className="relative">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-orange-500/20 to-orange-500/40 flex items-center justify-center text-white font-black text-sm">
-                    {cht.name.substring(0, 2).toUpperCase()}
-                  </div>
-                  {cht.unread && <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 border-2 border-[#111111] rounded-full" />}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex justify-between items-center mb-0.5">
-                    <p className={`text-sm truncate ${cht.unread ? 'font-bold text-white' : 'font-medium text-gray-300'}`}>{cht.name}</p>
-                    <span className="text-[10px] text-gray-500">{cht.time}</span>
-                  </div>
-                  <p className={`text-xs truncate ${cht.unread ? 'text-gray-300' : 'text-gray-500'}`}>{cht.msg}</p>
-                </div>
+            {loadingConversas ? (
+              <div className="space-y-3 animate-pulse">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="h-16 bg-[#ffffff05] rounded-xl border border-[#ffffff0a]" />
+                ))}
               </div>
-            ))}
+            ) : conversas.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center border border-dashed border-[#ffffff0a] rounded-xl">
+                <MessageCircle className="w-8 h-8 text-gray-600 mb-3" />
+                <p className="text-sm font-bold text-gray-400">Nenhuma conversa na fila</p>
+                <p className="text-[11px] text-gray-600 mt-1">Threads atribuídas a você ou aguardando atendimento aparecem aqui.</p>
+              </div>
+            ) : (
+              conversas.slice(0, 5).map((cht) => {
+                const lead = (cht as { crm_leads?: { nome?: string; telefone?: string } }).crm_leads
+                const name = lead?.nome || lead?.telefone || 'Lead sem nome'
+                const updatedAt = (cht as { updated_at?: string; created_at?: string }).updated_at
+                  ?? (cht as { created_at?: string }).created_at
+                const timeLabel = updatedAt
+                  ? formatDistanceToNow(new Date(updatedAt), { addSuffix: true, locale: ptBR })
+                  : ''
+                const pending = (cht as { status?: string }).status === 'ai'
+                const preview = (cht as { last_message?: string }).last_message || 'Nova conversa iniciada'
+                return (
+                  <Link
+                    key={(cht as { id: string }).id}
+                    href="/cockpit/crm/chat"
+                    className="flex items-start gap-4 p-3 rounded-xl hover:bg-[#ffffff05] transition-colors border border-transparent hover:border-[#ffffff0a]"
+                  >
+                    <div className="relative">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-orange-500/20 to-orange-500/40 flex items-center justify-center text-white font-black text-sm">
+                        {name.substring(0, 2).toUpperCase()}
+                      </div>
+                      {pending && <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 border-2 border-[#111111] rounded-full" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex justify-between items-center mb-0.5">
+                        <p className={`text-sm truncate ${pending ? 'font-bold text-white' : 'font-medium text-gray-300'}`}>{name}</p>
+                        <span className="text-[10px] text-gray-500">{timeLabel}</span>
+                      </div>
+                      <p className={`text-xs truncate ${pending ? 'text-gray-300' : 'text-gray-500'}`}>{preview}</p>
+                    </div>
+                  </Link>
+                )
+              })
+            )}
           </div>
         </div>
 
