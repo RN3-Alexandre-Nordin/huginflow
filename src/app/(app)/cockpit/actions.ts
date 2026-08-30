@@ -389,8 +389,8 @@ export async function createUsuario(formData: FormData) {
   }
 
   const authUserId = authData.user.id
-  const supabase = await createClient()
-  const { error } = await supabase.from('usuarios').insert([{
+  // Insert via service role: já validamos invite; evita falha silenciosa de RLS no INSERT.
+  const { error } = await supabaseAdmin.from('usuarios').insert([{
     id: authUserId,
     auth_user_id: authUserId,
     email: email.trim().toLowerCase(),

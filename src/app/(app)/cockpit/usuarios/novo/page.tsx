@@ -45,6 +45,7 @@ export default function NovoUsuarioPage() {
   const [senha, setSenha] = useState("")
   const [senhaConfirm, setSenhaConfirm] = useState("")
   const [senhaError, setSenhaError] = useState("")
+  const [formError, setFormError] = useState("")
 
   useEffect(() => {
     async function loadInitialData() {
@@ -97,8 +98,12 @@ export default function NovoUsuarioPage() {
       return
     }
     setSenhaError("")
-    startTransition(() => {
-      createUsuario(formData)
+    setFormError("")
+    startTransition(async () => {
+      const result = await createUsuario(formData)
+      if (result?.error) {
+        setFormError(result.error)
+      }
     })
   }
 
@@ -331,7 +336,13 @@ export default function NovoUsuarioPage() {
         </div>
 
         {/* Footer Actions */}
-        <div className="flex items-center justify-between pt-4 border-t border-[#ffffff0a]">
+        <div className="flex flex-col gap-3 pt-4 border-t border-[#ffffff0a]">
+          {formError && (
+            <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+              {formError}
+            </div>
+          )}
+          <div className="flex items-center justify-between">
           <p className="text-xs text-gray-600">
             <span className="text-[#2BAADF]">*</span> Campos obrigatórios
           </p>
@@ -359,6 +370,7 @@ export default function NovoUsuarioPage() {
                 </>
               )}
             </button>
+          </div>
           </div>
         </div>
       </form>

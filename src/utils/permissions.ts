@@ -38,10 +38,13 @@ export function hasPermission(
   // Nível 1: SuperAdmin da RN3 (Bypass Total)
   if (user.role_global === 'superadmin') return true
 
-  // Se não houver grupo de acesso (e não for superadmin), não tem permissão
+  // Admin da empresa: acesso total ao tenant mesmo se o join do grupo falhar
+  if (user.role_global === 'admin') return true
+
+  // Se não houver grupo de acesso (e não for admin/superadmin), não tem permissão
   if (!user.grupos_acesso) return false
 
-  // Nível 2: Administrador da Empresa (Acesso total ao tenant)
+  // Nível 2: Administrador da Empresa via flag do grupo
   if (user.grupos_acesso.is_admin === true) return true
 
   // Nível 3: Permissões Granulares (JSONB)
