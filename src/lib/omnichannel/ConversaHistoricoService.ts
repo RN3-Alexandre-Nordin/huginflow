@@ -5,6 +5,7 @@ export type SessaoSnapshot = {
   sessao_id: string
   status: string | null
   last_human_interaction: string | null
+  atribuido_a_id?: string | null
 }
 
 export type AppendConversaInput = {
@@ -17,6 +18,7 @@ export type AppendConversaInput = {
   direcao: 'inbound' | 'outbound'
   status?: string
   last_human_interaction?: string | null
+  atribuido_a_id?: string | null
   metadata?: Record<string, unknown>
   is_ai?: boolean
 }
@@ -30,7 +32,7 @@ export class ConversaHistoricoService {
   ): Promise<SessaoSnapshot | null> {
     const { data, error } = await supabase
       .from('crm_conversas')
-      .select('sessao_id, status, last_human_interaction')
+      .select('sessao_id, status, last_human_interaction, atribuido_a_id')
       .eq('canal_id', canalId)
       .eq('external_id', externalId)
       .order('created_at', { ascending: false })
@@ -55,6 +57,10 @@ export class ConversaHistoricoService {
 
     let status = input.status ?? latest?.status ?? 'ai'
     let lastHuman = input.last_human_interaction ?? latest?.last_human_interaction ?? null
+    const atribuido =
+      input.atribuido_a_id !== undefined
+        ? input.atribuido_a_id
+        : (latest?.atribuido_a_id ?? null)
 
     if (input.direcao === 'outbound' && !input.is_ai) {
       status = 'human'
@@ -77,6 +83,7 @@ export class ConversaHistoricoService {
         last_message: input.content,
         status,
         last_human_interaction: lastHuman,
+        atribuido_a_id: atribuido,
         metadata: input.metadata ?? {},
         created_at: now,
         updated_at: now,

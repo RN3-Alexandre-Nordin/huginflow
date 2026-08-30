@@ -5,6 +5,13 @@ import {
   getAiConfigErrorMessage,
   resolveEmpresaAiConfig,
 } from '@/lib/ai/empresa-ai'
+import { PLATFORM_TRIAGE_INSTRUCTIONS } from '@/lib/omnichannel/triage/platformInstructions'
+import {
+  parseAiTags,
+  stripOutboundTags,
+  type ParsedAiTags,
+} from '@/lib/omnichannel/triage/parseTriageTags'
+import { buildSystemFacts, type SystemFacts } from '@/lib/omnichannel/triage/systemFacts'
 
 export type GeminiChatInput = {
   empresaId: string
@@ -16,21 +23,20 @@ export type GeminiChatInput = {
 }
 
 export type GeminiChatResult =
-  | { success: true; response: string; responseForWhatsApp: string; crmStatus?: string }
+  | {
+      success: true
+      response: string
+      responseForWhatsApp: string
+      crmStatus?: string
+      tags: ParsedAiTags
+      facts: SystemFacts
+    }
   | { success: false; error: string }
 
-/** Remove tags [STATUS_CRM: ...] e demais blocos entre colchetes para envio ao cliente. */
-export function stripOutboundTags(text: string): string {
-  return text.replace(/\[STATUS_CRM:.*?\]/gi, '').replace(/\[.*?\]/g, '').trim()
-}
-
-export function parseCrmStatus(text: string): string | undefined {
-  const match = text.match(/\[STATUS_CRM:\s*(.*?)\]/i)
-  return match?.[1]?.trim().toUpperCase()
-}
+export { stripOutboundTags, parseCrmStatus } from '@/lib/omnichannel/triage/parseTriageTags'
 
 /**
- * RAG (match_knowledge_base) + OpenAI conforme modelo da empresa.
+ * RAG (match_knowledge_base) + fatos do sistema + OpenAI conforme modelo da empresa.
  */
 export class GeminiChatService {
   static async generateReply(
@@ -53,6 +59,8 @@ export class GeminiChatService {
     if (!aiConfig) {
       return { success: false, error: getAiConfigErrorMessage() }
     }
+
+    const facts = await buildSystemFacts(supabase, empresaId, leadId)
 
     let historyQuery = supabase
       .from('crm_interacoes')
@@ -87,7 +95,7 @@ export class GeminiChatService {
     }
 
     const systemPersonality = (
-      empresa.ai_context_prompt || 'Você é a Mônica, assistente da Monte Sinai.'
+      empresa.ai_context_prompt || 'Você é o agente de triagem de atendimentos via WhatsApp.'
     )
       .replace(/%22/g, '"')
       .trim()
@@ -96,26 +104,22 @@ export class GeminiChatService {
       .map((msg) => `${msg.role === 'user' ? 'Cliente' : 'Assistente'}: ${msg.content}`)
       .join('\n')
 
-    const platformInstructions = `
-    INSTRUÇÕES DE SISTEMA (HUGIN FLOW CRM):
-    1. Use os "DADOS DA BASE DE CONHECIMENTO" como única fonte de verdade.
-    2. Se não houver dados, aja com o conhecimento geral mas seja cauteloso.
-    3. Ao final da resposta, inclua metadados: [STATUS_CRM: NOVO_LEAD | EM_QUALIFICACAO | INTERESSADO | AGENDADO | PERDIDO | GANHO]
-  `
-
     const fullPrompt = `
-    ${systemPersonality}
-    
-    ${platformInstructions}
-    
-    [INFORMAÇÕES DA BASE DE CONHECIMENTO]:
-    ${extraContext}
-    
-    HISTORICO DA CONVERSA:
-    ${formattedHistory}
-    
-    Nova mensagem do Cliente (${contactName}, ${contactPhone}): ${message.trim()}
-  `
+${systemPersonality}
+
+${PLATFORM_TRIAGE_INSTRUCTIONS}
+
+[FATOS DO SISTEMA]:
+${facts.texto}
+
+[INFORMAÇÕES DA BASE DE CONHECIMENTO]:
+${extraContext}
+
+HISTORICO DA CONVERSA:
+${formattedHistory}
+
+Nova mensagem do Cliente (${contactName}, ${contactPhone}): ${message.trim()}
+`
 
     try {
       const aiResponse = await generateText(fullPrompt, aiConfig)
@@ -124,11 +128,15 @@ export class GeminiChatService {
         return { success: false, error: 'IA retornou resposta vazia.' }
       }
 
+      const tags = parseAiTags(aiResponse)
+
       return {
         success: true,
         response: aiResponse,
         responseForWhatsApp: stripOutboundTags(aiResponse),
-        crmStatus: parseCrmStatus(aiResponse),
+        crmStatus: tags.crmStatus,
+        tags,
+        facts,
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Erro desconhecido na IA'

@@ -60,6 +60,30 @@ export function useCockpitRealtime(userId: string, userName: string) {
             // Invalidate all CRM/Cockpit related data
             queryClient.invalidateQueries({ queryKey: ["my-cards"] });
             queryClient.invalidateQueries({ queryKey: ["cockpit-stats"] });
+            queryClient.invalidateQueries({ queryKey: ["cockpit-omni-preview"] });
+            queryClient.invalidateQueries({ queryKey: ["cockpit-metrics"] });
+          }
+        }
+      )
+      .subscribe();
+
+    const conversaChannel = supabase
+      .channel("cockpit-conversas-assign")
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "crm_conversas",
+        },
+        (payload) => {
+          if (
+            payload.new.atribuido_a_id === userId &&
+            payload.old.atribuido_a_id !== userId
+          ) {
+            playNotificationSound();
+            setLastEvent({ id: payload.new.id, type: "message" });
+            queryClient.invalidateQueries({ queryKey: ["cockpit-omni-preview"] });
           }
         }
       )
@@ -68,6 +92,7 @@ export function useCockpitRealtime(userId: string, userName: string) {
     return () => {
       supabase.removeChannel(chatChannel);
       supabase.removeChannel(cardChannel);
+      supabase.removeChannel(conversaChannel);
     };
   }, [userId, userName, queryClient, supabase]);
 

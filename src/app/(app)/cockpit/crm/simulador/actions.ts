@@ -103,7 +103,7 @@ async function runSimulatorExchange(
   revalidatePath('/cockpit/crm/simulador')
   return {
     success: true,
-    response: aiResult.response,
+    response: aiResult.responseForWhatsApp || aiResult.response,
     userContent,
     transcriptionOk: true,
   }

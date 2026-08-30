@@ -55,11 +55,14 @@ export async function getOmniConversas() {
   let sessoes = dedupeSessoes(rows ?? [])
 
   if (me.role_global === 'operador') {
-    sessoes = sessoes.filter(
-      (c) =>
-        (c as { atribuido_a_id?: string | null }).atribuido_a_id === me.id ||
-        !(c as { atribuido_a_id?: string | null }).atribuido_a_id,
-    )
+    sessoes = sessoes.filter((c) => {
+      const assigned = (c as { atribuido_a_id?: string | null }).atribuido_a_id
+      const status = (c as { status?: string | null }).status
+      // Minhas conversas OU fila humana sem responsável (QUEUE_UNASSIGNED)
+      if (assigned === me.id) return true
+      if (!assigned && status === 'human') return true
+      return false
+    })
   }
 
   const data = sessoes.slice(0, 50).map((row) => ({
