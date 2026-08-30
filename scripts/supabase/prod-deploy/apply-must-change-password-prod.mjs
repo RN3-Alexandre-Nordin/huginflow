@@ -7,6 +7,7 @@ import { createClient } from '@supabase/supabase-js'
 import { readFileSync, existsSync } from 'fs'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
+import { readContasFile } from '../_contas-file.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const root = resolve(__dirname, '../../..')
@@ -73,9 +74,8 @@ async function applyViaPg() {
 }
 
 async function applyViaManagementApi() {
-  const contasPath = resolve(root, 'Contas Ragnar.txt')
-  if (!existsSync(contasPath)) return false
-  const contas = readFileSync(contasPath, 'utf8')
+  const contas = readContasFile(root)
+  if (!contas) return false
   const sbp = (contas.match(/sbp_[a-zA-Z0-9]+/) || [])[0]
   if (!sbp) return false
 

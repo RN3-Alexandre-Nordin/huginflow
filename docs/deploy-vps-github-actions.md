@@ -1,5 +1,7 @@
 # Deploy automático na VPS (GitHub Actions)
 
+Repositório canônico: **`https://github.com/RN3-Alexandre-Nordin/huginflow`** (`git remote origin`).
+
 Fluxo em **`.github/workflows/docker-publish.yml`**:
 
 1. **build-and-push** — build da imagem e push no GHCR (`ghcr.io/rn3-alexandre-nordin/huginflow:latest`)

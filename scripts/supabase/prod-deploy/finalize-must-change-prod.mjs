@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { readFileSync, existsSync } from 'fs'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
+import { readContasFile } from '../_contas-file.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..')
 const PROD_REF = 'zmypzexefjbovuknjlid'
@@ -19,7 +20,11 @@ function loadEnv(path) {
 }
 
 const env = loadEnv(resolve(root, '.env.production'))
-const contas = readFileSync(resolve(root, 'Contas Ragnar.txt'), 'utf8')
+const contas = readContasFile(root)
+if (!contas) {
+  console.error('Arquivo de contas Supabase não encontrado (Contas HuginFlow.txt ou SUPABASE_CONTAS_FILE).')
+  process.exit(1)
+}
 const sbp = (contas.match(/sbp_[a-zA-Z0-9]+/) || [])[0]
 const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
   auth: { persistSession: false, autoRefreshToken: false },
