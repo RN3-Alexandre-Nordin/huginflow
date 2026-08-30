@@ -36,7 +36,9 @@ export default async function SimuladorPage() {
             <Sparkles className="w-8 h-8 text-[#2BAADF]" />
             WHATSAPP SIMULATOR
           </h2>
-          <p className="text-sm text-gray-500 mt-1 uppercase tracking-widest font-bold">Ambiente de Teste de Inteligência Artificial e Conversão de Leads</p>
+          <p className="text-sm text-gray-500 mt-1 uppercase tracking-widest font-bold">
+            Teste de triagem e prompts sem WhatsApp / Evolution
+          </p>
         </div>
         
         <div className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-[#ffffff05] border border-[#ffffff0a] text-gray-400">
