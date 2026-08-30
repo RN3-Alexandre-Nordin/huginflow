@@ -2,7 +2,7 @@ import SimuladorChat from "./SimuladorChat"
 import { MessageSquare, Sparkles, Lock } from "lucide-react"
 import { getMyProfile } from "@/app/(app)/cockpit/actions"
 import { canAccessSimulador } from "@/utils/permissions"
-import Link from "next/link"
+import BackTextButton from '@/components/BackTextButton'
 
 export const metadata = { title: "Simulador de WhatsApp | HuginFlow CRM" }
 
@@ -19,9 +19,9 @@ export default async function SimuladorPage() {
         <p className="text-gray-400 max-w-md mx-auto mb-8 text-lg">
           O Simulador de IA é exclusivo para administradores da empresa.
         </p>
-        <Link href="/cockpit" className="px-6 py-3 bg-[#ffffff05] hover:bg-[#ffffff10] border border-[#ffffff10] rounded-xl text-white font-semibold transition-all">
+        <BackTextButton className="px-6 py-3 bg-[#ffffff05] hover:bg-[#ffffff10] border border-[#ffffff10] rounded-xl text-white font-semibold transition-all">
           Voltar ao Início
-        </Link>
+        </BackTextButton>
       </div>
     )
   }

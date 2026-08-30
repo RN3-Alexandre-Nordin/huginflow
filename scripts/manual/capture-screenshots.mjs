@@ -43,6 +43,7 @@ const PASSWORD =
   (EMAIL.includes('montesinai') ? 'hugin123@2026' : 'HuginDevTest1!')
 
 const RECORD_VIDEO = process.argv.includes('--video')
+const OMNI_ONLY = process.argv.includes('--omni')
 
 
 
@@ -175,6 +176,84 @@ async function openFirstPipeline(page) {
 }
 
 
+
+/** Aguarda o Chat Omnichannel sair do estado de loading (spinner central). */
+async function waitForOmniChatLoaded(page) {
+  await page.waitForSelector('input[placeholder*="Buscar lead"]', { timeout: 45000 })
+  await page.waitForFunction(
+    () => {
+      const spinners = [...document.querySelectorAll('.animate-spin')]
+      const visible = spinners.some((el) => el.getBoundingClientRect().height > 20)
+      if (visible) return false
+      const hasList =
+        document.body.textContent?.includes('Nenhuma conversa encontrada') ||
+        document.querySelector('.custom-scrollbar .cursor-pointer') !== null
+      return hasList
+    },
+    { timeout: 45000 },
+  )
+  await page.waitForTimeout(800)
+}
+
+/** Seleciona conversa na lista (preferAi = status Atendimento Robotizado / ícone verde). */
+async function selectOmniConversation(page, preferAi = false) {
+  await waitForOmniChatLoaded(page)
+
+  const items = page.locator('.custom-scrollbar .cursor-pointer').filter({
+    has: page.locator('p.text-sm.font-bold'),
+  })
+  const count = await items.count()
+  if (count === 0) {
+    console.log('  ⚠ Nenhuma conversa no Chat Omnichannel')
+    return false
+  }
+
+  if (preferAi) {
+    for (let i = 0; i < count; i++) {
+      const item = items.nth(i)
+      const botIcon = item.locator('svg.lucide-bot')
+      if (await botIcon.count()) {
+        await item.click()
+        break
+      }
+      if (i === count - 1) await items.first().click()
+    }
+  } else {
+    await items.first().click()
+  }
+
+  await page.waitForTimeout(1200)
+  await page
+    .waitForFunction(
+      () =>
+        document.querySelector('textarea[placeholder*="Responda"]') !== null ||
+        document.body.textContent?.includes('Gestão Humana') ||
+        document.body.textContent?.includes('Atendimento Robotizado'),
+      { timeout: 20000 },
+    )
+    .catch(() => {})
+  await page.waitForTimeout(600)
+  return true
+}
+
+async function captureOmniChatTreinamento(page) {
+  console.log('\n— Capítulo 7: Chat Omnichannel —')
+  await goto(page, '/cockpit/crm/chat')
+  const hasConv = await selectOmniConversation(page, false)
+  if (hasConv) {
+    await page.waitForSelector('textarea[placeholder*="Responda"]', { timeout: 15000 }).catch(() => {})
+  }
+  await shot(page, '05-chat-omni')
+  await shot(page, '04-chat-omni', { steps: true })
+
+  await goto(page, '/cockpit/crm/chat')
+  const hasAi = await selectOmniConversation(page, true)
+  if (hasAi) {
+    await page.waitForSelector('textarea[placeholder*="Responda"]', { timeout: 15000 }).catch(() => {})
+    await page.waitForTimeout(500)
+  }
+  await shot(page, 'whatsapp-assumir', { dir: treinamentoDir })
+}
 
 async function openFirstCardModal(page) {
 
@@ -426,21 +505,18 @@ async function main() {
 
     await login(page)
 
-    await shot(page, '03-cockpit-dashboard')
+    if (!OMNI_ONLY) {
+      await shot(page, '03-cockpit-dashboard')
+      await shot(page, '03-cockpit', { steps: true })
+    }
 
-    await shot(page, '03-cockpit', { steps: true })
+    await captureOmniChatTreinamento(page)
 
-
-
-    await goto(page, '/cockpit/crm/chat')
-
-    await shot(page, '05-chat-omni')
-
-    await shot(page, '04-chat-omni', { steps: true })
-
-    await shot(page, 'whatsapp-assumir', { dir: treinamentoDir })
-
-
+    if (OMNI_ONLY) {
+      alias(resolve(imgDir, '05-chat-omni.png'), resolve(imgDir, '05-chat.png'))
+      console.log('\nCapturas do capítulo 7 (omni) concluídas.')
+      return
+    }
 
     await goto(page, '/cockpit/configuracoes/canais')
 

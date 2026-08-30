@@ -90,8 +90,6 @@ export default function KanbanBoard({
       const card = cards.find(c => c.id === cardIdParam)
       if (card) {
         setInspectedCard(card)
-        // Opcional: remover o param da URL para evitar reabrir no refresh
-        // window.history.replaceState({}, '', window.location.pathname)
       }
     }
   }, [cards])
@@ -117,6 +115,16 @@ export default function KanbanBoard({
   const [initialModalTab, setInitialModalTab] = useState<'resumo' | 'chat'>('resumo')
   const [showNewCardModal, setShowNewCardModal] = useState(false)
   const [isPending, startTransition] = useTransition()
+
+  function openCardModal(card: Card, opts?: { tab?: 'resumo' | 'chat' }) {
+    setInitialModalTab(opts?.tab ?? 'resumo')
+    setInspectedCard(card)
+  }
+
+  function closeCardModal() {
+    setInspectedCard(null)
+    setInitialModalTab('resumo')
+  }
 
   const columnsId = useMemo(() => stages.map((col) => col.id), [stages])
 
@@ -243,7 +251,8 @@ export default function KanbanBoard({
                   <KanbanColumn
                     column={col}
                     cards={cards.filter((c) => c.stage_id === col.id)}
-                    onCardClick={(card: any) => setInspectedCard(card)}
+                    onCardEditClick={(card: any) => openCardModal(card)}
+                    onCardChatClick={(card: any) => openCardModal(card, { tab: 'chat' })}
                     canMove={canMove}
                     canEdit={canEdit}
                     canViewAttachments={canViewAttachments}
@@ -289,7 +298,7 @@ export default function KanbanBoard({
             card={inspectedCard as any}
             currentPipelineId={pipelineId}
             usuarios={usuarios}
-            onClose={() => setInspectedCard(null)}
+            onClose={closeCardModal}
             initialTab={initialModalTab}
             canEdit={canEdit}
             canDelete={canDelete}

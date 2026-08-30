@@ -7,6 +7,7 @@ import { createClient } from '@/utils/supabase/client'
 import ChatWindow from '@/components/chat/ChatWindow'
 import UnifiedChat from '@/components/chat/UnifiedChat'
 import Link from 'next/link'
+import { buildOmniChatUrl } from '@/lib/omni/chat-deep-link'
 
 interface HistoryRecord {
   id: string
@@ -61,7 +62,6 @@ export default function CardDetailsModal({
 }: CardDetailsModalProps) {
   const [history, setHistory] = useState<HistoryRecord[]>([])
   const [loadingHistory, setLoadingHistory] = useState(true)
-  const [isEditing, setIsEditing] = useState(false)
   const [isPending, startTransition] = useTransition()
   const [currentUser, setCurrentUser] = useState<any>(null)
   
@@ -124,6 +124,21 @@ export default function CardDetailsModal({
     init()
   }, [card.id, currentPipelineId, canViewAttachments])
 
+  useEffect(() => {
+    setActiveTab(initialTab)
+    setFormData({
+      titulo: card.titulo || '',
+      cliente_nome: card.cliente_nome || '',
+      valor: card.valor || 0,
+      descricao: card.descricao || '',
+      observacao: card.observacao || '',
+      responsavel_id: card.responsavel_id || '',
+      data_prazo: card.data_prazo || '',
+    })
+    setTargetPipeline('')
+    setTargetStage('')
+  }, [card.id, initialTab, card.titulo, card.cliente_nome, card.valor, card.descricao, card.observacao, card.responsavel_id, card.data_prazo])
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -182,7 +197,6 @@ export default function CardDetailsModal({
       if (res?.error) {
         alert('Erro ao salvar: ' + res.error)
       } else {
-        setIsEditing(false)
         const hRes = await getCardHistory(card.id)
         if (hRes.data) setHistory(hRes.data)
       }
@@ -255,7 +269,7 @@ export default function CardDetailsModal({
                 </div>
                 <div>
                    <h3 className="text-xl font-black text-white tracking-tight flex items-center gap-2">
-                      Gestão de Lead: <span className="text-[#2BAADF]">{isEditing ? 'Editando Dados' : card.titulo}</span>
+                      Gestão de Lead: <span className="text-[#2BAADF]">{card.titulo}</span>
                    </h3>
                    <div className="flex items-center gap-2 mt-0.5">
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-[#ffffff0a] text-gray-500 uppercase tracking-widest border border-[#ffffff05]">ID: {card.id.slice(0,8)}</span>
@@ -264,7 +278,7 @@ export default function CardDetailsModal({
                 </div>
              </div>
              <div className="flex items-center gap-3">
-                {!isEditing && canDelete && (
+                {canDelete && (
                   <button 
                     onClick={handleDelete}
                     disabled={isPending}
@@ -272,14 +286,6 @@ export default function CardDetailsModal({
                     title="Excluir Card"
                   >
                     <Trash2 className="w-5 h-5" />
-                  </button>
-                )}
-                {!isEditing && canEdit && (
-                  <button 
-                    onClick={() => setIsEditing(true)}
-                    className="flex items-center gap-2 px-4 py-2 bg-[#ffffff08] hover:bg-[#ffffff10] border border-[#ffffff10] rounded-lg text-sm font-bold text-white transition-all font-sans"
-                  >
-                    <Edit3 className="w-4 h-4 text-[#2BAADF]" /> Editar Card
                   </button>
                 )}
                 <button onClick={onClose} className="p-2.5 text-gray-500 hover:text-white rounded-xl hover:bg-[#ffffff05] transition-all border border-transparent hover:border-[#ffffff10]">
@@ -314,7 +320,7 @@ export default function CardDetailsModal({
                    {activeTab === 'resumo' ? (
                       <div className="space-y-8 animate-in fade-in duration-300">
                 
-                        {isEditing ? (
+                        {canEdit ? (
                           <form onSubmit={handleSaveEdit} className="space-y-6 animate-in fade-in slide-in-from-left-4 duration-300">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                               <div className="space-y-2">
@@ -365,7 +371,7 @@ export default function CardDetailsModal({
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                               <div className="space-y-2">
-                                <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1 flex items-center gap-1"><User className="w-3 h-3" />Responsável</label>
+                                <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1 flex items-center gap-1"><User className="w-3 h-3" />Responsável (encaminhar para)</label>
                                 <select
                                   value={formData.responsavel_id}
                                   onChange={e => setFormData({...formData, responsavel_id: e.target.value})}
@@ -408,6 +414,134 @@ export default function CardDetailsModal({
                               />
                             </div>
 
+                            {canViewAttachments && (
+                              <section className="pt-2">
+                                <div className="flex items-center justify-between border-b border-[#ffffff0a] pb-2 mb-4">
+                                  <h5 className="flex items-center gap-2 text-xs font-black text-gray-400 uppercase tracking-widest">
+                                    <Paperclip className="w-3.5 h-3.5 text-[#2BAADF]" /> Anexos e Documentos
+                                  </h5>
+                                  <span className="text-[10px] font-bold text-gray-600 bg-[#ffffff05] px-2 py-0.5 rounded-full">
+                                    {files.length} {files.length === 1 ? 'arquivo' : 'arquivos'}
+                                  </span>
+                                </div>
+                                {canAddAttachments && (
+                                  <div className="mb-4">
+                                    <label className={`relative flex flex-col items-center justify-center w-full h-24 border-2 border-dashed rounded-2xl cursor-pointer transition-all duration-300 group ${uploading ? 'border-[#2BAADF]/50 bg-[#2BAADF]/5 cursor-wait' : 'border-[#ffffff0a] hover:border-[#2BAADF]/30 hover:bg-[#ffffff03]'}`}>
+                                      <div className="flex flex-col items-center justify-center pt-2 pb-2">
+                                        {uploading ? (
+                                          <Loader2 className="w-6 h-6 text-[#2BAADF] animate-spin mb-2" />
+                                        ) : (
+                                          <UploadCloud className="w-6 h-6 text-gray-500 group-hover:text-[#2BAADF] mb-1 transition-colors" />
+                                        )}
+                                        <p className="text-[11px] font-bold text-gray-500">
+                                          {uploading ? 'Subindo arquivo...' : 'Clique ou arraste para anexar'}
+                                        </p>
+                                        <p className="text-[9px] text-gray-600">PDF, Imagens ou Docs (Max 5MB)</p>
+                                      </div>
+                                      <input type="file" className="hidden" onChange={handleFileUpload} disabled={uploading} accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx" />
+                                    </label>
+                                  </div>
+                                )}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[220px] overflow-y-auto pr-1 kanban-scroll">
+                                  {loadingFiles ? (
+                                    <div className="col-span-full py-6 flex flex-col items-center justify-center opacity-20">
+                                      <Loader2 className="w-6 h-6 animate-spin mb-2" />
+                                      <p className="text-[10px] uppercase font-black tracking-widest">Carregando anexos...</p>
+                                    </div>
+                                  ) : files.length === 0 ? (
+                                    <div className="col-span-full py-6 border border-[#ffffff05] rounded-2xl bg-[#ffffff02] flex flex-col items-center justify-center opacity-25">
+                                      <FileArchive className="w-8 h-8 mb-2" />
+                                      <p className="text-[10px] uppercase font-black tracking-widest text-center px-4">Nenhum arquivo anexado</p>
+                                    </div>
+                                  ) : (
+                                    files.map(file => (
+                                      <div key={file.id} className="flex items-center gap-3 p-3 bg-[#ffffff03] border border-[#ffffff05] rounded-xl group hover:border-[#2BAADF]/20 hover:bg-[#ffffff05] transition-all">
+                                        <div className="p-2 rounded-lg bg-[#000] border border-[#ffffff0a] text-gray-400 group-hover:text-[#2BAADF] transition-colors">
+                                          {file.file_type?.startsWith('image/') ? <ImageIcon className="w-4 h-4" /> :
+                                           file.file_type === 'application/pdf' ? <FileText className="w-4 h-4" /> :
+                                           <Paperclip className="w-4 h-4" />}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                          <p className="text-[11px] font-bold text-gray-300 truncate" title={file.file_name}>{file.file_name}</p>
+                                          <p className="text-[9px] text-gray-500">{new Date(file.created_at).toLocaleDateString('pt-BR')}</p>
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                          {file.download_url && (
+                                            <a href={file.download_url} target="_blank" rel="noopener noreferrer" className="p-1.5 text-gray-500 hover:text-white hover:bg-[#ffffff0a] rounded-lg transition-all" title="Baixar">
+                                              <Download className="w-3.5 h-3.5" />
+                                            </a>
+                                          )}
+                                          {canDeleteAttachments && (
+                                            <button type="button" onClick={() => handleFileDelete(file.id, file.file_url)} className="p-1.5 text-gray-500 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all" title="Remover">
+                                              <Trash2 className="w-3.5 h-3.5" />
+                                            </button>
+                                          )}
+                                        </div>
+                                      </div>
+                                    ))
+                                  )}
+                                </div>
+                              </section>
+                            )}
+
+                            <div className="pt-4 border-t border-[#ffffff05]">
+                              <h4 className="flex items-center gap-2 text-xs font-black text-gray-500 mb-4 uppercase tracking-widest font-sans px-1">
+                                <Navigation className="w-3.5 h-3.5 text-orange-500" /> Encaminhar para outro funil
+                              </h4>
+                              <div className="flex flex-col md:flex-row gap-3 items-end p-5 bg-[#0A0A0A] border border-[#ffffff08] rounded-2xl shadow-inner">
+                                <div className="flex-1 space-y-2 w-full">
+                                  <label className="text-[10px] font-bold text-gray-600 uppercase ml-1">Pipeline destino</label>
+                                  <select
+                                    className="w-full bg-[#111] border border-[#ffffff10] text-xs text-gray-300 rounded-xl p-3 outline-none focus:border-[#2BAADF] transition-all"
+                                    value={targetPipeline}
+                                    onChange={e => {
+                                      const pId = e.target.value
+                                      setTargetPipeline(pId)
+                                      if (pId) {
+                                        const pipe = pipelines.find(p => p.id === pId)
+                                        setTargetStage(pipe?.pipeline_stages?.[0]?.id ?? '')
+                                      } else {
+                                        setTargetStage('')
+                                      }
+                                    }}
+                                  >
+                                    <option value="">Permanecer no funil atual</option>
+                                    {pipelines.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
+                                  </select>
+                                </div>
+                                {targetPipeline && (
+                                  <div className="flex-1 space-y-2 w-full">
+                                    <label className="text-[10px] font-bold text-gray-600 uppercase ml-1">Estágio inicial</label>
+                                    <select
+                                      className="w-full bg-[#111] border border-[#ffffff10] text-xs text-white font-bold rounded-xl p-3 outline-none focus:border-[#2BAADF] transition-all"
+                                      value={targetStage}
+                                      onChange={e => setTargetStage(e.target.value)}
+                                    >
+                                      {pipelines.find(p => p.id === targetPipeline)?.pipeline_stages?.map((st: any) => (
+                                        <option key={st.id} value={st.id}>{st.nome}</option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={handleTransfer}
+                                  disabled={!targetPipeline || !targetStage || isPending}
+                                  className="px-8 py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-xs font-black transition-all shadow-lg shadow-orange-500/10 disabled:opacity-50 h-[46px] font-sans shrink-0"
+                                >
+                                  {isPending ? 'Migrando...' : 'Mover agora'}
+                                </button>
+                              </div>
+                              {card.conversa_id && (
+                                <p className="text-[10px] text-gray-600 mt-3 ml-1">
+                                  WhatsApp vinculado —{' '}
+                                  <Link href={buildOmniChatUrl(card.conversa_id, card.id)} target="_blank" className="text-green-500 hover:text-green-400 underline underline-offset-2">
+                                    abrir no Chat Omnichannel
+                                  </Link>
+                                </p>
+                              )}
+                            </div>
+
                             <div className="flex items-center gap-3 pt-4">
                               <button 
                                 type="submit" 
@@ -415,14 +549,14 @@ export default function CardDetailsModal({
                                 className="flex-1 flex items-center justify-center gap-2 py-3.5 bg-[#2BAADF] hover:bg-[#1A8FBF] text-white rounded-xl text-sm font-black transition-all shadow-lg shadow-[#2BAADF]/20 disabled:opacity-50 font-sans"
                               >
                                 {isPending ? <div className="w-4 h-4 border-2 border-white/30 border-t-white animate-spin rounded-full" /> : <Save className="w-4 h-4" />}
-                                Salvar Alterações
+                                Salvar alterações
                               </button>
                               <button 
                                 type="button"
-                                onClick={() => setIsEditing(false)}
+                                onClick={onClose}
                                 className="px-6 py-3.5 bg-[#ffffff08] hover:bg-[#ffffff10] border border-[#ffffff10] rounded-xl text-sm font-bold text-gray-300 transition-all font-sans"
                               >
-                                Cancelar
+                                Fechar
                               </button>
                             </div>
                           </form>
@@ -617,64 +751,6 @@ export default function CardDetailsModal({
                                   </section>
                                 )}
                             </div>
-                            
-                            {/* Quick Transfer Form (Moved to within Resumo for cleaner UI) */}
-                            {canEdit && (
-                               <div className="pt-6 border-t border-[#ffffff05]">
-                                  <h4 className="flex items-center gap-2 text-xs font-black text-gray-500 mb-4 uppercase tracking-widest font-sans px-1">
-                                     <Navigation className="w-3.5 h-3.5 text-orange-500" /> Transferência Rápida de Funil
-                                  </h4>
-                                  <div className="flex flex-col md:flex-row gap-3 items-end p-5 bg-[#0A0A0A] border border-[#ffffff08] rounded-2xl shadow-inner">
-                                     <div className="flex-1 space-y-2 w-full">
-                                        <label className="text-[10px] font-bold text-gray-600 uppercase ml-1">Pipeline Destino</label>
-                                        <select 
-                                           className="w-full bg-[#111] border border-[#ffffff10] text-xs text-gray-300 rounded-xl p-3 outline-none focus:border-[#2BAADF] transition-all"
-                                           value={targetPipeline}
-                                           onChange={e => { 
-                                              const pId = e.target.value; 
-                                              setTargetPipeline(pId);
-                                              if (pId) {
-                                                 const pipe = pipelines.find(p => p.id === pId);
-                                                 if (pipe?.pipeline_stages?.length) {
-                                                     setTargetStage(pipe.pipeline_stages[0].id);
-                                                 } else {
-                                                     setTargetStage('');
-                                                 }
-                                              } else {
-                                                 setTargetStage('');
-                                              }
-                                           }}
-                                        >
-                                           <option value="">Escolha o Pipeline...</option>
-                                           {pipelines.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
-                                        </select>
-                                     </div>
-
-                                     {targetPipeline && (
-                                        <div className="flex-1 space-y-2 w-full animate-in fade-in slide-in-from-left-2 duration-300">
-                                           <label className="text-[10px] font-bold text-gray-600 uppercase ml-1">Estágio Inicial</label>
-                                           <select 
-                                              className="w-full bg-[#111] border border-[#ffffff10] text-xs text-white font-bold rounded-xl p-3 outline-none focus:border-[#2BAADF] transition-all"
-                                              value={targetStage}
-                                              onChange={e => setTargetStage(e.target.value)}
-                                           >
-                                              {pipelines.find(p => p.id === targetPipeline)?.pipeline_stages?.map((st: any) => (
-                                                 <option key={st.id} value={st.id}>{st.nome}</option>
-                                              ))}
-                                           </select>
-                                        </div>
-                                     )}
-
-                                     <button 
-                                        onClick={handleTransfer}
-                                        disabled={!targetPipeline || !targetStage || isPending}
-                                        className="px-8 py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-xs font-black transition-all shadow-lg shadow-orange-500/10 disabled:opacity-50 h-[46px] font-sans"
-                                     >
-                                        {isPending ? 'Migrando...' : 'Mover Agora'}
-                                     </button>
-                                  </div>
-                               </div>
-                            )}
                           </div>
                         )}
                       </div>

@@ -26,6 +26,30 @@ function dedupeSessoes<T extends { sessao_id: string; created_at?: string; updat
   )
 }
 
+async function operadorPodeAcessarSessao(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  me: NonNullable<Awaited<ReturnType<typeof getMyProfile>>>,
+  sessaoId: string,
+  conversa?: { atribuido_a_id?: string | null; status?: string | null } | null,
+): Promise<boolean> {
+  if (me.role_global !== 'operador') return true
+
+  if (conversa) {
+    if (conversa.atribuido_a_id === me.id) return true
+    if (!conversa.atribuido_a_id && conversa.status === 'human') return true
+  }
+
+  const { data: card } = await supabase
+    .from('crm_cards')
+    .select('id')
+    .eq('conversa_id', sessaoId)
+    .eq('responsavel_id', me.id)
+    .eq('empresa_id', me.empresa_id)
+    .maybeSingle()
+
+  return !!card
+}
+
 export async function getOmniConversas() {
   const me = await getMyProfile()
   if (!me) return { error: 'Não autenticado', data: [] }
@@ -55,14 +79,14 @@ export async function getOmniConversas() {
   let sessoes = dedupeSessoes(rows ?? [])
 
   if (me.role_global === 'operador') {
-    sessoes = sessoes.filter((c) => {
-      const assigned = (c as { atribuido_a_id?: string | null }).atribuido_a_id
-      const status = (c as { status?: string | null }).status
-      // Minhas conversas OU fila humana sem responsável (QUEUE_UNASSIGNED)
-      if (assigned === me.id) return true
-      if (!assigned && status === 'human') return true
-      return false
-    })
+    const filtered: typeof sessoes = []
+    for (const c of sessoes) {
+      const row = c as { atribuido_a_id?: string | null; status?: string | null; sessao_id: string }
+      if (await operadorPodeAcessarSessao(supabase, me, row.sessao_id, row)) {
+        filtered.push(c)
+      }
+    }
+    sessoes = filtered
   }
 
   const data = sessoes.slice(0, 50).map((row) => ({
@@ -73,6 +97,81 @@ export async function getOmniConversas() {
   return { data }
 }
 
+/** Carrega sessao_id a partir do card (fallback do deep link). */
+export async function getSessaoIdByCardId(cardId: string) {
+  const me = await getMyProfile()
+  if (!me) return { error: 'Não autenticado', data: null as string | null }
+
+  const supabase = await createClient()
+
+  let query = supabase
+    .from('crm_cards')
+    .select('conversa_id, empresa_id, responsavel_id')
+    .eq('id', cardId)
+
+  if (me.role_global !== 'superadmin') {
+    query = query.eq('empresa_id', me.empresa_id)
+  }
+
+  const { data: card, error } = await query.maybeSingle()
+  if (error) return { error: error.message, data: null }
+  if (!card?.conversa_id) return { error: 'Card sem conversa vinculada', data: null }
+
+  const { data: convRows } = await supabase
+    .from('crm_conversas')
+    .select('atribuido_a_id, status')
+    .eq('sessao_id', card.conversa_id)
+    .order('updated_at', { ascending: false })
+    .limit(1)
+
+  const conv = convRows?.[0] ?? null
+  const allowed = await operadorPodeAcessarSessao(supabase, me, card.conversa_id, conv)
+  if (!allowed) return { error: 'Sem permissão para esta conversa', data: null }
+
+  return { data: card.conversa_id }
+}
+
+/** Carrega uma sessão específica (deep link a partir do card). */
+export async function getOmniConversaBySessao(sessaoId: string) {
+  const me = await getMyProfile()
+  if (!me) return { error: 'Não autenticado', data: null }
+
+  const supabase = await createClient()
+
+  let query = supabase
+    .from('crm_conversas')
+    .select(`
+      *,
+      crm_leads (
+        nome,
+        telefone,
+        whatsapp
+      )
+    `)
+    .eq('sessao_id', sessaoId)
+    .order('updated_at', { ascending: false })
+    .limit(1)
+
+  if (me.role_global !== 'superadmin') {
+    query = query.eq('empresa_id', me.empresa_id)
+  }
+
+  const { data: rows, error } = await query
+  if (error) return { error: error.message, data: null }
+  const row = rows?.[0]
+  if (!row) return { error: 'Conversa não encontrada', data: null }
+
+  const allowed = await operadorPodeAcessarSessao(supabase, me, sessaoId, row)
+  if (!allowed) return { error: 'Sem permissão para esta conversa', data: null }
+
+  return {
+    data: {
+      ...row,
+      id: row.sessao_id,
+    },
+  }
+}
+
 export async function getOmniMensagens(sessaoId: string) {
   const me = await getMyProfile()
   if (!me) return { error: 'Não autenticado', data: [] }
@@ -81,7 +180,7 @@ export async function getOmniMensagens(sessaoId: string) {
 
   const { data: conversa, error: convErr } = await supabase
     .from('crm_conversas')
-    .select('sessao_id, empresa_id')
+    .select('sessao_id, empresa_id, atribuido_a_id, status')
     .eq('sessao_id', sessaoId)
     .order('created_at', { ascending: false })
     .limit(1)
@@ -94,6 +193,9 @@ export async function getOmniMensagens(sessaoId: string) {
   if (me.role_global !== 'superadmin' && conversa.empresa_id !== me.empresa_id) {
     return { error: 'Sem permissão para esta conversa', data: [] }
   }
+
+  const allowed = await operadorPodeAcessarSessao(supabase, me, sessaoId, conversa)
+  if (!allowed) return { error: 'Sem permissão para esta conversa', data: [] }
 
   const { data, error } = await supabase
     .from('crm_interacoes')

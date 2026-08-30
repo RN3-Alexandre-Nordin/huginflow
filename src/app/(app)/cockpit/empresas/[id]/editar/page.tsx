@@ -1,9 +1,9 @@
 import { createClient } from "@/utils/supabase/server"
-import Link from "next/link"
 import { notFound } from "next/navigation"
 import {
-  Building2, ArrowLeft, User, Phone, Mail, Globe, MapPin, Briefcase
+  Building2, User, Phone, Mail, Globe, MapPin, Briefcase
 } from "lucide-react"
+import BackButton from '@/components/BackButton'
 import StatusToggle from "../StatusToggle"
 import EditForm from "./EditForm"
 
@@ -28,12 +28,7 @@ export default async function EditarEmpresaPage({
       {/* Header */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-4">
-          <Link
-            href="/cockpit/empresas"
-            className="p-2 rounded-lg bg-[#ffffff05] hover:bg-[#ffffff0a] text-gray-400 hover:text-white transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </Link>
+          <BackButton fallbackHref="/cockpit/empresas" />
           <div>
             <h2 className="text-2xl font-bold tracking-tight text-white flex items-center gap-3">
               <Building2 className="w-6 h-6 text-[#2BAADF]" />

@@ -3,7 +3,8 @@
 import { useTransition, useState, useEffect } from "react"
 import { updateUsuario, deleteUsuario, setUsuarioAtivo, getGruposByEmpresa } from "@/app/(app)/cockpit/actions"
 import Link from "next/link"
-import { Users, ArrowLeft, Building2, Shield, User as UserIcon, Save, Trash2, ShieldAlert, Phone, Hash, MapPin, Calendar, KeyRound, Eye, EyeOff, UserX, UserCheck } from "lucide-react"
+import { Users, Building2, Shield, User as UserIcon, Save, Trash2, ShieldAlert, Phone, Hash, MapPin, Calendar, KeyRound, Eye, EyeOff, UserX, UserCheck } from "lucide-react"
+import { BackButton } from '@/components/BackButton'
 import { maskPhone } from "@/utils/brasilian-formatters"
 import SearchableSelect from "@/components/SearchableSelect"
 
@@ -132,12 +133,7 @@ export default function EditForm({
     <div className="max-w-2xl mx-auto space-y-6 pb-20">
       {/* Header */}
       <div className="flex items-center gap-4">
-        <Link
-          href="/cockpit/usuarios"
-          className="p-2 rounded-lg bg-[#ffffff05] hover:bg-[#ffffff0a] text-gray-400 hover:text-white transition-colors"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </Link>
+        <BackButton fallbackHref="/cockpit/usuarios" />
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-white flex items-center gap-3">
             <Users className="w-6 h-6 text-[#2BAADF]" />

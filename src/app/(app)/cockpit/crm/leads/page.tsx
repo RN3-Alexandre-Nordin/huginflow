@@ -1,6 +1,8 @@
 import { createClient } from "@/utils/supabase/server"
 import Link from "next/link"
-import { Search, Plus, Users, ArrowLeft, MoreHorizontal, Edit, Trash2, Lock } from "lucide-react"
+import { Search, Plus, Users, MoreHorizontal, Edit, Trash2, Lock } from "lucide-react"
+import BackButton from '@/components/BackButton'
+import BackTextButton from '@/components/BackTextButton'
 import { deleteLead } from "./actions"
 import { getMyProfile } from "@/app/(app)/cockpit/actions"
 import { hasPermission } from "@/utils/permissions"
@@ -20,9 +22,9 @@ export default async function LeadsPage(props: { searchParams: Promise<{ q?: str
         <p className="text-gray-400 max-w-md mx-auto mb-8 text-lg">
           Seu grupo de acesso não possui permissão para acessar a Base de Leads.
         </p>
-        <Link href="/cockpit" className="px-6 py-3 bg-[#ffffff05] hover:bg-[#ffffff10] border border-[#ffffff10] rounded-xl text-white font-semibold transition-all">
+        <BackTextButton className="px-6 py-3 bg-[#ffffff05] hover:bg-[#ffffff10] border border-[#ffffff10] rounded-xl text-white font-semibold transition-all">
           Voltar ao Início
-        </Link>
+        </BackTextButton>
       </div>
     )
   }
@@ -54,9 +56,7 @@ export default async function LeadsPage(props: { searchParams: Promise<{ q?: str
     <div className="space-y-6 pb-20 font-sans">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Link href="/cockpit/crm" className="p-2 rounded-lg bg-[#ffffff05] hover:bg-[#ffffff0a] text-gray-400 hover:text-white transition-colors">
-            <ArrowLeft className="w-5 h-5" />
-          </Link>
+          <BackButton fallbackHref="/cockpit/crm" />
           <div>
             <h2 className="text-2xl font-bold tracking-tight text-white flex items-center gap-3">
               <Users className="w-6 h-6 text-[#2BAADF]" />

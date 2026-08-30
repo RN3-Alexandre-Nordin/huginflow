@@ -23,7 +23,8 @@ interface CardData {
 interface KanbanColumnProps {
   column: ColumnData
   cards: CardData[]
-  onCardClick?: (card: any) => void
+  onCardEditClick?: (card: any) => void
+  onCardChatClick?: (card: any) => void
   canMove?: boolean
   canEdit?: boolean
   canViewAttachments?: boolean
@@ -34,7 +35,8 @@ interface KanbanColumnProps {
 export default function KanbanColumn({ 
   column, 
   cards, 
-  onCardClick, 
+  onCardEditClick,
+  onCardChatClick,
   canMove = true,
   canEdit = true,
   canViewAttachments = true,
@@ -97,7 +99,8 @@ export default function KanbanColumn({
               <KanbanItem 
                 card={card} 
                 stageColor={column.cor || '#2BAADF'} 
-                onTransferClick={() => onCardClick?.(card)} 
+                onEditClick={() => onCardEditClick?.(card)}
+                onChatClick={() => onCardChatClick?.(card)}
                 canMove={canMove}
                 canEdit={canEdit}
                 canViewAttachments={canViewAttachments}

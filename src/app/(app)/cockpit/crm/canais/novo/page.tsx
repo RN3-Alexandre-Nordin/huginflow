@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link"
-import { ArrowLeft, Target, Save, AlertCircle } from "lucide-react"
+import { Target, Save, AlertCircle } from "lucide-react"
+import { BackButton } from '@/components/BackButton'
 import { createCanal } from "../actions"
 import { useActionState } from "react"
 
@@ -14,9 +15,7 @@ export default function NovoCanalPage() {
   return (
     <div className="max-w-3xl mx-auto space-y-6 pb-20 animate-in fade-in duration-500">
       <div className="flex items-center gap-4">
-        <Link href="/cockpit/crm/canais" className="p-2 rounded-lg bg-[#ffffff05] hover:bg-[#ffffff0a] text-gray-400 hover:text-white transition-colors">
-          <ArrowLeft className="w-5 h-5" />
-        </Link>
+        <BackButton fallbackHref="/cockpit/crm/canais" />
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-white flex items-center gap-3">
             <Target className="w-6 h-6 text-[#2BAADF]" />

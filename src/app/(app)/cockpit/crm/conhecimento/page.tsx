@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useTransition, useRef } from 'react'
+import BackTextButton from '@/components/BackTextButton'
 import { BookOpen, Plus, Trash2, FileText, Upload, CheckCircle2, AlertCircle, Loader2, X, FileCheck, Download } from 'lucide-react'
 import { getKnowledgeBase, upsertKnowledge, deleteKnowledge } from './actions'
 import { getMyProfile } from '@/app/(app)/cockpit/actions'
@@ -170,12 +171,9 @@ export default function KnowledgeBasePage() {
             Seu grupo de acesso não possui permissão para visualizar a <span className="text-white font-semibold">Base de Conhecimento</span>.
           </p>
         </div>
-        <button 
-          onClick={() => window.history.back()}
-          className="bg-[#ffffff08] hover:bg-[#ffffff12] text-white px-8 py-3 rounded-2xl font-bold transition-all border border-[#ffffff10]"
-        >
+        <BackTextButton className="bg-[#ffffff08] hover:bg-[#ffffff12] text-white px-8 py-3 rounded-2xl font-bold transition-all border border-[#ffffff10]">
           Voltar para Início
-        </button>
+        </BackTextButton>
       </div>
     )
   }

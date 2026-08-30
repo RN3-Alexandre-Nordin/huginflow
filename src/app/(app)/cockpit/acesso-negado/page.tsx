@@ -1,7 +1,8 @@
 'use client'
 
-import { ShieldAlert, ArrowLeft, Home } from "lucide-react"
+import { ShieldAlert, Home } from "lucide-react"
 import Link from "next/link"
+import BackTextButton from '@/components/BackTextButton'
 
 export default function AcessoNegadoPage() {
   return (
@@ -32,13 +33,11 @@ export default function AcessoNegadoPage() {
           <Home className="w-4 h-4" />
           Voltar ao Início
         </Link>
-        <button 
-          onClick={() => window.history.back()}
+        <BackTextButton
           className="flex items-center gap-2 px-6 py-3 rounded-xl bg-[#ffffff05] border border-[#ffffff0a] text-gray-400 font-semibold text-sm hover:text-white hover:bg-[#ffffff10] transition-all active:scale-95"
         >
-          <ArrowLeft className="w-4 h-4" />
           Voltar Anterior
-        </button>
+        </BackTextButton>
       </div>
 
       {/* System Note */}

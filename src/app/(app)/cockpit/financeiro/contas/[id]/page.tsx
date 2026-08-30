@@ -3,7 +3,8 @@ import { notFound, redirect } from "next/navigation"
 import { getMyProfile } from "@/app/(app)/cockpit/actions"
 import { isRn3SuperAdmin } from "@/utils/permissions"
 import { createClient } from "@/utils/supabase/server"
-import { ArrowLeft, Wallet } from "lucide-react"
+import { Wallet } from "lucide-react"
+import BackButton from '@/components/BackButton'
 import { formatBRL, formatDateBR } from "@/lib/finance/format"
 import { FINANCE_STATUS_COLOR, FINANCE_STATUS_LABEL, FINANCE_MEIOS_PAGAMENTO } from "@/lib/finance/constants"
 import type { ContaReceberBaixa } from "@/lib/finance/types"
@@ -64,9 +65,7 @@ export default async function ContaDetalhePage(props: { params: Promise<{ id: st
   return (
     <div className="max-w-4xl mx-auto space-y-6 pb-20 font-sans">
       <div className="flex items-center gap-4">
-        <Link href="/cockpit/financeiro/contas" className="p-2 rounded-lg bg-[#ffffff05] hover:bg-[#ffffff0a] text-gray-400 hover:text-white transition-colors">
-          <ArrowLeft className="w-5 h-5" />
-        </Link>
+        <BackButton fallbackHref="/cockpit/financeiro/contas" />
         <div className="flex-1 min-w-0">
           <h2 className="text-2xl font-bold tracking-tight text-white flex items-center gap-3 truncate">
             <Wallet className="w-6 h-6 text-[#E8A317] flex-shrink-0" />

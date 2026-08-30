@@ -4,7 +4,8 @@ import { useTransition, useState, useEffect } from "react"
 import { createPipeline } from "../../actions"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, LayoutTemplate, Building2, Info, Lock } from "lucide-react"
+import { LayoutTemplate, Building2, Info, Lock } from "lucide-react"
+import { BackButton } from '@/components/BackButton'
 import { createClient } from "@/utils/supabase/client"
 import SearchableSelect from "@/components/SearchableSelect"
 
@@ -72,12 +73,7 @@ export default function NovoFunilPage() {
   return (
     <div className="max-w-3xl mx-auto space-y-6 pb-20">
       <div className="flex items-center gap-4">
-        <Link
-          href="/cockpit/crm/funis"
-          className="p-2 rounded-lg bg-[#ffffff05] hover:bg-[#ffffff0a] text-gray-400 hover:text-white transition-colors"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </Link>
+        <BackButton fallbackHref="/cockpit/crm/funis" />
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-white flex items-center gap-3">
             <LayoutTemplate className="w-6 h-6 text-[#2BAADF]" />

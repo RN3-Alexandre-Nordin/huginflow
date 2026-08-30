@@ -1,5 +1,6 @@
 import Link from "next/link"
 import { ArrowLeft, User, Calendar, Mail, Phone, MapPin, Tag, Edit2 } from "lucide-react"
+import BackButton from '@/components/BackButton'
 import { createClient } from "@/utils/supabase/server"
 import { notFound } from "next/navigation"
 
@@ -40,9 +41,10 @@ export default async function LeadProfilePage(props: { params: Promise<{ id: str
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Link href="/cockpit/crm/leads" className="p-2 rounded-xl bg-[#ffffff05] hover:bg-[#ffffff0a] text-gray-400 hover:text-white transition-all border border-[#ffffff05]">
-            <ArrowLeft className="w-5 h-5" />
-          </Link>
+          <BackButton
+            fallbackHref="/cockpit/crm/leads"
+            className="p-2 rounded-xl bg-[#ffffff05] hover:bg-[#ffffff0a] text-gray-400 hover:text-white transition-all border border-[#ffffff05]"
+          />
           <div>
             <h2 className="text-2xl font-bold tracking-tight text-white flex items-center gap-3">
               <User className="w-6 h-6 text-[#80B828]" />

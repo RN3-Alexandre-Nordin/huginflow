@@ -1,8 +1,8 @@
 'use client'
 
 import { useTransition, useState } from 'react'
-import Link from 'next/link'
-import { ArrowLeft, KeyRound, Eye, EyeOff, ShieldCheck } from 'lucide-react'
+import { KeyRound, Eye, EyeOff, ShieldCheck } from 'lucide-react'
+import { BackButton } from '@/components/BackButton'
 import { changeMyPassword } from '@/app/actions'
 
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
@@ -72,12 +72,7 @@ export default function ChangePasswordForm({
     <div className="max-w-lg mx-auto space-y-6 pb-12">
       <div className="flex items-center gap-4">
         {!required && (
-          <Link
-            href="/cockpit"
-            className="p-2 rounded-lg bg-[#ffffff05] hover:bg-[#ffffff0a] text-gray-400 hover:text-white transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </Link>
+          <BackButton />
         )}
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-white flex items-center gap-3">

@@ -2,7 +2,8 @@ import Link from "next/link"
 import { notFound, redirect } from "next/navigation"
 import { getMyProfile } from "@/app/(app)/cockpit/actions"
 import { isRn3SuperAdmin } from "@/utils/permissions"
-import { ArrowLeft, FileText, Pencil } from "lucide-react"
+import { FileText, Pencil } from "lucide-react"
+import BackButton from '@/components/BackButton'
 import { getContrato, countContasDoContrato } from "../actions"
 import GerarContasButton from "./GerarContasButton"
 import { formatBRL, formatDateBR, computeMesesVigencia } from "@/lib/finance/format"
@@ -49,9 +50,7 @@ export default async function ContratoDetalhePage(props: { params: Promise<{ id:
     <div className="max-w-4xl mx-auto space-y-6 pb-20">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-4">
-          <Link href="/cockpit/financeiro/contratos" className="p-2 rounded-lg bg-[#ffffff05] hover:bg-[#ffffff0a] text-gray-400 hover:text-white transition-colors">
-            <ArrowLeft className="w-5 h-5" />
-          </Link>
+          <BackButton fallbackHref="/cockpit/financeiro/contratos" />
           <div>
             <h2 className="text-2xl font-bold text-white flex items-center gap-3">
               <FileText className="w-6 h-6 text-[#E8A317]" />

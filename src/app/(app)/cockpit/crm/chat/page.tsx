@@ -1,19 +1,27 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useLayoutEffect, useCallback, Suspense } from 'react'
 import { createClient } from '@/utils/supabase/client'
+import { useSearchParams } from 'next/navigation'
 import { 
   Search, MessageSquare, Bot, User, 
   Send, Phone, Edit, MoreVertical, 
-  Paperclip, Smile, ShieldCheck, ArrowLeft
+  Paperclip, Smile, ShieldCheck
 } from 'lucide-react'
 import { format } from 'date-fns'
-import Link from 'next/link'
+import { BackButton } from '@/components/BackButton'
 import { sendOmniMessage } from '../omni-actions'
-import { getOmniConversas, getOmniMensagens } from '../omni-chat-actions'
+import {
+  getOmniConversas,
+  getOmniMensagens,
+  getOmniConversaBySessao,
+  getSessaoIdByCardId,
+} from '../omni-chat-actions'
+import { OMNI_SESSAO_STORAGE_KEY } from '@/lib/omni/chat-deep-link'
 
 interface Conversa {
   id: string
+  sessao_id?: string
   status: 'ai' | 'human' | 'closed'
   last_message: string
   updated_at: string
@@ -21,6 +29,26 @@ interface Conversa {
     nome: string
     telefone: string
     whatsapp: string
+  }
+}
+
+function conversaMatchesSessao(conversa: Conversa, sessaoId: string): boolean {
+  return conversa.id === sessaoId || conversa.sessao_id === sessaoId
+}
+
+function readStoredSessao(): string | null {
+  try {
+    return sessionStorage.getItem(OMNI_SESSAO_STORAGE_KEY)
+  } catch {
+    return null
+  }
+}
+
+function clearStoredSessao(): void {
+  try {
+    sessionStorage.removeItem(OMNI_SESSAO_STORAGE_KEY)
+  } catch {
+    // ignore
   }
 }
 
@@ -73,7 +101,19 @@ function getResponderLabel(msg: Mensagem): string | null {
   return 'Atendente'
 }
 
-export default function ChatOmnichannelPage() {
+function ChatLoadingFallback() {
+  return (
+    <div className="flex items-center justify-center h-[calc(100vh-200px)]">
+      <div className="w-10 h-10 border-4 border-[#2BAADF]/20 border-t-[#2BAADF] rounded-full animate-spin" />
+    </div>
+  )
+}
+
+function ChatOmnichannelInner() {
+  const searchParams = useSearchParams()
+  const sessaoParam = searchParams.get('sessao')
+  const cardParam = searchParams.get('card')
+
   const [conversas, setConversas] = useState<Conversa[]>([])
   const [selectedChat, setSelectedChat] = useState<Conversa | null>(null)
   const [mensagens, setMensagens] = useState<Mensagem[]>([])
@@ -85,6 +125,86 @@ export default function ChatOmnichannelPage() {
   
   const supabase = createClient()
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const targetSessaoRef = useRef<string | null>(null)
+  const selectedChatRef = useRef<Conversa | null>(null)
+  const selectingRef = useRef(false)
+
+  useEffect(() => {
+    selectedChatRef.current = selectedChat
+  }, [selectedChat])
+
+  // Sincroniza alvo de deep link: ?sessao= > sessionStorage (click no card)
+  useLayoutEffect(() => {
+    if (sessaoParam) {
+      targetSessaoRef.current = sessaoParam
+      clearStoredSessao()
+      return
+    }
+    const stored = readStoredSessao()
+    if (stored) {
+      targetSessaoRef.current = stored
+      clearStoredSessao()
+    }
+  }, [sessaoParam, cardParam])
+
+  const resolveSessaoFromUrl = useCallback(async (list: Conversa[], sessaoId: string): Promise<boolean> => {
+    const inList = list.find((c) => conversaMatchesSessao(c, sessaoId))
+    if (inList) {
+      setSelectedChat(inList)
+      return true
+    }
+
+    const res = await getOmniConversaBySessao(sessaoId)
+    if (res.data) {
+      const conv = res.data as Conversa
+      setConversas((prev) => {
+        if (prev.some((c) => conversaMatchesSessao(c, sessaoId))) return prev
+        return [conv, ...prev]
+      })
+      setSelectedChat(conv)
+      return true
+    }
+
+    return false
+  }, [])
+
+  const tryAutoSelect = useCallback(async (list: Conversa[]): Promise<boolean> => {
+    if (selectingRef.current) return false
+    selectingRef.current = true
+    try {
+      let sessaoId = targetSessaoRef.current ?? sessaoParam
+
+      if (!sessaoId && cardParam) {
+        const cardRes = await getSessaoIdByCardId(cardParam)
+        if (cardRes.data) {
+          sessaoId = cardRes.data
+          targetSessaoRef.current = sessaoId
+        }
+      }
+
+      if (!sessaoId) return false
+
+      if (selectedChatRef.current && conversaMatchesSessao(selectedChatRef.current, sessaoId)) {
+        targetSessaoRef.current = null
+        return true
+      }
+
+      const resolved = await resolveSessaoFromUrl(list, sessaoId)
+      if (resolved) targetSessaoRef.current = null
+      return resolved
+    } finally {
+      selectingRef.current = false
+    }
+  }, [sessaoParam, cardParam, resolveSessaoFromUrl])
+
+  async function fetchConversas(me: any) {
+    const { data, error } = await getOmniConversas()
+    if (error) console.error('[Chat] Erro ao listar conversas:', error)
+    const list = data || []
+    setConversas(list)
+    await tryAutoSelect(list)
+    setLoading(false)
+  }
 
   useEffect(() => {
     async function init() {
@@ -103,18 +223,10 @@ export default function ChatOmnichannelPage() {
     init()
   }, [])
 
-  async function fetchConversas(me: any) {
-    const { data, error } = await getOmniConversas()
-    if (error) console.error('[Chat] Erro ao listar conversas:', error)
-    setConversas(data || [])
-    setLoading(false)
-  }
-
-  const selectedChatRef = useRef<Conversa | null>(null)
-
   useEffect(() => {
-    selectedChatRef.current = selectedChat
-  }, [selectedChat])
+    if (loading) return
+    void tryAutoSelect(conversas)
+  }, [loading, conversas, sessaoParam, cardParam, tryAutoSelect])
 
   useEffect(() => {
     if (!profile) return
@@ -252,20 +364,14 @@ export default function ChatOmnichannelPage() {
   )
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-[calc(100vh-200px)]">
-        <div className="w-10 h-10 border-4 border-[#2BAADF]/20 border-t-[#2BAADF] rounded-full animate-spin" />
-      </div>
-    )
+    return <ChatLoadingFallback />
   }
 
   return (
     <div className="flex flex-col h-[calc(100vh-140px)] gap-4 animate-in fade-in duration-500">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Link href="/cockpit/crm" className="p-2 rounded-lg bg-[#ffffff05] hover:bg-[#ffffff0a] text-gray-400 hover:text-white transition-colors">
-            <ArrowLeft className="w-5 h-5" />
-          </Link>
+          <BackButton />
           <div>
             <h2 className="text-2xl font-bold tracking-tight text-white flex items-center gap-3">
               <MessageSquare className="w-6 h-6 text-[#2BAADF]" />
@@ -299,9 +405,9 @@ export default function ChatOmnichannelPage() {
                 <div 
                   key={chat.id}
                   onClick={() => setSelectedChat(chat)}
-                  className={`p-4 border-b border-[#ffffff05] cursor-pointer transition-all hover:bg-[#ffffff03] group relative ${selectedChat?.id === chat.id ? 'bg-[#2BAADF]/10' : ''}`}
+                  className={`p-4 border-b border-[#ffffff05] cursor-pointer transition-all hover:bg-[#ffffff03] group relative ${selectedChat && conversaMatchesSessao(chat, selectedChat.id) ? 'bg-[#2BAADF]/10' : ''}`}
                 >
-                  {selectedChat?.id === chat.id && <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#2BAADF]" />}
+                  {selectedChat && conversaMatchesSessao(chat, selectedChat.id) && <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#2BAADF]" />}
                   <div className="flex items-center gap-3">
                     <div className="relative">
                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#1A1A1A] to-[#0A0A0A] border border-[#ffffff10] flex items-center justify-center text-white shadow-lg">
@@ -468,5 +574,13 @@ export default function ChatOmnichannelPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function ChatOmnichannelPage() {
+  return (
+    <Suspense fallback={<ChatLoadingFallback />}>
+      <ChatOmnichannelInner />
+    </Suspense>
   )
 }

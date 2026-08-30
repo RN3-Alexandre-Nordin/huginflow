@@ -24,6 +24,21 @@ npm run dev
 
 # 3. Capturar telas
 npm run manual:capture
+
+# Só recapturar capítulo 7 (Chat Omnichannel — aguarda lista e conversa carregarem)
+npm run manual:capture:omni
+```
+
+Com túnel Cloudflare (`NEXT_PUBLIC_APP_URL` no `.env.local`):
+
+```bash
+MANUAL_BASE_URL=https://huginflow-local.rn3.tec.br npm run manual:capture:omni
+```
+
+Se o operador de treino não tiver conversas na lista, use o admin da empresa (mesma UI, lista populada):
+
+```bash
+MANUAL_EMAIL=admin@montesinaiatacado.com.br MANUAL_PASSWORD='hugin123@2026' npm run manual:capture:omni
 ```
 
 Opcional — gravar vídeo `.webm` de cada sessão do navegador:

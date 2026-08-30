@@ -3,7 +3,8 @@
 import { useTransition, useEffect, useState } from "react"
 import { createGrupoAcesso } from "@/app/(app)/cockpit/actions"
 import Link from "next/link"
-import { ShieldCheck, ArrowLeft, Building2, AlignLeft, Info } from "lucide-react"
+import { ShieldCheck, Building2, AlignLeft, Info } from "lucide-react"
+import { BackButton } from '@/components/BackButton'
 import { createClient } from "@/utils/supabase/client"
 import SearchableSelect from "@/components/SearchableSelect"
 import PermissionsMatrix from "../PermissionsMatrix"
@@ -72,12 +73,7 @@ export default function NovoGrupoAcessoPage() {
     <div className="max-w-3xl mx-auto space-y-6 pb-20">
       {/* Header */}
       <div className="flex items-center gap-4">
-        <Link
-          href="/cockpit/grupos"
-          className="p-2 rounded-lg bg-[#ffffff05] hover:bg-[#ffffff0a] text-gray-400 hover:text-white transition-colors"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </Link>
+        <BackButton fallbackHref="/cockpit/grupos" />
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-white flex items-center gap-3">
             <ShieldCheck className="w-6 h-6 text-[#2BAADF]" />

@@ -2,7 +2,8 @@
 
 import { useRef, useState } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Download, Loader2, AlertTriangle } from 'lucide-react'
+import { Download, Loader2, AlertTriangle } from 'lucide-react'
+import { BackButton } from '@/components/BackButton'
 
 interface ContractViewerProps {
   empresaId: string
@@ -63,12 +64,7 @@ export default function ContractViewer({
       <div className="sticky top-0 z-50 bg-[#0F0F0F]/95 backdrop-blur border-b border-[#ffffff0a]">
         <div className="max-w-5xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <Link
-              href={`/cockpit/empresas/${empresaId}/editar`}
-              className="p-2 rounded-lg bg-[#ffffff05] hover:bg-[#ffffff0a] text-gray-400 hover:text-white transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </Link>
+            <BackButton fallbackHref={`/cockpit/empresas/${empresaId}/editar`} />
             <div>
               <p className="text-sm font-bold text-white">Contrato MSA — {empresaNome}</p>
               <p className="text-xs text-gray-500">Template preenchido com dados do cadastro</p>

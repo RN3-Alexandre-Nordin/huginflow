@@ -11,6 +11,7 @@
     "start": "next start",
     "lint": "eslint",
     "manual:capture": "node scripts/manual/capture-screenshots.mjs",
+    "manual:capture:omni": "node scripts/manual/capture-screenshots.mjs --omni",
     "manual:video": "node scripts/manual/capture-screenshots.mjs --video",
     "homologacao:prod": "node scripts/supabase/run-homologacao-prod.mjs",
     "homologacao:prod:reuse-tenant": "node scripts/supabase/run-homologacao-prod.mjs --skip-bootstrap"

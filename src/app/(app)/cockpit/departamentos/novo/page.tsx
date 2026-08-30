@@ -3,7 +3,8 @@
 import { useTransition, useEffect, useState } from "react"
 import { createDepartamento } from "@/app/(app)/cockpit/actions"
 import Link from "next/link"
-import { LayoutDashboard, ArrowLeft, Building2, AlignLeft } from "lucide-react"
+import { LayoutDashboard, Building2, AlignLeft } from "lucide-react"
+import { BackButton } from '@/components/BackButton'
 import { createClient } from "@/utils/supabase/client"
 import SearchableSelect from "@/components/SearchableSelect"
 
@@ -64,12 +65,7 @@ export default function NovoDepartamentoPage() {
     <div className="max-w-2xl mx-auto space-y-6 pb-10">
       {/* Header */}
       <div className="flex items-center gap-4">
-        <Link
-          href="/cockpit/departamentos"
-          className="p-2 rounded-lg bg-[#ffffff05] hover:bg-[#ffffff0a] text-gray-400 hover:text-white transition-colors"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </Link>
+        <BackButton fallbackHref="/cockpit/departamentos" />
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-white flex items-center gap-3">
             <LayoutDashboard className="w-6 h-6 text-[#80B828]" />

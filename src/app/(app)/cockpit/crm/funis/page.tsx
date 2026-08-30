@@ -1,6 +1,8 @@
 import { createClient } from "@/utils/supabase/server"
 import Link from "next/link"
-import { Search, Plus, Filter, RotateCcw, LayoutTemplate, Briefcase, EyeOff, ShieldCheck, PenSquare, Eye, ArrowLeft, Lock } from "lucide-react"
+import { Search, Plus, Filter, RotateCcw, LayoutTemplate, Briefcase, EyeOff, ShieldCheck, PenSquare, Eye, Lock } from "lucide-react"
+import BackButton from '@/components/BackButton'
+import BackTextButton from '@/components/BackTextButton'
 import { getMyProfile } from "@/app/(app)/cockpit/actions"
 import { hasPermission } from "@/utils/permissions"
 
@@ -21,9 +23,9 @@ export default async function FunisPage(props: {
         <p className="text-gray-400 max-w-md mx-auto mb-8 text-lg">
           Seu grupo de acesso não possui permissão para visualizar os Funis de Vendas.
         </p>
-        <Link href="/cockpit" className="px-6 py-3 bg-[#ffffff05] hover:bg-[#ffffff10] border border-[#ffffff10] rounded-xl text-white font-semibold transition-all">
+        <BackTextButton className="px-6 py-3 bg-[#ffffff05] hover:bg-[#ffffff10] border border-[#ffffff10] rounded-xl text-white font-semibold transition-all">
           Voltar ao Início
-        </Link>
+        </BackTextButton>
       </div>
     )
   }
@@ -64,12 +66,7 @@ export default async function FunisPage(props: {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Link
-            href="/cockpit/crm"
-            className="p-2 rounded-lg bg-[#ffffff05] hover:bg-[#ffffff0a] text-gray-400 hover:text-white transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </Link>
+          <BackButton fallbackHref="/cockpit" />
           <div>
             <h2 className="text-2xl font-bold tracking-tight text-white flex items-center gap-3">
               <LayoutTemplate className="w-6 h-6 text-[#2BAADF]" />

@@ -6,7 +6,8 @@ import { hasPermission } from "@/utils/permissions"
 import { maskCNPJ, maskPhone, maskCPF, validateCNPJ, validateCPF } from "@/utils/brasilian-formatters"
 import { TIPOS_SOCIETARIOS, ESTADOS_CIVIS } from "@/constants/empresa-juridico"
 import Link from "next/link"
-import { Building2, ArrowLeft, User, Phone, Mail, Globe, MapPin, Briefcase, AlertCircle, Lock } from "lucide-react"
+import { Building2, User, Phone, Mail, Globe, MapPin, Briefcase, AlertCircle, Lock } from "lucide-react"
+import { BackButton } from '@/components/BackButton'
 import { createClient } from "@/utils/supabase/client"
 import EmpresaAiConfigFields from "@/components/empresas/EmpresaAiConfigFields"
 
@@ -116,13 +117,12 @@ export default function NovaEmpresaPage() {
           <h2 className="text-xl font-bold text-white">Acesso Restrito</h2>
           <p className="text-sm text-gray-400 mt-2">Apenas superusuários da RN3 podem cadastrar novas empresas na plataforma.</p>
         </div>
-        <Link
-          href="/cockpit/empresas"
+        <BackButton
+          fallbackHref="/cockpit/empresas"
           className="inline-flex items-center gap-2 text-sm font-medium text-[#2BAADF] hover:underline"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Voltar para Empresas
-        </Link>
+          iconClassName="w-4 h-4"
+          label="Voltar para Empresas"
+        />
       </div>
     )
   }
@@ -131,12 +131,7 @@ export default function NovaEmpresaPage() {
     <div className="max-w-3xl mx-auto space-y-6 pb-10">
       {/* Header */}
       <div className="flex items-center gap-4">
-        <Link
-          href="/cockpit/empresas"
-          className="p-2 rounded-lg bg-[#ffffff05] hover:bg-[#ffffff0a] text-gray-400 hover:text-white transition-colors"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </Link>
+        <BackButton fallbackHref="/cockpit/empresas" />
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-white flex items-center gap-3">
             <Building2 className="w-6 h-6 text-[#2BAADF]" />

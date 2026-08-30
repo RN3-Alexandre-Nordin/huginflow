@@ -3,8 +3,9 @@
 import React, { useState } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { User, MessageCircle, ChevronDown, ChevronUp, ArrowRightLeft, CalendarDays, Clock, CheckCircle2 } from 'lucide-react'
+import { User, MessageCircle, ChevronDown, ChevronUp, CalendarDays, Clock, CheckCircle2, Edit3 } from 'lucide-react'
 import { toggleCardFinalizado } from '@/app/(app)/cockpit/crm/actions'
+import { buildOmniChatUrl, navigateToOmniChat } from '@/lib/omni/chat-deep-link'
 
 interface CardData {
   id: string
@@ -53,7 +54,8 @@ export default function KanbanItem({
   card, 
   isOverlay, 
   stageColor = '#2BAADF', 
-  onTransferClick,
+  onEditClick,
+  onChatClick,
   canMove = true,
   canEdit = true,
   canViewAttachments = true,
@@ -63,7 +65,8 @@ export default function KanbanItem({
   card: CardData; 
   isOverlay?: boolean; 
   stageColor?: string; 
-  onTransferClick?: () => void;
+  onEditClick?: () => void;
+  onChatClick?: () => void;
   canMove?: boolean;
   canEdit?: boolean;
   canViewAttachments?: boolean;
@@ -140,11 +143,11 @@ export default function KanbanItem({
                 type="button"
                 onPointerDown={(e) => { e.stopPropagation(); e.preventDefault() }}
                 onPointerUp={(e) => e.stopPropagation()}
-                onClick={(e) => { e.stopPropagation(); e.preventDefault(); onTransferClick?.() }}
-                className="p-1.5 rounded-md bg-[#ffffff05] hover:bg-[#ffffff10] transition-colors cursor-pointer border border-[#ffffff0a]"
-                title="Transferir para Outro Funil"
+                onClick={(e) => { e.stopPropagation(); e.preventDefault(); onEditClick?.() }}
+                className="p-1.5 rounded-md bg-[#ffffff05] hover:bg-[#2BAADF]/10 transition-colors cursor-pointer border border-[#ffffff0a] hover:border-[#2BAADF]/30"
+                title="Gestão do Card"
               >
-                <ArrowRightLeft className="w-3.5 h-3.5" style={{ color: stageColor }} />
+                <Edit3 className="w-3.5 h-3.5 text-[#2BAADF]" />
               </button>
             </>
           )}
@@ -197,7 +200,7 @@ export default function KanbanItem({
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             {card.lead_id && (
               <a href={`/cockpit/crm/leads/${card.lead_id}/editar`} target="_blank" rel="noreferrer"
                 className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition-colors hover:opacity-80"
@@ -205,10 +208,23 @@ export default function KanbanItem({
                 <User className="w-3.5 h-3.5" />Perfil Lead
               </a>
             )}
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onChatClick?.() }}
+              className="flex items-center gap-1.5 text-xs font-semibold text-orange-400 hover:text-white bg-orange-500/10 hover:bg-orange-500/20 px-2.5 py-1.5 rounded-lg transition-colors"
+            >
+              <MessageCircle className="w-3.5 h-3.5" />Chat Interno
+            </button>
             {card.conversa_id && (
-              <a href={`/cockpit/chat/${card.conversa_id}`} target="_blank" rel="noreferrer"
+              <a
+                href={buildOmniChatUrl(card.conversa_id, card.id)}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  e.preventDefault()
+                  navigateToOmniChat(card.conversa_id!, card.id)
+                }}
                 className="flex items-center gap-1.5 text-xs font-semibold text-green-500 hover:text-white bg-green-500/10 hover:bg-green-500/20 px-2.5 py-1.5 rounded-lg transition-colors">
-                <MessageCircle className="w-3.5 h-3.5" />Chat
+                <MessageCircle className="w-3.5 h-3.5" />WhatsApp
               </a>
             )}
           </div>

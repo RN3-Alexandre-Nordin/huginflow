@@ -3,7 +3,7 @@
 import { useTransition, useState } from "react"
 import { updateEmpresaStatus } from "@/app/(app)/cockpit/actions"
 import Link from "next/link"
-import { Building2, ArrowLeft, Power, PowerOff, CheckCircle2, XCircle } from "lucide-react"
+import { Building2, Power, PowerOff, CheckCircle2, XCircle } from "lucide-react"
 
 interface Empresa {
   id: string

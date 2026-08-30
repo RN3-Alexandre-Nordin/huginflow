@@ -1,5 +1,6 @@
 import { createClient } from "@/utils/supabase/server"
 import Link from "next/link"
+import BackTextButton from '@/components/BackTextButton'
 import { ShieldCheck, Plus, Building2, Pencil, RotateCcw, Lock, ShieldAlert } from "lucide-react"
 import SearchFilters from "./SearchFilters"
 import { getMyProfile } from "@/app/(app)/cockpit/actions"
@@ -20,9 +21,9 @@ export default async function GruposAcessoPage(props: {
         <p className="text-gray-400 max-w-md mx-auto mb-8 text-lg">
           Seu grupo de acesso não possui autorização para gerenciar perfis de permissão.
         </p>
-        <Link href="/cockpit" className="px-6 py-3 bg-[#ffffff05] hover:bg-[#ffffff10] border border-[#ffffff10] rounded-xl text-white font-semibold transition-all">
+        <BackTextButton className="px-6 py-3 bg-[#ffffff05] hover:bg-[#ffffff10] border border-[#ffffff10] rounded-xl text-white font-semibold transition-all">
           Voltar ao Início
-        </Link>
+        </BackTextButton>
       </div>
     )
   }

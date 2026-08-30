@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation"
 import { useEffect, useState } from "react"
 import {
   LayoutDashboard,
-  LayoutTemplate,
   Inbox,
   MessageSquare,
   Building2,
@@ -34,7 +33,6 @@ type NavSection = {
 
 const topLevel: NavItem[] = [
   { name: "Cockpit", href: "/cockpit", icon: LayoutDashboard },
-  { name: "CRM Workspace", href: "/cockpit/crm", icon: LayoutTemplate },
   { name: "Base de Leads", href: "/cockpit/crm/leads", icon: Inbox },
   { name: "Chat Omnichannel", href: "/cockpit/crm/chat", icon: MessageSquare },
 ]

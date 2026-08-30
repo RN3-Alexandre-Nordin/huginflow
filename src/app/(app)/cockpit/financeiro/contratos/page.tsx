@@ -2,7 +2,8 @@ import Link from "next/link"
 import { redirect } from "next/navigation"
 import { getMyProfile } from "@/app/(app)/cockpit/actions"
 import { isRn3SuperAdmin } from "@/utils/permissions"
-import { FileText, ArrowLeft, Plus, Eye, Pencil } from "lucide-react"
+import { FileText, Plus, Eye, Pencil } from "lucide-react"
+import BackButton from '@/components/BackButton'
 import { listContratos } from "./actions"
 import { formatBRL, formatDateBR } from "@/lib/finance/format"
 import { CONTRATO_STATUS_COLOR, CONTRATO_STATUS } from "@/lib/finance/contrato-constants"
@@ -39,9 +40,7 @@ export default async function ContratosPage(props: {
     <div className="space-y-6 pb-20 font-sans">
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center gap-4">
-          <Link href="/cockpit/financeiro" className="p-2 rounded-lg bg-[#ffffff05] hover:bg-[#ffffff0a] text-gray-400 hover:text-white transition-colors">
-            <ArrowLeft className="w-5 h-5" />
-          </Link>
+          <BackButton fallbackHref="/cockpit/financeiro" />
           <div>
             <h2 className="text-2xl font-bold tracking-tight text-white flex items-center gap-3">
               <FileText className="w-6 h-6 text-[#E8A317]" />
