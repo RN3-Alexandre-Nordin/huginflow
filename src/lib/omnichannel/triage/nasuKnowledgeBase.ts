@@ -1,12 +1,14 @@
 /**
  * Conteúdo da Base de Conhecimento — horário e mapa de triagem NASU.
  */
-export const NASU_KB_HORARIO = `Horário de atendimento NASU Locações (WhatsApp e canais):
+export const NASU_KB_HORARIO = `Horário de atendimento humano NASU Locações (WhatsApp e canais):
 - Dias: segunda a sexta-feira
 - Horário: 08:00 às 17:00
 - Fuso: America/Sao_Paulo (horário de Brasília)
-- Sábados, domingos e fora desse intervalo: NÃO há atendimento humano imediato, salvo plantão autorizado explicitamente em outra regra da Base de Conhecimento.
-- Mensagem sugerida fora do horário: "Olá! Recebemos sua mensagem. Nosso horário de atendimento é de segunda a sexta-feira, das 8h às 17h (horário de Brasília). Um de nossos atendentes entrará em contato no horário comercial. Obrigado!"
+- Sábados, domingos e fora desse intervalo: NÃO há atendente humano imediato.
+- A IA DEVE continuar a conversa fora do horário até classificar a solicitação e permitir a criação do card.
+- Só após registrar/classificar, informe o cliente sobre o retorno no horário comercial.
+- Mensagem sugerida (após criar o card, fora do horário): "Registramos sua solicitação. Nosso horário de atendimento humano é de segunda a sexta, das 8h às 17h (horário de Brasília). Um de nossos atendentes entrará em contato nesse período. Obrigado!"
 `
 
 export const NASU_KB_TRIAGEM = `Mapa de triagem NASU (assuntos → departamento → funil):

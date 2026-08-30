@@ -49,24 +49,24 @@ export class TriageActionExecutor {
     const wantsCard =
       actions.has('CREATE_CARD') || actions.has('HANDOVER') || actions.has('QUEUE_UNASSIGNED')
 
-    // Fora do horário: sistema bloqueia card/atribuição mesmo se a IA pedir CREATE_CARD
-    if (!facts.dentro_horario) {
-      if (wantsCard || actions.has('FORA_HORARIO')) {
-        executed.push('FORA_HORARIO')
-        reasons.push('Fora do horário comercial — card/atribuição bloqueados pelo sistema.')
-        await this.logReasoning(supabase, input, reasons.join(' '), {
-          actions: [...executed],
-          dentro_horario: false,
-        })
+    // Fora do horário: a IA deve continuar conversando até classificar.
+    // Só FORA_HORARIO sem card = ainda em triagem (não bloqueia; não cria card).
+    if (!wantsCard) {
+      if (!facts.dentro_horario && actions.has('FORA_HORARIO')) {
+        reasons.push(
+          'Fora do horário — IA ainda coletando dados (sem CREATE_CARD). Card será criado ao classificar.',
+        )
       } else {
-        reasons.push('Fora do horário — sem ação de card.')
+        reasons.push('Nenhuma ação de card/handover emitida.')
       }
       return { executed, cardId, responsavelId, handover: false, reasoning: reasons.join(' ') }
     }
 
-    if (!wantsCard) {
-      reasons.push('Nenhuma ação de card/handover emitida.')
-      return { executed, cardId, responsavelId, handover: false, reasoning: reasons.join(' ') }
+    if (!facts.dentro_horario) {
+      executed.push('FORA_HORARIO')
+      reasons.push(
+        'Fora do horário comercial — card será criado/atualizado e ficará aguardando o horário humano.',
+      )
     }
 
     const funil = resolveFunilFromTriage(facts, tags.triage ?? {})
@@ -100,6 +100,7 @@ export class TriageActionExecutor {
       categoria: tags.triage?.categoria ?? null,
       prioridade: tags.triage?.prioridade ?? 'normal',
       atribuido_em: new Date().toISOString(),
+      fora_horario: !facts.dentro_horario,
     }
 
     if (facts.card_aberto && facts.card_id) {

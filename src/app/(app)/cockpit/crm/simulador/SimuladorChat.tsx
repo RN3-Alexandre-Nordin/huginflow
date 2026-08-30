@@ -259,7 +259,7 @@ export default function SimuladorChat({ initialHistory = [] }: { initialHistory?
         <div className="mt-auto flex items-start gap-2 text-[10px] text-gray-600">
           <Clock className="w-3.5 h-3.5 shrink-0 mt-0.5" />
           <span>
-            Horário comercial é avaliado em America/Sao_Paulo. Fora do horário o sistema bloqueia CREATE_CARD.
+            Fora do horário a IA continua a triagem, cria o card e só então informa retorno no comercial.
           </span>
         </div>
       </div>
