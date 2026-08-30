@@ -91,8 +91,13 @@ export default function EditForm({ user, companies, groups: initialGroups, isSup
   }
 
   const handleDelete = () => {
-    startTransition(() => {
-      deleteUsuario(user.id, user.auth_user_id)
+    setFormError("")
+    startTransition(async () => {
+      const result = await deleteUsuario(user.id, user.auth_user_id)
+      if (result?.error) {
+        setFormError(result.error)
+        setShowDeleteConfirm(false)
+      }
     })
   }
 
@@ -374,17 +379,27 @@ export default function EditForm({ user, companies, groups: initialGroups, isSup
                 className="group flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-red-500/70 hover:text-red-500 hover:bg-red-500/10 transition-all border border-transparent hover:border-red-500/20"
               >
                 <Trash2 className="w-4 h-4" />
-                Remover Acesso
+                Excluir usuário
               </button>
             ) : (
-              <div className="flex items-center gap-3 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-2 animate-in fade-in slide-in-from-left-2 transition-all">
-                <ShieldAlert className="w-4 h-4 text-red-500" />
-                <span className="text-[10px] font-bold uppercase tracking-tight text-red-500">Excluir definitavamente?</span>
+              <div className="flex flex-col gap-2 max-w-md animate-in fade-in slide-in-from-left-2">
+                <div className="flex items-start gap-3 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3">
+                  <ShieldAlert className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <p className="text-[11px] font-bold uppercase tracking-tight text-red-400">
+                      Excluir definitivamente?
+                    </p>
+                    <p className="text-[11px] text-red-300/80 leading-snug font-medium normal-case tracking-normal">
+                      Remove login e perfil. Só é permitido se o usuário <strong>não for responsável</strong> de nenhum card (nem finalizados).
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 px-1">
                 <button
                   type="button"
                   onClick={handleDelete}
                   disabled={isPending}
-                  className="bg-red-500 hover:bg-red-600 text-white text-[10px] uppercase tracking-wider font-bold px-3 py-1 rounded-lg transition-colors disabled:opacity-50"
+                  className="bg-red-500 hover:bg-red-600 text-white text-[10px] uppercase tracking-wider font-bold px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
                 >
                   {isPending ? '...' : 'Sim, Excluir'}
                 </button>
@@ -395,6 +410,7 @@ export default function EditForm({ user, companies, groups: initialGroups, isSup
                 >
                   Cancelar
                 </button>
+                </div>
               </div>
             )}
           </div>

@@ -520,28 +520,78 @@ export async function deleteUsuario(id: string, auth_user_id: string) {
     return { error: 'Sem permissão para excluir usuários.' }
   }
 
+  if (!id) {
+    return { error: 'Usuário inválido.' }
+  }
+
+  if (me?.id === id) {
+    return { error: 'Você não pode excluir o próprio usuário.' }
+  }
+
   const supabaseAdmin = createAdminClient()
 
-  if (auth_user_id) {
-    const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(auth_user_id)
+  const { data: target, error: targetError } = await supabaseAdmin
+    .from('usuarios')
+    .select('id, auth_user_id, empresa_id, role_global, email, nome_completo')
+    .eq('id', id)
+    .maybeSingle()
+
+  if (targetError || !target) {
+    return { error: 'Usuário não encontrado.' }
+  }
+
+  if (me?.role_global !== 'superadmin' && target.empresa_id !== me?.empresa_id) {
+    return { error: 'Sem permissão para excluir este usuário.' }
+  }
+
+  if (target.role_global === 'superadmin' && me?.role_global !== 'superadmin') {
+    return { error: 'Sem permissão para excluir um superadmin.' }
+  }
+
+  // Regra de negócio: não excluir se for responsável de qualquer card (ativos ou finalizados)
+  const { count: cardsCount, error: cardsError } = await supabaseAdmin
+    .from('crm_cards')
+    .select('id', { count: 'exact', head: true })
+    .eq('responsavel_id', id)
+
+  if (cardsError) {
+    console.error('Erro ao verificar cards do usuário', cardsError)
+    return { error: 'Não foi possível verificar os cards vinculados a este usuário.' }
+  }
+
+  if ((cardsCount ?? 0) > 0) {
+    return {
+      error:
+        `Não é possível excluir: este usuário é responsável por ${cardsCount} card(s) ` +
+        `(incluindo finalizados). Transfira a responsabilidade antes de excluir.`,
+    }
+  }
+
+  // Limpa FKs que bloqueiam exclusão (sem CASCADE / SET NULL)
+  await supabaseAdmin.from('crm_interacoes').update({ user_id: null }).eq('user_id', id)
+
+  const authId = auth_user_id || target.auth_user_id
+  if (authId) {
+    const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(authId)
     if (authError) {
-      console.error("Erro ao deletar usuário no Auth", authError)
+      console.error('Erro ao deletar usuário no Auth', authError)
       return { error: authError.message }
     }
   }
 
-  const supabase = await createClient()
-  const query = supabase.from('usuarios').delete().eq('id', id)
-  
-  if (me?.role_global !== 'superadmin') {
-    query.eq('empresa_id', me?.empresa_id ?? '')
-  }
+  // Auth delete costuma remover o perfil via CASCADE; garante limpeza residual
+  const { data: stillThere } = await supabaseAdmin
+    .from('usuarios')
+    .select('id')
+    .eq('id', id)
+    .maybeSingle()
 
-  const { error } = await query
-
-  if (error) {
-    console.error("Erro ao deletar perfil de usuário", error)
-    return { error: error.message }
+  if (stillThere) {
+    const { error } = await supabaseAdmin.from('usuarios').delete().eq('id', id)
+    if (error) {
+      console.error('Erro ao deletar perfil de usuário', error)
+      return { error: error.message }
+    }
   }
 
   revalidatePath('/cockpit/usuarios')
