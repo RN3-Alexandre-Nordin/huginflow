@@ -126,86 +126,111 @@ export default async function UsuariosPage(props: {
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          {users.map((user) => (
-            <div
-              key={user.id}
-              className="bg-[#111111] border border-[#ffffff0a] rounded-2xl p-6 hover:border-[#2BAADF]/30 transition-all group relative overflow-hidden shadow-lg border-l-2 border-l-transparent hover:border-l-[#2BAADF]"
-            >
-              <div className="absolute -top-12 -right-12 w-24 h-24 rounded-full bg-[#2BAADF]/5 blur-2xl group-hover:bg-[#2BAADF]/10 transition-all pointer-events-none" />
-              
-              <div className="flex gap-5">
-                {/* Avatar / Role Icon */}
-                <div className="relative shrink-0">
-                  <div className="w-16 h-16 rounded-2xl bg-[#000000] border border-[#ffffff12] flex items-center justify-center text-2xl font-black text-[#2BAADF] group-hover:scale-105 transition-transform shadow-inner">
-                    {user.nome_completo?.substring(0, 1).toUpperCase() || "?"}
-                  </div>
-                  <div className="absolute -bottom-1 -right-1 p-2 rounded-xl bg-[#111111] border border-[#ffffff10] shadow-2xl">
-                    {user.role_global === 'superadmin' ? (
-                      <span title="SuperAdmin"><ShieldCheck className="w-4 h-4 text-[#80B828]" /></span>
-                    ) : user.role_global === 'admin' ? (
-                      <span title="Admin"><ShieldCheck className="w-4 h-4 text-[#2BAADF]" /></span>
-                    ) : (
-                      <span title="Usuário"><Users className="w-4 h-4 text-gray-600" /></span>
-                    )}
-                  </div>
-                </div>
+        <div className="rounded-xl border border-[#ffffff0a] bg-[#111111] overflow-hidden">
+          <div className="hidden md:grid grid-cols-[minmax(0,1.6fr)_minmax(0,0.9fr)_auto_auto] gap-3 px-4 py-2.5 border-b border-[#ffffff08] text-[10px] font-black uppercase tracking-widest text-gray-600">
+            <span>Usuário</span>
+            <span>Grupo</span>
+            <span className="text-right">Desde</span>
+            <span className="w-9" />
+          </div>
+          <ul className="divide-y divide-[#ffffff06]">
+            {users.map((user) => {
+              const initial = user.nome_completo?.substring(0, 1).toUpperCase() || "?"
+              const roleTitle =
+                user.role_global === "superadmin"
+                  ? "SuperAdmin"
+                  : user.role_global === "admin"
+                    ? "Admin"
+                    : user.role_global === "visualizador"
+                      ? "Visualizador"
+                      : "Operador"
+              const RoleIcon =
+                user.role_global === "superadmin" || user.role_global === "admin"
+                  ? ShieldCheck
+                  : Users
+              const roleColor =
+                user.role_global === "superadmin"
+                  ? "text-[#80B828]"
+                  : user.role_global === "admin"
+                    ? "text-[#2BAADF]"
+                    : "text-gray-500"
 
-                {/* Main Content */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between">
-                    <div className="min-w-0">
-                      <h3 className="font-bold text-white text-lg group-hover:text-[#2BAADF] transition-colors flex items-center gap-2 truncate pr-8">
-                        {user.nome_completo || "Sem nome informado"}
-                      </h3>
-                      <p className="text-xs text-gray-500 font-medium flex items-center gap-1.5 mt-0.5 truncate">
-                        <Mail className="w-3.5 h-3.5" />
-                        {user.email}
-                      </p>
+              return (
+                <li
+                  key={user.id}
+                  className="group px-3 py-2.5 md:px-4 hover:bg-[#ffffff04] transition-colors"
+                >
+                  <div className="grid grid-cols-[1fr_auto] md:grid-cols-[minmax(0,1.6fr)_minmax(0,0.9fr)_auto_auto] gap-2 md:gap-3 items-center">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="relative shrink-0">
+                        <div className="w-9 h-9 rounded-lg bg-[#0A0A0A] border border-[#ffffff10] flex items-center justify-center text-sm font-bold text-[#2BAADF]">
+                          {initial}
+                        </div>
+                        <span
+                          title={roleTitle}
+                          className="absolute -bottom-0.5 -right-0.5 p-0.5 rounded bg-[#111111] border border-[#ffffff10]"
+                        >
+                          <RoleIcon className={`w-2.5 h-2.5 ${roleColor}`} />
+                        </span>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-white truncate group-hover:text-[#2BAADF] transition-colors">
+                          {user.nome_completo || "Sem nome informado"}
+                        </p>
+                        <p className="text-[11px] text-gray-500 truncate flex items-center gap-1">
+                          <Mail className="w-3 h-3 shrink-0 opacity-70" />
+                          {user.email}
+                        </p>
+                        {isSuperAdmin && user.empresas?.nome && (
+                          <p className="md:hidden text-[10px] text-gray-600 truncate mt-0.5 flex items-center gap-1">
+                            <Building2 className="w-3 h-3 shrink-0" />
+                            {user.empresas.nome}
+                          </p>
+                        )}
+                      </div>
                     </div>
-                    {canEdit && (
-                      <Link
-                        href={`/cockpit/usuarios/${user.id}/editar`}
-                        className="p-2.5 rounded-xl bg-[#ffffff03] hover:bg-[#ffffff0a] text-gray-500 hover:text-white transition-all border border-[#ffffff0a] group-hover:border-[#ffffff20]"
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </Link>
-                    )}
-                  </div>
 
-                  <div className="grid grid-cols-2 gap-4 mt-5">
-                    <div className="bg-[#000000]/40 border border-[#ffffff05] rounded-xl p-3 shadow-inner">
-                      <p className="text-[9px] uppercase tracking-widest text-gray-600 font-black mb-1.5">Cargo / Grupo</p>
-                      <p className="text-xs text-gray-300 font-bold line-clamp-1">
+                    <div className="hidden md:block min-w-0">
+                      <p className="text-xs text-gray-300 font-medium truncate">
                         {user.grupos_acesso?.nome || "Acesso Básico"}
                       </p>
-                    </div>
-                    {isSuperAdmin && (
-                      <div className="bg-[#000000]/40 border border-[#ffffff05] rounded-xl p-3 shadow-inner">
-                        <p className="text-[9px] uppercase tracking-widest text-gray-600 font-black mb-1.5">Organização</p>
-                        <p className="text-xs text-white font-black line-clamp-1">
-                          {user.empresas?.nome}
+                      {isSuperAdmin && (
+                        <p className="text-[10px] text-gray-600 truncate flex items-center gap-1 mt-0.5">
+                          <Building2 className="w-3 h-3 shrink-0" />
+                          {user.empresas?.nome || "—"}
                         </p>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="mt-5 pt-4 border-t border-[#ffffff05] flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      {user.role_global === 'superadmin' && (
-                        <span className="text-[9px] font-black uppercase text-[#80B828]/60 tracking-[0.2em] font-sans">HuginFlow Core</span>
                       )}
-                      <div className="flex items-center gap-1.5 text-[10px] text-gray-600 font-bold uppercase tracking-tighter">
-                        <Calendar className="w-3.5 h-3.5 opacity-50" />
-                        Desde {new Date(user.created_at).toLocaleDateString("pt-BR")}
-                      </div>
                     </div>
-                    <span className="text-[9px] font-black text-gray-800 tracking-widest">#{user.id.slice(0, 8).toUpperCase()}</span>
+
+                    <div className="hidden md:flex items-center gap-1.5 text-[10px] text-gray-500 font-medium tabular-nums justify-end">
+                      <Calendar className="w-3 h-3 opacity-50" />
+                      {new Date(user.created_at).toLocaleDateString("pt-BR")}
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2">
+                      <span className="md:hidden text-[10px] px-2 py-0.5 rounded-md bg-[#ffffff06] text-gray-400 truncate max-w-[7rem]">
+                        {user.grupos_acesso?.nome || "Básico"}
+                      </span>
+                      {canEdit ? (
+                        <Link
+                          href={`/cockpit/usuarios/${user.id}/editar`}
+                          title="Editar usuário"
+                          className="p-2 rounded-lg text-gray-500 hover:text-white hover:bg-[#ffffff0a] border border-transparent hover:border-[#ffffff12] transition-all"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </Link>
+                      ) : (
+                        <span className="w-9" />
+                      )}
+                    </div>
                   </div>
-                </div>
-              </div>
-            </div>
-          ))}
+                </li>
+              )
+            })}
+          </ul>
+          <div className="px-4 py-2 border-t border-[#ffffff08] text-[10px] text-gray-600 font-medium">
+            {users.length} {users.length === 1 ? "usuário" : "usuários"}
+          </div>
         </div>
       )}
     </div>
