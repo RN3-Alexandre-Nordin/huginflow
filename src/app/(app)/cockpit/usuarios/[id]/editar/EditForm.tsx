@@ -1,9 +1,9 @@
 'use client'
 
 import { useTransition, useState, useEffect } from "react"
-import { updateUsuario, deleteUsuario, getGruposByEmpresa } from "@/app/(app)/cockpit/actions"
+import { updateUsuario, deleteUsuario, setUsuarioAtivo, getGruposByEmpresa } from "@/app/(app)/cockpit/actions"
 import Link from "next/link"
-import { Users, ArrowLeft, Building2, Shield, User as UserIcon, Save, Trash2, ShieldAlert, Phone, Hash, MapPin, Calendar, KeyRound, Eye, EyeOff } from "lucide-react"
+import { Users, ArrowLeft, Building2, Shield, User as UserIcon, Save, Trash2, ShieldAlert, Phone, Hash, MapPin, Calendar, KeyRound, Eye, EyeOff, UserX, UserCheck } from "lucide-react"
 import { maskPhone } from "@/utils/brasilian-formatters"
 import SearchableSelect from "@/components/SearchableSelect"
 
@@ -16,6 +16,7 @@ interface UserProfile {
   grupo_id: string | null
   empresa_id: string
   is_superuser: boolean
+  ativo?: boolean | null
   telefone: string | null
   ramal: string | null
   endereco: string | null
@@ -29,6 +30,7 @@ interface EditFormProps {
   groups: { id: string, nome: string }[]
   isSuperAdmin: boolean
   currentUserIsSuperuser: boolean
+  cardsAsResponsavel: number
 }
 
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
@@ -44,10 +46,20 @@ function Field({ label, required, children }: { label: string; required?: boolea
 
 const inputCls = "w-full bg-[#0A0A0A] border border-[#ffffff12] focus:border-[#2BAADF] rounded-xl px-4 py-2.5 text-sm text-white outline-none transition-all placeholder-gray-600 focus:ring-1 focus:ring-[#2BAADF]/30"
 
-export default function EditForm({ user, companies, groups: initialGroups, isSuperAdmin, currentUserIsSuperuser }: EditFormProps) {
+export default function EditForm({
+  user,
+  companies,
+  groups: initialGroups,
+  isSuperAdmin,
+  currentUserIsSuperuser,
+  cardsAsResponsavel,
+}: EditFormProps) {
   const [isPending, startTransition] = useTransition()
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [showInactivateConfirm, setShowInactivateConfirm] = useState(false)
   const [selectedEmpresa, setSelectedEmpresa] = useState(user.empresa_id)
+  const [isAtivo, setIsAtivo] = useState(user.ativo !== false)
+  const canHardDelete = cardsAsResponsavel === 0
   const [selectedGrupoId, setSelectedGrupoId] = useState(user.grupo_id || "")
   const [groups, setGroups] = useState(initialGroups)
   const [telefone, setTelefone] = useState(user.telefone || "")
@@ -101,6 +113,21 @@ export default function EditForm({ user, companies, groups: initialGroups, isSup
     })
   }
 
+  const handleToggleAtivo = () => {
+    setFormError("")
+    const next = !isAtivo
+    startTransition(async () => {
+      const result = await setUsuarioAtivo(user.id, next)
+      if (result?.error) {
+        setFormError(result.error)
+        setShowInactivateConfirm(false)
+        return
+      }
+      setIsAtivo(next)
+      setShowInactivateConfirm(false)
+    })
+  }
+
   return (
     <div className="max-w-2xl mx-auto space-y-6 pb-20">
       {/* Header */}
@@ -118,6 +145,15 @@ export default function EditForm({ user, companies, groups: initialGroups, isSup
           </h2>
           <p className="text-sm text-gray-400 mt-0.5">
             E-mail: <span className="text-white/80">{user.email}</span>
+            <span
+              className={`ml-3 inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider ${
+                isAtivo
+                  ? 'bg-[#80B828]/15 text-[#80B828] border border-[#80B828]/25'
+                  : 'bg-red-500/15 text-red-400 border border-red-500/25'
+              }`}
+            >
+              {isAtivo ? 'Ativo' : 'Inativo'}
+            </span>
           </p>
         </div>
       </div>
@@ -370,46 +406,100 @@ export default function EditForm({ user, companies, groups: initialGroups, isSup
         )}
 
         {/* Footer Actions */}
-        <div className="flex items-center justify-between pt-4 border-t border-[#ffffff0a]">
-          <div className="flex items-center gap-4">
-            {!showDeleteConfirm ? (
+        <div className="flex items-center justify-between pt-4 border-t border-[#ffffff0a] gap-4 flex-wrap">
+          <div className="flex items-center gap-4 flex-wrap">
+            {/* Com cards: inativar. Sem cards: excluir. Sempre: reativar se inativo. */}
+            {!isAtivo ? (
               <button
                 type="button"
-                onClick={() => setShowDeleteConfirm(true)}
-                className="group flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-red-500/70 hover:text-red-500 hover:bg-red-500/10 transition-all border border-transparent hover:border-red-500/20"
+                onClick={handleToggleAtivo}
+                disabled={isPending}
+                className="group flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-[#80B828]/90 hover:text-[#80B828] hover:bg-[#80B828]/10 transition-all border border-transparent hover:border-[#80B828]/20 disabled:opacity-50"
               >
-                <Trash2 className="w-4 h-4" />
-                Excluir usuário
+                <UserCheck className="w-4 h-4" />
+                Reativar usuário
+              </button>
+            ) : canHardDelete ? (
+              !showDeleteConfirm ? (
+                <button
+                  type="button"
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className="group flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-red-500/70 hover:text-red-500 hover:bg-red-500/10 transition-all border border-transparent hover:border-red-500/20"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Excluir usuário
+                </button>
+              ) : (
+                <div className="flex flex-col gap-2 max-w-md animate-in fade-in slide-in-from-left-2">
+                  <div className="flex items-start gap-3 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3">
+                    <ShieldAlert className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                    <div className="space-y-1">
+                      <p className="text-[11px] font-bold uppercase tracking-tight text-red-400">
+                        Excluir definitivamente?
+                      </p>
+                      <p className="text-[11px] text-red-300/80 leading-snug font-medium normal-case tracking-normal">
+                        Remove login e perfil. Sem cards como responsável — exclusão permanente.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 px-1">
+                    <button
+                      type="button"
+                      onClick={handleDelete}
+                      disabled={isPending}
+                      className="bg-red-500 hover:bg-red-600 text-white text-[10px] uppercase tracking-wider font-bold px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                    >
+                      {isPending ? '...' : 'Sim, Excluir'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowDeleteConfirm(false)}
+                      className="text-gray-400 hover:text-white text-[10px] uppercase tracking-wider font-bold"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              )
+            ) : !showInactivateConfirm ? (
+              <button
+                type="button"
+                onClick={() => setShowInactivateConfirm(true)}
+                className="group flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-orange-400/80 hover:text-orange-400 hover:bg-orange-500/10 transition-all border border-transparent hover:border-orange-500/20"
+              >
+                <UserX className="w-4 h-4" />
+                Inativar usuário
               </button>
             ) : (
               <div className="flex flex-col gap-2 max-w-md animate-in fade-in slide-in-from-left-2">
-                <div className="flex items-start gap-3 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3">
-                  <ShieldAlert className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                <div className="flex items-start gap-3 bg-orange-500/10 border border-orange-500/20 rounded-xl px-4 py-3">
+                  <ShieldAlert className="w-4 h-4 text-orange-400 shrink-0 mt-0.5" />
                   <div className="space-y-1">
-                    <p className="text-[11px] font-bold uppercase tracking-tight text-red-400">
-                      Excluir definitivamente?
+                    <p className="text-[11px] font-bold uppercase tracking-tight text-orange-400">
+                      Inativar usuário?
                     </p>
-                    <p className="text-[11px] text-red-300/80 leading-snug font-medium normal-case tracking-normal">
-                      Remove login e perfil. Só é permitido se o usuário <strong>não for responsável</strong> de nenhum card (nem finalizados).
+                    <p className="text-[11px] text-orange-300/80 leading-snug font-medium normal-case tracking-normal">
+                      Este usuário é responsável por <strong>{cardsAsResponsavel}</strong> card(s).
+                      Ele não poderá mais entrar na plataforma; o histórico nos cards permanece.
                     </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3 px-1">
-                <button
-                  type="button"
-                  onClick={handleDelete}
-                  disabled={isPending}
-                  className="bg-red-500 hover:bg-red-600 text-white text-[10px] uppercase tracking-wider font-bold px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
-                >
-                  {isPending ? '...' : 'Sim, Excluir'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowDeleteConfirm(false)}
-                  className="text-gray-400 hover:text-white text-[10px] uppercase tracking-wider font-bold"
-                >
-                  Cancelar
-                </button>
+                  <button
+                    type="button"
+                    onClick={handleToggleAtivo}
+                    disabled={isPending}
+                    className="bg-orange-500 hover:bg-orange-600 text-white text-[10px] uppercase tracking-wider font-bold px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    {isPending ? '...' : 'Sim, Inativar'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowInactivateConfirm(false)}
+                    className="text-gray-400 hover:text-white text-[10px] uppercase tracking-wider font-bold"
+                  >
+                    Cancelar
+                  </button>
                 </div>
               </div>
             )}

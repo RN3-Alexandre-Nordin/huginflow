@@ -107,6 +107,14 @@ export async function proxy(request: NextRequest) {
   if (normalizedPathname.startsWith('/cockpit')) {
     const usuario = await fetchUsuarioLoginProfile(supabase, user.id)
 
+    if (usuario && usuario.ativo === false) {
+      await supabase.auth.signOut()
+      const url = request.nextUrl.clone()
+      url.pathname = '/login'
+      url.search = `error=${encodeURIComponent('Usuário inativo. Contate o administrador da empresa.')}`
+      return NextResponse.redirect(url)
+    }
+
     if (usuario?.must_change_password && !isPasswordChangePath(normalizedPathname)) {
       const url = request.nextUrl.clone()
       url.pathname = PASSWORD_CHANGE_PATH

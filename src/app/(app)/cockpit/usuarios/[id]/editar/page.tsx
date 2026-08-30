@@ -35,6 +35,11 @@ export default async function EditarUsuarioPage(props: { params: Promise<{ id: s
   // For the initial groups, load the user's company's groups
   const groups = await getGruposByEmpresa(user.empresa_id)
 
+  const { count: cardsAsResponsavel } = await supabase
+    .from('crm_cards')
+    .select('id', { count: 'exact', head: true })
+    .eq('responsavel_id', user.id)
+
   return (
     <div className="space-y-6">
       <EditForm 
@@ -43,6 +48,7 @@ export default async function EditarUsuarioPage(props: { params: Promise<{ id: s
         groups={groups || []}
         isSuperAdmin={isSuperAdmin}
         currentUserIsSuperuser={currentUserIsSuperuser}
+        cardsAsResponsavel={cardsAsResponsavel ?? 0}
       />
     </div>
   )

@@ -403,6 +403,7 @@ export async function createUsuario(formData: FormData) {
     endereco,
     data_nascimento,
     must_change_password: true,
+    ativo: true,
   }])
 
   if (error) {
@@ -596,6 +597,51 @@ export async function deleteUsuario(id: string, auth_user_id: string) {
 
   revalidatePath('/cockpit/usuarios')
   redirect('/cockpit/usuarios')
+}
+
+export async function setUsuarioAtivo(id: string, ativo: boolean) {
+  const me = await getMyProfile()
+  if (!hasPermission(me, 'usuarios', 'edit') && !hasPermission(me, 'usuarios', 'delete')) {
+    return { error: 'Sem permissão para alterar o status do usuário.' }
+  }
+
+  if (!id) return { error: 'Usuário inválido.' }
+  if (me?.id === id && !ativo) {
+    return { error: 'Você não pode inativar o próprio usuário.' }
+  }
+
+  const supabaseAdmin = createAdminClient()
+  const { data: target, error: targetError } = await supabaseAdmin
+    .from('usuarios')
+    .select('id, empresa_id, role_global, ativo')
+    .eq('id', id)
+    .maybeSingle()
+
+  if (targetError || !target) {
+    return { error: 'Usuário não encontrado.' }
+  }
+
+  if (me?.role_global !== 'superadmin' && target.empresa_id !== me?.empresa_id) {
+    return { error: 'Sem permissão para alterar este usuário.' }
+  }
+
+  if (target.role_global === 'superadmin' && me?.role_global !== 'superadmin') {
+    return { error: 'Sem permissão para alterar um superadmin.' }
+  }
+
+  const { error } = await supabaseAdmin
+    .from('usuarios')
+    .update({ ativo })
+    .eq('id', id)
+
+  if (error) {
+    console.error('Erro ao alterar status do usuário', error)
+    return { error: error.message }
+  }
+
+  revalidatePath('/cockpit/usuarios')
+  revalidatePath(`/cockpit/usuarios/${id}/editar`)
+  return { success: true, ativo }
 }
 
 export async function getMyProfile() {

@@ -33,6 +33,10 @@ export default async function UsuariosPage(props: {
   const searchParams = await props.searchParams
   const query = typeof searchParams.q === 'string' ? searchParams.q : ""
   const empresaFilter = typeof searchParams.empresa === 'string' ? searchParams.empresa : "all"
+  const statusFilter =
+    typeof searchParams.status === 'string' && ['ativos', 'inativos', 'todos'].includes(searchParams.status)
+      ? searchParams.status
+      : 'ativos'
 
   const supabase = await createClient()
 
@@ -54,6 +58,12 @@ export default async function UsuariosPage(props: {
 
   if (me?.role_global === 'superadmin' && empresaFilter !== 'all') {
     supabaseQuery = supabaseQuery.eq('empresa_id', empresaFilter)
+  }
+
+  if (statusFilter === 'ativos') {
+    supabaseQuery = supabaseQuery.eq('ativo', true)
+  } else if (statusFilter === 'inativos') {
+    supabaseQuery = supabaseQuery.eq('ativo', false)
   }
 
   const { data: users, error } = await supabaseQuery
@@ -91,7 +101,8 @@ export default async function UsuariosPage(props: {
       {/* Bar de Busca e Filtros */}
       <SearchFilters 
         initialQuery={query} 
-        initialEmpresa={empresaFilter} 
+        initialEmpresa={empresaFilter}
+        initialStatus={statusFilter}
         companies={companies || []}
         showCompanyFilter={isSuperAdmin}
       />
@@ -108,14 +119,14 @@ export default async function UsuariosPage(props: {
             <Users className="w-10 h-10 text-gray-800 opacity-30" />
           </div>
           <div>
-            <p className="text-white font-bold text-xl">{query ? 'Nenhum integrante localizado.' : 'Equipe Vazia.'}</p>
+            <p className="text-white font-bold text-xl">{query || statusFilter !== 'ativos' ? 'Nenhum integrante localizado.' : 'Equipe Vazia.'}</p>
             <p className="text-gray-500 text-sm mt-2 max-w-sm mx-auto font-medium">
-              {query || empresaFilter !== 'all' 
+              {query || empresaFilter !== 'all' || statusFilter !== 'ativos'
                 ? "Tente ajustar seus filtros para encontrar o que procura." 
                 : "Convide o primeiro membro da sua equipe para começar a operar."}
             </p>
           </div>
-          {(query || (isSuperAdmin && empresaFilter !== 'all')) && (
+          {(query || (isSuperAdmin && empresaFilter !== 'all') || statusFilter !== 'ativos') && (
             <Link 
               href="/cockpit/usuarios"
               className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-[#2BAADF] hover:text-white transition-colors"
@@ -127,15 +138,17 @@ export default async function UsuariosPage(props: {
         </div>
       ) : (
         <div className="rounded-xl border border-[#ffffff0a] bg-[#111111] overflow-hidden">
-          <div className="hidden md:grid grid-cols-[minmax(0,1.6fr)_minmax(0,0.9fr)_auto_auto] gap-3 px-4 py-2.5 border-b border-[#ffffff08] text-[10px] font-black uppercase tracking-widest text-gray-600">
+          <div className="hidden md:grid grid-cols-[minmax(0,1.5fr)_minmax(0,0.8fr)_auto_auto_auto] gap-3 px-4 py-2.5 border-b border-[#ffffff08] text-[10px] font-black uppercase tracking-widest text-gray-600">
             <span>Usuário</span>
             <span>Grupo</span>
+            <span>Status</span>
             <span className="text-right">Desde</span>
             <span className="w-9" />
           </div>
           <ul className="divide-y divide-[#ffffff06]">
             {users.map((user) => {
               const initial = user.nome_completo?.substring(0, 1).toUpperCase() || "?"
+              const isAtivo = user.ativo !== false
               const roleTitle =
                 user.role_global === "superadmin"
                   ? "SuperAdmin"
@@ -158,9 +171,9 @@ export default async function UsuariosPage(props: {
               return (
                 <li
                   key={user.id}
-                  className="group px-3 py-2.5 md:px-4 hover:bg-[#ffffff04] transition-colors"
+                  className={`group px-3 py-2.5 md:px-4 hover:bg-[#ffffff04] transition-colors ${!isAtivo ? 'opacity-70' : ''}`}
                 >
-                  <div className="grid grid-cols-[1fr_auto] md:grid-cols-[minmax(0,1.6fr)_minmax(0,0.9fr)_auto_auto] gap-2 md:gap-3 items-center">
+                  <div className="grid grid-cols-[1fr_auto] md:grid-cols-[minmax(0,1.5fr)_minmax(0,0.8fr)_auto_auto_auto] gap-2 md:gap-3 items-center">
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="relative shrink-0">
                         <div className="w-9 h-9 rounded-lg bg-[#0A0A0A] border border-[#ffffff10] flex items-center justify-center text-sm font-bold text-[#2BAADF]">
@@ -202,13 +215,34 @@ export default async function UsuariosPage(props: {
                       )}
                     </div>
 
+                    <div className="hidden md:block">
+                      <span
+                        className={`inline-flex px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border ${
+                          isAtivo
+                            ? 'bg-[#80B828]/10 text-[#80B828] border-[#80B828]/20'
+                            : 'bg-red-500/10 text-red-400 border-red-500/20'
+                        }`}
+                      >
+                        {isAtivo ? 'Ativo' : 'Inativo'}
+                      </span>
+                    </div>
+
                     <div className="hidden md:flex items-center gap-1.5 text-[10px] text-gray-500 font-medium tabular-nums justify-end">
                       <Calendar className="w-3 h-3 opacity-50" />
                       {new Date(user.created_at).toLocaleDateString("pt-BR")}
                     </div>
 
                     <div className="flex items-center justify-end gap-2">
-                      <span className="md:hidden text-[10px] px-2 py-0.5 rounded-md bg-[#ffffff06] text-gray-400 truncate max-w-[7rem]">
+                      <span
+                        className={`md:hidden text-[10px] px-2 py-0.5 rounded-md border font-bold uppercase ${
+                          isAtivo
+                            ? 'bg-[#80B828]/10 text-[#80B828] border-[#80B828]/20'
+                            : 'bg-red-500/10 text-red-400 border-red-500/20'
+                        }`}
+                      >
+                        {isAtivo ? 'Ativo' : 'Inativo'}
+                      </span>
+                      <span className="md:hidden text-[10px] px-2 py-0.5 rounded-md bg-[#ffffff06] text-gray-400 truncate max-w-[6rem]">
                         {user.grupos_acesso?.nome || "Básico"}
                       </span>
                       {canEdit ? (
@@ -230,6 +264,7 @@ export default async function UsuariosPage(props: {
           </ul>
           <div className="px-4 py-2 border-t border-[#ffffff08] text-[10px] text-gray-600 font-medium">
             {users.length} {users.length === 1 ? "usuário" : "usuários"}
+            {statusFilter === 'ativos' ? ' ativos' : statusFilter === 'inativos' ? ' inativos' : ''}
           </div>
         </div>
       )}

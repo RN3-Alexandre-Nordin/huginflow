@@ -79,6 +79,13 @@ export async function POST(request: Request) {
   if (userId) {
     const usuarioData = await fetchUsuarioLoginProfile(supabase, userId)
 
+    if (usuarioData && usuarioData.ativo === false) {
+      await supabase.auth.signOut()
+      return NextResponse.redirect(
+        `${origin}/login?error=${encodeURIComponent('Usuário inativo. Contate o administrador da empresa.')}`,
+      )
+    }
+
     if (usuarioData?.empresa_id) {
       const { data: empresaData } = await supabase
         .from('empresas')

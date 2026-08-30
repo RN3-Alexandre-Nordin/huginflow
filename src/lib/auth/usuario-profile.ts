@@ -3,6 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 export type UsuarioLoginProfile = {
   empresa_id: string | null
   must_change_password: boolean
+  ativo: boolean
 }
 
 /** Busca perfil para login/proxy; tolera coluna must_change_password ainda não migrada. */
@@ -12,7 +13,7 @@ export async function fetchUsuarioLoginProfile(
 ): Promise<UsuarioLoginProfile | null> {
   const { data, error } = await supabase
     .from('usuarios')
-    .select('empresa_id, must_change_password')
+    .select('empresa_id, must_change_password, ativo')
     .eq('auth_user_id', authUserId)
     .maybeSingle()
 
@@ -20,6 +21,7 @@ export async function fetchUsuarioLoginProfile(
     return {
       empresa_id: data?.empresa_id ?? null,
       must_change_password: data?.must_change_password === true,
+      ativo: data?.ativo !== false,
     }
   }
 
@@ -30,7 +32,7 @@ export async function fetchUsuarioLoginProfile(
 
   const { data: fallback, error: fallbackError } = await supabase
     .from('usuarios')
-    .select('empresa_id')
+    .select('empresa_id, ativo')
     .eq('auth_user_id', authUserId)
     .maybeSingle()
 
@@ -42,5 +44,6 @@ export async function fetchUsuarioLoginProfile(
   return {
     empresa_id: fallback?.empresa_id ?? null,
     must_change_password: false,
+    ativo: fallback?.ativo !== false,
   }
 }
