@@ -69,7 +69,7 @@ export default async function CockpitLayout({
           />
 
           {/* Top Header */}
-          <header className="h-20 flex-shrink-0 flex items-center justify-between px-8 border-b border-[#ffffff0a] bg-[#0A0A0A]/50 backdrop-blur-md sticky top-0 z-10">
+          <header className="h-20 flex-shrink-0 flex items-center justify-between px-8 border-b border-[#ffffff0a] bg-[#0A0A0A]/50 backdrop-blur-md sticky top-0 z-20 overflow-visible">
             <h1 className="text-xl font-bold tracking-tight text-white/90 italic uppercase">
               Cockpit de Operações
             </h1>

@@ -368,9 +368,16 @@ export async function createUsuario(formData: FormData) {
 
   const supabaseAdmin = createAdminClient()
 
+  if (!email?.trim() || !senha || !nome_completo?.trim() || !empresa_id || !role_global) {
+    return { error: 'Preencha e-mail, senha, nome, empresa e perfil.' }
+  }
+  if (senha.length < 6) {
+    return { error: 'A senha deve ter no mínimo 6 caracteres.' }
+  }
+
   // Criar usuário diretamente no Auth sem enviar e-mail de convite
   const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-    email,
+    email: email.trim().toLowerCase(),
     password: senha,
     email_confirm: true, // Confirma imediatamente, sem necessidade de verificação por e-mail
     user_metadata: { nome_completo, role_global }
@@ -381,11 +388,12 @@ export async function createUsuario(formData: FormData) {
     return { error: authError.message }
   }
 
+  const authUserId = authData.user.id
   const supabase = await createClient()
   const { error } = await supabase.from('usuarios').insert([{
-    id: authData.user.id,
-    auth_user_id: authData.user.id,
-    email,
+    id: authUserId,
+    auth_user_id: authUserId,
+    email: email.trim().toLowerCase(),
     nome_completo,
     empresa_id,
     role_global,
@@ -399,6 +407,14 @@ export async function createUsuario(formData: FormData) {
 
   if (error) {
     console.error("Erro ao criar perfil de usuário", error)
+    // Evita usuário órfão no Auth (login existe sem linha em usuarios)
+    const { error: rollbackError } = await supabaseAdmin.auth.admin.deleteUser(authUserId)
+    if (rollbackError) {
+      console.error('Rollback Auth falhou após erro no perfil:', rollbackError)
+      return {
+        error: `${error.message} (Auth criado; limpeza falhou — contate suporte com e-mail ${email})`,
+      }
+    }
     return { error: error.message }
   }
 
