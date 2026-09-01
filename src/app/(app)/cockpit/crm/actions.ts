@@ -6,6 +6,19 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { hasPermission } from '@/utils/permissions'
 import { getMyProfile } from '@/app/(app)/cockpit/actions'
+import {
+  diffCrmCardChanges,
+  notifyCardAssignmentAndChanges,
+  notifyCardResponsavelOnChange,
+} from '@/lib/crm/notifyCardResponsavel'
+import {
+  buildRedirectFacts,
+  inferDepartamentoFromCard,
+  resolveAssigneeForDepartamento,
+  resolveDestinationForUser,
+  type RedirectDestination,
+} from '@/lib/crm/cardRedirectRouting'
+import { generateCardHandoverSummary, type HandoverUrgencia } from '@/lib/crm/cardHandoverSummary'
 
 export async function createPipeline(formData: FormData) {
   try {
@@ -88,7 +101,8 @@ export async function createCrmCard(pipelineId: string, stageId: string, formDat
   const descricao = formData.get('descricao') as string
   const valor = formData.get('valor') || 0
   const cliente_nome = formData.get('cliente_nome') as string || null
-  const responsavel_id = formData.get('responsavel_id') as string || null
+  const responsavelFromForm = formData.get('responsavel_id') as string
+  const responsavel_id = responsavelFromForm || me?.id || null
   const data_prazo_form = formData.get('data_prazo') as string || null
 
   const supabase = await createClient()
@@ -142,6 +156,19 @@ export async function createCrmCard(pipelineId: string, stageId: string, formDat
     }])
   }
 
+  if (newCard?.id && responsavel_id && me?.id && responsavel_id !== me.id) {
+    await notifyCardResponsavelOnChange({
+      supabase,
+      empresaId,
+      cardId: newCard.id,
+      cardTitulo: titulo,
+      actorId: me.id,
+      actorNome: me.nome_completo || 'Colega',
+      notifyUserId: responsavel_id,
+      changeSummary: 'você foi definido como responsável deste card',
+    })
+  }
+
   revalidatePath(`/cockpit/crm/${pipelineId}`)
 }
 
@@ -152,14 +179,18 @@ export async function updateCardStage(cardId: string, pipelineId: string, newSta
   }
   const supabase = await createClient()
 
-  // Buscar current para histórico
-  const { data: currentCard } = await supabase.from('crm_cards').select('stage_id').eq('id', cardId).single()
+  // Buscar current para histórico + notificação
+  const { data: currentCard } = await supabase
+    .from('crm_cards')
+    .select('stage_id, titulo, responsavel_id, empresa_id')
+    .eq('id', cardId)
+    .single()
   const de_stage_id = currentCard?.stage_id
 
   // Fetch SLA from the new stage to compute data_prazo
   const { data: stageData } = await supabase
     .from('pipeline_stages')
-    .select('sla_dias')
+    .select('sla_dias, nome')
     .eq('id', newStageId)
     .single()
 
@@ -198,23 +229,65 @@ export async function updateCardStage(cardId: string, pipelineId: string, newSta
         de_pipeline_id: pipelineId,
         para_pipeline_id: pipelineId
      }])
+
+     if (currentCard?.responsavel_id && currentCard.empresa_id) {
+       const stageLabel = stageData?.nome ? `moveu para ${stageData.nome}` : 'moveu de estágio'
+       await notifyCardResponsavelOnChange({
+         supabase,
+         empresaId: currentCard.empresa_id,
+         cardId,
+         cardTitulo: currentCard.titulo || 'Card',
+         actorId: me.id,
+         actorNome: me.nome_completo || 'Colega',
+         notifyUserId: currentCard.responsavel_id,
+         changeSummary: stageLabel,
+       })
+     }
   }
 
   // A UI cuidará do swap visual, mas persistimos na DB
   revalidatePath(`/cockpit/crm/${pipelineId}`)
 }
 
-export async function transferCardPipeline(cardId: string, currentPipelineId: string, toPipelineId: string, toStageId: string, observacao?: string) {
+export async function transferCardPipeline(
+  cardId: string,
+  currentPipelineId: string,
+  toPipelineId: string,
+  toStageId: string,
+  observacao?: string,
+  urgencia?: HandoverUrgencia,
+) {
   const me = await getMyProfile()
   if (!hasPermission(me, 'cards', 'move')) {
     return { error: 'Sem permissão para transferir cards entre funis.' }
   }
   const supabase = createAdminClient()
 
-  const { data: currentCard } = await supabase.from('crm_cards').select('stage_id').eq('id', cardId).single()
+  const { data: currentCard } = await supabase
+    .from('crm_cards')
+    .select('stage_id, titulo, responsavel_id, empresa_id, metadados, observacao')
+    .eq('id', cardId)
+    .single()
   const de_stage_id = currentCard?.stage_id
 
-  const query = supabase.from('crm_cards').update({ pipeline_id: toPipelineId, stage_id: toStageId }).eq('id', cardId)
+  const cardPatch: Record<string, unknown> = {
+    pipeline_id: toPipelineId,
+    stage_id: toStageId,
+  }
+
+  if (observacao?.trim()) {
+    cardPatch.observacao = observacao.trim()
+  }
+
+  if (urgencia) {
+    const prev =
+      currentCard?.metadados && typeof currentCard.metadados === 'object'
+        ? (currentCard.metadados as Record<string, unknown>)
+        : {}
+    cardPatch.metadados = { ...prev, prioridade: urgencia }
+  }
+
+  const query = supabase.from('crm_cards').update(cardPatch).eq('id', cardId)
   
   // Tenant Isolation (Obrigatório ao usar Admin Client)
   if (me?.role_global !== 'superadmin') {
@@ -233,8 +306,34 @@ export async function transferCardPipeline(cardId: string, currentPipelineId: st
         para_stage_id: toStageId,
         de_pipeline_id: currentPipelineId,
         para_pipeline_id: toPipelineId,
-        observacao: observacao
+        observacao: observacao,
      }])
+  }
+
+  if (currentCard?.responsavel_id && currentCard.empresa_id && me?.id) {
+    const { data: toPipe } = await supabase
+      .from('pipelines')
+      .select('nome')
+      .eq('id', toPipelineId)
+      .maybeSingle()
+    const { data: toStage } = await supabase
+      .from('pipeline_stages')
+      .select('nome')
+      .eq('id', toStageId)
+      .maybeSingle()
+    const dest = [toPipe?.nome, toStage?.nome].filter(Boolean).join(' / ') || 'outro funil'
+    await notifyCardResponsavelOnChange({
+      supabase,
+      empresaId: currentCard.empresa_id,
+      cardId,
+      cardTitulo: currentCard.titulo || 'Card',
+      actorId: me.id,
+      actorNome: me.nome_completo || 'Colega',
+      notifyUserId: currentCard.responsavel_id,
+      changeSummary: observacao
+        ? `transferiu para ${dest}. Obs.: ${observacao.slice(0, 120)}`
+        : `transferiu para ${dest}`,
+    })
   }
 
   revalidatePath(`/cockpit/crm/${currentPipelineId}`)
@@ -254,7 +353,28 @@ export async function updateCrmCard(cardId: string, pipelineId: string, formData
   const cliente_nome = formData.get('cliente_nome') as string
   const observacao = formData.get('observacao') as string
   const responsavel_id = formData.get('responsavel_id') as string || null
-  const data_prazo = formData.get('data_prazo') as string || null
+  let data_prazo = formData.get('data_prazo') as string || null
+
+  const { data: before } = await supabase
+    .from('crm_cards')
+    .select('titulo, descricao, valor, cliente_nome, observacao, responsavel_id, data_prazo, empresa_id, stage_id')
+    .eq('id', cardId)
+    .single()
+
+  const responsavelChanged =
+    responsavel_id && responsavel_id !== (before?.responsavel_id ?? null)
+
+  if (responsavelChanged && !data_prazo && !before?.data_prazo && before?.stage_id) {
+    const { data: stageData } = await supabase
+      .from('pipeline_stages')
+      .select('sla_dias')
+      .eq('id', before.stage_id)
+      .maybeSingle()
+
+    const slaDias = stageData?.sla_dias ?? 0
+    const now = new Date()
+    data_prazo = new Date(now.getTime() + slaDias * 86400000).toISOString().split('T')[0]
+  }
 
   const query = supabase
     .from('crm_cards')
@@ -291,6 +411,38 @@ export async function updateCrmCard(cardId: string, pipelineId: string, formData
      }])
   }
 
+  if (me?.id && before?.empresa_id) {
+    const otherChanges = diffCrmCardChanges(
+      {
+        titulo: before.titulo,
+        descricao: before.descricao,
+        valor: before.valor,
+        cliente_nome: before.cliente_nome,
+        observacao: before.observacao,
+        data_prazo: before.data_prazo,
+      },
+      {
+        titulo,
+        descricao,
+        valor: Number(valor),
+        cliente_nome,
+        observacao,
+        data_prazo: data_prazo || null,
+      },
+    )
+    await notifyCardAssignmentAndChanges({
+      supabase,
+      empresaId: before.empresa_id,
+      cardId,
+      cardTitulo: titulo || before.titulo || 'Card',
+      actorId: me.id,
+      actorNome: me.nome_completo || 'Colega',
+      previousResponsavelId: before.responsavel_id,
+      nextResponsavelId: responsavel_id,
+      otherChanges,
+    })
+  }
+
   revalidatePath(`/cockpit/crm/${pipelineId}`)
 }
 
@@ -300,6 +452,12 @@ export async function toggleCardFinalizado(cardId: string, pipelineId: string, s
     return { error: 'Sem permissão para alterar status de conclusão.' }
   }
   const supabase = await createClient()
+
+  const { data: before } = await supabase
+    .from('crm_cards')
+    .select('titulo, responsavel_id, empresa_id')
+    .eq('id', cardId)
+    .single()
 
   const query = supabase
     .from('crm_cards')
@@ -327,6 +485,19 @@ export async function toggleCardFinalizado(cardId: string, pipelineId: string, s
         de_pipeline_id: pipelineId,
         para_pipeline_id: pipelineId
      }])
+  }
+
+  if (me?.id && before?.responsavel_id && before.empresa_id) {
+    await notifyCardResponsavelOnChange({
+      supabase,
+      empresaId: before.empresa_id,
+      cardId,
+      cardTitulo: before.titulo || 'Card',
+      actorId: me.id,
+      actorNome: me.nome_completo || 'Colega',
+      notifyUserId: before.responsavel_id,
+      changeSummary: status ? 'marcou como finalizado' : 'reativou o card',
+    })
   }
 
   revalidatePath(`/cockpit/crm/${pipelineId}`)
@@ -579,6 +750,25 @@ export async function uploadCardFile(cardId: string, formData: FormData) {
      observacao: `Anexo adicionado: ${file.name}`
   }])
 
+  const { data: cardMeta } = await supabase
+    .from('crm_cards')
+    .select('titulo, responsavel_id, empresa_id')
+    .eq('id', cardId)
+    .maybeSingle()
+
+  if (cardMeta?.responsavel_id && cardMeta.empresa_id) {
+    await notifyCardResponsavelOnChange({
+      supabase,
+      empresaId: cardMeta.empresa_id,
+      cardId,
+      cardTitulo: cardMeta.titulo || 'Card',
+      actorId: me.id,
+      actorNome: me.nome_completo || 'Colega',
+      notifyUserId: cardMeta.responsavel_id,
+      changeSummary: `anexou o arquivo "${file.name}"`,
+    })
+  }
+
   return { success: true }
 }
 
@@ -591,7 +781,22 @@ export async function deleteCardFile(fileId: string, storagePath: string) {
   const supabase = await createClient()
 
   // 0. Buscar metadados para o histórico antes de deletar
-  const { data: fileData } = await supabase.from('crm_card_files').select('file_name, card_id').eq('id', fileId).single()
+  const { data: fileData } = await supabase
+    .from('crm_card_files')
+    .select('file_name, card_id')
+    .eq('id', fileId)
+    .single()
+
+  let cardMeta: { titulo: string | null; responsavel_id: string | null; empresa_id: string } | null =
+    null
+  if (fileData?.card_id) {
+    const { data } = await supabase
+      .from('crm_cards')
+      .select('titulo, responsavel_id, empresa_id')
+      .eq('id', fileData.card_id)
+      .maybeSingle()
+    cardMeta = data
+  }
 
   // 1. Remover do Storage
   const { error: storageError } = await supabase.storage
@@ -621,6 +826,19 @@ export async function deleteCardFile(fileId: string, storagePath: string) {
         acao: 'ATTACHMENT_REMOVED',
         observacao: `Anexo removido: ${fileData.file_name}`
      }])
+
+     if (cardMeta?.responsavel_id && cardMeta.empresa_id) {
+       await notifyCardResponsavelOnChange({
+         supabase,
+         empresaId: cardMeta.empresa_id,
+         cardId: fileData.card_id,
+         cardTitulo: cardMeta.titulo || 'Card',
+         actorId: me.id,
+         actorNome: me.nome_completo || 'Colega',
+         notifyUserId: cardMeta.responsavel_id,
+         changeSummary: `removeu o anexo "${fileData.file_name}"`,
+       })
+     }
   }
 
   return { success: true }
@@ -661,4 +879,138 @@ export async function searchCrmCards(query: string) {
     .limit(10)
     
   return { data, error: error?.message }
+}
+
+export async function getCardRedirectContext(card: {
+  id?: string
+  titulo?: string | null
+  descricao?: string | null
+  observacao?: string | null
+  lead_id?: string | null
+  metadados?: unknown
+}): Promise<{
+  data?: {
+    departamentos: { id: string; nome: string }[]
+    operadores: {
+      id: string
+      nome: string
+      pendentes: number
+      departamento_ids: string[]
+    }[]
+    inferred_departamento_id: string | null
+    inferred_departamento_nome: string | null
+  }
+  error?: string
+}> {
+  const me = await getMyProfile()
+  if (!me?.empresa_id) return { error: 'Não autenticado' }
+
+  const supabase = createAdminClient()
+  const facts = await buildRedirectFacts(supabase, me.empresa_id, card.lead_id)
+
+  const departamentos = facts.departamentos
+  const operadores = facts.usuarios_aptos.map((u) => ({
+    id: u.id,
+    nome: u.nome,
+    departamento_ids: u.departamento_ids,
+    pendentes: u.pendentes,
+  }))
+
+  const inferred = inferDepartamentoFromCard(facts, card)
+
+  return {
+    data: {
+      departamentos,
+      operadores,
+      inferred_departamento_id: inferred?.departamento_id ?? null,
+      inferred_departamento_nome: inferred?.departamento_nome ?? null,
+    },
+  }
+}
+
+/** Gera resumo IA da conversa para validação no encaminhamento cross-funil. */
+export async function generateHandoverObservacao(input: {
+  cardId: string
+  leadId?: string | null
+  dePipelineNome: string
+  paraPipelineNome: string
+}): Promise<{
+  data?: { observacao: string; urgencia: HandoverUrgencia }
+  error?: string
+}> {
+  const me = await getMyProfile()
+  if (!me?.empresa_id) return { error: 'Não autenticado' }
+  if (!hasPermission(me, 'cards', 'move')) {
+    return { error: 'Sem permissão para encaminhar cards.' }
+  }
+
+  const supabase = createAdminClient()
+  const { data: cardRow, error: cardError } = await supabase
+    .from('crm_cards')
+    .select('id, titulo, descricao, observacao, lead_id, empresa_id')
+    .eq('id', input.cardId)
+    .eq('empresa_id', me.empresa_id)
+    .maybeSingle()
+
+  if (cardError || !cardRow) {
+    return { error: 'Card não encontrado.' }
+  }
+
+  const result = await generateCardHandoverSummary(supabase, {
+    empresaId: me.empresa_id,
+    leadId: input.leadId ?? cardRow.lead_id,
+    card: {
+      titulo: cardRow.titulo,
+      descricao: cardRow.descricao,
+      observacao: cardRow.observacao,
+    },
+    dePipelineNome: input.dePipelineNome,
+    paraPipelineNome: input.paraPipelineNome,
+  })
+
+  if (!result.success) return { error: result.error }
+  return { data: { observacao: result.observacao, urgencia: result.urgencia } }
+}
+
+export async function previewCardRedirect(input:
+  | { mode: 'user'; userId: string; leadId?: string | null }
+  | { mode: 'departamento'; departamentoId: string; leadId?: string | null },
+): Promise<{ data?: RedirectDestination; error?: string }> {
+  const me = await getMyProfile()
+  if (!me?.empresa_id) return { error: 'Não autenticado' }
+
+  const supabase = createAdminClient()
+  const facts = await buildRedirectFacts(supabase, me.empresa_id, input.leadId)
+
+  if (input.mode === 'user') {
+    const dest = resolveDestinationForUser(facts, input.userId)
+    if (!dest) return { error: 'Operador não encontrado ou sem funil vinculado.' }
+    return { data: await enrichRedirectDestination(supabase, dest) }
+  }
+
+  const dest = resolveAssigneeForDepartamento(facts, input.departamentoId)
+  if (!dest) return { error: 'Departamento inválido.' }
+  return { data: await enrichRedirectDestination(supabase, dest) }
+}
+
+async function enrichRedirectDestination(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  dest: RedirectDestination,
+): Promise<RedirectDestination> {
+  if (!dest.pipeline_id) return dest
+
+  const { data: stages } = await supabase
+    .from('pipeline_stages')
+    .select('id, nome, ordem')
+    .eq('pipeline_id', dest.pipeline_id)
+    .order('ordem')
+
+  return {
+    ...dest,
+    pipeline_stages: (stages ?? []).map((s) => ({
+      id: s.id,
+      nome: s.nome,
+      ordem: s.ordem,
+    })),
+  }
 }

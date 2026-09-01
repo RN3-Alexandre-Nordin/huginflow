@@ -164,6 +164,17 @@ async function handleMessageUpsert(
         }
       : {}
 
+  const documentMeta =
+    msg.type === 'document' || msg.type === 'image'
+      ? {
+          media_type: msg.metadata?.media_type ?? msg.type,
+          mimetype: msg.metadata?.mimetype,
+          file_name: msg.metadata?.file_name,
+          file_length: msg.metadata?.file_length,
+          document: msg.metadata?.document,
+        }
+      : {}
+
   const { error: interacaoError } = await supabase.from('crm_interacoes').insert({
     empresa_id: canal.empresa_id,
     lead_id: leadId,
@@ -180,6 +191,7 @@ async function handleMessageUpsert(
       instance: instanceName,
       provider_message_id: msg.id,
       ...audioMeta,
+      ...documentMeta,
     },
   });
 

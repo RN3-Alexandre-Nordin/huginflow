@@ -1,5 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { ConversaHistoricoService } from '@/lib/omnichannel/ConversaHistoricoService'
+import { notifyCardAssignmentAndChanges } from '@/lib/crm/notifyCardResponsavel'
+import { isDeptSessionsEnabled } from '@/lib/omnichannel/dept-sessions-constants'
+import { ChatThreadService } from '@/lib/omnichannel/ChatThreadService'
+import { normalizeWhatsAppPhone } from '@/lib/omnichannel/phone'
 import type { ParsedAiTags, TriageAction } from './parseTriageTags'
 import { pickAssignee, resolveFunilFromTriage, type SystemFacts } from './systemFacts'
 
@@ -145,7 +149,8 @@ export class TriageActionExecutor {
           titulo: `WhatsApp: ${input.contactName}`,
           cliente_nome: input.contactName,
           descricao: resumo.slice(0, 2000),
-          conversa_id: input.sessaoId,
+          // Com dept sessions: conversa própria do card (não herda falante ativo de outro depto)
+          conversa_id: isDeptSessionsEnabled() ? null : input.sessaoId,
           observacao: tags.triage?.motivo ?? null,
           metadados,
         })
@@ -163,6 +168,38 @@ export class TriageActionExecutor {
             ? `Card criado e atribuído a ${assignee.nome} (${assignee.id}).`
             : 'Card criado sem responsável (fila).',
         )
+
+        if (cardId && isDeptSessionsEnabled()) {
+          try {
+            const phone = normalizeWhatsAppPhone(input.contactPhone)
+            const { data: canalRow } = await supabase
+              .from('crm_canais')
+              .select('id')
+              .eq('id', input.canalId)
+              .maybeSingle()
+            if (canalRow && phone) {
+              const { thread } = await ChatThreadService.ensureThreadForCard(supabase, {
+                empresaId: input.empresaId,
+                canalId: input.canalId,
+                externalId: phone,
+                leadId: input.leadId,
+                cardId,
+                pipelineId: funil.id,
+                departamentoId: funil.departamento_id,
+              })
+              reasons.push(
+                `Thread isolada criada sessao=${thread.id} (falante ativo não alterado).`,
+              )
+            }
+          } catch (err) {
+            console.error('[TriageAction] thread isolada:', err)
+            // fallback: mantém vínculo com sessão inbound
+            await supabase
+              .from('crm_cards')
+              .update({ conversa_id: input.sessaoId })
+              .eq('id', cardId)
+          }
+        }
       }
     }
 
@@ -176,6 +213,27 @@ export class TriageActionExecutor {
           ? `Conversa em status human + atribuido_a_id=${assignee.id}. IA em silêncio.`
           : 'Conversa em status human sem atribuído (fila da equipe).',
       )
+    }
+
+    if (cardId && executed.includes('CREATE_CARD')) {
+      const otherChanges = facts.card_aberto
+        ? ['atualizou classificação/triagem da conversa']
+        : ['criou o card a partir do atendimento']
+      try {
+        await notifyCardAssignmentAndChanges({
+          supabase,
+          empresaId: input.empresaId,
+          cardId,
+          cardTitulo: `WhatsApp: ${input.contactName}`,
+          actorId: null,
+          actorNome: 'IA HuginFlow',
+          previousResponsavelId: facts.card_responsavel_id,
+          nextResponsavelId: responsavelId,
+          otherChanges,
+        })
+      } catch (err) {
+        console.error('[TriageAction] Falha ao notificar responsável no chat:', err)
+      }
     }
 
     await this.logReasoning(supabase, input, reasons.join(' '), {

@@ -20,6 +20,70 @@ export type FetchedEvolutionMedia = {
   buffer: Buffer
   mimeType: string
   base64Length: number
+  fileName?: string
+}
+
+export type DocumentMessagePayload = {
+  mimetype?: string
+  fileName?: string
+  fileLength?: number
+  caption?: string
+}
+
+function unwrapMessage(raw: EvolutionRawMessage): Record<string, unknown> | null {
+  if (!raw?.message) return null
+  const m = raw.message as Record<string, unknown>
+  const ephemeral = m.ephemeralMessage as { message?: Record<string, unknown> } | undefined
+  return ephemeral?.message ?? m
+}
+
+/** Desembrulha documentMessage (direto ou ephemeral). */
+export function extractDocumentMessagePayload(
+  raw: EvolutionRawMessage | undefined,
+): DocumentMessagePayload | null {
+  const m = unwrapMessage(raw ?? ({} as EvolutionRawMessage))
+  if (!m) return null
+
+  const doc = m.documentMessage as Record<string, unknown> | undefined
+  if (doc) {
+    return {
+      mimetype: doc.mimetype as string | undefined,
+      fileName: (doc.fileName as string | undefined) ?? (doc.title as string | undefined),
+      fileLength: doc.fileLength as number | undefined,
+      caption: doc.caption as string | undefined,
+    }
+  }
+  return null
+}
+
+/** Desembrulha imageMessage (foto de comprovante). */
+export function extractImageMessagePayload(
+  raw: EvolutionRawMessage | undefined,
+): DocumentMessagePayload | null {
+  const m = unwrapMessage(raw ?? ({} as EvolutionRawMessage))
+  if (!m) return null
+
+  const img = m.imageMessage as Record<string, unknown> | undefined
+  if (img) {
+    return {
+      mimetype: img.mimetype as string | undefined,
+      fileName: 'whatsapp-image.jpg',
+      fileLength: img.fileLength as number | undefined,
+      caption: img.caption as string | undefined,
+    }
+  }
+  return null
+}
+
+function extensionForDocumentMime(mimeType: string, fileName?: string): string {
+  if (fileName?.includes('.')) {
+    return fileName.split('.').pop()!.toLowerCase()
+  }
+  if (mimeType.includes('pdf')) return 'pdf'
+  if (mimeType.includes('png')) return 'png'
+  if (mimeType.includes('jpeg') || mimeType.includes('jpg')) return 'jpg'
+  if (mimeType.includes('webp')) return 'webp'
+  return 'bin'
 }
 
 /** Desembrulha audioMessage (PTT direto ou dentro de ephemeralMessage). */
@@ -137,5 +201,80 @@ export class EvolutionMediaService {
 
   static filenameForMime(mimeType: string): string {
     return `whatsapp-audio.${extensionForMime(mimeType)}`
+  }
+
+  static filenameForDocument(mimeType: string, fileName?: string): string {
+    const ext = extensionForDocumentMime(mimeType, fileName)
+    const base = fileName?.replace(/[^\w.\-() ]+/g, '_') ?? 'whatsapp-document'
+    return base.includes('.') ? base : `${base}.${ext}`
+  }
+
+  private static async fetchBase64Media(
+    canal: CanalMediaFields,
+    rawMessage: EvolutionRawMessage,
+  ): Promise<FetchedEvolutionMedia> {
+    const { apiUrl, apiKey, instance } = getResolvedEvolutionCreds(canal)
+    if (!apiUrl || !apiKey || !instance) {
+      throw new Error('Credenciais Evolution incompletas para download de mídia.')
+    }
+
+    const messageId = rawMessage.key?.id
+    if (!messageId) {
+      throw new Error('message.key.id ausente no payload Evolution.')
+    }
+
+    const url = `${apiUrl.replace(/\/$/, '')}/chat/getBase64FromMediaMessage/${instance}`
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: apiKey,
+      },
+      body: JSON.stringify({ message: rawMessage, convertToMp4: false }),
+    })
+
+    const data = (await response.json().catch(() => ({}))) as Record<string, unknown>
+    if (!response.ok) {
+      console.error('[EvolutionMedia] getBase64 falhou:', response.status, data)
+      throw new Error(
+        `Evolution getBase64 HTTP ${response.status}: ${JSON.stringify(data).slice(0, 200)}`,
+      )
+    }
+
+    const base64 = parseBase64FromEvolutionResponse(data)
+    if (!base64) {
+      throw new Error('Evolution não retornou base64 da mídia.')
+    }
+
+    const buffer = Buffer.from(base64, 'base64')
+    if (buffer.length < 16) {
+      throw new Error(`Mídia decodificada muito pequena (${buffer.length} bytes).`)
+    }
+
+    return {
+      buffer,
+      mimeType: 'application/octet-stream',
+      base64Length: base64.length,
+    }
+  }
+
+  static async fetchDocumentFromMessage(
+    canal: CanalMediaFields,
+    rawMessage: EvolutionRawMessage,
+  ): Promise<FetchedEvolutionMedia> {
+    const docMeta = extractDocumentMessagePayload(rawMessage)
+    const imgMeta = extractImageMessagePayload(rawMessage)
+    const meta = docMeta ?? imgMeta
+    if (!meta) {
+      throw new Error('Payload não contém documentMessage nem imageMessage.')
+    }
+
+    const fetched = await this.fetchBase64Media(canal, rawMessage)
+    const mimeType = meta.mimetype ?? fetched.mimeType
+    return {
+      ...fetched,
+      mimeType,
+      fileName: this.filenameForDocument(mimeType, meta.fileName),
+    }
   }
 }

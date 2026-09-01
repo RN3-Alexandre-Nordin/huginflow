@@ -1,6 +1,18 @@
 # Deploy pendente: Supabase dev → produção
 
 > **Documento canônico (atualizar a cada mudança):** [MIGRACAO-SUPABASE.md](./MIGRACAO-SUPABASE.md)
+>
+> **Pacotes de cutover (ordem sugerida no go-live):**
+>
+> 1. Financeiro / AR — bundle SQL desta página + [MIGRACAO-SUPABASE.md](./MIGRACAO-SUPABASE.md)
+> 2. Performance + Realtime — [cutover-performance-realtime-prod.md](./cutover-performance-realtime-prod.md)
+> 3. Documentos WhatsApp — [cutover-documentos-whatsapp-prod.md](./cutover-documentos-whatsapp-prod.md)
+> 4. CRM UX + avisos chat interno — [cutover-crm-ux-notificacoes-prod.md](./cutover-crm-ux-notificacoes-prod.md)
+> 5. Sessões por departamento (MVP) — [cutover-sessoes-departamento-prod.md](./cutover-sessoes-departamento-prod.md)
+> 6. Handover estruturado (encaminhar card) — [cutover-handover-estruturado-prod.md](./cutover-handover-estruturado-prod.md) — **revertido**; fluxo atual = resumo IA
+> 7. Alertas canais inbound (desconexão) — seção **Changelog 2026-09-01** abaixo + [cutover-performance-realtime-prod.md](./cutover-performance-realtime-prod.md) §1.3
+>
+> **Planejamento completo:** [planejamento-sessoes-por-departamento.md](./planejamento-sessoes-por-departamento.md)
 
 Comparativo entre projetos:
 
@@ -9,9 +21,46 @@ Comparativo entre projetos:
 | **Dev** | `vujqukqsfwmoezwyuoum` | [huginflow-dev](https://supabase.com/dashboard/project/vujqukqsfwmoezwyuoum) |
 | **Prod** | `zmypzexefjbovuknjlid` | [huginflow-prod](https://supabase.com/dashboard/project/zmypzexefjbovuknjlid) |
 
-**Última migration no prod:** `fix_channel_cascade_delete` (abril/2026)
+**Última migration no prod:** `revert_handover_structured` (2026-09-02)
+
+**Última migration no dev (além do acima):** `crm_canais_realtime` (2026-09-01) — alerta modal de desconexão de canais
 
 **Prod não possui hoje:** nenhuma tabela `finance_*`, RPCs AR, nem campos de contrato em `empresas`.
+
+---
+
+## Changelog app / cutovers (2026-08-31 → 2026-09-01) — pendente prod
+
+Registrar aqui tudo homologado em **dev** e ainda **não** em produção (além do bundle finance abaixo).
+
+| Data | Pacote | Dev | Prod | Doc detalhado | Notas |
+|------|--------|-----|------|---------------|-------|
+| 2026-09-01 | **Alerta desconexão canais inbound** (modal cockpit para toda a empresa) | ✅ SQL | ⏳ SQL + código | [cutover-performance-realtime-prod.md](./cutover-performance-realtime-prod.md) §1.3 | Migration `202609011200_crm_canais_realtime.sql` (dev ✅ MCP); código: `useChannelConnectionAlerts`, `ChannelDisconnectModal`, `ChannelConnectionAlertProvider` |
+| 2026-09-01 | **Cockpit: menu hambúrguer** (sidebar colapsável + redimensionamento do frame) | ✅ | ⏳ código | — | `CockpitShell.tsx` + `CockpitShell.module.css`; sem SQL |
+| 2026-09-02 | Encaminhamento: resumo IA editável (remove handover estruturado) | ✅ | ⏳ código | [cutover-handover-estruturado-prod.md](./cutover-handover-estruturado-prod.md) | Migration `202609021000` — drop `crm_handover_config` + JSONB handover (**prod SQL ✅**) |
+| 2026-09-01 | Handover estruturado (briefing ao encaminhar card cross-funil) | ↩️ revertido | ↩️ revertido | [cutover-handover-estruturado-prod.md](./cutover-handover-estruturado-prod.md) | Substituído por resumo IA em `observacao` + urgência em `metadados.prioridade` |
+| 2026-08-31 | Encaminhamento inteligente CRM (roteamento dept/funil/operador) | ✅ | ⏳ código | cutover CRM ago/2026 | Sem SQL; `cardRedirectRouting.ts` + admin client no preview |
+| 2026-08-31 | Performance + Realtime (chat inbox RPC, `crm_cards` realtime) | ✅ | ⏳ | [cutover-performance-realtime-prod.md](./cutover-performance-realtime-prod.md) | Migrations `202608311200`, `202608311230` |
+| 2026-08-31 | Documentos WhatsApp (OCR, match, anexo, auto-reply) | ✅ | ⏳ | [cutover-documentos-whatsapp-prod.md](./cutover-documentos-whatsapp-prod.md) | Migration `202608311400` + código |
+| 2026-08-31 | Documentos — fallback determinístico (`DocumentCardEnsurer`) + heurística nome (`Boleto.pdf`) | ✅ | ⏳ | mesmo cutover documentos | Sem SQL novo; nunca fica sem card/encaminhamento |
+| 2026-08-31 | Simulador: mic + anexo PDF/imagem (homolog sem Evolution) | ✅ | ⏳ | cutover documentos §5 | Código `simulador/actions.ts` |
+| 2026-08-31 | Kanban: data **e hora** de criação no card | ✅ | ⏳ | [cutover-crm-ux-notificacoes-prod.md](./cutover-crm-ux-notificacoes-prod.md) | Só código |
+| 2026-08-31 | Sessões por departamento (falante ativo + iniciar conversa) MVP | ✅ | ⏳ | [cutover-sessoes-departamento-prod.md](./cutover-sessoes-departamento-prod.md) | Migration `202608311800` + código |
+| 2026-08-31 | Chat interno: avisar responsável quando terceiro/IA altera o card | ✅ | ⏳ | [cutover-crm-ux-notificacoes-prod.md](./cutover-crm-ux-notificacoes-prod.md) | `notifyCardResponsavel.ts`; usa `chat_messages` |
+
+**Legenda:** ✅ aplicado · ⏳ pendente · 📋 planejado (não implementado)
+
+### Go-live sugerido (um PR / um release)
+
+1. Backup prod.
+2. SQL: bundle finance (seção abaixo) **ou** só os pacotes CRM se finance for cutover separado.
+3. SQL: performance (`202608311200`, `202608311230`) + documentos (`202608311400`) + sessões (`202608311800`) + **canais realtime** (`202609011200_crm_canais_realtime`) + handover revert (`202609021000` — **já em prod**).
+4. Dados NASU: prompt + KB documentos (ver cutover documentos).
+5. Deploy código (todos os cutovers acima + menu cockpit + alertas canais + encaminhamento IA).
+6. Env: `OPENAI_API_KEY`, `HUGINFLOW_DOCUMENT_PIPELINE` (opcional).
+7. Smoke: kanban realtime, **simulador áudio + anexos**, boleto/PIX, menção chat interno, data/hora card, iniciar conversa multi-depto, **encaminhar card cross-funil com resumo IA editável**, **menu hambúrguer redimensiona o frame**, **modal ao desconectar canal WhatsApp ativo**.
+
+**Roteiro de teste manual (completo):** [homologacao/script-teste-pacote-crm-ago-2026.md](./homologacao/script-teste-pacote-crm-ago-2026.md)
 
 ---
 
@@ -41,6 +90,13 @@ node scripts/supabase/prod-deploy/build-bundle.mjs
 
 **Manifesto JSON:** `scripts/supabase/prod-deploy/out/MANIFEST.json`
 
+> **Além deste bundle**, no cutover CRM de ago/set 2026 aplicar também (ver docs de cutover):  
+> `202608311200_chat_inbox_rpc.sql`, `202608311230_crm_cards_realtime.sql`, `202608311400_crm_card_files_whatsapp_inbound.sql`,  
+> `202608311800_crm_chat_threads_active_speaker.sql`,  
+> `202609011200_crm_canais_realtime.sql` (alerta desconexão canais — **dev ✅ MCP 2026-09-01**),  
+> `202609021000_revert_handover_structured.sql` (**prod ✅ MCP 2026-09-02**).  
+> ~~`202609011200_empresas_crm_handover_config.sql`~~ revertido.
+
 ---
 
 ## Como aplicar em produção
@@ -51,6 +107,9 @@ node scripts/supabase/prod-deploy/build-bundle.mjs
 2. Abra `scripts/supabase/prod-deploy/out/huginflow-prod-pending.sql`.
 3. Execute no **SQL Editor** do projeto prod (pode dividir por blocos `-- BUNDLE:` se preferir).
 4. Confira erros; a view de parcelas usa `DROP VIEW` antes de recriar.
+5. Em seguida aplique as migrations dos cutovers performance/documentos/sessões/canais/handover (arquivos em `supabase/migrations/20260831*.sql`, `202609011200_crm_canais_realtime.sql`, `202609021000_*.sql`).  
+   > **Handover revert (`202609021000`):** já aplicado em prod via MCP em 2026-09-02 — validar com query abaixo.  
+   > **Canais realtime (`202609011200_crm_canais_realtime`):** aplicado em dev via MCP em 2026-09-01 — **pendente prod**.
 
 ### Opção B — Supabase CLI
 
@@ -81,6 +140,27 @@ ORDER BY p.pronargs DESC LIMIT 1;
 SELECT column_name FROM information_schema.columns
 WHERE table_name = 'finance_contas_receber'
   AND column_name IN ('parcela_numero', 'parcelas_total', 'grupo_parcelamento_id');
+
+-- Cutover ago/set 2026 (performance + documentos)
+SELECT proname FROM pg_proc WHERE proname = 'get_recent_chat_conversations';
+SELECT tablename FROM pg_publication_tables
+WHERE pubname = 'supabase_realtime' AND tablename IN ('crm_cards', 'crm_canais');
+-- Esperado: crm_cards (kanban) + crm_canais (alerta desconexão inbound)
+SELECT column_name FROM information_schema.columns
+WHERE table_name = 'crm_card_files'
+  AND column_name IN ('source', 'interacao_id', 'provider_message_id');
+
+-- Sessões por departamento
+SELECT to_regclass('public.crm_chat_threads'), to_regclass('public.crm_phone_active_speaker');
+
+-- Handover: colunas revertidas (2026-09-02)
+SELECT column_name FROM information_schema.columns
+WHERE table_schema = 'public' AND table_name = 'empresas'
+  AND column_name = 'crm_handover_config';
+-- Deve retornar 0 linhas
+
+SELECT name FROM supabase_migrations.schema_migrations
+WHERE name = 'revert_handover_structured';
 ```
 
 ---

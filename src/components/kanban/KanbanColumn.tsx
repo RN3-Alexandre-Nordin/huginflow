@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import { SortableContext, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import KanbanItem from './KanbanItem'
@@ -23,6 +23,7 @@ interface CardData {
 interface KanbanColumnProps {
   column: ColumnData
   cards: CardData[]
+  pipelineId?: string
   onCardEditClick?: (card: any) => void
   onCardChatClick?: (card: any) => void
   canMove?: boolean
@@ -35,6 +36,7 @@ interface KanbanColumnProps {
 export default function KanbanColumn({ 
   column, 
   cards, 
+  pipelineId,
   onCardEditClick,
   onCardChatClick,
   canMove = true,
@@ -43,9 +45,14 @@ export default function KanbanColumn({
   canAddAttachments = true,
   canDeleteAttachments = true
 }: KanbanColumnProps) {
+  const [dndReady, setDndReady] = useState(false)
+  useEffect(() => {
+    setDndReady(true)
+  }, [])
+
   const { setNodeRef, attributes, listeners, transform, transition, isDragging } = useSortable({
     id: column.id,
-    disabled: !canEdit, // Only if can edit the pipeline
+    disabled: !canEdit,
     data: {
       type: "Column",
       column,
@@ -57,7 +64,6 @@ export default function KanbanColumn({
     transform: CSS.Transform.toString(transform),
   }
 
-  // We extract ids directly to pass to SortableContext
   const cardIds = useMemo(() => cards.map(c => c.id), [cards])
 
   if (isDragging) {
@@ -76,10 +82,10 @@ export default function KanbanColumn({
       style={style} 
       className="flex-shrink-0 w-80 flex flex-col h-full overflow-hidden bg-[#0A0A0A] border border-[#ffffff0a] rounded-2xl relative"
     >
-      {/* Column Header */}
+      {/* Column Header — attributes dnd só após mount (evita hydration mismatch aria-describedby) */}
       <div 
-        {...attributes} 
-        {...listeners} 
+        {...(dndReady ? attributes : {})} 
+        {...(dndReady ? listeners : {})} 
         className="flex items-center justify-between p-4 cursor-grab active:cursor-grabbing border-b border-[#ffffff05] bg-[#ffffff02]"
       >
         <div className="flex items-center gap-2">
@@ -99,6 +105,7 @@ export default function KanbanColumn({
               <KanbanItem 
                 card={card} 
                 stageColor={column.cor || '#2BAADF'} 
+                pipelineId={pipelineId}
                 onEditClick={() => onCardEditClick?.(card)}
                 onChatClick={() => onCardChatClick?.(card)}
                 canMove={canMove}

@@ -15,11 +15,12 @@ import {
   Loader2,
 } from "lucide-react"
 import Link from "next/link"
-import { useCockpitRealtime } from "@/hooks/useCockpitRealtime"
+import { useCockpitLastEvent } from "@/contexts/CockpitRealtimeContext"
 import { useEffect, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { getManagerDashboardMetrics, getManagerDashboardChart, type ManagerChartPeriodo, type ManagerChartMetric } from "../actions"
 import { formatBRL } from "@/lib/finance/format"
+import { getDashboardRefetchInterval } from "@/lib/query/polling"
 
 const CHART_METRICS: { id: ManagerChartMetric; label: string }[] = [
   { id: 'conversao', label: 'Conversão' },
@@ -62,7 +63,7 @@ function MetricValue({ loading, children }: { loading: boolean; children: React.
 }
 
 export default function ManagerDashboard({ userName, userId }: { userName: string; userId: string }) {
-  const { lastEvent } = useCockpitRealtime(userId, userName)
+  const lastEvent = useCockpitLastEvent()
   const [highlightStats, setHighlightStats] = useState(false)
   const [chartPeriodo, setChartPeriodo] = useState<ManagerChartPeriodo>('mes')
   const [chartMetrica, setChartMetrica] = useState<ManagerChartMetric>('conversao')
@@ -70,13 +71,13 @@ export default function ManagerDashboard({ userName, userId }: { userName: strin
   const { data: metricsResult, isLoading } = useQuery({
     queryKey: ["manager-dashboard-metrics", userId],
     queryFn: () => getManagerDashboardMetrics(),
-    refetchInterval: 30000,
+    refetchInterval: getDashboardRefetchInterval(),
   })
 
   const { data: chartResult, isLoading: isChartLoading } = useQuery({
     queryKey: ["manager-dashboard-chart", userId, chartPeriodo, chartMetrica],
     queryFn: () => getManagerDashboardChart(chartPeriodo, chartMetrica),
-    refetchInterval: 30000,
+    refetchInterval: getDashboardRefetchInterval(),
   })
 
   const metrics = metricsResult?.data

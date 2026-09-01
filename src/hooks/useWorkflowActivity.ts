@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { getWorkflowActivities } from "@/app/(app)/cockpit/actions";
+import { getDashboardRefetchInterval } from "@/lib/query/polling";
 import { playNotificationSound } from "@/utils/notifications";
 
 export function useWorkflowActivity(userId: string) {
@@ -15,7 +16,8 @@ export function useWorkflowActivity(userId: string) {
   const { data, isLoading } = useQuery({
     queryKey: ["workflow-activities", userId],
     queryFn: () => getWorkflowActivities(userId).then(res => res.data || []),
-    refetchInterval: 1000 * 30, // Refresh cada 30 segundos como backup (SaaS Ready)
+    refetchInterval: getDashboardRefetchInterval(),
+    staleTime: 0,
   });
 
   useEffect(() => {
@@ -35,9 +37,15 @@ export function useWorkflowActivity(userId: string) {
         async (payload) => {
           console.log("Realtime: Card change detected", payload);
           await queryClient.invalidateQueries({ queryKey: ["workflow-activities", userId] });
-          
-          if (payload.eventType === 'INSERT') {
-             playNotificationSound();
+
+          const isNewAssignment =
+            payload.eventType === "INSERT" ||
+            (payload.eventType === "UPDATE" &&
+              payload.new?.responsavel_id === userId &&
+              payload.old?.responsavel_id !== userId);
+
+          if (isNewAssignment) {
+            playNotificationSound();
           }
         }
       )

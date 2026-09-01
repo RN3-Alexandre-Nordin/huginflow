@@ -5,6 +5,7 @@ import { getCockpitBottleneck } from "../actions";
 import { X, Filter, ArrowRight, LayoutGrid, BarChart3, AlertCircle } from "lucide-react";
 import Link from "next/link";
 import { useEffect } from "react";
+import { getDashboardRefetchInterval } from "@/lib/query/polling";
 import { createClient } from "@/utils/supabase/client";
 
 interface BottleneckModalProps {
@@ -18,7 +19,7 @@ export default function BottleneckModal({ isOpen, onClose, userId }: BottleneckM
     queryKey: ["cockpit-bottleneck", userId],
     queryFn: () => getCockpitBottleneck(userId),
     enabled: isOpen,
-    refetchInterval: 30000, // Heartbeat de 30s
+    refetchInterval: getDashboardRefetchInterval(),
   });
 
   // Realtime coverage

@@ -187,9 +187,13 @@ export default async function PipelinePage(props: {
       <div className="flex-1 overflow-hidden pb-4 kanban-scroll">
         <KanbanBoard
           pipelineId={pipeline.id}
+          pipelineName={pipeline.nome}
           initialStages={stages || []}
           initialCards={cards || []}
           usuarios={usuarios || []}
+          showFinalizados={mostrarFinalizados}
+          meusCardsOnly={meusCards}
+          currentUserId={me?.id}
           canEdit={canEditCard}
           canDelete={canDeleteCard}
           canMove={canMoveCard}

@@ -106,13 +106,13 @@ export function parseAiTags(text: string): ParsedAiTags {
   }
 }
 
-/** Remove tags internas para envio ao cliente WhatsApp. */
+/** Remove tags internas da IA — WhatsApp, cockpit e cards (nunca exibir UUIDs/triage ao operador). */
 export function stripOutboundTags(text: string): string {
   return text
     .replace(/\[TRIAGE:[\s\S]*?\]/gi, '')
     .replace(/\[ACTION:\s*[^\]]+\]/gi, '')
+    .replace(/\[DOCUMENT:[\s\S]*?\]/gi, '')
     .replace(/\[STATUS_CRM:\s*[^\]]+\]/gi, '')
-    .replace(/\[[A-Z_][A-Z0-9_]*:[^\]]*\]/gi, '')
     .replace(/\n{3,}/g, '\n\n')
     .trim()
 }

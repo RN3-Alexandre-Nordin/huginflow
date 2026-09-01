@@ -5,6 +5,8 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { hasPermission } from '@/utils/permissions'
 import { getMyProfile } from '@/app/(app)/cockpit/actions'
+import { linkLeadToCard } from '@/lib/crm/resolveLead'
+import { buildKanbanCardUrl } from '@/lib/kanban/kanban-deep-link'
 
 export async function createLead(formData: FormData) {
   const me = await getMyProfile()
@@ -21,16 +23,37 @@ export async function createLead(formData: FormData) {
   const empresa_cliente = formData.get('empresa_cliente') as string || null
   const canal_idInput = formData.get('canal_id') as string
   const canal_id = canal_idInput ? canal_idInput : null
+  const linkCardId = (formData.get('link_card_id') as string) || null
   
   const supabase = await createClient()
   const empresaId = me?.role_global === 'superadmin' ? formData.get('empresa_id') as string : me?.empresa_id ?? ''
 
-  const { error } = await supabase.from('crm_leads').insert([{
+  if (linkCardId && !telefone?.trim() && !whatsapp?.trim()) {
+    return { error: 'Informe WhatsApp ou telefone para contato via WhatsApp.' }
+  }
+
+  const { data: newLead, error } = await supabase.from('crm_leads').insert([{
     nome, telefone, whatsapp, email, documento, cargo, empresa_cliente, canal_id, 
     empresa_id: empresaId
-  }])
+  }]).select('id').single()
 
   if (error) return { error: error.message }
+
+  if (linkCardId && newLead?.id && empresaId) {
+    await linkLeadToCard(supabase, linkCardId, empresaId, newLead.id)
+    const { data: card } = await supabase
+      .from('crm_cards')
+      .select('pipeline_id')
+      .eq('id', linkCardId)
+      .eq('empresa_id', empresaId)
+      .maybeSingle()
+
+    revalidatePath('/cockpit/crm/leads')
+    if (card?.pipeline_id) {
+      redirect(buildKanbanCardUrl(card.pipeline_id, linkCardId))
+    }
+    redirect('/cockpit/crm/funis')
+  }
   
   revalidatePath('/cockpit/crm/leads')
   redirect('/cockpit/crm/leads')

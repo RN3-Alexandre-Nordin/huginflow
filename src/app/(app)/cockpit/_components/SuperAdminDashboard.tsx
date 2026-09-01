@@ -2,11 +2,11 @@
 
 import { ShieldCheck, Building2, Users, Database, Globe, Zap, ArrowUpRight, LayoutDashboard, Settings } from "lucide-react"
 import Link from "next/link"
-import { useCockpitRealtime } from "@/hooks/useCockpitRealtime"
+import { useCockpitLastEvent } from "@/contexts/CockpitRealtimeContext"
 import { useEffect, useState } from "react"
 
 export default function SuperAdminDashboard({ userName, userId }: { userName: string, userId: string }) {
-  const { lastEvent } = useCockpitRealtime(userId, userName);
+  const lastEvent = useCockpitLastEvent();
   const [highlightGlobal, setHighlightGlobal] = useState(false);
 
   useEffect(() => {

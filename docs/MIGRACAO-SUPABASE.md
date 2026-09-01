@@ -7,7 +7,7 @@
 | **Dev** | `vujqukqsfwmoezwyuoum` | [huginflow-dev](https://supabase.com/dashboard/project/vujqukqsfwmoezwyuoum) |
 | **Prod** | `zmypzexefjbovuknjlid` | [huginflow-prod](https://supabase.com/dashboard/project/zmypzexefjbovuknjlid) |
 
-**Última migration no prod:** `fix_channel_cascade_delete` (abril/2026)
+**Última migration no prod:** `revert_handover_structured` (2026-09-02)
 
 **Gerar bundle SQL consolidado:**
 
@@ -23,6 +23,17 @@ node scripts/supabase/prod-deploy/build-bundle.mjs
 
 | Data | Migration / alteração | Dev | Prod | Arquivo | Notas |
 |------|----------------------|-----|------|---------|-------|
+| 2026-09-02 | `revert_handover_structured` | ✅ | ✅ | `supabase/migrations/202609021000_revert_handover_structured.sql` | Remove `crm_handover_config`, `handover_ja_feito`, `handover_pendencias` — resumo IA em `observacao` |
+| 2026-09-01 | `crm_cards_handover_structured` | ↩️ revertido | ↩️ revertido | `supabase/migrations/202609011400_crm_cards_handover_structured.sql` | Substituído por resumo IA |
+| 2026-09-01 | `empresas_crm_handover_config` | ↩️ revertido | ↩️ revertido | `supabase/migrations/202609011200_empresas_crm_handover_config.sql` | Substituído por resumo IA |
+| 2026-08-31 | `crm_chat_threads_active_speaker` | ✅ | ⏳ | `supabase/migrations/202608311800_crm_chat_threads_active_speaker.sql` | Threads + falante ativo — [cutover-sessoes-departamento-prod.md](./cutover-sessoes-departamento-prod.md) |
+| 2026-08-31 | Planejamento: sessões por departamento / falante ativo | ✅ MVP | ⏳ | `docs/planejamento-sessoes-por-departamento.md` | MVP implementado em dev |
+| 2026-08-31 | Chat: notificar responsável em alteração de card | ✅ | ⏳ | `src/lib/crm/notifyCardResponsavel.ts` (+ actions/triage) | Só código — [cutover-crm-ux-notificacoes-prod.md](./cutover-crm-ux-notificacoes-prod.md) |
+| 2026-08-31 | Kanban: data/hora criação no card | ✅ | ⏳ | `KanbanItem.tsx` | Só código |
+| 2026-08-31 | Documentos: ensurer + heurística boleto | ✅ | ⏳ | `DocumentCardEnsurer.ts` | Só código — cutover documentos |
+| 2026-08-31 | `crm_card_files_whatsapp_inbound` | ✅ | ⏳ | `supabase/migrations/202608311400_crm_card_files_whatsapp_inbound.sql` | source / provider_message_id |
+| 2026-08-31 | `crm_cards_realtime` | ✅ | ⏳ | `supabase/migrations/202608311230_crm_cards_realtime.sql` | publication realtime |
+| 2026-08-31 | `chat_inbox_rpc` | ✅ | ⏳ | `supabase/migrations/202608311200_chat_inbox_rpc.sql` | RPC inbox + índices |
 | 2026-06-21 | `finance_contrato_os_testemunhas` | ✅ | ⏳ | `supabase/migrations/202606211400_finance_contrato_os_testemunhas.sql` | `numero_os` auto OS-AAAA-NNNN + testemunhas 1/2 (nome, CPF) |
 | 2026-06-21 | `finance_contrato_limite_usuarios` | ✅ | ⏳ | `supabase/migrations/202606211200_finance_contrato_limite_usuarios.sql` | Coluna `limite_usuarios` em `finance_contratos` (quadro comercial OS/PDF) |
 | 2026-06-20 | `finance_meses_vigencia_fix` | ✅ | ⏳ | `supabase/migrations/202606201200_finance_meses_vigencia_fix.sql` | Fix 13 mensalidades: `fn_finance_meses_vigencia` |
@@ -59,6 +70,21 @@ node scripts/supabase/prod-deploy/build-bundle.mjs
 | 15 | `finance_meses_vigencia_fix` | `supabase/migrations/202606201200_finance_meses_vigencia_fix.sql` |
 | 16 | `finance_contrato_limite_usuarios` | `supabase/migrations/202606211200_finance_contrato_limite_usuarios.sql` |
 | 17 | `finance_contrato_os_testemunhas` | `supabase/migrations/202606211400_finance_contrato_os_testemunhas.sql` |
+
+### Pacote CRM / omni (ago/2026) — fora do bundle finance
+
+Aplicar após o pacote finance (ou em cutover CRM dedicado). Detalhes: [supabase-prod-deploy-pending.md](./supabase-prod-deploy-pending.md).
+
+| # | ID | Arquivo |
+|---|-----|---------|
+| 18 | `chat_inbox_rpc` | `supabase/migrations/202608311200_chat_inbox_rpc.sql` |
+| 19 | `crm_cards_realtime` | `supabase/migrations/202608311230_crm_cards_realtime.sql` |
+| 20 | `crm_card_files_whatsapp_inbound` | `supabase/migrations/202608311400_crm_card_files_whatsapp_inbound.sql` |
+| 21 | `crm_chat_threads_active_speaker` | `supabase/migrations/202608311800_crm_chat_threads_active_speaker.sql` |
+
+Código associado (sem SQL): documentos WhatsApp, ensurer, kanban data/hora, notify responsável — ver cutovers linkados no índice de deploy.
+
+**Roteiro de homologação:** [homologacao/script-teste-pacote-crm-ago-2026.md](./homologacao/script-teste-pacote-crm-ago-2026.md)
 
 ---
 

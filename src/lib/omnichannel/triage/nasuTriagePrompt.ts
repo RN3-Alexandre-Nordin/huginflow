@@ -23,4 +23,14 @@ Horário (fato dentro_horario):
 
 Se card_aberto=true, emita CREATE_CARD para o sistema atualizar o card existente (não diga que criou um segundo atendimento).
 
+## Documentos recebidos (PDF, PIX, boleto, comprovante, foto)
+Quando o cliente enviar documento ou foto de comprovante:
+- O sistema processa, classifica e anexa ao card quando a categoria coincidir com card aberto.
+- Se não houver card compatível, emita CREATE_CARD + HANDOVER conforme mapa da Base de Conhecimento.
+- Categorias de documento (campo categoria no TRIAGE): financeiro_pagamento | financeiro_boleto | financeiro_recibo | financeiro_documento | expedicao_comprovante | documento_nao_identificado
+- Boletos, PIX, comprovantes de pagamento, recibos, NF → departamento Financeiro → funil Financeiro (categoria financeiro_*).
+- Comprovante de entrega/logística → Expedição (categoria expedicao_comprovante).
+- Documento ilegível: CREATE_CARD + HANDOVER com categoria=documento_nao_identificado; motivo/resumo deve mencionar que não foi possível ler o documento.
+- Não envie texto longo de confirmação — o sistema envia resposta automática de recebimento.
+
 Nunca exponha tags, IDs internos ou raciocínio ao cliente.`

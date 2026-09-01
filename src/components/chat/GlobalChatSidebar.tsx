@@ -1,9 +1,9 @@
 'use client'
 
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { MessageSquare, X, Bell, User, ExternalLink, Hash, Loader2, Users as UsersIcon, Search } from 'lucide-react'
 import ChatWindow from './ChatWindow'
-import { getMyProfile } from '@/app/(app)/cockpit/actions'
 import { getRecentConversations, markChatAsRead } from '@/app/(app)/cockpit/crm/chat-actions'
 import { createClient } from '@/utils/supabase/client'
 import { formatDistanceToNow } from 'date-fns'
@@ -18,13 +18,17 @@ interface Conversation {
   unreadCount: number
 }
 
-export default function GlobalChatSidebar() {
+interface GlobalChatSidebarProps {
+  userId: string
+  userName: string
+  empresaId: string
+}
+
+export default function GlobalChatSidebar({ userId, userName, empresaId }: GlobalChatSidebarProps) {
+  const queryClient = useQueryClient()
   const [isOpen, setIsOpen] = useState(false)
-  const [currentUser, setCurrentUser] = useState<any>(null)
-  const [conversations, setConversations] = useState<Conversation[]>([])
   const [searchResults, setSearchResults] = useState<any[]>([])
   const [searchQuery, setSearchQuery] = useState('')
-  const [loading, setLoading] = useState(true)
   const [searching, setSearching] = useState(false)
   const [activeChat, setActiveChat] = useState<{ type: 'global' | 'card' | 'direct', id: string|null, name: string, relatedCardId?: string }>({
      type: 'card',
@@ -32,14 +36,25 @@ export default function GlobalChatSidebar() {
      name: ''
   })
 
-  // Load initial data (Selective Inbox)
-  const loadConversations = async () => {
-    const res = await getRecentConversations()
-    if (res.data) {
-      setConversations(res.data as Conversation[])
-    }
-    setLoading(false)
-  }
+  const reloadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const { data: conversations = [], isLoading: loading, refetch } = useQuery({
+    queryKey: ['recent-conversations', userId],
+    queryFn: async () => {
+      const res = await getRecentConversations()
+      if (res.error) throw new Error(res.error)
+      return (res.data ?? []) as Conversation[]
+    },
+    enabled: Boolean(userId),
+    staleTime: 15_000,
+  })
+
+  const scheduleLoadConversations = useCallback(() => {
+    if (reloadTimerRef.current) clearTimeout(reloadTimerRef.current)
+    reloadTimerRef.current = setTimeout(() => {
+      void refetch()
+    }, 800)
+  }, [refetch])
 
   // Exhaustive search logic
   useEffect(() => {
@@ -62,64 +77,75 @@ export default function GlobalChatSidebar() {
   }, [searchQuery])
 
   useEffect(() => {
-    async function init() {
-      const me = await getMyProfile()
-      if (me) setCurrentUser(me)
-      await loadConversations()
-    }
-    init()
+    if (!userId || !empresaId) return
 
-    // Realtime subscription for list reordering & notifications
     const supabase = createClient()
+    const myMention = `[${userName}]`
     const channel = supabase
-      .channel('sidebar-sync')
-      .on('postgres_changes', { 
-        event: 'INSERT', 
-        schema: 'public', 
-        table: 'chat_messages' 
+      .channel(`sidebar-sync-${userId}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'chat_messages',
+        filter: `empresa_id=eq.${empresaId}`,
       }, (payload) => {
-        // Sinalizar nova mensagem (Sempre recarrega para manter badge atualizado)
-        loadConversations()
-        
-        // Se estiver fechado, podemos disparar uma notificação sonora ou visual extra aqui se desejar
-        if (!isOpen) {
-           console.log('[Chat] Nova mensagem recebida (sinalizando badge)')
+        const msg = payload.new as {
+          sender_id?: string
+          context_type?: string
+          context_id?: string | null
+          content?: string
         }
+
+        const isDirect =
+          msg.context_type === 'direct' &&
+          (msg.context_id === userId || msg.sender_id === userId)
+        const isMention = Boolean(msg.content?.includes(myMention))
+        const isCardContext = msg.context_type === 'card'
+
+        if (!isDirect && !isMention && !isCardContext) return
+
+        scheduleLoadConversations()
       })
       .subscribe()
 
-    // Close on card modal open (WhatsApp Style requirement)
     const handleOpenCard = () => setIsOpen(false)
     window.addEventListener('open-card-modal', handleOpenCard)
 
-    // Event Listener for programmatic DM opening
-    const handleOpenChat = (e: any) => {
-      const { userId, userName, relatedCardId } = e.detail
+    const handleOpenChat = (e: Event) => {
+      const { userId: targetUserId, userName: targetUserName, relatedCardId } =
+        (e as CustomEvent).detail
       setIsOpen(true)
-      setActiveChat({ type: 'direct', id: userId, name: userName, relatedCardId })
+      setActiveChat({
+        type: 'direct',
+        id: targetUserId,
+        name: targetUserName,
+        relatedCardId,
+      })
     }
 
     window.addEventListener('open-direct-chat', handleOpenChat)
-    
+
     return () => {
+      if (reloadTimerRef.current) clearTimeout(reloadTimerRef.current)
       supabase.removeChannel(channel)
       window.removeEventListener('open-direct-chat', handleOpenChat)
       window.removeEventListener('open-card-modal', handleOpenCard)
     }
-  }, [])
+  }, [empresaId, scheduleLoadConversations, userId, userName])
 
   // Auto-mark as read when active chat changes
   useEffect(() => {
     if (activeChat.id && isOpen) {
       markChatAsRead(activeChat.type, activeChat.id)
-      // Otimistic update of unread count
-      setConversations(prev => prev.map(c => 
-        c.id === activeChat.id && c.type === activeChat.type 
-          ? { ...c, unreadCount: 0 } 
-          : c
-      ))
+      queryClient.setQueryData<Conversation[]>(['recent-conversations', userId], (prev) =>
+        (prev ?? []).map((c) =>
+          c.id === activeChat.id && c.type === activeChat.type
+            ? { ...c, unreadCount: 0 }
+            : c,
+        ),
+      )
     }
-  }, [activeChat.id, activeChat.type, isOpen])
+  }, [activeChat.id, activeChat.type, isOpen, queryClient, userId])
 
   const displayConversations = useMemo(() => {
     if (searchQuery.trim()) {
@@ -310,13 +336,13 @@ export default function GlobalChatSidebar() {
                </div>
 
                <div className="flex-1 overflow-hidden relative">
-                  {currentUser ? (
+                  {userId ? (
                      <ChatWindow 
                         key={`${activeChat.type}-${activeChat.id}`}
                         contextType={activeChat.type as any} 
                         contextId={activeChat.id || undefined}
                         relatedCardId={activeChat.relatedCardId}
-                        currentUserId={currentUser.id} 
+                        currentUserId={userId} 
                      />
                   ) : (
                      <div className="flex flex-col items-center justify-center h-full space-y-4">

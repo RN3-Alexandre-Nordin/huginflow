@@ -20,6 +20,7 @@ import KanbanItem from './KanbanItem'
 import { updateCardStage } from '@/app/(app)/cockpit/crm/actions'
 import CardDetailsModal from './CardDetailsModal'
 import KanbanNewCardModal from './KanbanNewCardModal'
+import { useKanbanRealtime, type KanbanCard } from '@/hooks/useKanbanRealtime'
 
 interface Stage {
   id: string
@@ -28,30 +29,17 @@ interface Stage {
   cor: string
 }
 
-interface Card {
-  id: string
-  titulo: string
-  cliente_nome: string | null
-  valor: number
-  descricao: string | null
-  stage_id: string
-  ordem: number
-  data_prazo?: string | null
-  stage_entered_at?: string | null
-  responsavel_id?: string | null
-  responsavel?: { nome_completo: string } | null
-}
-
-interface Usuario {
-  id: string
-  nome_completo: string
-}
+interface Card extends KanbanCard {}
 
 interface KanbanBoardProps {
   pipelineId: string
+  pipelineName?: string
   initialStages: Stage[]
   initialCards: Card[]
   usuarios: Usuario[]
+  showFinalizados?: boolean
+  meusCardsOnly?: boolean
+  currentUserId?: string
   canEdit?: boolean
   canDelete?: boolean
   canMove?: boolean
@@ -60,11 +48,20 @@ interface KanbanBoardProps {
   canDeleteAttachments?: boolean
 }
 
+interface Usuario {
+  id: string
+  nome_completo: string
+}
+
 export default function KanbanBoard({ 
-  pipelineId, 
+  pipelineId,
+  pipelineName = 'Funil',
   initialStages, 
   initialCards, 
   usuarios,
+  showFinalizados = false,
+  meusCardsOnly = false,
+  currentUserId,
   canEdit = true,
   canDelete = true,
   canMove = true,
@@ -115,6 +112,21 @@ export default function KanbanBoard({
   const [initialModalTab, setInitialModalTab] = useState<'resumo' | 'chat'>('resumo')
   const [showNewCardModal, setShowNewCardModal] = useState(false)
   const [isPending, startTransition] = useTransition()
+
+  useKanbanRealtime(pipelineId, setCards, {
+    showFinalizados,
+    meusCardsOnly,
+    currentUserId,
+    draggingCardId: activeCard?.id ?? null,
+  })
+
+  React.useEffect(() => {
+    setInspectedCard((prev) => {
+      if (!prev) return prev
+      const fresh = cards.find((c) => c.id === prev.id)
+      return fresh ?? null
+    })
+  }, [cards])
 
   function openCardModal(card: Card, opts?: { tab?: 'resumo' | 'chat' }) {
     setInitialModalTab(opts?.tab ?? 'resumo')
@@ -251,6 +263,7 @@ export default function KanbanBoard({
                   <KanbanColumn
                     column={col}
                     cards={cards.filter((c) => c.stage_id === col.id)}
+                    pipelineId={pipelineId}
                     onCardEditClick={(card: any) => openCardModal(card)}
                     onCardChatClick={(card: any) => openCardModal(card, { tab: 'chat' })}
                     canMove={canMove}
@@ -272,6 +285,7 @@ export default function KanbanBoard({
               <KanbanColumn
                 column={activeColumn}
                 cards={cards.filter((c) => c.stage_id === activeColumn.id)}
+                pipelineId={pipelineId}
                 canMove={canMove}
                 canEdit={canEdit}
                 canViewAttachments={canViewAttachments}
@@ -283,6 +297,7 @@ export default function KanbanBoard({
               <KanbanItem 
                 card={activeCard} 
                 isOverlay 
+                pipelineId={pipelineId}
                 canMove={canMove}
                 canEdit={canEdit}
                 canViewAttachments={canViewAttachments}
@@ -297,6 +312,8 @@ export default function KanbanBoard({
           <CardDetailsModal
             card={inspectedCard as any}
             currentPipelineId={pipelineId}
+            currentPipelineName={pipelineName}
+            stages={stages}
             usuarios={usuarios}
             onClose={closeCardModal}
             initialTab={initialModalTab}
@@ -314,6 +331,7 @@ export default function KanbanBoard({
           pipelineId={pipelineId}
           stages={stages}
           usuarios={usuarios}
+          currentUserId={currentUserId}
           onClose={() => setShowNewCardModal(false)}
         />
       )}

@@ -21,8 +21,17 @@ import {
   FolderOpen,
   type LucideIcon,
 } from "lucide-react"
+import type { CockpitNavPermissions } from "@/utils/cockpit-nav-permissions"
 
-type NavItem = { name: string; href: string; icon: LucideIcon; rn3Only?: boolean; adminOnly?: boolean }
+type NavItem = {
+  name: string
+  href: string
+  icon: LucideIcon
+  rn3Only?: boolean
+  adminOnly?: boolean
+  /** Se definido, o item só aparece quando `navPermissions[permissionModule]` for true. */
+  permissionModule?: string
+}
 
 type NavSection = {
   id: string
@@ -33,8 +42,13 @@ type NavSection = {
 
 const topLevel: NavItem[] = [
   { name: "Cockpit", href: "/cockpit", icon: LayoutDashboard },
-  { name: "Base de Leads", href: "/cockpit/crm/leads", icon: Inbox },
-  { name: "Chat Omnichannel", href: "/cockpit/crm/chat", icon: MessageSquare },
+  { name: "Base de Leads", href: "/cockpit/crm/leads", icon: Inbox, permissionModule: "leads" },
+  {
+    name: "Chat Omnichannel",
+    href: "/cockpit/crm/chat",
+    icon: MessageSquare,
+    permissionModule: "omni_chat",
+  },
 ]
 
 const sections: NavSection[] = [
@@ -43,7 +57,7 @@ const sections: NavSection[] = [
     label: "Administração",
     icon: Settings2,
     items: [
-      { name: "Empresas", href: "/cockpit/empresas", icon: Building2 },
+      { name: "Empresas", href: "/cockpit/empresas", icon: Building2, permissionModule: "empresas" },
       { name: "Financeiro", href: "/cockpit/financeiro", icon: Wallet, rn3Only: true },
       { name: "Contratos", href: "/cockpit/financeiro/contratos", icon: FileText, rn3Only: true },
       { name: "Simulador de Chat", href: "/cockpit/crm/simulador", icon: MessageSquare, adminOnly: true },
@@ -54,12 +68,22 @@ const sections: NavSection[] = [
     label: "Cadastros",
     icon: FolderOpen,
     items: [
-      { name: "Base de Conhecimento", href: "/cockpit/crm/conhecimento", icon: BookOpen },
-      { name: "Departamentos", href: "/cockpit/departamentos", icon: Target },
-      { name: "Funis", href: "/cockpit/crm/funis", icon: Columns },
-      { name: "Usuários", href: "/cockpit/usuarios", icon: Users },
-      { name: "Grupos de Acesso", href: "/cockpit/grupos", icon: ShieldCheck },
-      { name: "Canais Inbound", href: "/cockpit/configuracoes/canais", icon: Share2 },
+      {
+        name: "Base de Conhecimento",
+        href: "/cockpit/crm/conhecimento",
+        icon: BookOpen,
+        permissionModule: "conhecimento",
+      },
+      { name: "Departamentos", href: "/cockpit/departamentos", icon: Target, permissionModule: "departamentos" },
+      { name: "Funis", href: "/cockpit/crm/funis", icon: Columns, permissionModule: "funis" },
+      { name: "Usuários", href: "/cockpit/usuarios", icon: Users, permissionModule: "admin_usuarios" },
+      { name: "Grupos de Acesso", href: "/cockpit/grupos", icon: ShieldCheck, permissionModule: "admin_grupos" },
+      {
+        name: "Canais Inbound",
+        href: "/cockpit/configuracoes/canais",
+        icon: Share2,
+        permissionModule: "canais",
+      },
     ],
   },
 ]
@@ -86,16 +110,19 @@ function NavLink({
   pathname,
   nested,
   siblingHrefs,
+  onNavigate,
 }: {
   item: NavItem
   pathname: string
   nested?: boolean
   siblingHrefs?: string[]
+  onNavigate?: () => void
 }) {
   const active = isActivePath(pathname, item.href, siblingHrefs)
   return (
     <Link
       href={item.href}
+      onClick={onNavigate}
       className={`flex items-center gap-3 rounded-lg text-sm font-semibold tracking-tight transition-all ${
         nested ? "px-3 py-2.5 ml-2" : "px-3 py-3"
       } ${
@@ -110,10 +137,16 @@ function NavLink({
   )
 }
 
-function filterNavItems(items: NavItem[], isSuperAdmin: boolean, isAdminOrSuperAdmin: boolean) {
+function filterNavItems(
+  items: NavItem[],
+  isSuperAdmin: boolean,
+  isAdminOrSuperAdmin: boolean,
+  navPermissions: CockpitNavPermissions
+) {
   return items.filter((item) => {
     if (item.rn3Only && !isSuperAdmin) return false
     if (item.adminOnly && !isAdminOrSuperAdmin) return false
+    if (item.permissionModule && !navPermissions[item.permissionModule]) return false
     return true
   })
 }
@@ -125,6 +158,8 @@ function NavSectionBlock({
   onToggle,
   isSuperAdmin,
   isAdminOrSuperAdmin,
+  navPermissions,
+  onNavigate,
 }: {
   section: NavSection
   pathname: string
@@ -132,8 +167,10 @@ function NavSectionBlock({
   onToggle: () => void
   isSuperAdmin: boolean
   isAdminOrSuperAdmin: boolean
+  navPermissions: CockpitNavPermissions
+  onNavigate?: () => void
 }) {
-  const visibleItems = filterNavItems(section.items, isSuperAdmin, isAdminOrSuperAdmin)
+  const visibleItems = filterNavItems(section.items, isSuperAdmin, isAdminOrSuperAdmin, navPermissions)
   const hasActive = sectionHasActive(pathname, visibleItems)
 
   if (visibleItems.length === 0) return null
@@ -164,6 +201,7 @@ function NavSectionBlock({
               pathname={pathname}
               nested
               siblingHrefs={visibleItems.map((i) => i.href)}
+              onNavigate={onNavigate}
             />
           ))}
         </div>
@@ -175,11 +213,15 @@ function NavSectionBlock({
 export default function CockpitSidebarNav({
   isSuperAdmin,
   isAdminOrSuperAdmin,
+  navPermissions = {},
   disabled = false,
+  onNavigate,
 }: {
   isSuperAdmin: boolean
   isAdminOrSuperAdmin: boolean
+  navPermissions?: CockpitNavPermissions
   disabled?: boolean
+  onNavigate?: () => void
 }) {
   const pathname = usePathname()
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
@@ -187,17 +229,25 @@ export default function CockpitSidebarNav({
     cadastros: true,
   })
 
+  const visibleTopLevel = filterNavItems(topLevel, isSuperAdmin, isAdminOrSuperAdmin, navPermissions)
+
   useEffect(() => {
     setOpenSections((prev) => ({
       ...prev,
       administracao:
         prev.administracao ||
-        sectionHasActive(pathname, filterNavItems(sections[0].items, isSuperAdmin, isAdminOrSuperAdmin)),
+        sectionHasActive(
+          pathname,
+          filterNavItems(sections[0].items, isSuperAdmin, isAdminOrSuperAdmin, navPermissions)
+        ),
       cadastros:
         prev.cadastros ||
-        sectionHasActive(pathname, filterNavItems(sections[1].items, isSuperAdmin, isAdminOrSuperAdmin)),
+        sectionHasActive(
+          pathname,
+          filterNavItems(sections[1].items, isSuperAdmin, isAdminOrSuperAdmin, navPermissions)
+        ),
     }))
-  }, [pathname, isSuperAdmin, isAdminOrSuperAdmin])
+  }, [pathname, isSuperAdmin, isAdminOrSuperAdmin, navPermissions])
 
   const toggle = (id: string) => {
     setOpenSections((prev) => ({ ...prev, [id]: !prev[id] }))
@@ -215,11 +265,19 @@ export default function CockpitSidebarNav({
 
   return (
     <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-0.5 custom-scrollbar-sidebar">
-      <div className="space-y-0.5 pb-2 border-b border-[#ffffff06] mb-2">
-        {topLevel.map((item) => (
-          <NavLink key={item.href} item={item} pathname={pathname} />
-        ))}
-      </div>
+      {visibleTopLevel.length > 0 && (
+        <div className="space-y-0.5 pb-2 border-b border-[#ffffff06] mb-2">
+          {visibleTopLevel.map((item) => (
+            <NavLink
+              key={item.href}
+              item={item}
+              pathname={pathname}
+              siblingHrefs={visibleTopLevel.map((i) => i.href)}
+              onNavigate={onNavigate}
+            />
+          ))}
+        </div>
+      )}
 
       {sections.map((section) => (
         <NavSectionBlock
@@ -230,6 +288,8 @@ export default function CockpitSidebarNav({
           onToggle={() => toggle(section.id)}
           isSuperAdmin={isSuperAdmin}
           isAdminOrSuperAdmin={isAdminOrSuperAdmin}
+          navPermissions={navPermissions}
+          onNavigate={onNavigate}
         />
       ))}
     </nav>

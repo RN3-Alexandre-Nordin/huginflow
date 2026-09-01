@@ -1,8 +1,16 @@
 import { HuginMessage, BaseProvider, ProviderConfig, WebhookResult, HuginEvent } from '@/types/omnichannel';
 import { getEvolutionCredentials } from '@/lib/config/environment';
-import { formatWhatsAppSignatureHeader } from '@/lib/omnichannel/whatsapp-outbound';
+import {
+  formatAttendantWhatsAppCaption,
+  formatAttendantWhatsAppText,
+} from '@/lib/omnichannel/whatsapp-outbound';
 import { AUDIO_PLACEHOLDER } from '@/lib/omnichannel/audio-transcription-constants';
-import { extractAudioMessagePayload } from '@/lib/omnichannel/services/EvolutionMediaService';
+import { DOCUMENT_PLACEHOLDER } from '@/lib/omnichannel/document-constants';
+import {
+  extractAudioMessagePayload,
+  extractDocumentMessagePayload,
+  extractImageMessagePayload,
+} from '@/lib/omnichannel/services/EvolutionMediaService';
 
 /** Normaliza nomes de evento da Evolution (MESSAGES_UPSERT → messages.upsert). */
 export function normalizeEvolutionEvent(event: string | undefined): string {
@@ -21,6 +29,15 @@ export function phoneFromRemoteJid(remoteJid: string | undefined): string | null
 type SendTextOptions = {
   delay?: number
   presence?: 'composing' | 'recording' | 'paused' | 'available'
+}
+
+export type SendMediaInput = {
+  mediatype: 'image' | 'document' | 'video'
+  mimetype: string
+  /** Base64 ou URL pública */
+  media: string
+  fileName: string
+  caption?: string
 }
 
 export class EvolutionProvider implements BaseProvider {
@@ -83,7 +100,113 @@ export class EvolutionProvider implements BaseProvider {
   }
 
   /**
-   * Identifica quem fala: 1ª bolha com o nome, 2ª com o conteúdo (confiável no WhatsApp).
+   * Mensagem da IA ou sistema — sem identificação de remetente no WhatsApp.
+   */
+  async sendPlainMessage(
+    to: string,
+    body: string,
+    config: ProviderConfig,
+  ): Promise<{ success: boolean; messageId?: string; error?: unknown }> {
+    const text = body.trim()
+    if (!text) return { success: true, messageId: undefined }
+    return this.sendMessage(to, text, config)
+  }
+
+  /**
+   * Atendente humano — uma bolha: *Nome:* + texto (identificação visível no WhatsApp do cliente).
+   */
+  async sendAttendantMessage(
+    to: string,
+    attendantName: string,
+    body: string,
+    config: ProviderConfig,
+  ): Promise<{ success: boolean; messageId?: string; error?: unknown }> {
+    const text = formatAttendantWhatsAppText(attendantName, body)
+    if (!text) return { success: true, messageId: undefined }
+    return this.sendMessage(to, text, config)
+  }
+
+  /**
+   * Envia PDF/imagem/vídeo via Evolution API (base64 ou URL).
+   */
+  async sendMedia(
+    to: string,
+    input: SendMediaInput,
+    config: ProviderConfig,
+  ): Promise<{ success: boolean; messageId?: string; error?: unknown }> {
+    const envCreds = getEvolutionCredentials()
+    const baseUrl = config.settings?.apiUrl || envCreds.apiUrl
+    const apiKey = config.provider_token || envCreds.apiKey
+    const instance = config.provider_id
+
+    if (!instance || !apiKey) {
+      return { success: false, error: 'Configuração da Evolution API incompleta (Instance ou API Key ausente)' }
+    }
+
+    try {
+      const response = await fetch(`${baseUrl}/message/sendMedia/${instance}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: apiKey,
+        },
+        body: JSON.stringify({
+          number: to,
+          mediatype: input.mediatype,
+          mimetype: input.mimetype,
+          media: input.media,
+          fileName: input.fileName,
+          caption: input.caption ?? '',
+          options: {
+            delay: 800,
+            presence: 'composing',
+          },
+        }),
+      })
+
+      const data = await response.json().catch(() => ({}))
+
+      if (!response.ok) {
+        console.error(
+          `[Evolution] sendMedia ${response.status} instance=${instance} url=${baseUrl}`,
+          data,
+        )
+        return { success: false, error: data }
+      }
+
+      const messageId = data?.key?.id ?? data?.messageId
+      if (!messageId && data?.error) {
+        return { success: false, error: data }
+      }
+
+      return { success: true, messageId }
+    } catch (error) {
+      console.error(`[Evolution] sendMedia rede instance=${instance} url=${baseUrl}:`, error)
+      return { success: false, error }
+    }
+  }
+
+  /**
+   * Atendente humano + anexo — legenda na mesma bolha: *Nome:* + texto opcional.
+   */
+  async sendAttendantMedia(
+    to: string,
+    attendantName: string,
+    input: SendMediaInput,
+    config: ProviderConfig,
+  ): Promise<{ success: boolean; messageId?: string; error?: unknown }> {
+    return this.sendMedia(
+      to,
+      {
+        ...input,
+        caption: formatAttendantWhatsAppCaption(attendantName, input.caption),
+      },
+      config,
+    )
+  }
+
+  /**
+   * @deprecated Prefer sendPlainMessage (IA) ou sendAttendantMessage (humano).
    */
   async sendMessageWithSenderLabel(
     to: string,
@@ -91,25 +214,7 @@ export class EvolutionProvider implements BaseProvider {
     body: string,
     config: ProviderConfig,
   ): Promise<{ success: boolean; messageId?: string; error?: unknown }> {
-    const header = formatWhatsAppSignatureHeader(senderLabel)
-    const text = body.trim()
-
-    if (header) {
-      const headerResult = await this.sendMessage(to, header, config, {
-        delay: 400,
-        presence: 'composing',
-      })
-      if (!headerResult.success) {
-        return headerResult
-      }
-      await new Promise((resolve) => setTimeout(resolve, 600))
-    }
-
-    if (!text) {
-      return { success: true, messageId: undefined }
-    }
-
-    return this.sendMessage(to, text, config)
+    return this.sendAttendantMessage(to, senderLabel, body, config)
   }
 
   /**
@@ -166,28 +271,33 @@ export class EvolutionProvider implements BaseProvider {
         (data.message?.listResponseMessage?.title as string | undefined) ||
         '';
 
-      const audioMeta = extractAudioMessagePayload(data);
+      const audioMeta = extractAudioMessagePayload(data)
+      const docMeta = extractDocumentMessagePayload(data)
+      const imgMeta = extractImageMessagePayload(data)
 
       // Determinando o tipo de mensagem simplificado
-      let type: any = 'text';
-      if (data.message?.imageMessage) type = 'image';
-      if (data.message?.videoMessage) type = 'video';
-      if (audioMeta) type = 'audio';
-      if (data.message?.documentMessage) type = 'document';
+      let type: any = 'text'
+      if (imgMeta && !docMeta) type = 'image'
+      if (data.message?.videoMessage) type = 'video'
+      if (audioMeta) type = 'audio'
+      if (docMeta) type = 'document'
 
-      const content =
-        type === 'audio' && !messageContent ? AUDIO_PLACEHOLDER : messageContent;
+      let content = messageContent
+      if (type === 'audio' && !messageContent) content = AUDIO_PLACEHOLDER
+      if ((type === 'document' || type === 'image') && !messageContent) {
+        content = DOCUMENT_PLACEHOLDER
+      }
 
-      if (!content && type === 'text') return null;
+      if (!content && type === 'text') return null
 
       return {
         id: data.key.id,
         provider: 'evolution',
         provider_id: payload.instance || '',
-        empresa_id: '', // Será preenchido pelo serviço de roteamento ao consultar o banco
+        empresa_id: '',
         sender_id: senderPhone,
         sender_name: data.pushName || 'WhatsApp User',
-        content: content,
+        content,
         type: type,
         created_at: new Date(data.messageTimestamp * 1000),
         direction: 'inbound',
@@ -204,8 +314,26 @@ export class EvolutionProvider implements BaseProvider {
                 transcription: { status: 'pending' as const },
               }
             : {}),
+          ...(docMeta
+            ? {
+                media_type: 'document',
+                mimetype: docMeta.mimetype,
+                file_name: docMeta.fileName,
+                file_length: docMeta.fileLength,
+                document: { status: 'pending' as const },
+              }
+            : {}),
+          ...(imgMeta && !docMeta
+            ? {
+                media_type: 'image',
+                mimetype: imgMeta.mimetype,
+                file_name: imgMeta.fileName,
+                file_length: imgMeta.fileLength,
+                document: { status: 'pending' as const },
+              }
+            : {}),
         }
-      } as HuginMessage;
+      } as HuginMessage
     }
 
     return null;

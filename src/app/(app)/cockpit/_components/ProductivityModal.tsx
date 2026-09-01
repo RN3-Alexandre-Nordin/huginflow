@@ -7,6 +7,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import Link from "next/link";
 import { useEffect } from "react";
+import { getDashboardRefetchInterval } from "@/lib/query/polling";
 import { createClient } from "@/utils/supabase/client";
 
 interface ProductivityModalProps {
@@ -20,7 +21,7 @@ export default function ProductivityModal({ isOpen, onClose, userId }: Productiv
     queryKey: ["today-movements", userId],
     queryFn: () => getTodayMovementsDetails(userId),
     enabled: isOpen,
-    refetchInterval: 30000, // Heartbeat de 30s sincronizado (SaaS Ready)
+    refetchInterval: getDashboardRefetchInterval(),
   });
 
   // Realtime subscription for history updates

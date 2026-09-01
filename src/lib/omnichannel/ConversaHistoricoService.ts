@@ -1,5 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { randomUUID } from 'crypto'
+import { isDeptSessionsEnabled } from '@/lib/omnichannel/dept-sessions-constants'
+import {
+  ActiveSpeakerService,
+  ChatThreadService,
+} from '@/lib/omnichannel/ChatThreadService'
 
 export type SessaoSnapshot = {
   sessao_id: string
@@ -21,6 +26,8 @@ export type AppendConversaInput = {
   atribuido_a_id?: string | null
   metadata?: Record<string, unknown>
   is_ai?: boolean
+  /** Força o sessao_id (thread de assunto / falante ativo). */
+  sessao_id?: string
 }
 
 /** Uma linha em crm_conversas por mensagem; sessao_id = thread do chat. */
@@ -47,12 +54,36 @@ export class ConversaHistoricoService {
     return data as SessaoSnapshot
   }
 
+  static async getSessaoSnapshot(
+    sessaoId: string,
+    supabase: SupabaseClient,
+  ): Promise<SessaoSnapshot | null> {
+    const { data, error } = await supabase
+      .from('crm_conversas')
+      .select('sessao_id, status, last_human_interaction, atribuido_a_id')
+      .eq('sessao_id', sessaoId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (error || !data?.sessao_id) return null
+    return data as SessaoSnapshot
+  }
+
   static async appendMessage(
     input: AppendConversaInput,
     supabase: SupabaseClient,
   ): Promise<string | null> {
-    const latest = await this.getLatestSessao(input.canal_id, input.external_id, supabase)
-    const sessaoId = latest?.sessao_id ?? randomUUID()
+    let sessaoId = input.sessao_id
+    let latest: SessaoSnapshot | null = null
+
+    if (sessaoId) {
+      latest = await this.getSessaoSnapshot(sessaoId, supabase)
+    } else {
+      latest = await this.getLatestSessao(input.canal_id, input.external_id, supabase)
+      sessaoId = latest?.sessao_id ?? randomUUID()
+    }
+
     const now = new Date().toISOString()
 
     let status = input.status ?? latest?.status ?? 'ai'
@@ -65,7 +96,7 @@ export class ConversaHistoricoService {
     if (input.direcao === 'outbound' && !input.is_ai) {
       status = 'human'
       lastHuman = now
-    } else if (!latest) {
+    } else if (!latest && !input.sessao_id) {
       status = 'ai'
     }
 
@@ -96,10 +127,23 @@ export class ConversaHistoricoService {
       return null
     }
 
+    const finalSessao = data?.sessao_id ?? sessaoId
+
+    if (isDeptSessionsEnabled() && finalSessao) {
+      await ChatThreadService.syncThreadFromAppend(supabase, {
+        sessaoId: finalSessao,
+        empresaId: input.empresa_id,
+        canalId: input.canal_id,
+        externalId: input.external_id,
+        leadId: input.lead_id,
+        status,
+      })
+    }
+
     console.log(
-      `[ConversaHistorico] Linha criada sessao=${data?.sessao_id} role=${input.role} dir=${input.direcao}`,
+      `[ConversaHistorico] Linha criada sessao=${finalSessao} role=${input.role} dir=${input.direcao}`,
     )
-    return data?.sessao_id ?? null
+    return finalSessao
   }
 
   static async updateLatestSessaoStatus(
@@ -128,5 +172,14 @@ export class ConversaHistoricoService {
     if (error) {
       console.error('[ConversaHistorico] Erro ao atualizar status da sessão:', error)
     }
+
+    if (isDeptSessionsEnabled() && patch.status) {
+      await supabase
+        .from('crm_chat_threads')
+        .update({ status: patch.status, updated_at: new Date().toISOString() })
+        .eq('id', sessaoId)
+    }
   }
 }
+
+export { ActiveSpeakerService, ChatThreadService }

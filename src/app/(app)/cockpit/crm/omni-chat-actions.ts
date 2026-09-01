@@ -2,6 +2,7 @@
 
 import { createClient } from '@/utils/supabase/server'
 import { getMyProfile } from '@/app/(app)/cockpit/actions'
+import { hasPermission } from '@/utils/permissions'
 
 /** Uma entrada por thread (última mensagem de cada sessao_id). */
 function dedupeSessoes<T extends { sessao_id: string; created_at?: string; updated_at?: string }>(
@@ -206,4 +207,156 @@ export async function getOmniMensagens(sessaoId: string) {
 
   if (error) return { error: error.message, data: [] }
   return { data: data ?? [] }
+}
+
+type OmniRedirectCardRow = {
+  id: string
+  titulo: string | null
+  cliente_nome: string | null
+  valor: number | null
+  descricao: string | null
+  observacao: string | null
+  responsavel_id: string | null
+  data_prazo: string | null
+  stage_id: string
+  lead_id: string | null
+  pipeline_id: string
+  conversa_id: string | null
+  pipelines: {
+    id: string
+    nome: string
+    pipeline_stages: { id: string; nome: string; ordem: number | null }[] | null
+  } | null
+}
+
+async function findOpenCardForSessao(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  me: NonNullable<Awaited<ReturnType<typeof getMyProfile>>>,
+  sessaoId: string,
+  cardIdHint?: string | null,
+): Promise<{ card: OmniRedirectCardRow | null; error?: string }> {
+  const select = `
+    id, titulo, cliente_nome, valor, descricao, observacao, responsavel_id, data_prazo,
+    stage_id, lead_id, pipeline_id, conversa_id,
+    pipelines ( id, nome, pipeline_stages ( id, nome, ordem ) )
+  `
+
+  if (cardIdHint) {
+    let q = supabase
+      .from('crm_cards')
+      .select(select)
+      .eq('id', cardIdHint)
+      .eq('finalizado', false)
+
+    if (me.role_global !== 'superadmin') {
+      q = q.eq('empresa_id', me.empresa_id)
+    }
+
+    const { data, error } = await q.maybeSingle()
+    if (error) return { card: null, error: error.message }
+    if (!data) return { card: null, error: 'Card não encontrado' }
+    const row = data as OmniRedirectCardRow
+    if (row.conversa_id && row.conversa_id !== sessaoId) {
+      return { card: null, error: 'Card não pertence a esta conversa' }
+    }
+    return { card: row }
+  }
+
+  let q = supabase
+    .from('crm_cards')
+    .select(select)
+    .eq('conversa_id', sessaoId)
+    .eq('finalizado', false)
+    .order('created_at', { ascending: false })
+    .limit(1)
+
+  if (me.role_global !== 'superadmin') {
+    q = q.eq('empresa_id', me.empresa_id)
+  }
+
+  const { data, error } = await q.maybeSingle()
+  if (error) return { card: null, error: error.message }
+  return { card: (data as OmniRedirectCardRow | null) ?? null }
+}
+
+/** Card aberto vinculado à sessão (para exibir ação no header do chat). */
+export async function getLinkedCardBySessao(sessaoId: string, cardIdHint?: string | null) {
+  const me = await getMyProfile()
+  if (!me) return { error: 'Não autenticado', data: null as { id: string; titulo: string } | null }
+
+  const supabase = await createClient()
+
+  const { data: convRows } = await supabase
+    .from('crm_conversas')
+    .select('atribuido_a_id, status')
+    .eq('sessao_id', sessaoId)
+    .order('updated_at', { ascending: false })
+    .limit(1)
+
+  const allowed = await operadorPodeAcessarSessao(supabase, me, sessaoId, convRows?.[0] ?? null)
+  if (!allowed) return { error: 'Sem permissão para esta conversa', data: null }
+
+  const { card, error } = await findOpenCardForSessao(supabase, me, sessaoId, cardIdHint)
+  if (error) return { error, data: null }
+  if (!card) return { data: null }
+
+  return {
+    data: {
+      id: card.id,
+      titulo: card.titulo || card.cliente_nome || 'Card',
+    },
+  }
+}
+
+/** Contexto completo para encaminhar card a partir do chat omnichannel. */
+export async function getCardForOmniRedirect(sessaoId: string, cardIdHint?: string | null) {
+  const me = await getMyProfile()
+  if (!me) return { error: 'Não autenticado' }
+
+  if (!hasPermission(me, 'cards', 'edit')) {
+    return { error: 'Sem permissão para encaminhar cards' }
+  }
+
+  const supabase = await createClient()
+
+  const { data: convRows } = await supabase
+    .from('crm_conversas')
+    .select('atribuido_a_id, status')
+    .eq('sessao_id', sessaoId)
+    .order('updated_at', { ascending: false })
+    .limit(1)
+
+  const allowed = await operadorPodeAcessarSessao(supabase, me, sessaoId, convRows?.[0] ?? null)
+  if (!allowed) return { error: 'Sem permissão para esta conversa' }
+
+  const { card, error } = await findOpenCardForSessao(supabase, me, sessaoId, cardIdHint)
+  if (error) return { error }
+  if (!card) {
+    return { error: 'Nenhum card aberto vinculado a esta conversa. Finalize a venda ou vincule um card no funil.' }
+  }
+
+  const stages = [...(card.pipelines?.pipeline_stages ?? [])].sort(
+    (a, b) => (a.ordem ?? 0) - (b.ordem ?? 0),
+  )
+
+  return {
+    data: {
+      card: {
+        id: card.id,
+        titulo: card.titulo || '',
+        cliente_nome: card.cliente_nome,
+        valor: card.valor,
+        descricao: card.descricao,
+        observacao: card.observacao,
+        responsavel_id: card.responsavel_id,
+        data_prazo: card.data_prazo,
+        stage_id: card.stage_id,
+        lead_id: card.lead_id,
+      },
+      pipelineId: card.pipeline_id,
+      pipelineName: card.pipelines?.nome ?? 'Funil atual',
+      stages,
+      canMove: hasPermission(me, 'cards', 'move'),
+    },
+  }
 }

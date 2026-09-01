@@ -5,19 +5,24 @@ import { createClient } from '@/utils/supabase/client'
 import { useSearchParams } from 'next/navigation'
 import { 
   Search, MessageSquare, Bot, User, 
-  Send, Phone, Edit, MoreVertical, 
-  Paperclip, Smile, ShieldCheck
+  Send, Phone, Navigation, MoreVertical, 
+  Paperclip, Smile, ShieldCheck, Loader2
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { BackButton } from '@/components/BackButton'
-import { sendOmniMessage } from '../omni-actions'
+import { sendOmniMessage, sendOmniAttachment } from '../omni-actions'
 import {
   getOmniConversas,
   getOmniMensagens,
   getOmniConversaBySessao,
   getSessaoIdByCardId,
+  getLinkedCardBySessao,
+  getCardForOmniRedirect,
 } from '../omni-chat-actions'
 import { OMNI_SESSAO_STORAGE_KEY } from '@/lib/omni/chat-deep-link'
+import { stripOutboundTags } from '@/lib/omnichannel/triage/parseTriageTags'
+import { hasPermission } from '@/utils/permissions'
+import ChatCardRedirectModal from '@/components/omni/ChatCardRedirectModal'
 
 interface Conversa {
   id: string
@@ -87,6 +92,16 @@ function formatMessageContent(msg: Mensagem): string {
     const text = meta.transcription?.text
     if (text) return `🎤 ${text}`
   }
+  if (meta?.media_type === 'document' || meta?.media_type === 'image') {
+    const doc = meta.document as { status?: string; resumo?: string } | undefined
+    if (doc?.status === 'pending') return msg.content || '📎 Documento recebido — processando…'
+    if (doc?.resumo) return `📎 ${doc.resumo}`
+    const fileName = (meta as { file_name?: string }).file_name
+    if (fileName) return msg.content || `📎 ${fileName}`
+  }
+  if (msg.role === 'assistant' || msg.role === 'system') {
+    return stripOutboundTags(msg.content)
+  }
   return msg.content
 }
 
@@ -122,9 +137,32 @@ function ChatOmnichannelInner() {
   const [searchTerm, setSearchTerm] = useState('')
   const [inputMessage, setInputMessage] = useState('')
   const [isSending, setIsSending] = useState(false)
-  
+  const [linkedCard, setLinkedCard] = useState<{ id: string; titulo: string } | null>(null)
+  const [redirectOpen, setRedirectOpen] = useState(false)
+  const [redirectLoading, setRedirectLoading] = useState(false)
+  const [redirectCtx, setRedirectCtx] = useState<{
+    card: {
+      id: string
+      titulo: string
+      cliente_nome?: string | null
+      valor?: number | null
+      descricao?: string | null
+      observacao?: string | null
+      responsavel_id?: string | null
+      data_prazo?: string | null
+      stage_id: string
+      lead_id?: string | null
+    }
+    pipelineId: string
+    pipelineName: string
+    stages: { id: string; nome: string; ordem?: number | null }[]
+  } | null>(null)
+
+  const canEditCards = profile ? hasPermission(profile, 'cards', 'edit') : false
+
   const supabase = createClient()
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const targetSessaoRef = useRef<string | null>(null)
   const selectedChatRef = useRef<Conversa | null>(null)
   const selectingRef = useRef(false)
@@ -315,6 +353,53 @@ function ChatOmnichannelInner() {
     }
   }, [selectedChat])
 
+  useEffect(() => {
+    if (!selectedChat) {
+      setLinkedCard(null)
+      return
+    }
+
+    let cancelled = false
+    void (async () => {
+      const res = await getLinkedCardBySessao(selectedChat.id, cardParam)
+      if (!cancelled) {
+        setLinkedCard(res.data ?? null)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [selectedChat?.id, cardParam])
+
+  async function openRedirectModal() {
+    if (!selectedChat || redirectLoading) return
+    setRedirectLoading(true)
+    const res = await getCardForOmniRedirect(
+      selectedChat.id,
+      linkedCard?.id ?? cardParam,
+    )
+    setRedirectLoading(false)
+    if (res.error) {
+      alert(res.error)
+      return
+    }
+    if (res.data) {
+      setRedirectCtx(res.data)
+      setRedirectOpen(true)
+    }
+  }
+
+  function handleRedirectDone() {
+    setRedirectOpen(false)
+    setRedirectCtx(null)
+    if (selectedChat) {
+      void getLinkedCardBySessao(selectedChat.id, linkedCard?.id ?? cardParam).then((res) => {
+        setLinkedCard(res.data ?? null)
+      })
+    }
+  }
+
   // Fallback: Realtime pode falhar se a tabela não estiver na publication
   useEffect(() => {
     if (!profile) return
@@ -350,6 +435,28 @@ function ChatOmnichannelInner() {
       setInputMessage('')
     } else {
       alert('Erro ao enviar mensagem: ' + result.error)
+    }
+    setIsSending(false)
+  }
+
+  async function handleAttachmentSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file || !selectedChat || isSending) return
+
+    setIsSending(true)
+    const fd = new FormData()
+    fd.set('sessaoId', selectedChat.id)
+    fd.set('file', file)
+    const caption = inputMessage.trim()
+    if (caption) fd.set('caption', caption)
+
+    const result = await sendOmniAttachment(fd)
+    if (result.success) {
+      setInputMessage('')
+      await fetchMensagens(selectedChat.id)
+    } else {
+      alert('Erro ao enviar anexo: ' + result.error)
     }
     setIsSending(false)
   }
@@ -427,7 +534,7 @@ function ChatOmnichannelInner() {
                         </span>
                       </div>
                       <p className="text-xs text-gray-500 truncate mt-1 italic font-medium opacity-70">
-                        {chat.last_message || 'Nova conversa iniciada'}
+                        {stripOutboundTags(chat.last_message || '') || 'Nova conversa iniciada'}
                       </p>
                     </div>
                   </div>
@@ -456,10 +563,29 @@ function ChatOmnichannelInner() {
                     </div>
                  </div>
                  <div className="flex items-center gap-2">
-                    <button className="p-2.5 rounded-xl bg-[#ffffff05] hover:bg-[#ffffff0a] text-gray-400 hover:text-[#2BAADF] transition-all border border-transparent hover:border-[#2BAADF]/20">
-                       <Edit className="w-5 h-5" />
-                    </button>
-                    <button className="p-2.5 rounded-xl bg-[#ffffff05] hover:bg-[#ffffff0a] text-gray-400 hover:text-white transition-all">
+                    {canEditCards && linkedCard && (
+                      <button
+                        type="button"
+                        onClick={() => void openRedirectModal()}
+                        disabled={redirectLoading}
+                        title={`Encaminhar card: ${linkedCard.titulo}`}
+                        className="flex items-center gap-2 px-3 py-2 rounded-xl bg-orange-500/10 hover:bg-orange-500/20 text-orange-400 hover:text-orange-300 transition-all border border-orange-500/25 disabled:opacity-50"
+                      >
+                        {redirectLoading ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Navigation className="w-4 h-4" />
+                        )}
+                        <span className="text-[11px] font-black uppercase tracking-wider hidden sm:inline">
+                          Encaminhar
+                        </span>
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className="p-2.5 rounded-xl bg-[#ffffff05] hover:bg-[#ffffff0a] text-gray-400 hover:text-white transition-all"
+                      aria-label="Mais opções"
+                    >
                        <MoreVertical className="w-5 h-5" />
                     </button>
                  </div>
@@ -500,9 +626,7 @@ function ChatOmnichannelInner() {
                             ? 'bg-[#1A1A1A] text-gray-200 border-[#ffffff0a] rounded-tl-none' 
                             : 'bg-gradient-to-br from-[#2BAADF] to-[#1A8FBF] text-white border-[#2BAADF]/20 rounded-tr-none'
                        }`}>
-                          {msg.role === 'assistant'
-                            ? formatMessageContent(msg).replace(/\[STATUS_CRM:.*?\]/gi, '').replace(/\[.*?\]/g, '').trim()
-                            : formatMessageContent(msg)}
+                          {formatMessageContent(msg)}
                        </div>
                     </div>
                   </div>
@@ -529,8 +653,23 @@ function ChatOmnichannelInner() {
                     />
                     <div className="flex items-center justify-between border-t border-[#ffffff05] pt-3 mt-2 px-1">
                        <div className="flex items-center gap-1">
-                          <button className="p-2 text-gray-500 hover:text-[#2BAADF] hover:bg-[#2BAADF]/10 rounded-xl transition-all"><Paperclip className="w-5 h-5" /></button>
-                          <button className="p-2 text-gray-500 hover:text-[#2BAADF] hover:bg-[#2BAADF]/10 rounded-xl transition-all"><Smile className="w-5 h-5" /></button>
+                          <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept="application/pdf,image/*,.pdf,.png,.jpg,.jpeg,.webp"
+                            className="hidden"
+                            onChange={handleAttachmentSelect}
+                          />
+                          <button
+                            type="button"
+                            disabled={isSending || !selectedChat}
+                            onClick={() => fileInputRef.current?.click()}
+                            title="Enviar PDF ou imagem (máx. 5 MB)"
+                            className="p-2 text-gray-500 hover:text-[#2BAADF] hover:bg-[#2BAADF]/10 rounded-xl transition-all disabled:opacity-40"
+                          >
+                            <Paperclip className="w-5 h-5" />
+                          </button>
+                          <button type="button" disabled className="p-2 text-gray-600 rounded-xl opacity-40 cursor-not-allowed" title="Em breve"><Smile className="w-5 h-5" /></button>
                        </div>
                        <button 
                          onClick={handleSendMessage}
@@ -573,6 +712,22 @@ function ChatOmnichannelInner() {
           )}
         </div>
       </div>
+
+      {redirectCtx && (
+        <ChatCardRedirectModal
+          open={redirectOpen}
+          onClose={() => {
+            setRedirectOpen(false)
+            setRedirectCtx(null)
+          }}
+          onDone={handleRedirectDone}
+          card={redirectCtx.card}
+          pipelineId={redirectCtx.pipelineId}
+          pipelineName={redirectCtx.pipelineName}
+          stages={redirectCtx.stages}
+          leadName={selectedChat?.crm_leads?.nome}
+        />
+      )}
     </div>
   )
 }

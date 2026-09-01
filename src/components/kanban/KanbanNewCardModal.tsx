@@ -11,6 +11,7 @@ interface KanbanNewCardModalProps {
   pipelineId: string
   stages: Stage[]
   usuarios: Usuario[]
+  currentUserId?: string
   onClose: () => void
 }
 
@@ -18,7 +19,13 @@ const inputCls = "w-full bg-[#0A0A0A] border border-[#ffffff10] focus:border-[#2
 const selectCls = "w-full bg-[#0A0A0A] border border-[#ffffff10] focus:border-[#2BAADF]/50 rounded-xl p-3 text-sm text-gray-300 outline-none transition-all"
 const labelCls = "text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1.5 block"
 
-export default function KanbanNewCardModal({ pipelineId, stages, usuarios, onClose }: KanbanNewCardModalProps) {
+export default function KanbanNewCardModal({
+  pipelineId,
+  stages,
+  usuarios,
+  currentUserId,
+  onClose,
+}: KanbanNewCardModalProps) {
   const [isPending, startTransition] = useTransition()
   const [selectedStage, setSelectedStage] = useState(stages[0]?.id || '')
 
@@ -85,7 +92,7 @@ export default function KanbanNewCardModal({ pipelineId, stages, usuarios, onClo
             </div>
 
             {/* Cliente */}
-            <div>
+            <div className="md:col-span-2">
               <label className={labelCls}><span className="flex items-center gap-1"><User className="w-3 h-3" />Nome do Cliente</span></label>
               <input type="text" name="cliente_nome" placeholder="Nome do contato ou empresa" className={inputCls} />
             </div>
@@ -108,7 +115,7 @@ export default function KanbanNewCardModal({ pipelineId, stages, usuarios, onClo
             {/* Responsável */}
             <div>
               <label className={labelCls}><span className="flex items-center gap-1"><User className="w-3 h-3" />Responsável</span></label>
-              <select name="responsavel_id" className={selectCls}>
+              <select name="responsavel_id" defaultValue={currentUserId ?? ''} className={selectCls}>
                 <option value="">— Sem responsável —</option>
                 {usuarios.map(u => (
                   <option key={u.id} value={u.id}>{u.nome_completo}</option>

@@ -10,6 +10,19 @@ import type { TranscriptionMetadata } from '@/lib/omnichannel/services/AudioTran
 import { AudioTranscriptionService } from '@/lib/omnichannel/services/AudioTranscriptionService'
 import { ConversaHistoricoService } from '@/lib/omnichannel/ConversaHistoricoService'
 import { TriageActionExecutor } from '@/lib/omnichannel/triage/TriageActionExecutor'
+import {
+  DOCUMENT_AUTO_REPLY_IN_HOURS,
+  DOCUMENT_AUTO_REPLY_OUT_HOURS,
+  DOCUMENT_MAX_BYTES,
+  DOCUMENT_TOO_LARGE,
+  ILLEGIBLE_DOCUMENT_OBSERVATION,
+  inferCategoryFromHints,
+} from '@/lib/omnichannel/document-constants'
+import { DocumentProcessingService } from '@/lib/omnichannel/services/DocumentProcessingService'
+import { DocumentCardEnsurer } from '@/lib/omnichannel/services/DocumentCardEnsurer'
+import { CardDocumentMatcher } from '@/lib/omnichannel/triage/CardDocumentMatcher'
+import { CardAttachmentService } from '@/lib/omnichannel/services/CardAttachmentService'
+import { buildSystemFacts } from '@/lib/omnichannel/triage/systemFacts'
 
 const MAX_AUDIO_BYTES = 25 * 1024 * 1024
 
@@ -24,6 +37,13 @@ export type TriageDebug = {
   dentroHorario: boolean
   reasoning: string
   sessaoId: string | null
+  /** Origem da mensagem no simulador */
+  mediaKind?: 'text' | 'audio' | 'document'
+  mediaOk?: boolean
+  mediaDetail?: string
+  documentCategoria?: string
+  documentLegivel?: boolean
+  attached?: boolean
 }
 
 type SimulatorChatResult =
@@ -209,7 +229,7 @@ async function runSimulatorExchange(
       contact_phone: cleanPhone,
       contact_name: name,
       role: 'assistant',
-      content: aiResult.response,
+      content: aiResult.responseForWhatsApp || aiResult.response,
       metadata: {
         provider: 'simulator',
         is_ai: true,
@@ -217,6 +237,7 @@ async function runSimulatorExchange(
         triage_actions: triageResult.executed,
         card_id: triageResult.cardId,
         responsavel_id: triageResult.responsavelId,
+        triage: aiResult.tags.triage ?? null,
       },
     },
   ])
@@ -280,6 +301,9 @@ async function runSimulatorExchange(
       dentroHorario: aiResult.facts.dentro_horario,
       reasoning: triageResult.reasoning,
       sessaoId,
+      mediaKind: (userMetadata?.media_type as TriageDebug['mediaKind']) || 'text',
+      mediaOk: true,
+      mediaDetail: typeof userMetadata?.media_detail === 'string' ? userMetadata.media_detail : undefined,
     },
   }
 }
@@ -357,9 +381,15 @@ export async function processChatAudio(formData: FormData) {
   const messageText = transcription.ok ? transcription.text : transcription.fallbackText
   const userContent = transcription.ok ? `🎤 ${transcription.text}` : transcription.fallbackText
 
-  const metadata: TranscriptionMetadata & { provider: string } = {
+  const metadata: TranscriptionMetadata & {
+    provider: string
+    media_type: string
+    media_detail: string
+  } = {
     ...transcription.metadata,
     provider: 'simulator',
+    media_type: 'audio',
+    media_detail: transcription.reasoning,
   }
 
   const result = await runSimulatorExchange(
@@ -379,6 +409,461 @@ export async function processChatAudio(formData: FormData) {
     ...result,
     transcriptionOk: transcription.ok,
     placeholder: AUDIO_PLACEHOLDER,
+    triage: {
+      ...result.triage,
+      mediaKind: 'audio',
+      mediaOk: transcription.ok,
+      mediaDetail: transcription.reasoning,
+    },
+  }
+}
+
+/**
+ * Upload de PDF/imagem no simulador — mesmo pipeline de documentos (OCR + classificar + card/anexo),
+ * sem Evolution.
+ */
+export async function processChatDocument(formData: FormData) {
+  const me = await getMyProfile()
+  if (!canAccessSimulador(me)) {
+    return { error: 'Sem permissão para utilizar o simulador.' }
+  }
+
+  const supabase = await createClient()
+  const targetEmpresaId = me?.empresa_id
+  if (!targetEmpresaId) {
+    return { error: 'Empresa não identificada para carregar configurações de IA.' }
+  }
+
+  const phone = String(formData.get('phone') ?? '')
+  const name = String(formData.get('name') ?? 'Cliente Teste')
+  const caption = String(formData.get('caption') ?? '').trim()
+  const file = formData.get('file')
+
+  if (!(file instanceof File) || file.size === 0) {
+    return { error: 'Selecione um PDF ou imagem válida.' }
+  }
+  if (file.size > DOCUMENT_MAX_BYTES) {
+    return { error: `Arquivo excede o limite de ${Math.round(DOCUMENT_MAX_BYTES / 1024 / 1024)} MB.` }
+  }
+
+  const cleanPhone = phone.replace(/\D/g, '')
+  const leadResult = await resolveLeadId(supabase, targetEmpresaId, cleanPhone, name)
+  if ('error' in leadResult) return leadResult
+
+  const canalId = await ensureSimulatorCanal(supabase, targetEmpresaId)
+  const arrayBuffer = await file.arrayBuffer()
+  const buffer = Buffer.from(arrayBuffer)
+  const mimeType = file.type || 'application/octet-stream'
+  const fileName = file.name || 'documento.pdf'
+
+  const docResult = await DocumentProcessingService.processUploadedBuffer(
+    targetEmpresaId,
+    buffer,
+    mimeType,
+    fileName,
+    supabase,
+    { caption: caption || undefined },
+  )
+
+  console.log(`[Simulador] Documento: ${docResult.reasoning}`)
+
+  const facts = await buildSystemFacts(supabase, targetEmpresaId, leadResult.leadId)
+  const autoReply = facts.dentro_horario
+    ? DOCUMENT_AUTO_REPLY_IN_HOURS
+    : DOCUMENT_AUTO_REPLY_OUT_HOURS
+
+  const userContent = docResult.ok
+    ? docResult.displayContent
+    : docResult.tooLarge
+      ? DOCUMENT_TOO_LARGE
+      : docResult.fallbackContent
+
+  const sessaoId = await ConversaHistoricoService.appendMessage(
+    {
+      empresa_id: targetEmpresaId,
+      canal_id: canalId,
+      external_id: cleanPhone,
+      lead_id: leadResult.leadId,
+      role: 'user',
+      content: userContent,
+      direcao: 'inbound',
+      status: 'ai',
+      metadata: {
+        provider: 'simulator',
+        ...(docResult.ok ? docResult.metadata : docResult.metadata),
+      },
+    },
+    supabase,
+  )
+
+  await supabase.from('crm_interacoes').insert([
+    {
+      empresa_id: targetEmpresaId,
+      lead_id: leadResult.leadId,
+      conversa_id: sessaoId,
+      contact_phone: cleanPhone,
+      contact_name: name,
+      role: 'user',
+      content: userContent,
+      metadata: {
+        provider: 'simulator',
+        ...(docResult.ok ? docResult.metadata : docResult.metadata),
+      },
+    },
+  ])
+
+  const reasons: string[] = [docResult.reasoning]
+  let cardId: string | null = null
+  let responsavelId: string | null = null
+  let handover = false
+  let attached = false
+  let triageActions: string[] = []
+  let documentCategoria = inferCategoryFromHints(fileName, caption) ?? 'documento_nao_identificado'
+  let documentLegivel = false
+  let documentResumo = fileName
+
+  if (!sessaoId) {
+    return { error: 'Não foi possível abrir a sessão de conversa.' }
+  }
+
+  if (!docResult.ok) {
+    documentCategoria =
+      inferCategoryFromHints(fileName, caption) ?? 'documento_nao_identificado'
+    const ensured = await DocumentCardEnsurer.ensure(supabase, {
+      empresaId: targetEmpresaId,
+      leadId: leadResult.leadId,
+      sessaoId,
+      contactPhone: cleanPhone,
+      contactName: name,
+      facts,
+      categoria: documentCategoria,
+      resumo: `Documento (${fileName}) — processamento falhou: ${docResult.error}`,
+      observacao: ILLEGIBLE_DOCUMENT_OBSERVATION,
+      origem: 'simulator_document_failed',
+      ilegivel: true,
+    })
+    cardId = ensured.cardId
+    responsavelId = ensured.responsavelId
+    handover = ensured.handover || Boolean(ensured.cardId)
+    triageActions = ensured.created ? ['CREATE_CARD', 'HANDOVER'] : ['HANDOVER']
+    reasons.push(ensured.reasoning)
+
+    if (cardId && docResult.buffer && !docResult.tooLarge) {
+      const attach = await CardAttachmentService.attachFromInbound(supabase, {
+        cardId,
+        empresaId: targetEmpresaId,
+        buffer: docResult.buffer,
+        fileName: docResult.fileName ?? fileName,
+        mimeType: docResult.mimeType ?? mimeType,
+        providerMessageId: `sim-doc-${Date.now()}`,
+      })
+      attached = attach.ok
+      reasons.push(attach.ok ? 'Documento anexado (fallback).' : `Falha anexo: ${attach.error}`)
+    }
+
+    const reply = docResult.tooLarge ? DOCUMENT_TOO_LARGE : autoReply
+    await persistSimulatorAssistant(
+      supabase,
+      targetEmpresaId,
+      canalId,
+      cleanPhone,
+      name,
+      leadResult.leadId,
+      sessaoId,
+      reply,
+      cardId,
+      responsavelId,
+      true,
+      reasons.join(' '),
+    )
+
+    revalidatePath('/cockpit/crm/simulador')
+    revalidatePath('/cockpit/crm/chat')
+    revalidatePath('/cockpit')
+
+    return {
+      success: true as const,
+      response: reply,
+      responseRaw: reply,
+      userContent,
+      transcriptionOk: false,
+      triage: {
+        actions: triageActions,
+        triage: { categoria: documentCategoria, resumo: documentResumo },
+        cardId,
+        responsavelId,
+        responsavelNome: null,
+        handover: true,
+        dentroHorario: facts.dentro_horario,
+        reasoning: reasons.join(' '),
+        sessaoId,
+        mediaKind: 'document' as const,
+        mediaOk: false,
+        mediaDetail: docResult.reasoning,
+        documentCategoria,
+        documentLegivel: false,
+        attached,
+      },
+    }
+  }
+
+  const { classification } = docResult
+  documentCategoria = classification.categoria
+  documentLegivel = classification.legivel
+  documentResumo = classification.resumo
+
+  const match = await CardDocumentMatcher.findMatchingCard(supabase, {
+    empresaId: targetEmpresaId,
+    leadId: leadResult.leadId,
+    sessaoId,
+    categoria: classification.categoria,
+  })
+
+  if (match) {
+    cardId = match.cardId
+    reasons.push(match.matchReason)
+    const attach = await CardAttachmentService.attachFromInbound(supabase, {
+      cardId,
+      empresaId: targetEmpresaId,
+      buffer: docResult.buffer,
+      fileName: docResult.fileName,
+      mimeType: docResult.mimeType,
+      providerMessageId: `sim-doc-${Date.now()}`,
+    })
+    attached = attach.ok
+    reasons.push(
+      attach.ok
+        ? attach.deduplicated
+          ? 'Anexo já existia.'
+          : 'Anexo salvo no card.'
+        : `Falha anexo: ${attach.error}`,
+    )
+
+    const { data: cardRow } = await supabase
+      .from('crm_cards')
+      .select('responsavel_id')
+      .eq('id', cardId)
+      .single()
+    responsavelId = cardRow?.responsavel_id ?? null
+    handover = true
+    triageActions = ['ATTACH_EXISTING', 'HANDOVER']
+
+    await supabase
+      .from('crm_conversas')
+      .update({
+        status: 'human',
+        atribuido_a_id: responsavelId,
+        last_human_interaction: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('sessao_id', sessaoId)
+      .eq('empresa_id', targetEmpresaId)
+  } else {
+    const ensured = await DocumentCardEnsurer.ensure(supabase, {
+      empresaId: targetEmpresaId,
+      leadId: leadResult.leadId,
+      sessaoId,
+      contactPhone: cleanPhone,
+      contactName: name,
+      facts,
+      categoria: classification.categoria,
+      resumo: classification.resumo,
+      observacao:
+        !classification.legivel || classification.categoria === 'documento_nao_identificado'
+          ? ILLEGIBLE_DOCUMENT_OBSERVATION
+          : classification.resumo,
+      origem: 'simulator_document',
+      ilegivel: !classification.legivel,
+    })
+    cardId = ensured.cardId
+    responsavelId = ensured.responsavelId
+    handover = ensured.handover
+    triageActions = ensured.created ? ['CREATE_CARD', 'HANDOVER'] : ['HANDOVER']
+    reasons.push(ensured.reasoning)
+
+    if (cardId) {
+      const attach = await CardAttachmentService.attachFromInbound(supabase, {
+        cardId,
+        empresaId: targetEmpresaId,
+        buffer: docResult.buffer,
+        fileName: docResult.fileName,
+        mimeType: docResult.mimeType,
+        providerMessageId: `sim-doc-${Date.now()}`,
+      })
+      attached = attach.ok
+      reasons.push(attach.ok ? 'Documento anexado ao card.' : `Falha anexo: ${attach.error}`)
+    }
+  }
+
+  if (!cardId) {
+    const ensured = await DocumentCardEnsurer.ensure(supabase, {
+      empresaId: targetEmpresaId,
+      leadId: leadResult.leadId,
+      sessaoId,
+      contactPhone: cleanPhone,
+      contactName: name,
+      facts,
+      categoria: 'documento_nao_identificado',
+      resumo: `Documento ${fileName} — encaminhamento de emergência`,
+      observacao: ILLEGIBLE_DOCUMENT_OBSERVATION,
+      origem: 'simulator_document_emergency',
+      ilegivel: true,
+    })
+    cardId = ensured.cardId
+    responsavelId = ensured.responsavelId
+    handover = ensured.handover || Boolean(ensured.cardId)
+    reasons.push(`Emergência: ${ensured.reasoning}`)
+    triageActions = ['CREATE_CARD', 'HANDOVER']
+    if (cardId) {
+      const attach = await CardAttachmentService.attachFromInbound(supabase, {
+        cardId,
+        empresaId: targetEmpresaId,
+        buffer: docResult.buffer,
+        fileName: docResult.fileName,
+        mimeType: docResult.mimeType,
+        providerMessageId: `sim-doc-${Date.now()}`,
+      })
+      attached = attach.ok
+    }
+  }
+
+  let responsavelNome: string | null = null
+  if (responsavelId) {
+    const { data: resp } = await supabase
+      .from('usuarios')
+      .select('nome_completo')
+      .eq('id', responsavelId)
+      .maybeSingle()
+    responsavelNome = resp?.nome_completo ?? null
+  }
+
+  await supabase.from('crm_interacoes').insert({
+    empresa_id: targetEmpresaId,
+    lead_id: leadResult.leadId,
+    conversa_id: sessaoId,
+    contact_phone: cleanPhone,
+    contact_name: name,
+    role: 'system',
+    content: '(Documento simulador)',
+    log_sistema: reasons.join(' '),
+    metadata: {
+      type: 'simulator_document_reasoning',
+      card_id: cardId,
+      categoria: documentCategoria,
+    },
+  })
+
+  await persistSimulatorAssistant(
+    supabase,
+    targetEmpresaId,
+    canalId,
+    cleanPhone,
+    name,
+    leadResult.leadId,
+    sessaoId,
+    autoReply,
+    cardId,
+    responsavelId,
+    handover || Boolean(cardId),
+    reasons.join(' '),
+  )
+
+  revalidatePath('/cockpit/crm/simulador')
+  revalidatePath('/cockpit/crm/chat')
+  revalidatePath('/cockpit')
+
+  return {
+    success: true as const,
+    response: autoReply,
+    responseRaw: autoReply,
+    userContent,
+    transcriptionOk: documentLegivel,
+    triage: {
+      actions: triageActions,
+      triage: {
+        categoria: documentCategoria,
+        resumo: documentResumo,
+      },
+      cardId,
+      responsavelId,
+      responsavelNome,
+      handover: handover || Boolean(cardId),
+      dentroHorario: facts.dentro_horario,
+      reasoning: reasons.join(' '),
+      sessaoId,
+      mediaKind: 'document' as const,
+      mediaOk: true,
+      mediaDetail: docResult.reasoning,
+      documentCategoria,
+      documentLegivel,
+      attached,
+    },
+  }
+}
+
+async function persistSimulatorAssistant(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  empresaId: string,
+  canalId: string,
+  phone: string,
+  name: string,
+  leadId: string,
+  sessaoId: string | null,
+  text: string,
+  cardId: string | null,
+  responsavelId: string | null,
+  handover: boolean,
+  reasoning: string,
+) {
+  await supabase.from('crm_interacoes').insert([
+    {
+      empresa_id: empresaId,
+      lead_id: leadId,
+      conversa_id: sessaoId,
+      contact_phone: phone,
+      contact_name: name,
+      role: 'assistant',
+      content: text,
+      metadata: {
+        provider: 'simulator',
+        is_ai: true,
+        document_auto_reply: true,
+        card_id: cardId,
+        reasoning,
+      },
+    },
+  ])
+
+  if (sessaoId) {
+    await ConversaHistoricoService.appendMessage(
+      {
+        empresa_id: empresaId,
+        canal_id: canalId,
+        external_id: phone,
+        lead_id: leadId,
+        role: 'assistant',
+        content: text,
+        direcao: 'outbound',
+        status: handover ? 'human' : 'ai',
+        atribuido_a_id: responsavelId,
+        is_ai: true,
+        metadata: { provider: 'simulator', document_auto_reply: true, card_id: cardId },
+      },
+      supabase,
+    )
+
+    if (handover) {
+      await supabase
+        .from('crm_conversas')
+        .update({
+          status: 'human',
+          atribuido_a_id: responsavelId,
+          last_human_interaction: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('sessao_id', sessaoId)
+        .eq('empresa_id', empresaId)
+    }
   }
 }
 

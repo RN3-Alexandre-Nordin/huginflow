@@ -1,7 +1,9 @@
-import { Building2, Share2, Plus, Info, CheckCircle2, QrCode, AlertCircle, Bot } from "lucide-react";
+import { Building2, Share2, Plus, Info, CheckCircle2, QrCode, AlertCircle, Bot, Lock } from "lucide-react";
 import { getMyProfile } from "@/app/(app)/cockpit/actions";
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
+import { hasPermission } from "@/utils/permissions";
+import BackTextButton from "@/components/BackTextButton";
 import ChannelList from "./ChannelList";
 
 export const metadata = {
@@ -11,6 +13,23 @@ export const metadata = {
 export default async function ChannelsPage() {
   const me = await getMyProfile();
   if (!me) redirect("/login");
+
+  if (!hasPermission(me, "canais", "view")) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center animate-in fade-in duration-700">
+        <div className="w-20 h-20 rounded-full bg-red-500/10 flex items-center justify-center mb-6 border border-red-500/20">
+          <Lock className="w-10 h-10 text-red-500" />
+        </div>
+        <h2 className="text-3xl font-extrabold text-white mb-2 tracking-tight">Acesso Interditado</h2>
+        <p className="text-gray-400 max-w-md mx-auto mb-8 text-lg">
+          Seu grupo de acesso não possui permissão para visualizar os Canais Inbound.
+        </p>
+        <BackTextButton className="px-6 py-3 bg-[#ffffff05] hover:bg-[#ffffff10] border border-[#ffffff10] rounded-xl text-white font-semibold transition-all">
+          Voltar ao Cockpit
+        </BackTextButton>
+      </div>
+    );
+  }
 
   const supabase = await createClient();
 

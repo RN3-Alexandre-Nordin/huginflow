@@ -7,6 +7,7 @@ import { redirect } from 'next/navigation'
 import { hasPermission } from '@/utils/permissions'
 import { getFullPermissionsJSON } from '@/constants/permissions'
 import { EvolutionApiService } from '@/lib/omnichannel/services/EvolutionApiService'
+import { getMyProfile as getMyProfileCached } from '@/lib/auth/getMyProfile'
 
 export async function createEmpresa(formData: FormData) {
   const me = await getMyProfile()
@@ -39,7 +40,7 @@ export async function createEmpresa(formData: FormData) {
       responsavel_telefone: formData.get('responsavel_telefone') as string || null,
       // Novos campos de IA (Gemini)
       ai_context_prompt: formData.get('ai_context_prompt') as string || null,
-      ai_model: formData.get('ai_model') as string || 'gpt-4',
+      ai_model: formData.get('ai_model') as string || 'gpt-4o-mini',
       ia_silence_timeout: Number(formData.get('ia_silence_timeout')) || 60,
       ativo: true,
       status: 'active',
@@ -83,7 +84,7 @@ export async function updateEmpresa(empresaId: string, formData: FormData) {
       responsavel_telefone: formData.get('responsavel_telefone') as string || null,
       // Novos campos de IA
       ai_context_prompt: formData.get('ai_context_prompt') as string || null,
-      ai_model: formData.get('ai_model') as string || 'gpt-4',
+      ai_model: formData.get('ai_model') as string || 'gpt-4o-mini',
       ia_silence_timeout: Number(formData.get('ia_silence_timeout')) || 60,
     })
     .eq('id', empresaId)
@@ -645,17 +646,7 @@ export async function setUsuarioAtivo(id: string, ativo: boolean) {
 }
 
 export async function getMyProfile() {
-  const supabase = await createClient()
-  const { data: { user: authUser } } = await supabase.auth.getUser()
-  if (!authUser) return null
-
-  const { data: me } = await supabase
-    .from('usuarios')
-    .select('*, grupos_acesso(is_admin, permissoes)')
-    .eq('auth_user_id', authUser.id)
-    .single()
-    
-  return me
+  return getMyProfileCached()
 }
 
 

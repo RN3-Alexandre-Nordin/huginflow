@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import { X, ChevronRight, Zap, CheckCircle2, Layout, Loader2 } from "lucide-react";
 import { getPipelinesAndStages, createLandingPageChannel, updateLandingPageDestination } from "./actions";
 import { createClient } from "@/utils/supabase/client";
-import { revalidatePath } from "next/cache";
 
 interface LandingPageEditModalProps {
   canal: any;

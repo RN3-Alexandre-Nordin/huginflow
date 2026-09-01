@@ -2,32 +2,33 @@
 
 import { MessageCircle, Clock, CalendarDays, TrendingUp, AlertTriangle, Activity, ArrowUpRight, X } from "lucide-react"
 import Link from "next/link"
-import { useCockpitRealtime } from "@/hooks/useCockpitRealtime"
+import { useCockpitLastEvent } from "@/contexts/CockpitRealtimeContext"
 import { useEffect, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { formatDistanceToNow } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import { getCockpitMetrics } from "../actions"
 import { getOmniConversas } from "../crm/omni-chat-actions"
+import { getDashboardRefetchInterval } from "@/lib/query/polling"
 import ActivityFeed from "./ActivityFeed"
 import ProductivityModal from "./ProductivityModal"
 import BottleneckModal from "./BottleneckModal"
 
 export default function OperatorDashboard({ userName, userId }: { userName: string, userId: string }) {
-  const { lastEvent } = useCockpitRealtime(userId, userName);
+  const lastEvent = useCockpitLastEvent();
   const [highlightChat, setHighlightChat] = useState(false);
   const [highlightCRM, setHighlightCRM] = useState(false);
 
   const { data: metricsResult } = useQuery({
     queryKey: ["cockpit-metrics", userId],
     queryFn: () => getCockpitMetrics(userId),
-    refetchInterval: 30000, // Sync cada 30 segundos (heartbeat SaaS)
+    refetchInterval: getDashboardRefetchInterval(),
   });
 
   const { data: conversasResult, isLoading: loadingConversas } = useQuery({
     queryKey: ["cockpit-omni-preview", userId],
     queryFn: () => getOmniConversas(),
-    refetchInterval: 30000,
+    refetchInterval: getDashboardRefetchInterval(),
   });
 
   const conversas = conversasResult?.data ?? [];

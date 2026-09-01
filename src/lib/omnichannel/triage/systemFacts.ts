@@ -269,6 +269,9 @@ export function resolveFunilFromTriage(
       if (byDept) return byDept
     }
   }
+  if (triage.departamento_id || triage.departamento_nome || triage.funil_id || triage.funil_nome) {
+    return null
+  }
   return facts.funis[0] ?? null
 }
 

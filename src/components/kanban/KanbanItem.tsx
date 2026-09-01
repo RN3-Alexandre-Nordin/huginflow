@@ -3,9 +3,10 @@
 import React, { useState } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { User, MessageCircle, ChevronDown, ChevronUp, CalendarDays, Clock, CheckCircle2, Edit3 } from 'lucide-react'
+import { User, MessageCircle, ChevronDown, ChevronUp, CalendarDays, Clock, CheckCircle2, Edit3, MessageSquarePlus } from 'lucide-react'
 import { toggleCardFinalizado } from '@/app/(app)/cockpit/crm/actions'
 import { buildOmniChatUrl, navigateToOmniChat } from '@/lib/omni/chat-deep-link'
+import { buildLeadEditUrl } from '@/lib/kanban/kanban-deep-link'
 
 interface CardData {
   id: string
@@ -19,9 +20,31 @@ interface CardData {
   conversa_id?: string | null
   data_prazo?: string | null
   stage_entered_at?: string | null
+  created_at?: string | null
   responsavel_id?: string | null
   responsavel?: { nome_completo: string } | null
   finalizado?: boolean
+}
+
+function formatCardDateTime(iso: string | null | undefined): string | null {
+  if (!iso) return null
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return null
+
+  const time = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const day = new Date(d)
+  day.setHours(0, 0, 0, 0)
+  const diffDays = Math.round((today.getTime() - day.getTime()) / (1000 * 60 * 60 * 24))
+
+  if (diffDays === 0) return `Hoje ${time}`
+  if (diffDays === 1) return `Ontem ${time}`
+  if (diffDays < 7) {
+    const weekday = d.toLocaleDateString('pt-BR', { weekday: 'short' })
+    return `${weekday} ${time}`
+  }
+  return `${d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} ${time}`
 }
 
 function getPrazoStatus(data_prazo: string | null | undefined): { label: string; cls: string } | null {
@@ -43,10 +66,12 @@ function getPrazoStatus(data_prazo: string | null | undefined): { label: string;
 function getStageTime(stage_entered_at: string | null | undefined): string | null {
   if (!stage_entered_at) return null
   const entered = new Date(stage_entered_at)
+  if (Number.isNaN(entered.getTime())) return null
+  const time = entered.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
   const now = new Date()
   const diffDays = Math.floor((now.getTime() - entered.getTime()) / (1000 * 60 * 60 * 24))
-  if (diffDays === 0) return 'Hoje'
-  if (diffDays === 1) return '1 dia neste estágio'
+  if (diffDays === 0) return `Neste estágio hoje ${time}`
+  if (diffDays === 1) return `1 dia neste estágio (desde ${time})`
   return `${diffDays}d neste estágio`
 }
 
@@ -54,6 +79,7 @@ export default function KanbanItem({
   card, 
   isOverlay, 
   stageColor = '#2BAADF', 
+  pipelineId,
   onEditClick,
   onChatClick,
   canMove = true,
@@ -65,6 +91,7 @@ export default function KanbanItem({
   card: CardData; 
   isOverlay?: boolean; 
   stageColor?: string; 
+  pipelineId?: string;
   onEditClick?: () => void;
   onChatClick?: () => void;
   canMove?: boolean;
@@ -74,6 +101,11 @@ export default function KanbanItem({
   canDeleteAttachments?: boolean;
 }) {
   const [isExpanded, setIsExpanded] = useState(false)
+  const [dndReady, setDndReady] = useState(false)
+
+  React.useEffect(() => {
+    setDndReady(true)
+  }, [])
 
   const { setNodeRef, attributes, listeners, transform, transition, isDragging } = useSortable({
     id: card.id,
@@ -84,6 +116,7 @@ export default function KanbanItem({
   const style = { transition, transform: CSS.Transform.toString(transform) }
   const formattedValue = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(card.valor || 0)
   const prazoStatus = getPrazoStatus(card.data_prazo)
+  const createdLabel = formatCardDateTime(card.created_at)
   const stageTime = getStageTime(card.stage_entered_at)
   const responsavelNome = card.responsavel?.nome_completo
   const responsavelInitials = responsavelNome?.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase()
@@ -98,13 +131,13 @@ export default function KanbanItem({
     )
   }
 
+  const dndProps = dndReady && canMove ? { ...attributes, ...listeners } : {}
+
   return (
     <div
       ref={setNodeRef}
       style={style}
-      {...(canMove ? attributes : {})}
-      {...(canMove ? listeners : {})}
-      suppressHydrationWarning
+      {...dndProps}
       className={`relative w-full p-4 bg-[#111111] border border-[#ffffff0a] rounded-xl transition-all group ${isOverlay ? 'shadow-2xl scale-[1.02]' : 'shadow-md shadow-black/20'} ${canMove ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'}`}
       onContextMenu={(e) => { e.preventDefault(); setIsExpanded(!isExpanded) }}
     >
@@ -128,12 +161,12 @@ export default function KanbanItem({
                 onClick={async (e) => { 
                   e.stopPropagation(); 
                   e.preventDefault(); 
-                  await toggleCardFinalizado(card.id, card.stage_id, !card.finalizado)
+                  await toggleCardFinalizado(card.id, pipelineId || card.stage_id, !card.finalizado)
                 }}
                 className={`p-1.5 rounded-md transition-colors cursor-pointer border ${
                   card.finalizado 
-                    ? 'bg-green-500/20 border-green-500/30 text-green-500' 
-                    : 'bg-[#ffffff05] hover:bg-[#ffffff10] border-[#ffffff0a] text-gray-400'
+                    ? 'bg-green-500/20 border-green-500/30 text-green-500 hover:bg-green-500/30' 
+                    : 'bg-red-500/15 border-red-500/30 text-red-400 hover:bg-red-500/25 hover:text-red-300'
                 }`}
                 title={card.finalizado ? "Reabrir Card" : "Finalizar Card"}
               >
@@ -177,7 +210,16 @@ export default function KanbanItem({
             <span className="truncate">{responsavelNome}</span>
           </span>
         )}
-        {stageTime && !isExpanded && (
+        {createdLabel && (
+          <span
+            className="inline-flex items-center gap-1 text-[10px] text-gray-500 px-1 py-0.5"
+            title="Data/hora de criação do card"
+          >
+            <Clock className="w-2.5 h-2.5" />
+            {createdLabel}
+          </span>
+        )}
+        {!createdLabel && stageTime && !isExpanded && (
           <span className="inline-flex items-center gap-1 text-[10px] text-gray-600 px-1 py-0.5">
             <Clock className="w-2.5 h-2.5" />
             {stageTime}
@@ -202,10 +244,13 @@ export default function KanbanItem({
 
           <div className="flex flex-wrap items-center gap-3">
             {card.lead_id && (
-              <a href={`/cockpit/crm/leads/${card.lead_id}/editar`} target="_blank" rel="noreferrer"
+              <a
+                href={buildLeadEditUrl(card.lead_id, pipelineId ? { pipelineId, cardId: card.id } : undefined)}
+                onClick={(e) => e.stopPropagation()}
                 className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition-colors hover:opacity-80"
-                style={{ color: stageColor, backgroundColor: `${stageColor}1A` }}>
-                <User className="w-3.5 h-3.5" />Perfil Lead
+                style={{ color: stageColor, backgroundColor: `${stageColor}1A` }}
+              >
+                <User className="w-3.5 h-3.5" />Editar Lead
               </a>
             )}
             <button
@@ -215,7 +260,7 @@ export default function KanbanItem({
             >
               <MessageCircle className="w-3.5 h-3.5" />Chat Interno
             </button>
-            {card.conversa_id && (
+            {card.conversa_id ? (
               <a
                 href={buildOmniChatUrl(card.conversa_id, card.id)}
                 onClick={(e) => {
@@ -223,9 +268,23 @@ export default function KanbanItem({
                   e.preventDefault()
                   navigateToOmniChat(card.conversa_id!, card.id)
                 }}
-                className="flex items-center gap-1.5 text-xs font-semibold text-green-500 hover:text-white bg-green-500/10 hover:bg-green-500/20 px-2.5 py-1.5 rounded-lg transition-colors">
+                className="flex items-center gap-1.5 text-xs font-semibold text-green-500 hover:text-white bg-green-500/10 hover:bg-green-500/20 px-2.5 py-1.5 rounded-lg transition-colors"
+              >
                 <MessageCircle className="w-3.5 h-3.5" />WhatsApp
               </a>
+            ) : (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  e.preventDefault()
+                  onEditClick?.()
+                }}
+                className="flex items-center gap-1.5 text-xs font-semibold text-emerald-400 hover:text-white bg-emerald-500/10 hover:bg-emerald-500/25 px-2.5 py-1.5 rounded-lg transition-colors border border-emerald-500/20"
+                title="Abrir o card para digitar a mensagem e iniciar a conversa WhatsApp"
+              >
+                <MessageSquarePlus className="w-3.5 h-3.5" />Iniciar conversa
+              </button>
             )}
           </div>
 
@@ -235,7 +294,12 @@ export default function KanbanItem({
               <span className="text-sm font-bold bg-[#ffffff05] px-2 py-1 rounded" style={{ color: stageColor }}>{formattedValue}</span>
             </div>
 
-            {/* Stage Time Detail */}
+            {createdLabel && (
+              <div className="flex items-center gap-1.5 text-[10px] text-gray-500">
+                <Clock className="w-3 h-3" />
+                <span>Criado em {createdLabel}</span>
+              </div>
+            )}
             {stageTime && (
               <div className="flex items-center gap-1.5 text-[10px] text-gray-500">
                 <Clock className="w-3 h-3" />

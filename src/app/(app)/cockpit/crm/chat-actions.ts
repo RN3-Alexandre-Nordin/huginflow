@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from '@/utils/supabase/server'
-import { getMyProfile } from '@/app/(app)/cockpit/actions'
+import { getMyProfile } from '@/lib/auth/getMyProfile'
 import { hasPermission } from '@/utils/permissions'
 import { revalidatePath } from 'next/cache'
 
@@ -108,129 +108,29 @@ export async function getGlobalChatFeed() {
 export async function getRecentConversations() {
   const me = await getMyProfile()
   if (!me) return { error: 'Não autenticado' }
-  
+
   const supabase = await createClient()
+  const { data, error } = await supabase.rpc('get_recent_chat_conversations')
 
-  // 1. Buscar TODOS os usuários da empresa (DMs em potencial)
-  const { data: companyUsers } = await supabase
-    .from('usuarios')
-    .select('id, nome_completo')
-    .eq('empresa_id', me.empresa_id)
-    .neq('id', me.id)
-  
-  const convMap = new Map<string, any>()
+  if (error) return { error: error.message }
 
-  companyUsers?.forEach(user => {
-    convMap.set(`direct:${user.id}`, {
-      type: 'direct',
-      id: user.id,
-      name: user.nome_completo,
-      lastMessage: '',
-      lastMessageAt: new Date(0).toISOString(),
-      unreadCount: 0
-    })
-  })
-
-  // 2. Buscar marcadores de leitura
-  const { data: markers } = await supabase
-    .from('chat_read_markers')
-    .select('*')
-    .eq('usuario_id', me.id)
-
-  const markerMap = new Map(markers?.map(m => [`${m.context_type}:${m.context_id}`, new Date(m.last_read_at).getTime()]) || [])
-
-  // 3. Buscar TODAS as mensagens para identificar relevância
-  const { data: rawMessages, error: msgError } = await supabase
-    .from('chat_messages')
-    .select(`
-      id,
-      content,
-      created_at,
-      context_type,
-      context_id,
-      sender_id,
-      usuarios(nome_completo)
-    `)
-    .eq('empresa_id', me.empresa_id)
-    .order('created_at', { ascending: false })
-    .limit(100)
-
-  if (msgError) return { error: msgError.message }
-
-  const myMentionText = `[${me.nome_completo}]`
-  const relevantCardIds = new Set<string>()
-
-  // Identificar cards relevantes
-  rawMessages?.forEach(msg => {
-    if (msg.context_type === 'card' && msg.context_id) {
-       const isParticipant = msg.sender_id === me.id
-       const isMentioned = msg.content.includes(myMentionText)
-       if (isParticipant || isMentioned) {
-          relevantCardIds.add(msg.context_id)
-       }
-    }
-  })
-
-  // 4. Buscar os títulos dos cards relevantes para garantir o nome correto
-  const { data: cardTitles } = await supabase
-    .from('crm_cards')
-    .select('id, titulo')
-    .in('id', Array.from(relevantCardIds))
-
-  const cardTitleMap = new Map(cardTitles?.map(c => [c.id, c.titulo]) || [])
-
-  // 5. Montar o convMap final
-  rawMessages?.forEach(msg => {
-    let cid = msg.context_id
-    if (msg.context_type === 'direct') {
-       cid = msg.sender_id === me.id ? msg.context_id : msg.sender_id
-    }
-    
-    if (!cid || msg.context_type === 'global') return
-
-    const key = `${msg.context_type}:${cid}`
-    
-    // Validar Relevância
-    let isRelevant = msg.context_type === 'direct'
-    if (msg.context_type === 'card') {
-       isRelevant = relevantCardIds.has(cid)
-    }
-
-    if (isRelevant) {
-       if (!convMap.has(key)) {
-          convMap.set(key, {
-            type: msg.context_type,
-            id: cid,
-            name: msg.context_type === 'card' ? cardTitleMap.get(cid) : (msg.usuarios as any)?.nome_completo,
-            lastMessage: msg.content,
-            lastMessageAt: msg.created_at,
-            unreadCount: 0
-          })
-       } else {
-          const conv = convMap.get(key)
-          // Se for um card pré-existente sem título, colocar o título agora
-          if (msg.context_type === 'card' && !conv.name) {
-             conv.name = cardTitleMap.get(cid)
-          }
-          if (new Date(msg.created_at) > new Date(conv.lastMessageAt)) {
-             conv.lastMessage = msg.content
-             conv.lastMessageAt = msg.created_at
-          }
-       }
-
-       // Unread Count
-       const lastRead = markerMap.get(key) || 0
-       if (new Date(msg.created_at).getTime() > lastRead && msg.sender_id !== me.id) {
-          convMap.get(key).unreadCount++
-       }
-    }
-  })
-
-  // Ordenar e retornar
-  const sorted = Array.from(convMap.values())
-    .sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime())
-
-  return { data: sorted }
+  return {
+    data: (data ?? []).map((row: {
+      type: string
+      id: string
+      name: string | null
+      last_message: string | null
+      last_message_at: string
+      unread_count: number | string
+    }) => ({
+      type: row.type as 'global' | 'card' | 'direct',
+      id: row.id,
+      name: row.name ?? '',
+      lastMessage: row.last_message ?? '',
+      lastMessageAt: row.last_message_at,
+      unreadCount: Number(row.unread_count) || 0,
+    })),
+  }
 }
 
 export async function searchAllConversations(query: string) {

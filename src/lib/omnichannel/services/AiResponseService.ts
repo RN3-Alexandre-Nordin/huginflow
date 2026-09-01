@@ -4,9 +4,11 @@ import { buildEvolutionProviderConfig } from '@/lib/omnichannel/evolution-config
 import { EvolutionProvider } from '@/lib/omnichannel/providers/EvolutionProvider'
 import { HuginMessage } from '@/types/omnichannel'
 import { ConversaHistoricoService } from '@/lib/omnichannel/ConversaHistoricoService'
-import { WHATSAPP_SENDER_LABELS } from '@/lib/omnichannel/whatsapp-outbound'
 import { AudioTranscriptionService } from '@/lib/omnichannel/services/AudioTranscriptionService'
+import { DocumentInboundService } from '@/lib/omnichannel/services/DocumentInboundService'
+import { shouldProcessAsDocument } from '@/lib/omnichannel/services/DocumentProcessingService'
 import { TriageActionExecutor } from '@/lib/omnichannel/triage/TriageActionExecutor'
+import { stripOutboundTags } from '@/lib/omnichannel/triage/parseTriageTags'
 
 type CanalContext = {
   id: string
@@ -43,6 +45,11 @@ export class AiResponseService {
       )
 
       let messageText = message.content
+
+      if (shouldProcessAsDocument(message)) {
+        const handled = await DocumentInboundService.process(message, canal, supabase)
+        if (handled) return
+      }
 
       if (message.type === 'audio') {
         const transcription = await AudioTranscriptionService.transcribeInboundAudio(
@@ -92,7 +99,7 @@ export class AiResponseService {
         `[AiResponse] Triagem: ${triageResult.reasoning} actions=${triageResult.executed.join(',') || 'none'}`,
       )
 
-      const textToSend = responseForWhatsApp || response
+      const textToSend = responseForWhatsApp || stripOutboundTags(response)
 
       if (!textToSend) {
         await this.handleFailure(supabase, message, leadId, sessaoId, 'Resposta vazia após limpeza.')
@@ -110,7 +117,7 @@ export class AiResponseService {
           contact_phone: message.sender_id,
           contact_name: message.sender_name || 'Usuário WhatsApp',
           role: 'assistant',
-          content: response,
+          content: textToSend,
           metadata: {
             provider: 'evolution',
             is_ai: true,
@@ -119,6 +126,7 @@ export class AiResponseService {
             triage_actions: triageResult.executed,
             card_id: triageResult.cardId,
             responsavel_id: triageResult.responsavelId,
+            triage: tags.triage ?? null,
           },
         })
         .select('id')
@@ -131,9 +139,8 @@ export class AiResponseService {
       const config = buildEvolutionProviderConfig(canal)
 
       const provider = new EvolutionProvider()
-      const sendResult = await provider.sendMessageWithSenderLabel(
+      const sendResult = await provider.sendPlainMessage(
         message.sender_id,
-        WHATSAPP_SENDER_LABELS.ai,
         textToSend,
         config,
       )
@@ -184,7 +191,7 @@ export class AiResponseService {
           external_id: message.sender_id,
           lead_id: leadId,
           role: 'assistant',
-          content: response,
+          content: textToSend,
           direcao: 'outbound',
           status: sessaoStatus,
           atribuido_a_id: triageResult.responsavelId,
