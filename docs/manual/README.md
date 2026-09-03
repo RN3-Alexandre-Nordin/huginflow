@@ -10,6 +10,12 @@ Subir para o GitHub (necessário para produção):
 
 **Não** é preciso versionar toda a pasta `docs/` — só o manual e as imagens. Planos de teste internos podem ficar fora do repo (ver `.gitignore`).
 
+## Manual do operador (treinamento)
+
+- HTML: `docs/treinamento-operadores.html`
+- Servido no app: `/api/ajuda/treinamento-operadores` (menu **?** → Treinamento do operador)
+- Rev. **set/2026** — alinhado ao changelog em `docs/supabase-prod-deploy-pending.md`
+
 ## Prints automáticos (recomendado)
 
 Gera PNGs reais do sistema rodando em dev e salva em `docs/manual/img/`.
@@ -27,6 +33,12 @@ npm run manual:capture
 
 # Só recapturar capítulo 7 (Chat Omnichannel — aguarda lista e conversa carregarem)
 npm run manual:capture:omni
+
+# Só recapturar §8.1 — badge vermelho no chat interno (oculta overlay "1 issue" do Next dev)
+npm run manual:capture:chat-badge
+
+# Recapturar imagens do manual do operador (§6–9: omni, card, chat interno)
+npm run manual:capture:treinamento
 ```
 
 Com túnel Cloudflare (`NEXT_PUBLIC_APP_URL` no `.env.local`):

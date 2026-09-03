@@ -1,19 +1,85 @@
 'use server'
 
 import { createClient } from '@/utils/supabase/server'
+import { createAdminClient } from '@/utils/supabase/admin'
+import {
+  asOmniMeta,
+  isOmniMessageDeleted,
+  markOmniMetadataDeleted,
+} from '@/lib/omnichannel/omni-message-deleted'
 import { getMyProfile } from '@/app/(app)/cockpit/actions'
 import { EvolutionProvider } from '@/lib/omnichannel/providers/EvolutionProvider'
 import { buildEvolutionProviderConfig } from '@/lib/omnichannel/evolution-config'
 import { ConversaHistoricoService } from '@/lib/omnichannel/ConversaHistoricoService'
+import { SessionPersistenceService } from '@/lib/omnichannel/SessionPersistenceService'
 import { normalizeWhatsAppPhone } from '@/lib/omnichannel/phone'
 import { WHATSAPP_SENDER_LABELS } from '@/lib/omnichannel/whatsapp-outbound'
 import { isDeptSessionsEnabled } from '@/lib/omnichannel/dept-sessions-constants'
+import { DOCUMENT_MAX_BYTES } from '@/lib/omnichannel/document-constants'
 import { linkLeadToCard } from '@/lib/crm/resolveLead'
 import {
   ActiveSpeakerService,
   ChatThreadService,
 } from '@/lib/omnichannel/ChatThreadService'
 import { revalidatePath } from 'next/cache'
+
+function firstRelation<T>(value: T | T[] | null | undefined): T | null {
+  if (Array.isArray(value)) return value[0] ?? null
+  return value ?? null
+}
+
+async function persistWhatsAppId(input: {
+  supabase: Awaited<ReturnType<typeof createClient>>
+  sessaoId: string
+  interacaoId: string
+  prevMeta: Record<string, unknown>
+  providerMessageId: string
+  content: string
+}) {
+  const nextMeta = {
+    ...input.prevMeta,
+    provider_message_id: input.providerMessageId,
+    status: 'sent',
+  }
+  let writer = input.supabase
+  try {
+    writer = createAdminClient()
+  } catch {
+    writer = input.supabase
+  }
+  const { error: interacaoErr } = await writer
+    .from('crm_interacoes')
+    .update({ metadata: nextMeta })
+    .eq('id', input.interacaoId)
+  if (interacaoErr) {
+    console.error('[Omni] falha ao gravar provider_message_id em crm_interacoes', interacaoErr)
+  }
+
+  const { data: hist } = await input.supabase
+    .from('crm_conversas')
+    .select('id, metadata')
+    .eq('sessao_id', input.sessaoId)
+    .eq('content', input.content)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (hist?.id) {
+    const { error: histErr } = await input.supabase
+      .from('crm_conversas')
+      .update({
+        metadata: {
+          ...asOmniMeta(hist.metadata),
+          provider_message_id: input.providerMessageId,
+          status: 'sent',
+        },
+      })
+      .eq('id', hist.id)
+    if (histErr) {
+      console.error('[Omni] falha ao gravar provider_message_id em crm_conversas', histErr)
+    }
+  }
+}
 
 /** @param sessaoId ID estável do thread (crm_conversas.sessao_id) */
 export async function sendOmniMessage(sessaoId: string, content: string) {
@@ -51,64 +117,42 @@ export async function sendOmniMessage(sessaoId: string, content: string) {
       settings: canal.settings as Record<string, unknown> | null,
     })
 
-    const { data: insertedMsg, error: insertError } = await supabase
-      .from('crm_interacoes')
-      .insert({
-        empresa_id: me.empresa_id,
-        conversa_id: sessaoId,
-        lead_id: lead.id,
-        user_id: me.id,
-        contact_phone: lead.telefone,
-        contact_name: lead.nome || 'Cliente WhatsApp',
-        content: content,
-        role: 'assistant',
-        metadata: {
-          sent_by: me.id,
-          status: 'sent_manual',
-        },
-      })
-      .select()
-      .single()
-
-    if (insertError) {
-      console.error('[Omni] ERRO NO INSERT:', JSON.stringify(insertError, null, 2))
-      return { success: false, error: `Erro no Banco (RLS ou Schema): ${insertError.message}` }
-    }
-
     const externalId =
       normalizeWhatsAppPhone(conversa.external_id || lead.telefone || lead.whatsapp || '') || ''
 
-    const historicoId = await ConversaHistoricoService.appendMessage(
-      {
-        empresa_id: me.empresa_id,
-        canal_id: conversa.canal_id,
-        external_id: externalId,
-        lead_id: lead.id,
-        role: 'assistant',
-        content,
-        direcao: 'outbound',
-        status: 'human',
-        last_human_interaction: new Date().toISOString(),
-        atribuido_a_id: me.id,
-        metadata: { sent_by: me.id, status: 'sent_manual' },
-        sessao_id: sessaoId,
+    const persist = await SessionPersistenceService.persistMessage(supabase, {
+      empresaId: me.empresa_id!,
+      canalId: conversa.canal_id,
+      externalId: externalId || lead.telefone || 'unknown',
+      leadId: lead.id,
+      sessaoId,
+      role: 'assistant',
+      content,
+      direcao: 'outbound',
+      status: 'human',
+      lastHumanInteraction: new Date().toISOString(),
+      atribuidoAId: me.id,
+      userId: me.id,
+      contactPhone: lead.telefone,
+      contactName: lead.nome || 'Cliente WhatsApp',
+      metadata: {
+        sent_by: me.id,
+        status: 'sent_manual',
       },
-      supabase,
-    )
+      activateSpeaker: isDeptSessionsEnabled() && Boolean(externalId),
+      activatedBy: me.id,
+      speakerReason: 'outbound',
+    })
 
-    if (!historicoId) console.error('[Omni] Erro ao gravar linha em crm_conversas')
+    if (!persist.success || !persist.interacaoId) {
+      console.error('[Omni] ERRO NO INSERT:', persist.error)
+      return { success: false, error: `Erro no Banco: ${persist.error}` }
+    }
 
-    if (isDeptSessionsEnabled() && externalId) {
-      const thread = await ChatThreadService.getById(supabase, sessaoId)
-      await ActiveSpeakerService.activate(supabase, {
-        empresaId: me.empresa_id!,
-        canalId: conversa.canal_id,
-        externalId,
-        sessaoId,
-        departamentoId: thread?.departamento_id,
-        activatedBy: me.id,
-        reason: 'outbound',
-      })
+    const insertedMsg = {
+      id: persist.interacaoId,
+      created_at: new Date().toISOString(),
+      metadata: { sent_by: me.id, status: 'sent_manual' } as Record<string, unknown>,
     }
 
     const recipient = externalId
@@ -119,19 +163,36 @@ export async function sendOmniMessage(sessaoId: string, content: string) {
     const senderLabel = me.nome_completo?.trim() || WHATSAPP_SENDER_LABELS.attendantFallback
     const result = await provider.sendAttendantMessage(recipient, senderLabel, content, config)
 
-    if (result.success) {
-      await supabase
-        .from('crm_interacoes')
-        .update({
-          metadata: {
-            ...insertedMsg.metadata,
-            provider_message_id: result.messageId,
-            status: 'sent',
-          },
-        })
-        .eq('id', insertedMsg.id)
+    let waMessageId = result.messageId
+    if (result.success && !waMessageId) {
+      waMessageId =
+        (await provider.findOutboundMessageId(
+          recipient,
+          content,
+          config,
+          insertedMsg.created_at,
+        )) ?? undefined
+    }
 
-      return { success: true, messageId: result.messageId }
+    if (result.success && waMessageId) {
+      await persistWhatsAppId({
+        supabase,
+        sessaoId,
+        interacaoId: insertedMsg.id,
+        prevMeta: asOmniMeta(insertedMsg.metadata),
+        providerMessageId: waMessageId,
+        content,
+      })
+      return { success: true, messageId: waMessageId }
+    }
+
+    if (result.success && !waMessageId) {
+      console.error('[Omni] WhatsApp enviou mas não retornou ID da mensagem')
+      return {
+        success: true,
+        messageId: undefined,
+        error: 'Enviado, mas sem ID do WhatsApp — apagar no celular pode falhar.',
+      }
     }
 
     await supabase
@@ -153,7 +214,270 @@ export async function sendOmniMessage(sessaoId: string, content: string) {
   }
 }
 
-const MAX_OMNI_ATTACHMENT_BYTES = 5 * 1024 * 1024
+type InteracaoMeta = Record<string, unknown>
+
+function asMeta(value: unknown): InteracaoMeta {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? { ...(value as InteracaoMeta) }
+    : {}
+}
+
+async function persistDeletedMetadata(input: {
+  userClient: Awaited<ReturnType<typeof createClient>>
+  sessaoId: string
+  interacaoId?: string | null
+  conversaRowId?: string | null
+  providerMessageId: string | null
+  originalContent: string
+  nextMeta: InteracaoMeta
+}): Promise<{ error?: string }> {
+  let admin: ReturnType<typeof createAdminClient> | null = null
+  try {
+    admin = createAdminClient()
+  } catch (err) {
+    console.error('[Omni] admin client indisponível para marcar deleted', err)
+  }
+  const clients = admin ? [admin, input.userClient] : [input.userClient]
+
+  if (input.interacaoId) {
+    let saved = false
+    let lastError: string | null = null
+    for (const client of clients) {
+      const { data, error } = await client
+        .from('crm_interacoes')
+        .update({ metadata: input.nextMeta })
+        .eq('id', input.interacaoId)
+        .select('id, metadata')
+        .maybeSingle()
+      if (error) {
+        lastError = error.message
+        continue
+      }
+      if (data?.id && isOmniMessageDeleted(data.metadata)) {
+        saved = true
+        break
+      }
+    }
+    if (!saved) {
+      return {
+        error: lastError || 'Não foi possível marcar a mensagem como apagada no HuginFlow.',
+      }
+    }
+  }
+
+  const historicoClient = admin ?? input.userClient
+  if (input.conversaRowId) {
+    const { error } = await historicoClient
+      .from('crm_conversas')
+      .update({ metadata: input.nextMeta })
+      .eq('id', input.conversaRowId)
+    if (error) console.error('[Omni] falha ao marcar deleted em crm_conversas', error)
+  } else {
+    let histQuery = historicoClient
+      .from('crm_conversas')
+      .update({ metadata: input.nextMeta })
+      .eq('sessao_id', input.sessaoId)
+      .eq('content', input.originalContent)
+    if (input.providerMessageId) {
+      histQuery = histQuery.contains('metadata', {
+        provider_message_id: input.providerMessageId,
+      })
+    }
+    const { error } = await histQuery
+    if (error) console.error('[Omni] falha ao marcar deleted no historico crm_conversas', error)
+  }
+
+  return {}
+}
+
+/**
+ * Apaga no WhatsApp (delete for everyone) e marca a linha como deletada em metadata.
+ * Sem alteração de schema — log formal fica para depois.
+ */
+export async function deleteOmniMessage(sessaoId: string, messageId: string) {
+  try {
+    const me = await getMyProfile()
+    if (!me) return { success: false, error: 'Não autenticado' }
+
+    const supabase = await createClient()
+
+    const { data: conversa, error: convError } = await supabase
+      .from('crm_conversas')
+      .select(
+        `
+        *,
+        crm_canais (*),
+        crm_leads (*)
+      `,
+      )
+      .eq('sessao_id', sessaoId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (convError) return { success: false, error: convError.message }
+
+    let canal = conversa?.crm_canais ?? null
+    let lead = conversa?.crm_leads ?? null
+    let externalId = conversa?.external_id ?? null
+    let empresaId = conversa?.empresa_id ?? me.empresa_id
+
+    if (!conversa) {
+      const { data: thread } = await supabase
+        .from('crm_chat_threads')
+        .select('id, empresa_id, canal_id, external_id, lead_id')
+        .eq('id', sessaoId)
+        .maybeSingle()
+      if (!thread) return { success: false, error: 'Sessão não encontrada' }
+      empresaId = thread.empresa_id
+      externalId = thread.external_id
+      if (thread.canal_id) {
+        const { data: canalRow } = await supabase
+          .from('crm_canais')
+          .select('*')
+          .eq('id', thread.canal_id)
+          .maybeSingle()
+        canal = canalRow
+      }
+      if (thread.lead_id) {
+        const { data: leadRow } = await supabase
+          .from('crm_leads')
+          .select('*')
+          .eq('id', thread.lead_id)
+          .maybeSingle()
+        lead = leadRow
+      }
+    }
+
+    if (me.role_global !== 'superadmin' && empresaId && empresaId !== me.empresa_id) {
+      return { success: false, error: 'Sem permissão para esta conversa' }
+    }
+    if (!canal) return { success: false, error: 'Canal de comunicação não configurado' }
+
+    const { data: interacao } = await supabase
+      .from('crm_interacoes')
+      .select('id, role, content, user_id, metadata, conversa_id, created_at')
+      .eq('id', messageId)
+      .eq('conversa_id', sessaoId)
+      .maybeSingle()
+
+    const { data: conversaRow } = !interacao
+      ? await supabase
+          .from('crm_conversas')
+          .select('id, role, content, atribuido_a_id, metadata, sessao_id, created_at')
+          .eq('id', messageId)
+          .eq('sessao_id', sessaoId)
+          .maybeSingle()
+      : { data: null }
+
+    const row = interacao ?? conversaRow
+    if (!row) return { success: false, error: 'Mensagem não encontrada' }
+
+    const meta = asMeta(row.metadata)
+    if (isOmniMessageDeleted(meta)) {
+      return { success: true }
+    }
+
+    const role = row.role as string
+    if (role === 'user') {
+      return { success: false, error: 'Não é possível apagar mensagem do cliente.' }
+    }
+
+    const authorId =
+      ('user_id' in row ? row.user_id : null) ||
+      (typeof meta.sent_by === 'string' ? meta.sent_by : null) ||
+      ('atribuido_a_id' in row ? row.atribuido_a_id : null)
+
+    const isOwn = authorId === me.id
+    const canModerate = me.role_global !== 'operador'
+    if (!isOwn && !canModerate) {
+      return { success: false, error: 'Só é possível apagar mensagens enviadas por você.' }
+    }
+
+    const recipient =
+      normalizeWhatsAppPhone(externalId || lead?.telefone || lead?.whatsapp || '') || ''
+    if (!recipient) {
+      return { success: false, error: 'Telefone do cliente não encontrado.' }
+    }
+
+    const provider = new EvolutionProvider()
+    const config = buildEvolutionProviderConfig({
+      provider_id: canal.provider_id,
+      provider_token: canal.provider_token,
+      settings: canal.settings as Record<string, unknown> | null,
+    })
+
+    let providerMessageId =
+      typeof meta.provider_message_id === 'string' ? meta.provider_message_id : null
+
+    if (!providerMessageId) {
+      providerMessageId = await provider.findOutboundMessageId(
+        recipient,
+        row.content,
+        config,
+        'created_at' in row ? (row.created_at as string) : null,
+      )
+      if (providerMessageId && interacao) {
+        await persistWhatsAppId({
+          supabase,
+          sessaoId,
+          interacaoId: interacao.id,
+          prevMeta: meta,
+          providerMessageId,
+          content: row.content,
+        })
+      }
+    }
+
+    if (!providerMessageId) {
+      return {
+        success: false,
+        error:
+          'Não achamos o ID desta mensagem no WhatsApp. Envie de novo depois deste ajuste — mensagens antigas sem ID não podem ser apagadas no celular.',
+      }
+    }
+
+    const wa = await provider.deleteMessageForEveryone(recipient, providerMessageId, config)
+    const waAlreadyGone =
+      !wa.success &&
+      /not found|already|não encontr|nao encontr|404/i.test(JSON.stringify(wa.error ?? ''))
+    if (!wa.success && !waAlreadyGone) {
+      return {
+        success: false,
+        error:
+          'O WhatsApp recusou apagar (janela expirada ou falha na Evolution). A mensagem permanece nos dois lados.',
+      }
+    }
+
+    const nextMeta: InteracaoMeta = markOmniMetadataDeleted(meta, {
+      provider_message_id: providerMessageId,
+      deleted_at: new Date().toISOString(),
+      deleted_by: me.id,
+      original_content: row.content,
+      whatsapp_deleted: true,
+    })
+
+    const marked = await persistDeletedMetadata({
+      userClient: supabase,
+      sessaoId,
+      interacaoId: interacao?.id ?? null,
+      conversaRowId: conversaRow?.id ?? null,
+      providerMessageId,
+      originalContent: row.content,
+      nextMeta,
+    })
+    if (marked.error) return { success: false, error: marked.error }
+
+    revalidatePath('/cockpit/crm/chat')
+    return { success: true }
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Erro ao apagar mensagem'
+    console.error('[OmniActions] Erro ao apagar mensagem:', error)
+    return { success: false, error: message }
+  }
+}
+
+const MAX_OMNI_ATTACHMENT_BYTES = DOCUMENT_MAX_BYTES
 
 function resolveMediaType(mimeType: string): 'image' | 'document' {
   if (mimeType.startsWith('image/')) return 'image'
@@ -175,7 +499,10 @@ export async function sendOmniAttachment(formData: FormData) {
       return { success: false, error: 'Selecione um arquivo válido.' }
     }
     if (file.size > MAX_OMNI_ATTACHMENT_BYTES) {
-      return { success: false, error: 'Arquivo excede o limite de 5 MB.' }
+      return {
+        success: false,
+        error: `Arquivo excede o limite de ${Math.round(MAX_OMNI_ATTACHMENT_BYTES / 1024 / 1024)} MB.`,
+      }
     }
 
     const mimeType = file.type || 'application/octet-stream'
@@ -220,66 +547,47 @@ export async function sendOmniAttachment(formData: FormData) {
     const mediatype = resolveMediaType(mimeType)
     const displayContent = caption || `📎 ${file.name}`
 
-    const { data: insertedMsg, error: insertError } = await supabase
-      .from('crm_interacoes')
-      .insert({
-        empresa_id: me.empresa_id,
-        conversa_id: sessaoId,
-        lead_id: lead.id,
-        user_id: me.id,
-        contact_phone: lead.telefone,
-        contact_name: lead.nome || 'Cliente WhatsApp',
-        content: displayContent,
-        role: 'assistant',
-        metadata: {
-          sent_by: me.id,
-          status: 'pending_send',
-          media_type: mediatype,
-          file_name: file.name,
-          mimetype: mimeType,
-        },
-      })
-      .select()
-      .single()
+    const persistMedia = await SessionPersistenceService.persistMessage(supabase, {
+      empresaId: me.empresa_id!,
+      canalId: conversa.canal_id,
+      externalId,
+      leadId: lead.id,
+      sessaoId,
+      role: 'assistant',
+      content: displayContent,
+      direcao: 'outbound',
+      status: 'human',
+      lastHumanInteraction: new Date().toISOString(),
+      atribuidoAId: me.id,
+      userId: me.id,
+      contactPhone: lead.telefone,
+      contactName: lead.nome || 'Cliente WhatsApp',
+      metadata: {
+        sent_by: me.id,
+        status: 'pending_send',
+        media_type: mediatype,
+        file_name: file.name,
+        mimetype: mimeType,
+      },
+      activateSpeaker: isDeptSessionsEnabled(),
+      activatedBy: me.id,
+      speakerReason: 'outbound',
+    })
 
-    if (insertError) {
-      return { success: false, error: `Erro no banco: ${insertError.message}` }
+    if (!persistMedia.success || !persistMedia.interacaoId) {
+      return { success: false, error: `Erro no banco: ${persistMedia.error}` }
     }
 
-    await ConversaHistoricoService.appendMessage(
-      {
-        empresa_id: me.empresa_id,
-        canal_id: conversa.canal_id,
-        external_id: externalId,
-        lead_id: lead.id,
-        role: 'assistant',
-        content: displayContent,
-        direcao: 'outbound',
-        status: 'human',
-        last_human_interaction: new Date().toISOString(),
-        atribuido_a_id: me.id,
-        metadata: {
-          sent_by: me.id,
-          status: 'pending_send',
-          media_type: mediatype,
-          file_name: file.name,
-        },
-        sessao_id: sessaoId,
-      },
-      supabase,
-    )
-
-    if (isDeptSessionsEnabled()) {
-      const thread = await ChatThreadService.getById(supabase, sessaoId)
-      await ActiveSpeakerService.activate(supabase, {
-        empresaId: me.empresa_id!,
-        canalId: conversa.canal_id,
-        externalId,
-        sessaoId,
-        departamentoId: thread?.departamento_id,
-        activatedBy: me.id,
-        reason: 'outbound',
-      })
+    const insertedMsg = {
+      id: persistMedia.interacaoId,
+      created_at: new Date().toISOString(),
+      metadata: {
+        sent_by: me.id,
+        status: 'pending_send',
+        media_type: mediatype,
+        file_name: file.name,
+        mimetype: mimeType,
+      } as Record<string, unknown>,
     }
 
     const senderLabel = me.nome_completo?.trim() || WHATSAPP_SENDER_LABELS.attendantFallback
@@ -297,19 +605,28 @@ export async function sendOmniAttachment(formData: FormData) {
     )
 
     if (result.success) {
-      await supabase
-        .from('crm_interacoes')
-        .update({
-          metadata: {
-            ...insertedMsg.metadata,
-            provider_message_id: result.messageId,
-            status: 'sent',
-          },
+      let waMessageId = result.messageId
+      if (!waMessageId) {
+        waMessageId =
+          (await provider.findOutboundMessageId(
+            externalId,
+            displayContent,
+            config,
+            insertedMsg.created_at,
+          )) ?? undefined
+      }
+      if (waMessageId) {
+        await persistWhatsAppId({
+          supabase,
+          sessaoId,
+          interacaoId: insertedMsg.id,
+          prevMeta: asMeta(insertedMsg.metadata),
+          providerMessageId: waMessageId,
+          content: displayContent,
         })
-        .eq('id', insertedMsg.id)
-
+      }
       revalidatePath('/cockpit/crm/chat')
-      return { success: true, messageId: result.messageId }
+      return { success: true, messageId: waMessageId }
     }
 
     await supabase
@@ -380,12 +697,7 @@ export async function startOmniConversation(
 
     if (cardErr || !card) return { success: false, error: 'Card não encontrado' }
 
-    let lead = card.crm_leads as {
-      id: string
-      nome: string | null
-      telefone: string | null
-      whatsapp: string | null
-    } | null
+    let lead = firstRelation(card.crm_leads)
 
     if (!card.lead_id || !lead) {
       const leadIdInput = opts?.leadId?.trim()
@@ -439,11 +751,7 @@ export async function startOmniConversation(
       return { success: false, error: 'Nenhum canal WhatsApp configurado para a empresa.' }
     }
 
-    const pipeline = card.pipelines as {
-      id: string
-      nome: string
-      departamento_id: string | null
-    } | null
+    const pipeline = firstRelation(card.pipelines)
     const departamentoId = pipeline?.departamento_id ?? null
     let departamentoNome: string | null = pipeline?.nome ?? null
     if (departamentoId) {
@@ -532,34 +840,41 @@ export async function startOmniConversation(
       settings: canal.settings as Record<string, unknown> | null,
     })
 
-    // Grava histórico primeiro (cria sessao se legado)
-    const historicoId = await ConversaHistoricoService.appendMessage(
-      {
-        empresa_id: me.empresa_id,
-        canal_id: canal.id,
-        external_id: externalId,
-        lead_id: lead.id,
-        role: 'assistant',
-        content: text,
-        direcao: 'outbound',
-        status: 'human',
-        last_human_interaction: new Date().toISOString(),
-        atribuido_a_id: me.id,
-        metadata: {
-          sent_by: me.id,
-          status: 'sent_manual',
-          started_from_card: true,
-          departamento_id: departamentoId,
-        },
-        sessao_id: sessaoId ?? undefined,
+    // Grava histórico + interação + thread via caminho único
+    const startPersist = await SessionPersistenceService.persistMessage(supabase, {
+      empresaId: me.empresa_id!,
+      canalId: canal.id,
+      externalId,
+      leadId: lead.id,
+      sessaoId: sessaoId ?? undefined,
+      cardId: card.id,
+      pipelineId: card.pipeline_id,
+      departamentoId,
+      role: 'assistant',
+      content: text,
+      direcao: 'outbound',
+      status: 'human',
+      lastHumanInteraction: new Date().toISOString(),
+      atribuidoAId: me.id,
+      userId: me.id,
+      contactPhone: externalId,
+      contactName: lead.nome || 'Cliente WhatsApp',
+      metadata: {
+        sent_by: me.id,
+        status: 'pending_send',
+        started_from_card: true,
+        departamento: departamentoNome,
+        departamento_id: departamentoId,
       },
-      supabase,
-    )
+      activateSpeaker: isDeptSessionsEnabled(),
+      activatedBy: me.id,
+      speakerReason: forceAssume ? 'transfer' : 'outbound',
+    })
 
-    if (!historicoId) {
-      return { success: false, error: 'Falha ao gravar sessão de conversa.' }
+    if (!startPersist.success || !startPersist.sessaoId) {
+      return { success: false, error: startPersist.error || 'Falha ao gravar sessão de conversa.' }
     }
-    sessaoId = historicoId
+    sessaoId = startPersist.sessaoId
 
     await supabase
       .from('crm_cards')
@@ -571,46 +886,6 @@ export async function startOmniConversation(
       .eq('id', cardId)
       .eq('empresa_id', me.empresa_id)
 
-    if (isDeptSessionsEnabled()) {
-      await ChatThreadService.syncThreadFromAppend(supabase, {
-        sessaoId,
-        empresaId: me.empresa_id,
-        canalId: canal.id,
-        externalId,
-        leadId: lead.id,
-        status: 'human',
-        cardId: card.id,
-        departamentoId,
-        pipelineId: card.pipeline_id,
-      })
-      await ActiveSpeakerService.activate(supabase, {
-        empresaId: me.empresa_id,
-        canalId: canal.id,
-        externalId,
-        sessaoId,
-        departamentoId,
-        activatedBy: me.id,
-        reason: forceAssume ? 'transfer' : 'outbound',
-      })
-    }
-
-    await supabase.from('crm_interacoes').insert({
-      empresa_id: me.empresa_id,
-      conversa_id: sessaoId,
-      lead_id: lead.id,
-      user_id: me.id,
-      contact_phone: externalId,
-      contact_name: lead.nome || 'Cliente WhatsApp',
-      content: text,
-      role: 'assistant',
-      metadata: {
-        sent_by: me.id,
-        status: 'pending_send',
-        started_from_card: true,
-        departamento: departamentoNome,
-      },
-    })
-
     const senderLabel = me.nome_completo?.trim() || WHATSAPP_SENDER_LABELS.attendantFallback
     const result = await provider.sendAttendantMessage(externalId, senderLabel, text, config)
 
@@ -621,6 +896,22 @@ export async function startOmniConversation(
           'Sessão criada, mas falhou o envio WhatsApp: ' +
           JSON.stringify(result.error ?? 'erro desconhecido'),
       }
+    }
+
+    if (startPersist.interacaoId && result.messageId) {
+      await persistWhatsAppId({
+        supabase,
+        sessaoId,
+        interacaoId: startPersist.interacaoId,
+        prevMeta: {
+          sent_by: me.id,
+          status: 'pending_send',
+          started_from_card: true,
+          departamento: departamentoNome,
+        },
+        providerMessageId: result.messageId,
+        content: text,
+      })
     }
 
     revalidatePath('/cockpit/crm/chat')
@@ -688,8 +979,12 @@ export async function getActiveSpeakerForCard(cardId: string) {
     .eq('empresa_id', me.empresa_id)
     .maybeSingle()
 
-  const hasLead = Boolean(card?.lead_id && card?.crm_leads)
-  const lead = card?.crm_leads as { telefone: string | null; whatsapp: string | null } | null
+  if (!card) {
+    return { enabled: true, hasLead: false, hasPhone: false }
+  }
+
+  const lead = firstRelation(card.crm_leads)
+  const hasLead = Boolean(card.lead_id && lead)
   const externalFromLead = lead
     ? normalizeWhatsAppPhone(lead.telefone || lead.whatsapp || '')
     : ''
@@ -699,11 +994,11 @@ export async function getActiveSpeakerForCard(cardId: string) {
       enabled: true,
       hasLead: false,
       hasPhone: false,
-      clienteNome: (card?.cliente_nome as string | null) || card?.titulo || null,
+      clienteNome: (card.cliente_nome as string | null) || card.titulo || null,
     }
   }
 
-  const leadRow = card!.crm_leads as { telefone: string | null; whatsapp: string | null }
+  const leadRow = lead!
   const externalId = normalizeWhatsAppPhone(leadRow.telefone || leadRow.whatsapp || '')
   if (!externalId) {
     return {

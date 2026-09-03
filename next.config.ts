@@ -19,6 +19,8 @@ const nextConfig: NextConfig = {
   },
   experimental: {
     serverActions: {
+      // Anexos omni/kanban até 5 MB (+ overhead multipart)
+      bodySizeLimit: '6mb',
       allowedOrigins: [
         new URL(process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").hostname,
         "localhost:3000",

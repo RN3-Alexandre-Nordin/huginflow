@@ -8,6 +8,71 @@ import { getMyProfile } from '@/app/(app)/cockpit/actions'
 import { linkLeadToCard } from '@/lib/crm/resolveLead'
 import { buildKanbanCardUrl } from '@/lib/kanban/kanban-deep-link'
 
+export type QuickLeadOption = {
+  id: string
+  nome: string | null
+  telefone: string | null
+  whatsapp: string | null
+}
+
+/** Cria lead sem redirect — para o modal Novo Card selecionar e vincular. */
+export async function createQuickLead(input: {
+  nome: string
+  telefone?: string
+  whatsapp?: string
+  email?: string
+}): Promise<{ success: true; lead: QuickLeadOption } | { success: false; error: string }> {
+  const me = await getMyProfile()
+  if (!hasPermission(me, 'leads', 'create')) {
+    return { success: false, error: 'Sem permissão para criar leads.' }
+  }
+  if (!me?.empresa_id && me?.role_global !== 'superadmin') {
+    return { success: false, error: 'Empresa não identificada.' }
+  }
+
+  const nome = input.nome.trim()
+  if (!nome) return { success: false, error: 'Informe o nome do lead.' }
+
+  const telefone = input.telefone?.trim() || null
+  const whatsapp = input.whatsapp?.trim() || null
+  const email = input.email?.trim() || null
+
+  if (!telefone && !whatsapp) {
+    return { success: false, error: 'Informe WhatsApp ou telefone.' }
+  }
+
+  const supabase = await createClient()
+  const empresaId = me.empresa_id
+  if (!empresaId) return { success: false, error: 'Empresa não identificada.' }
+
+  const { data: newLead, error } = await supabase
+    .from('crm_leads')
+    .insert([{
+      nome,
+      telefone,
+      whatsapp,
+      email,
+      empresa_id: empresaId,
+    }])
+    .select('id, nome, telefone, whatsapp')
+    .single()
+
+  if (error || !newLead) {
+    return { success: false, error: error?.message || 'Falha ao criar lead.' }
+  }
+
+  revalidatePath('/cockpit/crm/leads')
+  return {
+    success: true,
+    lead: {
+      id: newLead.id,
+      nome: newLead.nome,
+      telefone: newLead.telefone,
+      whatsapp: newLead.whatsapp,
+    },
+  }
+}
+
 export async function createLead(formData: FormData) {
   const me = await getMyProfile()
   if (!hasPermission(me, 'leads', 'create')) {

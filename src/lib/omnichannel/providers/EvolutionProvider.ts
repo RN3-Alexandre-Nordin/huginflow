@@ -31,6 +31,31 @@ type SendTextOptions = {
   presence?: 'composing' | 'recording' | 'paused' | 'available'
 }
 
+function extractEvolutionMessageId(data: unknown): string | undefined {
+  if (!data || typeof data !== 'object') return undefined
+  const root = data as Record<string, unknown>
+  const nested = root.data && typeof root.data === 'object' ? (root.data as Record<string, unknown>) : null
+  const keyOf = (obj: Record<string, unknown> | null | undefined) => {
+    const key = obj?.key
+    if (key && typeof key === 'object' && typeof (key as { id?: unknown }).id === 'string') {
+      const id = (key as { id: string }).id.trim()
+      return id || undefined
+    }
+    return undefined
+  }
+  if (typeof root.messageId === 'string' && root.messageId.trim()) return root.messageId.trim()
+  if (typeof nested?.messageId === 'string' && nested.messageId.trim()) return nested.messageId.trim()
+  return keyOf(root) ?? keyOf(nested) ?? undefined
+}
+
+function extractMessageText(message: unknown): string {
+  if (!message || typeof message !== 'object') return ''
+  const m = message as Record<string, unknown>
+  const ext = m.extendedTextMessage as { text?: string } | undefined
+  const conv = typeof m.conversation === 'string' ? m.conversation : ''
+  return (ext?.text || conv || '').trim()
+}
+
 export type SendMediaInput = {
   mediatype: 'image' | 'document' | 'video'
   mimetype: string
@@ -87,15 +112,150 @@ export class EvolutionProvider implements BaseProvider {
         return { success: false, error: data };
       }
 
-      const messageId = data?.key?.id ?? data?.messageId;
-      if (!messageId && data?.error) {
-        return { success: false, error: data };
+      const messageId = extractEvolutionMessageId(data)
+      if (!messageId) {
+        console.error('[Evolution] sendText sem messageId na resposta', data)
+        return { success: false, error: data }
       }
 
       return { success: true, messageId };
     } catch (error) {
       console.error(`[Evolution] sendText rede instance=${instance} url=${baseUrl}:`, error);
       return { success: false, error };
+    }
+  }
+
+  /**
+   * Apaga mensagem enviada por nós no WhatsApp do cliente (delete for everyone).
+   * Evolution: DELETE /chat/deleteMessageForEveryone/{instance}
+   */
+  async deleteMessageForEveryone(
+    to: string,
+    messageId: string,
+    config: ProviderConfig,
+  ): Promise<{ success: boolean; error?: unknown }> {
+    const envCreds = getEvolutionCredentials()
+    const baseUrl = config.settings?.apiUrl || envCreds.apiUrl
+    const apiKey = config.provider_token || envCreds.apiKey
+    const instance = config.provider_id
+
+    if (!instance || !apiKey) {
+      return { success: false, error: 'Configuração da Evolution API incompleta' }
+    }
+
+    const digits = to.replace(/\D/g, '')
+    const remoteJid = digits.includes('@') ? to : `${digits}@s.whatsapp.net`
+    const body = {
+      id: messageId,
+      remoteJid,
+      fromMe: true,
+    }
+
+    const urls = [
+      `${baseUrl}/chat/deleteMessageForEveryone/${instance}`,
+      `${baseUrl}/chat/deleteMessage/${instance}`,
+    ]
+
+    let lastError: unknown = 'Falha ao apagar no WhatsApp'
+    for (const url of urls) {
+      try {
+        const response = await fetch(url, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+            apikey: apiKey,
+          },
+          body: JSON.stringify(body),
+        })
+        const data = await response.json().catch(() => ({}))
+        if (response.ok) {
+          return { success: true }
+        }
+        lastError = data
+        if (response.status !== 404) {
+          console.error(`[Evolution] deleteMessage ${response.status} ${url}`, data)
+        }
+      } catch (error) {
+        lastError = error
+        console.error(`[Evolution] deleteMessage rede ${url}:`, error)
+      }
+    }
+
+    return { success: false, error: lastError }
+  }
+
+  /**
+   * Recupera o ID WhatsApp de uma mensagem nossa recente (quando não foi gravado no envio).
+   */
+  async findOutboundMessageId(
+    to: string,
+    content: string,
+    config: ProviderConfig,
+    sentAt?: string | null,
+  ): Promise<string | null> {
+    const envCreds = getEvolutionCredentials()
+    const baseUrl = config.settings?.apiUrl || envCreds.apiUrl
+    const apiKey = config.provider_token || envCreds.apiKey
+    const instance = config.provider_id
+    if (!instance || !apiKey) return null
+
+    const digits = to.replace(/\D/g, '')
+    const remoteJid = `${digits}@s.whatsapp.net`
+    const needle = content.trim()
+    if (!needle) return null
+
+    try {
+      const response = await fetch(`${baseUrl}/chat/findMessages/${instance}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: apiKey,
+        },
+        body: JSON.stringify({
+          where: { key: { remoteJid, fromMe: true } },
+          take: 30,
+        }),
+      })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        console.error('[Evolution] findMessages', response.status, data)
+        return null
+      }
+
+      const records: unknown[] = Array.isArray(data)
+        ? data
+        : Array.isArray((data as { messages?: { records?: unknown[] } }).messages?.records)
+          ? (data as { messages: { records: unknown[] } }).messages.records
+          : Array.isArray((data as { records?: unknown[] }).records)
+            ? (data as { records: unknown[] }).records
+            : []
+
+      const sentMs = sentAt ? new Date(sentAt).getTime() : NaN
+
+      const scored = records
+        .map((raw) => {
+          const row = raw as {
+            key?: { id?: string; fromMe?: boolean }
+            message?: unknown
+            messageTimestamp?: number | string
+          }
+          if (!row.key?.fromMe || !row.key.id) return null
+          const text = extractMessageText(row.message)
+          if (!text.includes(needle)) return null
+          const ts =
+            typeof row.messageTimestamp === 'number'
+              ? row.messageTimestamp * (row.messageTimestamp < 2e10 ? 1000 : 1)
+              : Number(row.messageTimestamp) * 1000
+          const delta = Number.isFinite(sentMs) && Number.isFinite(ts) ? Math.abs(ts - sentMs) : 0
+          return { id: row.key.id as string, delta }
+        })
+        .filter((x): x is { id: string; delta: number } => Boolean(x))
+        .sort((a, b) => a.delta - b.delta)
+
+      return scored[0]?.id ?? null
+    } catch (error) {
+      console.error('[Evolution] findMessages rede:', error)
+      return null
     }
   }
 
@@ -174,8 +334,9 @@ export class EvolutionProvider implements BaseProvider {
         return { success: false, error: data }
       }
 
-      const messageId = data?.key?.id ?? data?.messageId
-      if (!messageId && data?.error) {
+      const messageId = extractEvolutionMessageId(data)
+      if (!messageId) {
+        console.error('[Evolution] sendMedia sem messageId na resposta', data)
         return { success: false, error: data }
       }
 

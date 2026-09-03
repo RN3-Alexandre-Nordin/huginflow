@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useEffect, useState, useRef, useTransition } from 'react'
-import { Send, MessageSquare, User, Clock, Link as LinkIcon, Loader2, Paperclip, ExternalLink, Hash, Bell } from 'lucide-react'
+import { Send, MessageSquare, User, Clock, Link as LinkIcon, Loader2, ExternalLink, Hash, Bell } from 'lucide-react'
 import { sendChatMessage, getChatMessages, markChatAsRead } from '@/app/(app)/cockpit/crm/chat-actions'
 import { searchCrmCards } from '@/app/(app)/cockpit/crm/actions'
 import { format, formatDistanceToNow } from 'date-fns'
@@ -549,9 +549,6 @@ export default function ChatWindow({
         className="p-5 bg-[#ffffff02] border-t border-[#ffffff0a] shrink-0"
       >
         <div className="relative flex items-center gap-3 bg-[#111] border border-[#ffffff0a] rounded-2xl px-4 py-1.5 focus-within:border-[#2BAADF]/40 focus-within:ring-4 focus-within:ring-[#2BAADF]/5 transition-all">
-          <button type="button" className="text-gray-500 hover:text-[#2BAADF] transition-colors">
-            <Paperclip className="w-4 h-4" />
-          </button>
           <input
             ref={inputRef}
             type="text"

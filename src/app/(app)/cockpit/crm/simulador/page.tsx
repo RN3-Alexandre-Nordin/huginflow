@@ -1,5 +1,5 @@
 import SimuladorChat from "./SimuladorChat"
-import { MessageSquare, Sparkles, Lock } from "lucide-react"
+import { MessageSquare, Lock } from "lucide-react"
 import { getMyProfile } from "@/app/(app)/cockpit/actions"
 import { canAccessSimulador } from "@/utils/permissions"
 import BackTextButton from '@/components/BackTextButton'
@@ -31,15 +31,9 @@ export default async function SimuladorPage() {
       
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-3xl font-black tracking-tight text-white flex items-center gap-3 italic">
-            <Sparkles className="w-8 h-8 text-[#2BAADF]" />
-            WHATSAPP SIMULATOR
-          </h2>
-          <p className="text-sm text-gray-500 mt-1 uppercase tracking-widest font-bold">
-            Teste de triagem e prompts sem WhatsApp / Evolution
-          </p>
-        </div>
+        <p className="text-sm text-gray-500 uppercase tracking-widest font-bold">
+          Teste de triagem e prompts sem WhatsApp / Evolution
+        </p>
         
         <div className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-[#ffffff05] border border-[#ffffff0a] text-gray-400">
            <MessageSquare className="w-4 h-4" />

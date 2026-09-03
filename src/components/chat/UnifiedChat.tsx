@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useEffect, useState, useRef, useTransition } from 'react'
-import { Send, MessageSquare, User, Clock, Link as LinkIcon, Loader2, Paperclip, Hash, ExternalLink } from 'lucide-react'
+import { Send, MessageSquare, User, Clock, Link as LinkIcon, Loader2, Hash, ExternalLink } from 'lucide-react'
 import { sendChatMessage, getChatMessages, getCompanyUsers } from '@/app/(app)/cockpit/crm/chat-actions'
 import { searchCrmCards } from '@/app/(app)/cockpit/crm/actions'
 import { format, formatDistanceToNow } from 'date-fns'
@@ -340,13 +340,10 @@ export default function UnifiedChat({
            onSubmit={handleSendMessage}
            className="relative flex items-center gap-3 bg-[#111] border border-[#ffffff0a] rounded-2xl p-1.5 focus-within:border-[#2BAADF]/50 transition-all shadow-inner"
          >
-           <div className="p-3 text-gray-600">
-              <Paperclip className="w-4 h-4" />
-           </div>
            <input
              ref={inputRef}
              type="text"
-             className="flex-1 bg-transparent border-none outline-none text-[13px] text-white px-2 py-3 placeholder:text-gray-600 font-medium"
+             className="flex-1 bg-transparent border-none outline-none text-[13px] text-white px-4 py-3 placeholder:text-gray-600 font-medium"
              placeholder={contextType === 'global' ? "Equipe HuginFlow (use @ para contatos)..." : "Discussão Interna do Card (use @ ou #)..."}
              value={newMessage}
              disabled={isPending}

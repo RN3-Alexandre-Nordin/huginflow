@@ -16,6 +16,7 @@ export type TriageAction =
   | 'ASK_CLARIFY'
   | 'FORA_HORARIO'
   | 'QUEUE_UNASSIGNED'
+  | 'OUT_OF_SCOPE'
 
 export type ParsedAiTags = {
   triage: TriageFields | null
@@ -29,6 +30,7 @@ const ACTION_SET = new Set<string>([
   'ASK_CLARIFY',
   'FORA_HORARIO',
   'QUEUE_UNASSIGNED',
+  'OUT_OF_SCOPE',
 ])
 
 export function parseCrmStatus(text: string): string | undefined {

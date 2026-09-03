@@ -1,10 +1,11 @@
-import { Building2, Share2, Plus, Info, CheckCircle2, QrCode, AlertCircle, Bot, Lock } from "lucide-react";
+import { Info, Lock } from "lucide-react";
 import { getMyProfile } from "@/app/(app)/cockpit/actions";
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
 import { hasPermission } from "@/utils/permissions";
 import BackTextButton from "@/components/BackTextButton";
 import ChannelList from "./ChannelList";
+import OutboundWebhooksPanel from "./OutboundWebhooksPanel";
 
 export const metadata = {
   title: "Gestão de Canais | HuginFlow",
@@ -48,19 +49,9 @@ export default async function ChannelsPage() {
     <div className="flex flex-col gap-8 max-w-7xl mx-auto w-full animate-in fade-in slide-in-from-bottom-4 duration-700">
       {/* Header Section */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-[#ffffff0a]">
-        <div className="flex items-center gap-4">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-orange-500/20 to-orange-600/10 flex items-center justify-center border border-orange-500/20 shadow-[0_0_20px_-5px_#f9731633]">
-            <Share2 className="w-7 h-7 text-orange-500" />
-          </div>
-          <div>
-            <h2 className="text-3xl font-black text-white tracking-tighter uppercase italic italic-brand">
-              Canais Omnichannel
-            </h2>
-            <p className="text-gray-500 text-sm font-medium mt-1">
-              Conecte seus pontos de contato e ative o Agente de IA para escalar seu atendimento.
-            </p>
-          </div>
-        </div>
+        <p className="text-gray-500 text-sm font-medium">
+          Conecte seus pontos de contato e ative o Agente de IA para escalar seu atendimento.
+        </p>
       </div>
 
       {/* Info Card */}
@@ -78,6 +69,10 @@ export default async function ChannelsPage() {
 
       {/* Channel List Component (Client Side for Interactive Actions) */}
       <ChannelList initialChannels={canais || []} empresaId={me.empresa_id} />
+
+      <OutboundWebhooksPanel
+        canManage={hasPermission(me, "canais", "edit") || hasPermission(me, "canais", "create")}
+      />
     </div>
   );
 }

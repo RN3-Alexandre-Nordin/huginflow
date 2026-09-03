@@ -64,22 +64,16 @@ export default async function EmpresasPage(props: {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight text-white flex items-center gap-3">
-            <Building2 className="w-6 h-6 text-[#2BAADF]" />
-            {isSuperAdmin ? "Empresas Clientes" : "Dados da Empresa"}
-          </h2>
-          <p className="text-sm text-gray-400 mt-1">
-            {isSuperAdmin 
-              ? 'Gerencie os tenants ativos na plataforma Hugin Flow.'
-              : 'Visualize as informações cadastrais da sua empresa.'}
-          </p>
-        </div>
+      <div className="flex items-center justify-between gap-4">
+        <p className="text-sm text-gray-400">
+          {isSuperAdmin 
+            ? 'Gerencie os tenants ativos na plataforma Hugin Flow.'
+            : 'Visualize as informações cadastrais da sua empresa.'}
+        </p>
         {canCreate && (
           <Link
             href="/cockpit/empresas/nova"
-            className="bg-gradient-to-r from-[#2BAADF] to-[#1A8FBF] hover:shadow-[0_4px_24px_rgba(43,170,223,0.35)] text-white px-5 py-2.5 rounded-lg text-sm font-semibold transition-all inline-flex items-center gap-2"
+            className="bg-gradient-to-r from-[#2BAADF] to-[#1A8FBF] hover:shadow-[0_4px_24px_rgba(43,170,223,0.35)] text-white px-5 py-2.5 rounded-lg text-sm font-semibold transition-all inline-flex items-center gap-2 shrink-0"
           >
             <Plus className="w-4 h-4" />
             Nova Empresa

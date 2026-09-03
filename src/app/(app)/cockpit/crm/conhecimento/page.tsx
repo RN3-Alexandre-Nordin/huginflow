@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useTransition, useRef } from 'react'
 import BackTextButton from '@/components/BackTextButton'
-import { BookOpen, Plus, Trash2, FileText, Upload, CheckCircle2, AlertCircle, Loader2, X, FileCheck, Download } from 'lucide-react'
+import { Plus, Trash2, FileText, Upload, CheckCircle2, AlertCircle, Loader2, X, FileCheck, Download } from 'lucide-react'
 import { getKnowledgeBase, upsertKnowledge, deleteKnowledge } from './actions'
 import { getMyProfile } from '@/app/(app)/cockpit/actions'
 import { hasPermission } from '@/utils/permissions'
@@ -182,17 +182,11 @@ export default function KnowledgeBasePage() {
     <div className="space-y-6 pb-20 max-w-7xl mx-auto">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-[#ffffff10] rounded-xl border border-[#ffffff20]">
-            <BookOpen className="w-6 h-6 text-[#2BAADF]" />
-          </div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-bold text-white tracking-tight">Base de Conhecimento</h1>
-            {!isLoading && items.length > 0 && (
-              <span className="hidden sm:inline-flex items-center rounded-full bg-[#ffffff08] border border-[#ffffff10] px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-gray-400">
-                {items.length} {items.length === 1 ? 'documento' : 'documentos'}
-              </span>
-            )}
-          </div>
+          {!isLoading && items.length > 0 && (
+            <span className="inline-flex items-center rounded-full bg-[#ffffff08] border border-[#ffffff10] px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-gray-400">
+              {items.length} {items.length === 1 ? 'documento' : 'documentos'}
+            </span>
+          )}
         </div>
 
         {canCreate && (

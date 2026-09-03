@@ -1,6 +1,6 @@
 import { createClient } from "@/utils/supabase/server"
 import Link from "next/link"
-import { Building2, Plus, Users, LayoutDashboard, Pencil, Search, RotateCcw } from "lucide-react"
+import { Building2, Plus, Users, Pencil, RotateCcw, Target } from "lucide-react"
 import SearchFilters from "./SearchFilters"
 import { getMyProfile } from "@/app/(app)/cockpit/actions"
 import { hasPermission } from "@/utils/permissions"
@@ -55,20 +55,14 @@ export default async function DepartamentosPage(props: {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight text-white flex items-center gap-3">
-            <LayoutDashboard className="w-6 h-6 text-[#80B828]" />
-            Departamentos
-          </h2>
-          <p className="text-sm text-gray-400 mt-1">
-            Organize equipes e permissões específicas para os workflows de CRM (Kanban).
-          </p>
-        </div>
+      <div className="flex items-center justify-between gap-4">
+        <p className="text-sm text-gray-400">
+          Organize equipes e permissões específicas para os workflows de CRM (Kanban).
+        </p>
         {canCreate && (
           <Link
             href="/cockpit/departamentos/novo"
-            className="bg-gradient-to-r from-[#80B828] to-[#5A8F1A] hover:shadow-[0_4px_24px_rgba(128,184,40,0.35)] text-white px-5 py-2.5 rounded-lg text-sm font-semibold transition-all inline-flex items-center gap-2"
+            className="bg-gradient-to-r from-[#80B828] to-[#5A8F1A] hover:shadow-[0_4px_24px_rgba(128,184,40,0.35)] text-white px-5 py-2.5 rounded-lg text-sm font-semibold transition-all inline-flex items-center gap-2 shrink-0"
           >
             <Plus className="w-4 h-4" />
             Novo Departamento
@@ -94,7 +88,7 @@ export default async function DepartamentosPage(props: {
       {(!departments || departments.length === 0) ? (
         <div className="rounded-2xl border border-[#ffffff0a] bg-[#111111] p-16 text-center space-y-4">
           <div className="w-16 h-16 rounded-full bg-[#ffffff05] border border-[#ffffff0a] flex items-center justify-center mx-auto mb-2">
-            <LayoutDashboard className="w-8 h-8 text-gray-700" />
+            <Target className="w-8 h-8 text-gray-700" />
           </div>
           <div>
             <p className="text-gray-400 font-medium">Nenhum departamento encontrado.</p>
@@ -126,7 +120,7 @@ export default async function DepartamentosPage(props: {
               <div className="flex flex-col h-full">
                 <div className="flex items-start justify-between gap-3 mb-4">
                   <div className="w-10 h-10 rounded-xl bg-[#80B828]/10 border border-[#80B828]/20 flex items-center justify-center flex-shrink-0">
-                    <LayoutDashboard className="w-5 h-5 text-[#80B828]" />
+                    <Target className="w-5 h-5 text-[#80B828]" />
                   </div>
                   {canEdit && (
                     <Link

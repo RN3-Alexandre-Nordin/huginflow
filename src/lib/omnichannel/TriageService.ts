@@ -1,9 +1,9 @@
 import { HuginMessage } from '@/types/omnichannel'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { normalizeWhatsAppPhone } from '@/lib/omnichannel/phone'
-import { ConversaHistoricoService } from '@/lib/omnichannel/ConversaHistoricoService'
 import { isDeptSessionsEnabled } from '@/lib/omnichannel/dept-sessions-constants'
 import { ActiveSpeakerService } from '@/lib/omnichannel/ChatThreadService'
+import { SessionPersistenceService } from '@/lib/omnichannel/SessionPersistenceService'
 
 export class TriageService {
   /**
@@ -57,10 +57,6 @@ export class TriageService {
       return true
     }
 
-    if (conversa.status === 'human') {
-      return false
-    }
-
     if (conversa.status === 'closed') {
       return true
     }
@@ -69,6 +65,8 @@ export class TriageService {
       return false
     }
 
+    // Modo silêncio: só após interação HUMANA real (operador respondeu).
+    // Handover da IA seta status=human, mas NÃO deve congelar até o humano falar.
     if (conversa.last_human_interaction) {
       const lastInteraction = new Date(conversa.last_human_interaction).getTime()
       const diffInMinutes = (Date.now() - lastInteraction) / (1000 * 60)
@@ -76,23 +74,32 @@ export class TriageService {
         (conversa.empresas as { ia_silence_timeout?: number } | null)?.ia_silence_timeout ?? 60
 
       if (diffInMinutes < timeout) {
-        console.log(`[Triage] Silêncio IA ativo: ${diffInMinutes.toFixed(1)}m / ${timeout}m`)
+        console.log(
+          `[Triage] Silêncio IA (humano respondeu há ${diffInMinutes.toFixed(1)}m / timeout ${timeout}m)`,
+        )
         return false
       }
+
+      console.log(
+        `[Triage] Timeout de silêncio expirado (${diffInMinutes.toFixed(1)}m ≥ ${timeout}m) — IA pode retomar`,
+      )
+      return true
     }
 
-    return !conversa.status || conversa.status === 'ai'
+    // status=human sem last_human_interaction = card na fila, humano ainda não falou → IA continua
+    return !conversa.status || conversa.status === 'ai' || conversa.status === 'human'
   }
 
   /**
-   * Grava uma nova linha em crm_conversas (mensagem recebida) e retorna o sessao_id do thread.
-   * Com dept sessions: usa falante ativo quando válido.
+   * Grava inbound via caminho único (conversas + interações + thread).
+   * Preferir SessionPersistenceService.persistMessage nos callers novos.
    */
   static async recordInboundMessage(
     message: HuginMessage,
     canalId: string,
     supabase: SupabaseClient,
     leadId?: string,
+    metadata?: Record<string, unknown>,
   ): Promise<string | null> {
     const externalId = normalizeWhatsAppPhone(message.sender_id)
     message.sender_id = externalId
@@ -113,20 +120,32 @@ export class TriageService {
       }
     }
 
-    return ConversaHistoricoService.appendMessage(
-      {
-        empresa_id: message.empresa_id,
-        canal_id: canalId,
-        external_id: externalId,
-        lead_id: leadId,
-        role: 'user',
-        content: message.content,
-        direcao: 'inbound',
-        metadata: message.metadata as Record<string, unknown> | undefined,
-        sessao_id: forcedSessao,
+    const result = await SessionPersistenceService.persistMessage(supabase, {
+      empresaId: message.empresa_id,
+      canalId,
+      externalId,
+      leadId,
+      role: 'user',
+      content: message.content,
+      direcao: 'inbound',
+      status: 'ai',
+      contactPhone: externalId,
+      contactName: message.sender_name || 'Usuário WhatsApp',
+      createdAt: message.created_at
+        ? new Date(message.created_at).toISOString()
+        : undefined,
+      metadata: {
+        ...(message.metadata as Record<string, unknown> | undefined),
+        ...metadata,
       },
-      supabase,
-    )
+      sessaoId: forcedSessao,
+    })
+
+    if (!result.success) {
+      console.error('[Triage] persistMessage falhou:', result.error)
+      return null
+    }
+    return result.sessaoId ?? null
   }
 
   /** @deprecated Use recordInboundMessage — mantido para compatibilidade interna */

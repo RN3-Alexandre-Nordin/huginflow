@@ -11,9 +11,7 @@ import {
   notifyCardAssignmentAndChanges,
   notifyCardResponsavelOnChange,
 } from '@/lib/crm/notifyCardResponsavel'
-import { isDeptSessionsEnabled } from '@/lib/omnichannel/dept-sessions-constants'
-import { ChatThreadService } from '@/lib/omnichannel/ChatThreadService'
-import { normalizeWhatsAppPhone } from '@/lib/omnichannel/phone'
+import { SessionPersistenceService } from '@/lib/omnichannel/SessionPersistenceService'
 
 export type EnsureDocumentCardInput = {
   empresaId: string
@@ -27,6 +25,7 @@ export type EnsureDocumentCardInput = {
   observacao?: string | null
   origem?: string
   ilegivel?: boolean
+  canalId?: string | null
 }
 
 export type EnsureDocumentCardResult = {
@@ -49,8 +48,9 @@ export class DocumentCardEnsurer {
       financeiro_recibo: { funil_nome: 'Financeiro', departamento_nome: 'Financeiro' },
       financeiro_documento: { funil_nome: 'Financeiro', departamento_nome: 'Financeiro' },
       expedicao_comprovante: { funil_nome: 'Expedição', departamento_nome: 'Expedição' },
-      // Ilegível/incerto: Financeiro por padrão (boletos/PIX/cobranças são o caso mais comum)
-      documento_nao_identificado: { funil_nome: 'Financeiro', departamento_nome: 'Financeiro' },
+      // Ilegível/incerto (logo, imagem genérica, OCR falhou): Atendimento/Comercial —
+      // NÃO Financeiro (KB: assunto ambíguo → Comercial/Atendimento ou perguntar).
+      documento_nao_identificado: { funil_nome: 'Atendimento', departamento_nome: 'Comercial' },
     }
     return resolveFunilFromTriage(facts, route[categoria] ?? route.documento_nao_identificado)
   }
@@ -71,7 +71,21 @@ export class DocumentCardEnsurer {
       observacao,
       origem = 'document_ensurer',
       ilegivel = false,
+      canalId: canalIdInput,
     } = input
+
+    let canalId = canalIdInput ?? null
+    if (!canalId) {
+      const { data: hist } = await supabase
+        .from('crm_conversas')
+        .select('canal_id')
+        .eq('sessao_id', sessaoId)
+        .eq('empresa_id', empresaId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      canalId = (hist?.canal_id as string | null) ?? null
+    }
 
     const match = await CardDocumentMatcher.findMatchingCard(supabase, {
       empresaId,
@@ -96,6 +110,18 @@ export class DocumentCardEnsurer {
       }
 
       await supabase.from('crm_cards').update(patch).eq('id', match.cardId).eq('empresa_id', empresaId)
+
+      if (canalId) {
+        await SessionPersistenceService.ensureSession(supabase, {
+          empresaId,
+          canalId,
+          externalId: contactPhone,
+          sessaoId,
+          leadId,
+          cardId: match.cardId,
+          status: 'human',
+        })
+      }
 
       const { data: cardRow } = await supabase
         .from('crm_cards')
@@ -178,7 +204,8 @@ export class DocumentCardEnsurer {
         titulo: `WhatsApp: ${contactName}`,
         cliente_nome: contactName,
         descricao: resumo.slice(0, 2000),
-        conversa_id: isDeptSessionsEnabled() ? null : sessaoId,
+        // Sempre vincula à sessão WhatsApp onde o documento chegou
+        conversa_id: sessaoId,
         observacao: obs,
         metadados,
       })
@@ -195,33 +222,22 @@ export class DocumentCardEnsurer {
       }
     }
 
-    if (isDeptSessionsEnabled()) {
+    // Vincula thread + ponteiro (caminho único)
+    if (canalId) {
       try {
-        const { data: conv } = await supabase
-          .from('crm_conversas')
-          .select('canal_id, external_id')
-          .eq('sessao_id', sessaoId)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle()
-        const phone = normalizeWhatsAppPhone(contactPhone || conv?.external_id || '')
-        if (conv?.canal_id && phone) {
-          await ChatThreadService.ensureThreadForCard(supabase, {
-            empresaId,
-            canalId: conv.canal_id,
-            externalId: phone,
-            leadId,
-            cardId: created.id,
-            pipelineId: funil.id,
-            departamentoId: funil.departamento_id,
-          })
-        }
+        await SessionPersistenceService.ensureSession(supabase, {
+          empresaId,
+          canalId,
+          externalId: contactPhone,
+          sessaoId,
+          leadId,
+          cardId: created.id,
+          pipelineId: funil.id,
+          departamentoId: funil.departamento_id,
+          status: 'human',
+        })
       } catch (err) {
-        console.error('[DocumentCardEnsurer] thread isolada:', err)
-        await supabase
-          .from('crm_cards')
-          .update({ conversa_id: sessaoId })
-          .eq('id', created.id)
+        console.error('[DocumentCardEnsurer] ensureSession:', err)
       }
     }
 
@@ -229,22 +245,47 @@ export class DocumentCardEnsurer {
     // Handover na sessão inbound (falante atual); thread do card isolada sem roubar o falante
     await this.applyHandover(supabase, empresaId, sessaoId, responsavelId)
 
-    await supabase.from('crm_interacoes').insert({
-      empresa_id: empresaId,
-      lead_id: leadId,
-      conversa_id: sessaoId,
-      contact_phone: contactPhone,
-      contact_name: contactName,
-      role: 'system',
-      content: '(Encaminhamento documento)',
-      log_sistema: `Card criado no funil ${funil.nome} (categoria=${categoria}) por fallback determinístico.`,
-      metadata: {
-        type: 'document_ensurer_reasoning',
-        card_id: created.id,
-        categoria,
-        funil_id: funil.id,
-      },
-    })
+    if (canalId) {
+      await SessionPersistenceService.persistMessage(supabase, {
+        empresaId,
+        canalId,
+        externalId: contactPhone,
+        leadId,
+        sessaoId,
+        cardId: created.id,
+        pipelineId: funil.id,
+        departamentoId: funil.departamento_id,
+        role: 'system',
+        content: '(Encaminhamento documento)',
+        direcao: 'outbound',
+        contactPhone,
+        contactName,
+        logSistema: `Card criado no funil ${funil.nome} (categoria=${categoria}) por fallback determinístico.`,
+        metadata: {
+          type: 'document_ensurer_reasoning',
+          card_id: created.id,
+          categoria,
+          funil_id: funil.id,
+        },
+      })
+    } else {
+      await supabase.from('crm_interacoes').insert({
+        empresa_id: empresaId,
+        lead_id: leadId,
+        conversa_id: sessaoId,
+        contact_phone: contactPhone,
+        contact_name: contactName,
+        role: 'system',
+        content: '(Encaminhamento documento)',
+        log_sistema: `Card criado no funil ${funil.nome} (categoria=${categoria}) por fallback determinístico.`,
+        metadata: {
+          type: 'document_ensurer_reasoning',
+          card_id: created.id,
+          categoria,
+          funil_id: funil.id,
+        },
+      })
+    }
 
     try {
       await notifyCardAssignmentAndChanges({
@@ -289,7 +330,6 @@ export class DocumentCardEnsurer {
       .update({
         status: 'human',
         atribuido_a_id: responsavelId,
-        last_human_interaction: now,
         updated_at: now,
       })
       .eq('sessao_id', sessaoId)

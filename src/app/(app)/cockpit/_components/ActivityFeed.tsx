@@ -43,6 +43,30 @@ type ActivityItem = {
   variant: ActivityVariant;
 };
 
+type WorkflowActivityRow = Omit<ActivityItem, "variant"> & {
+  pipelines?: { nome?: string } | { nome?: string }[] | null;
+  pipeline_stages?: { nome?: string } | { nome?: string }[] | null;
+};
+
+function normalizeRelation<T extends { nome?: string }>(
+  value: T | T[] | null | undefined
+): T | null {
+  if (Array.isArray(value)) return value[0] ?? null;
+  return value ?? null;
+}
+
+function toActivityItem(row: WorkflowActivityRow): ActivityItem {
+  return {
+    id: row.id,
+    titulo: row.titulo,
+    data_prazo: row.data_prazo,
+    pipeline_id: row.pipeline_id,
+    pipelines: normalizeRelation(row.pipelines),
+    pipeline_stages: normalizeRelation(row.pipeline_stages),
+    variant: "inProgress",
+  };
+}
+
 function partitionActivities(activities: ActivityItem[], todayAtMidnight: Date) {
   const overdue: ActivityItem[] = [];
   const today: ActivityItem[] = [];
@@ -86,7 +110,7 @@ export default function ActivityFeed({ userId }: ActivityFeedProps) {
   const todayAtMidnight = startOfToday();
 
   const partitioned = useMemo(() => {
-    const items = (activities || []).map((a) => ({ ...a, variant: "inProgress" as ActivityVariant }));
+    const items = (activities || []).map((a) => toActivityItem(a as WorkflowActivityRow));
     return partitionActivities(items, todayAtMidnight);
   }, [activities, todayAtMidnight]);
 

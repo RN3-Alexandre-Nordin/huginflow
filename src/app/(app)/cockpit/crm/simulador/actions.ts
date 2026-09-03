@@ -8,8 +8,13 @@ import { GeminiChatService } from '@/lib/crm/GeminiChatService'
 import { AUDIO_PLACEHOLDER } from '@/lib/omnichannel/audio-transcription-constants'
 import type { TranscriptionMetadata } from '@/lib/omnichannel/services/AudioTranscriptionService'
 import { AudioTranscriptionService } from '@/lib/omnichannel/services/AudioTranscriptionService'
-import { ConversaHistoricoService } from '@/lib/omnichannel/ConversaHistoricoService'
+import { SessionPersistenceService } from '@/lib/omnichannel/SessionPersistenceService'
 import { TriageActionExecutor } from '@/lib/omnichannel/triage/TriageActionExecutor'
+import {
+  DEFAULT_OUT_OF_SCOPE_REPLY,
+  evaluateMessageScope,
+} from '@/lib/omnichannel/triage/scopeGate'
+import { stripOutboundTags } from '@/lib/omnichannel/triage/parseTriageTags'
 import {
   DOCUMENT_AUTO_REPLY_IN_HOURS,
   DOCUMENT_AUTO_REPLY_OUT_HOURS,
@@ -149,38 +154,118 @@ async function runSimulatorExchange(
 ): Promise<SimulatorChatResult> {
   const canalId = await ensureSimulatorCanal(supabase, targetEmpresaId)
 
-  const sessaoId = await ConversaHistoricoService.appendMessage(
-    {
-      empresa_id: targetEmpresaId,
-      canal_id: canalId,
-      external_id: cleanPhone,
-      lead_id: leadId,
-      role: 'user',
-      content: userContent,
-      direcao: 'inbound',
-      status: 'ai',
-      metadata: { ...(userMetadata ?? {}), provider: 'simulator' },
-    },
-    supabase,
-  )
+  const userPersist = await SessionPersistenceService.persistMessage(supabase, {
+    empresaId: targetEmpresaId,
+    canalId,
+    externalId: cleanPhone,
+    leadId,
+    role: 'user',
+    content: userContent,
+    direcao: 'inbound',
+    status: 'ai',
+    contactPhone: cleanPhone,
+    contactName: name,
+    metadata: { ...(userMetadata ?? {}), provider: 'simulator' },
+  })
 
-  await supabase.from('crm_interacoes').insert([
-    {
-      empresa_id: targetEmpresaId,
-      lead_id: leadId,
-      conversa_id: sessaoId,
-      contact_phone: cleanPhone,
-      contact_name: name,
-      role: 'user',
-      content: userContent,
-      metadata: { ...(userMetadata ?? {}), provider: 'simulator' },
-    },
-  ])
+  const sessaoId = userPersist.sessaoId ?? null
+  if (!userPersist.success || !sessaoId) {
+    return { error: userPersist.error || 'Não foi possível abrir a sessão de conversa.' }
+  }
+
+  const { data: openCard } = await supabase
+    .from('crm_cards')
+    .select('id')
+    .eq('empresa_id', targetEmpresaId)
+    .eq('lead_id', leadId)
+    .eq('finalizado', false)
+    .limit(1)
+    .maybeSingle()
+
+  const scope = await evaluateMessageScope(supabase, {
+    empresaId: targetEmpresaId,
+    leadId,
+    message: messageText,
+    hasOpenCard: Boolean(openCard?.id),
+  })
+
+  if (!scope.inScope) {
+    const textToSend = scope.reply || DEFAULT_OUT_OF_SCOPE_REPLY
+    await SessionPersistenceService.persistMessage(supabase, {
+      empresaId: targetEmpresaId,
+      canalId,
+      externalId: cleanPhone,
+      leadId,
+      sessaoId,
+      role: 'system',
+      content: '(Escopo IA)',
+      direcao: 'outbound',
+      contactPhone: cleanPhone,
+      contactName: name,
+      logSistema: `OUT_OF_SCOPE (gate): ${scope.reason}`,
+      metadata: {
+        type: 'ai_scope_reasoning',
+        action: 'OUT_OF_SCOPE',
+        crm_status: 'FORA_ESCOPO',
+        provider: 'simulator',
+      },
+    })
+
+    await SessionPersistenceService.persistMessage(supabase, {
+      empresaId: targetEmpresaId,
+      canalId,
+      externalId: cleanPhone,
+      leadId,
+      sessaoId,
+      role: 'assistant',
+      content: textToSend,
+      direcao: 'outbound',
+      status: 'ai',
+      isAi: true,
+      contactPhone: cleanPhone,
+      contactName: name,
+      metadata: {
+        provider: 'simulator',
+        is_ai: true,
+        crm_status: 'FORA_ESCOPO',
+        triage_actions: ['OUT_OF_SCOPE'],
+        scope_gate: true,
+      },
+    })
+
+    revalidatePath('/cockpit/crm/simulador')
+    revalidatePath('/cockpit/crm/chat')
+    revalidatePath('/cockpit')
+
+    return {
+      success: true,
+      response: textToSend,
+      responseRaw: textToSend,
+      userContent,
+      transcriptionOk: true,
+      triage: {
+        actions: ['OUT_OF_SCOPE'],
+        crmStatus: 'FORA_ESCOPO',
+        triage: null,
+        cardId: null,
+        responsavelId: null,
+        responsavelNome: null,
+        handover: false,
+        dentroHorario: true,
+        reasoning: scope.reason,
+        sessaoId,
+        mediaKind: (userMetadata?.media_type as TriageDebug['mediaKind']) || 'text',
+        mediaOk: true,
+        mediaDetail:
+          typeof userMetadata?.media_detail === 'string' ? userMetadata.media_detail : undefined,
+      },
+    }
+  }
 
   const aiResult = await GeminiChatService.generateReply(supabase, {
     empresaId: targetEmpresaId,
     leadId,
-    conversaId: sessaoId ?? undefined,
+    conversaId: sessaoId,
     contactPhone: cleanPhone,
     contactName: name,
     message: messageText,
@@ -190,26 +275,24 @@ async function runSimulatorExchange(
     return { error: aiResult.error }
   }
 
-  let triageResult = {
-    executed: [] as string[],
-    cardId: null as string | null,
-    responsavelId: null as string | null,
-    handover: false,
-    reasoning: 'Sessão não criada — triagem não executada.',
+  let responseForWhatsApp = aiResult.responseForWhatsApp
+  let crmStatus = aiResult.crmStatus
+  if (aiResult.tags.actions.includes('OUT_OF_SCOPE')) {
+    const cleaned = stripOutboundTags(responseForWhatsApp || aiResult.response)
+    responseForWhatsApp = cleaned.length >= 12 ? cleaned : DEFAULT_OUT_OF_SCOPE_REPLY
+    crmStatus = crmStatus ?? 'FORA_ESCOPO'
   }
 
-  if (sessaoId) {
-    triageResult = await TriageActionExecutor.execute(supabase, {
-      empresaId: targetEmpresaId,
-      leadId,
-      sessaoId,
-      canalId,
-      contactPhone: cleanPhone,
-      contactName: name,
-      facts: aiResult.facts,
-      tags: aiResult.tags,
-    })
-  }
+  const triageResult = await TriageActionExecutor.execute(supabase, {
+    empresaId: targetEmpresaId,
+    leadId,
+    sessaoId,
+    canalId,
+    contactPhone: cleanPhone,
+    contactName: name,
+    facts: aiResult.facts,
+    tags: aiResult.tags,
+  })
 
   let responsavelNome: string | null = null
   if (triageResult.responsavelId) {
@@ -221,61 +304,42 @@ async function runSimulatorExchange(
     responsavelNome = resp?.nome_completo ?? null
   }
 
-  await supabase.from('crm_interacoes').insert([
-    {
-      empresa_id: targetEmpresaId,
-      lead_id: leadId,
-      conversa_id: sessaoId,
-      contact_phone: cleanPhone,
-      contact_name: name,
-      role: 'assistant',
-      content: aiResult.responseForWhatsApp || aiResult.response,
-      metadata: {
-        provider: 'simulator',
-        is_ai: true,
-        crm_status: aiResult.crmStatus ?? null,
-        triage_actions: triageResult.executed,
-        card_id: triageResult.cardId,
-        responsavel_id: triageResult.responsavelId,
-        triage: aiResult.tags.triage ?? null,
-      },
+  await SessionPersistenceService.persistMessage(supabase, {
+    empresaId: targetEmpresaId,
+    canalId,
+    externalId: cleanPhone,
+    leadId,
+    sessaoId,
+    cardId: triageResult.cardId,
+    role: 'assistant',
+    content: responseForWhatsApp || aiResult.response,
+    direcao: 'outbound',
+    status: triageResult.handover ? 'human' : 'ai',
+    atribuidoAId: triageResult.responsavelId,
+    isAi: true,
+    contactPhone: cleanPhone,
+    contactName: name,
+    metadata: {
+      provider: 'simulator',
+      is_ai: true,
+      crm_status: crmStatus ?? null,
+      triage_actions: triageResult.executed,
+      card_id: triageResult.cardId,
+      responsavel_id: triageResult.responsavelId,
+      triage: aiResult.tags.triage ?? null,
     },
-  ])
+  })
 
-  if (sessaoId) {
-    await ConversaHistoricoService.appendMessage(
-      {
-        empresa_id: targetEmpresaId,
-        canal_id: canalId,
-        external_id: cleanPhone,
-        lead_id: leadId,
-        role: 'assistant',
-        content: aiResult.responseForWhatsApp || aiResult.response,
-        direcao: 'outbound',
-        status: triageResult.handover ? 'human' : 'ai',
+  if (triageResult.handover) {
+    await supabase
+      .from('crm_conversas')
+      .update({
+        status: 'human',
         atribuido_a_id: triageResult.responsavelId,
-        is_ai: true,
-        metadata: {
-          provider: 'simulator',
-          is_ai: true,
-          triage_actions: triageResult.executed,
-        },
-      },
-      supabase,
-    )
-
-    if (triageResult.handover) {
-      await supabase
-        .from('crm_conversas')
-        .update({
-          status: 'human',
-          atribuido_a_id: triageResult.responsavelId,
-          last_human_interaction: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
-        .eq('sessao_id', sessaoId)
-        .eq('empresa_id', targetEmpresaId)
-    }
+        updated_at: new Date().toISOString(),
+      })
+      .eq('sessao_id', sessaoId)
+      .eq('empresa_id', targetEmpresaId)
   }
 
   revalidatePath('/cockpit/crm/simulador')
@@ -284,13 +348,13 @@ async function runSimulatorExchange(
 
   return {
     success: true,
-    response: aiResult.responseForWhatsApp || aiResult.response,
+    response: responseForWhatsApp || aiResult.response,
     responseRaw: aiResult.response,
     userContent,
     transcriptionOk: true,
     triage: {
       actions: triageResult.executed,
-      crmStatus: aiResult.crmStatus,
+      crmStatus,
       triage: aiResult.tags.triage
         ? (aiResult.tags.triage as Record<string, string | undefined>)
         : null,
@@ -411,7 +475,7 @@ export async function processChatAudio(formData: FormData) {
     placeholder: AUDIO_PLACEHOLDER,
     triage: {
       ...result.triage,
-      mediaKind: 'audio',
+      mediaKind: 'audio' as const,
       mediaOk: transcription.ok,
       mediaDetail: transcription.reasoning,
     },
@@ -478,39 +542,27 @@ export async function processChatDocument(formData: FormData) {
       ? DOCUMENT_TOO_LARGE
       : docResult.fallbackContent
 
-  const sessaoId = await ConversaHistoricoService.appendMessage(
-    {
-      empresa_id: targetEmpresaId,
-      canal_id: canalId,
-      external_id: cleanPhone,
-      lead_id: leadResult.leadId,
-      role: 'user',
-      content: userContent,
-      direcao: 'inbound',
-      status: 'ai',
-      metadata: {
-        provider: 'simulator',
-        ...(docResult.ok ? docResult.metadata : docResult.metadata),
-      },
+  const userDocPersist = await SessionPersistenceService.persistMessage(supabase, {
+    empresaId: targetEmpresaId,
+    canalId,
+    externalId: cleanPhone,
+    leadId: leadResult.leadId,
+    role: 'user',
+    content: userContent,
+    direcao: 'inbound',
+    status: 'ai',
+    contactPhone: cleanPhone,
+    contactName: name,
+    metadata: {
+      provider: 'simulator',
+      ...(docResult.ok ? docResult.metadata : docResult.metadata),
     },
-    supabase,
-  )
+  })
 
-  await supabase.from('crm_interacoes').insert([
-    {
-      empresa_id: targetEmpresaId,
-      lead_id: leadResult.leadId,
-      conversa_id: sessaoId,
-      contact_phone: cleanPhone,
-      contact_name: name,
-      role: 'user',
-      content: userContent,
-      metadata: {
-        provider: 'simulator',
-        ...(docResult.ok ? docResult.metadata : docResult.metadata),
-      },
-    },
-  ])
+  const sessaoId = userDocPersist.sessaoId ?? null
+  if (!userDocPersist.success || !sessaoId) {
+    return { error: userDocPersist.error || 'Não foi possível abrir a sessão de conversa.' }
+  }
 
   const reasons: string[] = [docResult.reasoning]
   let cardId: string | null = null
@@ -522,10 +574,6 @@ export async function processChatDocument(formData: FormData) {
   let documentLegivel = false
   let documentResumo = fileName
 
-  if (!sessaoId) {
-    return { error: 'Não foi possível abrir a sessão de conversa.' }
-  }
-
   if (!docResult.ok) {
     documentCategoria =
       inferCategoryFromHints(fileName, caption) ?? 'documento_nao_identificado'
@@ -533,6 +581,7 @@ export async function processChatDocument(formData: FormData) {
       empresaId: targetEmpresaId,
       leadId: leadResult.leadId,
       sessaoId,
+      canalId,
       contactPhone: cleanPhone,
       contactName: name,
       facts,
@@ -653,7 +702,6 @@ export async function processChatDocument(formData: FormData) {
       .update({
         status: 'human',
         atribuido_a_id: responsavelId,
-        last_human_interaction: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
       .eq('sessao_id', sessaoId)
@@ -663,6 +711,7 @@ export async function processChatDocument(formData: FormData) {
       empresaId: targetEmpresaId,
       leadId: leadResult.leadId,
       sessaoId,
+      canalId,
       contactPhone: cleanPhone,
       contactName: name,
       facts,
@@ -700,6 +749,7 @@ export async function processChatDocument(formData: FormData) {
       empresaId: targetEmpresaId,
       leadId: leadResult.leadId,
       sessaoId,
+      canalId,
       contactPhone: cleanPhone,
       contactName: name,
       facts,
@@ -737,15 +787,19 @@ export async function processChatDocument(formData: FormData) {
     responsavelNome = resp?.nome_completo ?? null
   }
 
-  await supabase.from('crm_interacoes').insert({
-    empresa_id: targetEmpresaId,
-    lead_id: leadResult.leadId,
-    conversa_id: sessaoId,
-    contact_phone: cleanPhone,
-    contact_name: name,
+  await SessionPersistenceService.persistMessage(supabase, {
+    empresaId: targetEmpresaId,
+    canalId,
+    externalId: cleanPhone,
+    leadId: leadResult.leadId,
+    sessaoId,
+    cardId,
     role: 'system',
     content: '(Documento simulador)',
-    log_sistema: reasons.join(' '),
+    direcao: 'outbound',
+    contactPhone: cleanPhone,
+    contactName: name,
+    logSistema: reasons.join(' '),
     metadata: {
       type: 'simulator_document_reasoning',
       card_id: cardId,
@@ -815,55 +869,42 @@ async function persistSimulatorAssistant(
   handover: boolean,
   reasoning: string,
 ) {
-  await supabase.from('crm_interacoes').insert([
-    {
-      empresa_id: empresaId,
-      lead_id: leadId,
-      conversa_id: sessaoId,
-      contact_phone: phone,
-      contact_name: name,
-      role: 'assistant',
-      content: text,
-      metadata: {
-        provider: 'simulator',
-        is_ai: true,
-        document_auto_reply: true,
-        card_id: cardId,
-        reasoning,
-      },
+  if (!sessaoId) return
+
+  await SessionPersistenceService.persistMessage(supabase, {
+    empresaId,
+    canalId,
+    externalId: phone,
+    leadId,
+    sessaoId,
+    cardId,
+    role: 'assistant',
+    content: text,
+    direcao: 'outbound',
+    status: handover ? 'human' : 'ai',
+    atribuidoAId: responsavelId,
+    isAi: true,
+    contactPhone: phone,
+    contactName: name,
+    metadata: {
+      provider: 'simulator',
+      is_ai: true,
+      document_auto_reply: true,
+      card_id: cardId,
+      reasoning,
     },
-  ])
+  })
 
-  if (sessaoId) {
-    await ConversaHistoricoService.appendMessage(
-      {
-        empresa_id: empresaId,
-        canal_id: canalId,
-        external_id: phone,
-        lead_id: leadId,
-        role: 'assistant',
-        content: text,
-        direcao: 'outbound',
-        status: handover ? 'human' : 'ai',
+  if (handover) {
+    await supabase
+      .from('crm_conversas')
+      .update({
+        status: 'human',
         atribuido_a_id: responsavelId,
-        is_ai: true,
-        metadata: { provider: 'simulator', document_auto_reply: true, card_id: cardId },
-      },
-      supabase,
-    )
-
-    if (handover) {
-      await supabase
-        .from('crm_conversas')
-        .update({
-          status: 'human',
-          atribuido_a_id: responsavelId,
-          last_human_interaction: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
-        .eq('sessao_id', sessaoId)
-        .eq('empresa_id', empresaId)
-    }
+        updated_at: new Date().toISOString(),
+      })
+      .eq('sessao_id', sessaoId)
+      .eq('empresa_id', empresaId)
   }
 }
 

@@ -100,13 +100,31 @@ export async function createCrmCard(pipelineId: string, stageId: string, formDat
   const titulo = formData.get('titulo') as string
   const descricao = formData.get('descricao') as string
   const valor = formData.get('valor') || 0
-  const cliente_nome = formData.get('cliente_nome') as string || null
+  const lead_id = (formData.get('lead_id') as string)?.trim() || null
   const responsavelFromForm = formData.get('responsavel_id') as string
   const responsavel_id = responsavelFromForm || me?.id || null
   const data_prazo_form = formData.get('data_prazo') as string || null
 
+  if (!lead_id) {
+    return { error: 'Selecione um lead da base. Todo card precisa estar vinculado a um lead.' }
+  }
+
   const supabase = await createClient()
   const empresaId = me?.role_global === 'superadmin' ? formData.get('empresa_id') as string : me?.empresa_id ?? ''
+
+  let leadQuery = supabase
+    .from('crm_leads')
+    .select('id, nome')
+    .eq('id', lead_id)
+  if (me?.role_global !== 'superadmin') {
+    leadQuery = leadQuery.eq('empresa_id', me?.empresa_id ?? '')
+  }
+  const { data: lead, error: leadErr } = await leadQuery.maybeSingle()
+  if (leadErr || !lead) {
+    return { error: 'Lead não encontrado ou sem permissão para vinculá-lo.' }
+  }
+
+  const cliente_nome = lead.nome?.trim() || null
 
   // Se não digitou prazo manualmente, calcula a partir do SLA do estágio
   // sla_dias = null → mesmo dia (0 dias); sla_dias = N → hoje + N dias
@@ -130,6 +148,7 @@ export async function createCrmCard(pipelineId: string, stageId: string, formDat
       descricao,
       valor: Number(valor),
       cliente_nome,
+      lead_id: lead.id,
       pipeline_id: pipelineId,
       stage_id: stageId,
       empresa_id: empresaId,
@@ -169,7 +188,8 @@ export async function createCrmCard(pipelineId: string, stageId: string, formDat
     })
   }
 
-  revalidatePath(`/cockpit/crm/${pipelineId}`)
+  revalidatePath(`/cockpit/crm/funis/${pipelineId}`)
+  return { success: true, id: newCard?.id }
 }
 
 export async function updateCardStage(cardId: string, pipelineId: string, newStageId: string) {

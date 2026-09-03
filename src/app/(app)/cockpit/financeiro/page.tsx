@@ -2,7 +2,7 @@ import Link from "next/link"
 import { redirect } from "next/navigation"
 import { getMyProfile } from "@/app/(app)/cockpit/actions"
 import { isRn3SuperAdmin } from "@/utils/permissions"
-import { Wallet, ArrowRight, Plus, List, FileText } from "lucide-react"
+import { ArrowRight, Plus, List, FileText } from "lucide-react"
 import { getFinanceDashboard } from "./actions"
 import { formatBRL } from "@/lib/finance/format"
 import { createClient } from "@/utils/supabase/server"
@@ -48,15 +48,9 @@ export default async function FinanceiroPage(props: {
   return (
     <div className="space-y-8 pb-20 font-sans">
       <div className="flex items-center justify-between flex-wrap gap-4">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight text-white flex items-center gap-3">
-            <Wallet className="w-7 h-7 text-[#E8A317]" />
-            Financeiro — Contas a Receber
-          </h2>
-          <p className="text-sm text-gray-400 mt-1 font-medium">
-            Visão consolidada de recebíveis, vencimentos e baixas.
-          </p>
-        </div>
+        <p className="text-sm text-gray-400 font-medium">
+          Visão consolidada de recebíveis, vencimentos e baixas.
+        </p>
         <div className="flex items-center gap-3">
           {canCreate && (
             <Link

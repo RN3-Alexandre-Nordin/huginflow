@@ -7,6 +7,10 @@ import { isChannelAiEnabled } from '@/lib/omnichannel/channel-ai';
 import { normalizeWhatsAppPhone } from '@/lib/omnichannel/phone';
 import { getRoutingConfig } from '@/utils/crm/routing';
 import { HuginEvent, HuginMessage } from '@/types/omnichannel';
+import { applyInboundChannelStatus } from '@/lib/omnichannel/empresa-webhooks';
+import { SessionPersistenceService } from '@/lib/omnichannel/SessionPersistenceService';
+import { isDeptSessionsEnabled } from '@/lib/omnichannel/dept-sessions-constants';
+import { ActiveSpeakerService } from '@/lib/omnichannel/ChatThreadService';
 
 function createWebhookSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -27,22 +31,23 @@ async function handleConnectionUpdate(
     return NextResponse.json({ status: 'ignored', reason: 'missing_instance' });
   }
 
-  const { error: statusError } = await supabase
-    .from('crm_canais')
-    .update({ status: event.status })
-    .eq('provider', 'evolution')
-    .eq('provider_id', event.provider_id);
+  const applied = await applyInboundChannelStatus({
+    supabase,
+    provider: 'evolution',
+    providerId: event.provider_id,
+    newStatus: event.status,
+  })
 
-  if (statusError) {
+  if (applied.error) {
     console.error(
       `[Webhook Evolution][${timestampId}] Erro ao atualizar status (${event.provider_id}):`,
-      statusError,
+      applied.error,
     );
-    return NextResponse.json({ status: 'error', error: statusError.message }, { status: 500 });
+    return NextResponse.json({ status: 'error', error: applied.error }, { status: 500 });
   }
 
   console.log(
-    `[Webhook Evolution][${timestampId}] Status sincronizado: ${event.provider_id} → ${event.status}`,
+    `[Webhook Evolution][${timestampId}] Status sincronizado: ${event.provider_id} → ${event.status} (${applied.updated} canal(is))`,
   );
 
   return NextResponse.json({
@@ -145,14 +150,6 @@ async function handleMessageUpsert(
     }
   }
 
-  const sessaoId = await TriageService.recordInboundMessage(msg, canal.id, supabase, leadId);
-  if (!sessaoId) {
-    console.error(`[Webhook Evolution][${timestampId}] ERRO: Não foi possível gravar crm_conversas.`);
-    return NextResponse.json({ error: 'Erro de sessão (crm_conversas)' }, { status: 500 });
-  }
-
-  console.log(`[Webhook Evolution][${timestampId}] crm_conversas OK sessao=${sessaoId}`);
-
   const audioMeta =
     msg.type === 'audio'
       ? {
@@ -175,17 +172,34 @@ async function handleMessageUpsert(
         }
       : {}
 
-  const { error: interacaoError } = await supabase.from('crm_interacoes').insert({
-    empresa_id: canal.empresa_id,
-    lead_id: leadId,
-    conversa_id: sessaoId,
-    contact_phone: msg.sender_id,
-    contact_name: msg.sender_name || 'Usuário WhatsApp',
+  let forcedSessao: string | undefined
+  if (isDeptSessionsEnabled()) {
+    const resolved = await ActiveSpeakerService.resolveInboundSessao(
+      supabase,
+      canal.empresa_id,
+      canal.id,
+      msg.sender_id,
+    )
+    if (resolved && !resolved.stale) {
+      forcedSessao = resolved.sessaoId
+      console.log(
+        `[Webhook Evolution][${timestampId}] Inbound → falante ativo sessao=${forcedSessao}`,
+      )
+    }
+  }
+
+  const persist = await SessionPersistenceService.persistMessage(supabase, {
+    empresaId: canal.empresa_id,
+    canalId: canal.id,
+    externalId: msg.sender_id,
+    leadId,
     role: 'user',
     content: msg.content,
-    created_at: msg.created_at
-      ? new Date(msg.created_at).toISOString()
-      : new Date().toISOString(),
+    direcao: 'inbound',
+    status: 'ai',
+    contactPhone: msg.sender_id,
+    contactName: msg.sender_name || 'Usuário WhatsApp',
+    createdAt: msg.created_at ? new Date(msg.created_at).toISOString() : undefined,
     metadata: {
       provider: 'evolution',
       instance: instanceName,
@@ -193,19 +207,24 @@ async function handleMessageUpsert(
       ...audioMeta,
       ...documentMeta,
     },
-  });
+    sessaoId: forcedSessao,
+  })
 
-  if (interacaoError) {
-    console.error(`[Webhook Evolution][${timestampId}] ERRO ao salvar interação:`, interacaoError);
+  if (!persist.success || !persist.sessaoId) {
+    console.error(
+      `[Webhook Evolution][${timestampId}] ERRO persistência: ${persist.error}`,
+    )
     return NextResponse.json(
-      { error: 'Erro ao gravar interação', details: interacaoError.message },
+      { error: 'Erro de sessão', details: persist.error },
       { status: 500 },
-    );
+    )
   }
 
+  const sessaoId = persist.sessaoId
+
   console.log(
-    `[Webhook Evolution][${timestampId}] Interação gravada (user) lead=${leadId} sessao=${sessaoId}`,
-  );
+    `[Webhook Evolution][${timestampId}] Sessão OK sessao=${sessaoId} interacao=${persist.interacaoId}`,
+  )
 
   const shouldRespond = await TriageService.shouldAiRespond(msg, canal.id, supabase);
   const iaEnabled = isChannelAiEnabled(canal.ia_config);

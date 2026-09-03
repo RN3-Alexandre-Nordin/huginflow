@@ -1,3 +1,13 @@
+import { sanitizeReturnTo } from '@/lib/navigation/goBack'
+
+export function buildCardConsultaUrl(cardId: string, returnTo?: string | null): string {
+  const params = new URLSearchParams()
+  const safe = sanitizeReturnTo(returnTo ?? null)
+  if (safe) params.set('returnTo', safe)
+  const query = params.toString()
+  return `/cockpit/crm/cards/${cardId}/consulta${query ? `?${query}` : ''}`
+}
+
 export function buildKanbanCardUrl(pipelineId: string, cardId: string): string {
   const params = new URLSearchParams({ cardId })
   return `/cockpit/crm/funis/${pipelineId}?${params.toString()}`

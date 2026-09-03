@@ -1,7 +1,6 @@
 import { createClient } from '@/utils/supabase/server'
 import Script from 'next/script'
 import { notFound } from 'next/navigation'
-import Link from 'next/link'
 import { LayoutTemplate, Plus, Lock } from 'lucide-react'
 import BackButton from '@/components/BackButton'
 import BackTextButton from '@/components/BackTextButton'
@@ -11,9 +10,22 @@ import KanbanFilters from './KanbanFilters'
 import { getMyProfile } from '@/app/(app)/cockpit/actions'
 import { hasPermission } from '@/utils/permissions'
 
+function sanitizeSearchTerm(raw: string) {
+  return raw.replace(/[%_,]/g, ' ').trim().slice(0, 80)
+}
+
 export default async function PipelinePage(props: {
   params: Promise<{ id: string }>
-  searchParams?: Promise<{ config?: string; prazo_de?: string; prazo_ate?: string; stage_de?: string; stage_ate?: string; meus_cards?: string; finalizados?: string }>
+  searchParams?: Promise<{
+    config?: string
+    prazo_de?: string
+    prazo_ate?: string
+    stage_de?: string
+    stage_ate?: string
+    meus_cards?: string
+    finalizados?: string
+    q?: string
+  }>
 }) {
   const me = await getMyProfile()
 
@@ -51,25 +63,26 @@ export default async function PipelinePage(props: {
 
   const autoOpen = searchParams?.config === 'true'
 
-  // Date filter params
+  // Date / search filter params
   const prazoDe = searchParams?.prazo_de || null
   const prazoAte = searchParams?.prazo_ate || null
   const stageDe = searchParams?.stage_de || null
   const stageAte = searchParams?.stage_ate || null
   const meusCards = searchParams?.meus_cards === 'true'
   const mostrarFinalizados = searchParams?.finalizados === 'true'
+  const buscaCliente = sanitizeSearchTerm(searchParams?.q || '')
 
   // 1. Fetch Pipeline
-  const query = supabase
+  let pipeQuery = supabase
     .from('pipelines')
-    .select('id, nome, descricao, is_public')
+    .select('id, nome, descricao, is_public, empresa_id')
     .eq('id', params.id)
 
   if (me?.role_global !== 'superadmin') {
-    query.eq('empresa_id', me?.empresa_id ?? '')
+    pipeQuery = pipeQuery.eq('empresa_id', me?.empresa_id ?? '')
   }
 
-  const { data: pipeline, error: pipeError } = await query.maybeSingle()
+  const { data: pipeline, error: pipeError } = await pipeQuery.maybeSingle()
 
   if (pipeError || !pipeline) {
     notFound()
@@ -111,7 +124,7 @@ export default async function PipelinePage(props: {
     .order('ordem', { ascending: true })
 
   if (me?.role_global !== 'superadmin') {
-    cardsQuery.eq('empresa_id', me?.empresa_id ?? '')
+    cardsQuery = cardsQuery.eq('empresa_id', me?.empresa_id ?? '')
   }
 
   // Apply data_prazo filter
@@ -129,9 +142,44 @@ export default async function PipelinePage(props: {
     cardsQuery = cardsQuery.eq('responsavel_id', me.id)
   }
 
+  // Busca por nome / CPF / telefone do cliente (card + lead vinculado)
+  if (buscaCliente) {
+    const empresaId = pipeline.empresa_id || me?.empresa_id || ''
+    const digits = buscaCliente.replace(/\D/g, '')
+    const leadOrParts = [
+      `nome.ilike.%${buscaCliente}%`,
+      `documento.ilike.%${buscaCliente}%`,
+      `telefone.ilike.%${buscaCliente}%`,
+      `whatsapp.ilike.%${buscaCliente}%`,
+    ]
+    if (digits.length >= 3) {
+      leadOrParts.push(
+        `documento.ilike.%${digits}%`,
+        `telefone.ilike.%${digits}%`,
+        `whatsapp.ilike.%${digits}%`,
+      )
+    }
+
+    let leadsQuery = supabase.from('crm_leads').select('id').or(leadOrParts.join(','))
+    if (empresaId) leadsQuery = leadsQuery.eq('empresa_id', empresaId)
+
+    const { data: matchedLeads } = await leadsQuery.limit(200)
+    const leadIds = (matchedLeads || []).map((l) => l.id)
+
+    const cardOrParts = [
+      `cliente_nome.ilike.%${buscaCliente}%`,
+      `titulo.ilike.%${buscaCliente}%`,
+    ]
+    if (leadIds.length > 0) {
+      cardOrParts.push(`lead_id.in.(${leadIds.join(',')})`)
+    }
+    cardsQuery = cardsQuery.or(cardOrParts.join(','))
+  }
+
   const { data: cards } = await cardsQuery
 
-  const hasActiveFilters = prazoDe || prazoAte || stageDe || stageAte || meusCards || mostrarFinalizados
+  const hasActiveFilters =
+    prazoDe || prazoAte || stageDe || stageAte || meusCards || mostrarFinalizados || Boolean(buscaCliente)
 
   return (
     <div className="flex flex-col h-[calc(100vh-9rem)] overflow-hidden font-sans">

@@ -26,6 +26,7 @@ interface KanbanColumnProps {
   pipelineId?: string
   onCardEditClick?: (card: any) => void
   onCardChatClick?: (card: any) => void
+  onCardWhatsAppClick?: (card: any) => void
   canMove?: boolean
   canEdit?: boolean
   canViewAttachments?: boolean
@@ -39,6 +40,7 @@ export default function KanbanColumn({
   pipelineId,
   onCardEditClick,
   onCardChatClick,
+  onCardWhatsAppClick,
   canMove = true,
   canEdit = true,
   canViewAttachments = true,
@@ -79,7 +81,9 @@ export default function KanbanColumn({
   return (
     <div 
       ref={setNodeRef} 
-      style={style} 
+      style={style}
+      data-testid="kanban-column"
+      data-stage-id={column.id}
       className="flex-shrink-0 w-80 flex flex-col h-full overflow-hidden bg-[#0A0A0A] border border-[#ffffff0a] rounded-2xl relative"
     >
       {/* Column Header — attributes dnd só após mount (evita hydration mismatch aria-describedby) */}
@@ -108,6 +112,7 @@ export default function KanbanColumn({
                 pipelineId={pipelineId}
                 onEditClick={() => onCardEditClick?.(card)}
                 onChatClick={() => onCardChatClick?.(card)}
+                onWhatsAppClick={() => onCardWhatsAppClick?.(card)}
                 canMove={canMove}
                 canEdit={canEdit}
                 canViewAttachments={canViewAttachments}

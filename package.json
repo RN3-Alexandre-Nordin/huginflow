@@ -14,9 +14,16 @@
     "lint": "eslint",
     "manual:capture": "node scripts/manual/capture-screenshots.mjs",
     "manual:capture:omni": "node scripts/manual/capture-screenshots.mjs --omni",
+    "manual:capture:chat-badge": "node scripts/manual/capture-screenshots.mjs --chat-badge",
+    "manual:capture:treinamento": "node scripts/manual/capture-screenshots.mjs --treinamento",
     "manual:video": "node scripts/manual/capture-screenshots.mjs --video",
     "homologacao:prod": "node scripts/supabase/run-homologacao-prod.mjs",
-    "homologacao:prod:reuse-tenant": "node scripts/supabase/run-homologacao-prod.mjs --skip-bootstrap"
+    "homologacao:prod:reuse-tenant": "node scripts/supabase/run-homologacao-prod.mjs --skip-bootstrap",
+    "test:e2e:core": "playwright test e2e/core",
+    "test:e2e:core:ui": "playwright test e2e/core --ui",
+    "test:e2e:report": "playwright show-report",
+    "test:agent:dev": "node scripts/agent/run-agent-dev.mjs",
+    "test:agent:scripts": "node scripts/agent/phase1-scripts.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -36,6 +43,7 @@
     "react-dom": "19.2.4"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/pdf-parse": "^1.1.5",

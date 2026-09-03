@@ -12,6 +12,11 @@
 
 # testing
 /coverage
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/e2e/.auth/
 
 # next.js
 /.next/
@@ -61,9 +66,11 @@ next-env.d.ts
 *.txt
 Contas HuginFlow.txt
 
-# Docs internos RN3 (não versionar novos arquivos desta lista)
-# O manual do usuário CONTINUA versionado: docs/manual-usuario-huginflow.html + docs/manual/
-/docs/plano-testes-go-live.md
+# Relatórios gerados do agente (histórico local; metadados no Supabase)
+/docs/homologacao/execucoes/agente-*.md
+/docs/homologacao/execucoes/agente-*.json
+/docs/homologacao/execucoes/agente-*.html
+/docs/homologacao/execucoes/*/
 
 # Capturas duplicadas por falha de script
 /docs/manual/img/steps/steps/

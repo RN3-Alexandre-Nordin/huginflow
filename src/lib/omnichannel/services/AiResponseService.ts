@@ -4,11 +4,16 @@ import { buildEvolutionProviderConfig } from '@/lib/omnichannel/evolution-config
 import { EvolutionProvider } from '@/lib/omnichannel/providers/EvolutionProvider'
 import { HuginMessage } from '@/types/omnichannel'
 import { ConversaHistoricoService } from '@/lib/omnichannel/ConversaHistoricoService'
+import { SessionPersistenceService } from '@/lib/omnichannel/SessionPersistenceService'
 import { AudioTranscriptionService } from '@/lib/omnichannel/services/AudioTranscriptionService'
 import { DocumentInboundService } from '@/lib/omnichannel/services/DocumentInboundService'
 import { shouldProcessAsDocument } from '@/lib/omnichannel/services/DocumentProcessingService'
 import { TriageActionExecutor } from '@/lib/omnichannel/triage/TriageActionExecutor'
 import { stripOutboundTags } from '@/lib/omnichannel/triage/parseTriageTags'
+import {
+  DEFAULT_OUT_OF_SCOPE_REPLY,
+  evaluateMessageScope,
+} from '@/lib/omnichannel/triage/scopeGate'
 
 type CanalContext = {
   id: string
@@ -68,6 +73,31 @@ export class AiResponseService {
         message.content = messageText
       }
 
+      const { data: openCard } = await supabase
+        .from('crm_cards')
+        .select('id')
+        .eq('empresa_id', empresaId)
+        .eq('lead_id', leadId)
+        .eq('finalizado', false)
+        .limit(1)
+        .maybeSingle()
+
+      const scope = await evaluateMessageScope(supabase, {
+        empresaId,
+        leadId,
+        message: messageText,
+        hasOpenCard: Boolean(openCard?.id),
+      })
+
+      console.log(
+        `[AiResponse] ScopeGate inScope=${scope.inScope} via=${scope.via} reason=${scope.reason}`,
+      )
+
+      if (!scope.inScope) {
+        await this.handleOutOfScope(supabase, message, canal, leadId, sessaoId, scope.reply, scope.reason)
+        return
+      }
+
       const aiResult = await GeminiChatService.generateReply(supabase, {
         empresaId,
         leadId,
@@ -78,11 +108,18 @@ export class AiResponseService {
       })
 
       if (!aiResult.success) {
-        await this.handleFailure(supabase, message, leadId, sessaoId, aiResult.error)
+        await this.handleFailure(supabase, message, canal.id, leadId, sessaoId, aiResult.error)
         return
       }
 
-      const { response, responseForWhatsApp, crmStatus, tags, facts } = aiResult
+      let { response, responseForWhatsApp, crmStatus, tags, facts } = aiResult
+
+      if (tags.actions.includes('OUT_OF_SCOPE')) {
+        const cleaned = stripOutboundTags(responseForWhatsApp || response)
+        responseForWhatsApp =
+          cleaned.length >= 12 ? cleaned : DEFAULT_OUT_OF_SCOPE_REPLY
+        crmStatus = crmStatus ?? 'FORA_ESCOPO'
+      }
 
       const triageResult = await TriageActionExecutor.execute(supabase, {
         empresaId,
@@ -102,39 +139,44 @@ export class AiResponseService {
       const textToSend = responseForWhatsApp || stripOutboundTags(response)
 
       if (!textToSend) {
-        await this.handleFailure(supabase, message, leadId, sessaoId, 'Resposta vazia após limpeza.')
+        await this.handleFailure(supabase, message, canal.id, leadId, sessaoId, 'Resposta vazia após limpeza.')
         return
       }
 
       const sessaoStatus = triageResult.handover ? 'human' : 'ai'
 
-      const { data: insertedMsg, error: insertError } = await supabase
-        .from('crm_interacoes')
-        .insert({
-          empresa_id: empresaId,
-          lead_id: leadId,
-          conversa_id: sessaoId,
-          contact_phone: message.sender_id,
-          contact_name: message.sender_name || 'Usuário WhatsApp',
-          role: 'assistant',
-          content: textToSend,
-          metadata: {
-            provider: 'evolution',
-            is_ai: true,
-            crm_status: crmStatus ?? null,
-            instance: message.metadata?.instance ?? canal.provider_id,
-            triage_actions: triageResult.executed,
-            card_id: triageResult.cardId,
-            responsavel_id: triageResult.responsavelId,
-            triage: tags.triage ?? null,
-          },
-        })
-        .select('id')
-        .single()
+      const persist = await SessionPersistenceService.persistMessage(supabase, {
+        empresaId,
+        canalId: canal.id,
+        externalId: message.sender_id,
+        leadId,
+        sessaoId,
+        cardId: triageResult.cardId,
+        role: 'assistant',
+        content: textToSend,
+        direcao: 'outbound',
+        status: sessaoStatus,
+        atribuidoAId: triageResult.responsavelId,
+        isAi: true,
+        contactPhone: message.sender_id,
+        contactName: message.sender_name || 'Usuário WhatsApp',
+        metadata: {
+          provider: 'evolution',
+          is_ai: true,
+          crm_status: crmStatus ?? null,
+          instance: message.metadata?.instance ?? canal.provider_id,
+          triage_actions: triageResult.executed,
+          card_id: triageResult.cardId,
+          responsavel_id: triageResult.responsavelId,
+          triage: tags.triage ?? null,
+        },
+      })
 
-      if (insertError) {
-        console.error('[AiResponse] Erro ao salvar resposta da IA:', insertError)
+      if (!persist.success) {
+        console.error('[AiResponse] Erro ao salvar resposta da IA:', persist.error)
       }
+
+      const insertedMsgId = persist.interacaoId
 
       const config = buildEvolutionProviderConfig(canal)
 
@@ -152,7 +194,7 @@ export class AiResponseService {
         )
       }
 
-      if (sendResult.success && insertedMsg?.id) {
+      if (sendResult.success && insertedMsgId) {
         await supabase
           .from('crm_interacoes')
           .update({
@@ -167,10 +209,10 @@ export class AiResponseService {
               responsavel_id: triageResult.responsavelId,
             },
           })
-          .eq('id', insertedMsg.id)
+          .eq('id', insertedMsgId)
       } else if (!sendResult.success) {
         console.error('[AiResponse] Falha ao enviar WhatsApp:', sendResult.error)
-        if (insertedMsg?.id) {
+        if (insertedMsgId) {
           await supabase
             .from('crm_interacoes')
             .update({
@@ -180,43 +222,17 @@ export class AiResponseService {
                 provider_error: sendResult.error,
               },
             })
-            .eq('id', insertedMsg.id)
+            .eq('id', insertedMsgId)
         }
       }
 
-      await ConversaHistoricoService.appendMessage(
-        {
-          empresa_id: empresaId,
-          canal_id: canal.id,
-          external_id: message.sender_id,
-          lead_id: leadId,
-          role: 'assistant',
-          content: textToSend,
-          direcao: 'outbound',
-          status: sessaoStatus,
-          atribuido_a_id: triageResult.responsavelId,
-          is_ai: true,
-          metadata: {
-            provider: 'evolution',
-            is_ai: true,
-            crm_status: crmStatus ?? null,
-            provider_message_id: sendResult.messageId,
-            triage_actions: triageResult.executed,
-            card_id: triageResult.cardId,
-            responsavel_id: triageResult.responsavelId,
-          },
-        },
-        supabase,
-      )
-
-      // Garante status human após append (append pode herdar ai se handover não setou)
+      // Garante status human após append (sem last_human_interaction — freeze só com resposta humana)
       if (triageResult.handover) {
         await supabase
           .from('crm_conversas')
           .update({
             status: 'human',
             atribuido_a_id: triageResult.responsavelId,
-            last_human_interaction: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           })
           .eq('sessao_id', sessaoId)
@@ -232,9 +248,91 @@ export class AiResponseService {
     }
   }
 
+  private static async handleOutOfScope(
+    supabase: SupabaseClient,
+    message: HuginMessage,
+    canal: CanalContext,
+    leadId: string,
+    sessaoId: string,
+    reply: string,
+    reason: string,
+  ) {
+    const empresaId = message.empresa_id
+    const textToSend = reply.trim() || DEFAULT_OUT_OF_SCOPE_REPLY
+
+    await SessionPersistenceService.persistMessage(supabase, {
+      empresaId,
+      canalId: canal.id,
+      externalId: message.sender_id,
+      leadId,
+      sessaoId,
+      role: 'system',
+      content: '(Escopo IA)',
+      direcao: 'outbound',
+      contactPhone: message.sender_id,
+      contactName: message.sender_name || 'Usuário WhatsApp',
+      logSistema: `OUT_OF_SCOPE (gate): ${reason}`,
+      metadata: {
+        type: 'ai_scope_reasoning',
+        action: 'OUT_OF_SCOPE',
+        crm_status: 'FORA_ESCOPO',
+      },
+    })
+
+    const persist = await SessionPersistenceService.persistMessage(supabase, {
+      empresaId,
+      canalId: canal.id,
+      externalId: message.sender_id,
+      leadId,
+      sessaoId,
+      role: 'assistant',
+      content: textToSend,
+      direcao: 'outbound',
+      status: 'ai',
+      isAi: true,
+      contactPhone: message.sender_id,
+      contactName: message.sender_name || 'Usuário WhatsApp',
+      metadata: {
+        provider: 'evolution',
+        is_ai: true,
+        crm_status: 'FORA_ESCOPO',
+        triage_actions: ['OUT_OF_SCOPE'],
+        scope_gate: true,
+      },
+    })
+
+    const config = buildEvolutionProviderConfig(canal)
+    const provider = new EvolutionProvider()
+    const sendResult = await provider.sendPlainMessage(message.sender_id, textToSend, config)
+
+    if (sendResult.success && persist.interacaoId) {
+      await supabase
+        .from('crm_interacoes')
+        .update({
+          metadata: {
+            provider: 'evolution',
+            is_ai: true,
+            crm_status: 'FORA_ESCOPO',
+            provider_message_id: sendResult.messageId,
+            status: 'sent',
+            triage_actions: ['OUT_OF_SCOPE'],
+            scope_gate: true,
+          },
+        })
+        .eq('id', persist.interacaoId)
+    }
+
+    await ConversaHistoricoService.updateLatestSessaoStatus(sessaoId, { status: 'ai' }, supabase)
+
+    console.log(
+      `[AiResponse] OUT_OF_SCOPE (gate) lead=${leadId} whatsapp=${sendResult.success} reason=${reason}`,
+    )
+  }
+
   private static async handleFailure(
     supabase: SupabaseClient,
     message: HuginMessage,
+    canalId: string,
     leadId: string,
     sessaoId: string,
     reason: string,
@@ -245,15 +343,18 @@ export class AiResponseService {
 
     const errorLog = `Falha na IA (Gemini) para lead [${leadId}], WhatsApp ${message.sender_id}: ${reason}`
 
-    await supabase.from('crm_interacoes').insert({
-      empresa_id: message.empresa_id,
-      lead_id: leadId,
-      conversa_id: sessaoId,
-      contact_phone: message.sender_id,
-      contact_name: message.sender_name || 'Usuário',
+    await SessionPersistenceService.persistMessage(supabase, {
+      empresaId: message.empresa_id,
+      canalId,
+      externalId: message.sender_id,
+      leadId,
+      sessaoId,
       role: 'system',
       content: '(Erro ao gerar resposta automática)',
-      log_sistema: errorLog,
+      direcao: 'outbound',
+      contactPhone: message.sender_id,
+      contactName: message.sender_name || 'Usuário',
+      logSistema: errorLog,
       metadata: { error: true, type: 'ai_failure' },
     })
   }

@@ -23,7 +23,7 @@ export function buildCockpitNavPermissions(
     }
   }
 
-  // Slugs legados usados em algumas páginas (ver docs/roadmap-testes-go-live-cliente.md)
+  // Slugs legados usados em algumas páginas de administração
   perms.admin_usuarios =
     canViewModule(user, "admin_usuarios") || canViewModule(user, "usuarios")
   perms.admin_grupos =

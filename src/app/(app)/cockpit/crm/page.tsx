@@ -29,7 +29,7 @@ export default function CrmHubPage() {
        name: 'Canais e Origens',
        description: 'Configure Landing Pages, integrações e de onde os seus contatos estão sendo importados.',
        icon: Share2,
-       href: '/cockpit/crm/canais',
+       href: '/cockpit/configuracoes/canais',
        color: '#9333EA',
        features: ['Webhooks', 'Instagram', 'Indicações'],
        active: true

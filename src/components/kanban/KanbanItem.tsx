@@ -5,7 +5,7 @@ import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { User, MessageCircle, ChevronDown, ChevronUp, CalendarDays, Clock, CheckCircle2, Edit3, MessageSquarePlus } from 'lucide-react'
 import { toggleCardFinalizado } from '@/app/(app)/cockpit/crm/actions'
-import { buildOmniChatUrl, navigateToOmniChat } from '@/lib/omni/chat-deep-link'
+import { navigateToOmniChat } from '@/lib/omni/chat-deep-link'
 import { buildLeadEditUrl } from '@/lib/kanban/kanban-deep-link'
 
 interface CardData {
@@ -82,6 +82,7 @@ export default function KanbanItem({
   pipelineId,
   onEditClick,
   onChatClick,
+  onWhatsAppClick,
   canMove = true,
   canEdit = true,
   canViewAttachments = true,
@@ -94,6 +95,7 @@ export default function KanbanItem({
   pipelineId?: string;
   onEditClick?: () => void;
   onChatClick?: () => void;
+  onWhatsAppClick?: () => void;
   canMove?: boolean;
   canEdit?: boolean;
   canViewAttachments?: boolean;
@@ -160,8 +162,15 @@ export default function KanbanItem({
                 onPointerUp={(e) => e.stopPropagation()}
                 onClick={async (e) => { 
                   e.stopPropagation(); 
-                  e.preventDefault(); 
-                  await toggleCardFinalizado(card.id, pipelineId || card.stage_id, !card.finalizado)
+                  e.preventDefault();
+                  const nextFinalizado = !card.finalizado
+                  const ok = window.confirm(
+                    nextFinalizado
+                      ? `Finalizar o card "${card.titulo}"?\n\nEle sairá do fluxo ativo. Essa ação pode ser revertida reabrindo o card.`
+                      : `Reabrir o card "${card.titulo}"?\n\nEle voltará ao quadro como ativo.`,
+                  )
+                  if (!ok) return
+                  await toggleCardFinalizado(card.id, pipelineId || card.stage_id, nextFinalizado)
                 }}
                 className={`p-1.5 rounded-md transition-colors cursor-pointer border ${
                   card.finalizado 
@@ -174,6 +183,7 @@ export default function KanbanItem({
               </button>
               <button
                 type="button"
+                data-testid="card-gestao-btn"
                 onPointerDown={(e) => { e.stopPropagation(); e.preventDefault() }}
                 onPointerUp={(e) => e.stopPropagation()}
                 onClick={(e) => { e.stopPropagation(); e.preventDefault(); onEditClick?.() }}
@@ -260,18 +270,23 @@ export default function KanbanItem({
             >
               <MessageCircle className="w-3.5 h-3.5" />Chat Interno
             </button>
-            {card.conversa_id ? (
-              <a
-                href={buildOmniChatUrl(card.conversa_id, card.id)}
+            {card.conversa_id || onWhatsAppClick ? (
+              <button
+                type="button"
                 onClick={(e) => {
                   e.stopPropagation()
                   e.preventDefault()
-                  navigateToOmniChat(card.conversa_id!, card.id)
+                  if (onWhatsAppClick) {
+                    onWhatsAppClick()
+                    return
+                  }
+                  if (card.conversa_id) navigateToOmniChat(card.conversa_id, card.id)
                 }}
                 className="flex items-center gap-1.5 text-xs font-semibold text-green-500 hover:text-white bg-green-500/10 hover:bg-green-500/20 px-2.5 py-1.5 rounded-lg transition-colors"
               >
-                <MessageCircle className="w-3.5 h-3.5" />WhatsApp
-              </a>
+                <MessageCircle className="w-3.5 h-3.5" />
+                {card.finalizado ? 'WhatsApp (consulta)' : 'WhatsApp'}
+              </button>
             ) : (
               <button
                 type="button"

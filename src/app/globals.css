@@ -158,6 +158,40 @@ body {
 .custom-scrollbar-main::-webkit-scrollbar-thumb { background: #ffffff10; border-radius: 10px; }
 .custom-scrollbar-main::-webkit-scrollbar-thumb:hover { background: #2BAADF30; }
 
+/* Base: barra fina, só visível quando o conteúdo estoura a altura */
+.custom-scrollbar,
+.custom-scrollbar-chat {
+  scrollbar-width: thin;
+  scrollbar-color: #ffffff1a transparent;
+}
+.custom-scrollbar::-webkit-scrollbar,
+.custom-scrollbar-chat::-webkit-scrollbar { width: 6px; }
+.custom-scrollbar::-webkit-scrollbar-track,
+.custom-scrollbar-chat::-webkit-scrollbar-track { background: transparent; }
+.custom-scrollbar::-webkit-scrollbar-thumb,
+.custom-scrollbar-chat::-webkit-scrollbar-thumb { background: #ffffff14; border-radius: 10px; }
+.custom-scrollbar::-webkit-scrollbar-thumb:hover,
+.custom-scrollbar-chat::-webkit-scrollbar-thumb:hover { background: #2BAADF40; }
+
+/* Omni — painel Contexto do cliente (histórico de cards) */
+.omni-context-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(43, 170, 223, 0.45) transparent;
+}
+.omni-context-scroll::-webkit-scrollbar {
+  width: 5px;
+}
+.omni-context-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.omni-context-scroll::-webkit-scrollbar-thumb {
+  background: rgba(43, 170, 223, 0.35);
+  border-radius: 10px;
+}
+.omni-context-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(43, 170, 223, 0.55);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-fade-in-up,
   .animate-float,

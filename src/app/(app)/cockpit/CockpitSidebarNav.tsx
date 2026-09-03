@@ -3,106 +3,18 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useEffect, useState } from "react"
-import {
-  LayoutDashboard,
-  Inbox,
-  MessageSquare,
-  Building2,
-  Wallet,
-  FileText,
-  BookOpen,
-  Target,
-  Columns,
-  Users,
-  ShieldCheck,
-  Share2,
-  ChevronDown,
-  Settings2,
-  FolderOpen,
-  type LucideIcon,
-} from "lucide-react"
+import { ChevronDown } from "lucide-react"
 import type { CockpitNavPermissions } from "@/utils/cockpit-nav-permissions"
+import {
+  cockpitNavSections,
+  cockpitTopLevelNav,
+  isActiveCockpitPath,
+  type CockpitNavItem,
+  type CockpitNavSection,
+} from "./cockpit-nav"
 
-type NavItem = {
-  name: string
-  href: string
-  icon: LucideIcon
-  rn3Only?: boolean
-  adminOnly?: boolean
-  /** Se definido, o item só aparece quando `navPermissions[permissionModule]` for true. */
-  permissionModule?: string
-}
-
-type NavSection = {
-  id: string
-  label: string
-  icon: LucideIcon
-  items: NavItem[]
-}
-
-const topLevel: NavItem[] = [
-  { name: "Cockpit", href: "/cockpit", icon: LayoutDashboard },
-  { name: "Base de Leads", href: "/cockpit/crm/leads", icon: Inbox, permissionModule: "leads" },
-  {
-    name: "Chat Omnichannel",
-    href: "/cockpit/crm/chat",
-    icon: MessageSquare,
-    permissionModule: "omni_chat",
-  },
-]
-
-const sections: NavSection[] = [
-  {
-    id: "administracao",
-    label: "Administração",
-    icon: Settings2,
-    items: [
-      { name: "Empresas", href: "/cockpit/empresas", icon: Building2, permissionModule: "empresas" },
-      { name: "Financeiro", href: "/cockpit/financeiro", icon: Wallet, rn3Only: true },
-      { name: "Contratos", href: "/cockpit/financeiro/contratos", icon: FileText, rn3Only: true },
-      { name: "Simulador de Chat", href: "/cockpit/crm/simulador", icon: MessageSquare, adminOnly: true },
-    ],
-  },
-  {
-    id: "cadastros",
-    label: "Cadastros",
-    icon: FolderOpen,
-    items: [
-      {
-        name: "Base de Conhecimento",
-        href: "/cockpit/crm/conhecimento",
-        icon: BookOpen,
-        permissionModule: "conhecimento",
-      },
-      { name: "Departamentos", href: "/cockpit/departamentos", icon: Target, permissionModule: "departamentos" },
-      { name: "Funis", href: "/cockpit/crm/funis", icon: Columns, permissionModule: "funis" },
-      { name: "Usuários", href: "/cockpit/usuarios", icon: Users, permissionModule: "admin_usuarios" },
-      { name: "Grupos de Acesso", href: "/cockpit/grupos", icon: ShieldCheck, permissionModule: "admin_grupos" },
-      {
-        name: "Canais Inbound",
-        href: "/cockpit/configuracoes/canais",
-        icon: Share2,
-        permissionModule: "canais",
-      },
-    ],
-  },
-]
-
-function isActivePath(pathname: string, href: string, siblingHrefs: string[] = []) {
-  if (href === "/cockpit") return pathname === "/cockpit"
-  const matches = pathname === href || pathname.startsWith(href + "/")
-  if (!matches) return false
-  const hasMoreSpecificMatch = siblingHrefs.some(
-    (other) =>
-      other !== href &&
-      other.startsWith(href + "/") &&
-      (pathname === other || pathname.startsWith(other + "/"))
-  )
-  return !hasMoreSpecificMatch
-}
-
-function sectionHasActive(pathname: string, items: NavItem[]) {
-  return items.some((item) => isActivePath(pathname, item.href))
+function sectionHasActive(pathname: string, items: CockpitNavItem[]) {
+  return items.some((item) => isActiveCockpitPath(pathname, item.href))
 }
 
 function NavLink({
@@ -112,17 +24,26 @@ function NavLink({
   siblingHrefs,
   onNavigate,
 }: {
-  item: NavItem
+  item: CockpitNavItem
   pathname: string
   nested?: boolean
   siblingHrefs?: string[]
   onNavigate?: () => void
 }) {
-  const active = isActivePath(pathname, item.href, siblingHrefs)
+  const active = isActiveCockpitPath(pathname, item.href, siblingHrefs)
+  const testId =
+    item.href === "/cockpit"
+      ? "nav-cockpit"
+      : item.href === "/cockpit/crm/chat"
+        ? "nav-omni"
+        : item.href === "/cockpit/crm/funis"
+          ? "nav-funis"
+          : undefined
   return (
     <Link
       href={item.href}
       onClick={onNavigate}
+      data-testid={testId}
       className={`flex items-center gap-3 rounded-lg text-sm font-semibold tracking-tight transition-all ${
         nested ? "px-3 py-2.5 ml-2" : "px-3 py-3"
       } ${
@@ -138,7 +59,7 @@ function NavLink({
 }
 
 function filterNavItems(
-  items: NavItem[],
+  items: CockpitNavItem[],
   isSuperAdmin: boolean,
   isAdminOrSuperAdmin: boolean,
   navPermissions: CockpitNavPermissions
@@ -161,7 +82,7 @@ function NavSectionBlock({
   navPermissions,
   onNavigate,
 }: {
-  section: NavSection
+  section: CockpitNavSection
   pathname: string
   open: boolean
   onToggle: () => void
@@ -229,7 +150,7 @@ export default function CockpitSidebarNav({
     cadastros: true,
   })
 
-  const visibleTopLevel = filterNavItems(topLevel, isSuperAdmin, isAdminOrSuperAdmin, navPermissions)
+  const visibleTopLevel = filterNavItems(cockpitTopLevelNav, isSuperAdmin, isAdminOrSuperAdmin, navPermissions)
 
   useEffect(() => {
     setOpenSections((prev) => ({
@@ -238,13 +159,13 @@ export default function CockpitSidebarNav({
         prev.administracao ||
         sectionHasActive(
           pathname,
-          filterNavItems(sections[0].items, isSuperAdmin, isAdminOrSuperAdmin, navPermissions)
+          filterNavItems(cockpitNavSections[0].items, isSuperAdmin, isAdminOrSuperAdmin, navPermissions)
         ),
       cadastros:
         prev.cadastros ||
         sectionHasActive(
           pathname,
-          filterNavItems(sections[1].items, isSuperAdmin, isAdminOrSuperAdmin, navPermissions)
+          filterNavItems(cockpitNavSections[1].items, isSuperAdmin, isAdminOrSuperAdmin, navPermissions)
         ),
     }))
   }, [pathname, isSuperAdmin, isAdminOrSuperAdmin, navPermissions])
@@ -279,7 +200,7 @@ export default function CockpitSidebarNav({
         </div>
       )}
 
-      {sections.map((section) => (
+      {cockpitNavSections.map((section) => (
         <NavSectionBlock
           key={section.id}
           section={section}

@@ -1,7 +1,6 @@
 import { createClient } from "@/utils/supabase/server"
 import Link from "next/link"
 import { Search, Plus, Users, MoreHorizontal, Edit, Trash2, Lock } from "lucide-react"
-import BackButton from '@/components/BackButton'
 import BackTextButton from '@/components/BackTextButton'
 import { deleteLead } from "./actions"
 import { getMyProfile } from "@/app/(app)/cockpit/actions"
@@ -54,19 +53,10 @@ export default async function LeadsPage(props: { searchParams: Promise<{ q?: str
 
   return (
     <div className="space-y-6 pb-20 font-sans">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <BackButton fallbackHref="/cockpit/crm" />
-          <div>
-            <h2 className="text-2xl font-bold tracking-tight text-white flex items-center gap-3">
-              <Users className="w-6 h-6 text-[#2BAADF]" />
-              Base Central de Leads
-            </h2>
-            <p className="text-sm text-gray-400 mt-1 font-medium">Gerencie, pesquise e enriqueça os contatos do funil.</p>
-          </div>
-        </div>
+      <div className="flex items-center justify-between gap-4">
+        <p className="text-sm text-gray-400 font-medium">Gerencie, pesquise e enriqueça os contatos do funil.</p>
         {canCreate && (
-          <Link href="/cockpit/crm/leads/novo" className="bg-gradient-to-r from-[#2BAADF] to-[#1A8FBF] hover:shadow-[0_4px_24px_rgba(43,170,223,0.35)] text-white px-5 py-2.5 rounded-lg text-sm font-semibold inline-flex items-center gap-2 transition-all">
+          <Link href="/cockpit/crm/leads/novo" className="bg-gradient-to-r from-[#2BAADF] to-[#1A8FBF] hover:shadow-[0_4px_24px_rgba(43,170,223,0.35)] text-white px-5 py-2.5 rounded-lg text-sm font-semibold inline-flex items-center gap-2 transition-all shrink-0">
             <Plus className="w-4 h-4" /> Novo Lead
           </Link>
         )}

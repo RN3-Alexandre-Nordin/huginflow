@@ -1,7 +1,6 @@
 import { createClient } from "@/utils/supabase/server"
 import Link from "next/link"
 import { Search, Plus, Filter, RotateCcw, LayoutTemplate, Briefcase, EyeOff, ShieldCheck, PenSquare, Eye, Lock } from "lucide-react"
-import BackButton from '@/components/BackButton'
 import BackTextButton from '@/components/BackTextButton'
 import { getMyProfile } from "@/app/(app)/cockpit/actions"
 import { hasPermission } from "@/utils/permissions"
@@ -52,7 +51,7 @@ export default async function FunisPage(props: {
     .order("created_at", { ascending: false })
 
   if (me?.role_global !== 'superadmin') {
-    supabaseQuery.eq('empresa_id', me?.empresa_id ?? '')
+    supabaseQuery = supabaseQuery.eq('empresa_id', me?.empresa_id ?? '')
   }
 
   if (query) {
@@ -64,23 +63,14 @@ export default async function FunisPage(props: {
   return (
     <div className="space-y-6 pb-20 font-sans">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <BackButton fallbackHref="/cockpit" />
-          <div>
-            <h2 className="text-2xl font-bold tracking-tight text-white flex items-center gap-3">
-              <LayoutTemplate className="w-6 h-6 text-[#2BAADF]" />
-              Funis (Kanban)
-            </h2>
-            <p className="text-sm text-gray-400 mt-1 font-medium">
-              Gerencie e crie novos processos de vendas configurando suas etapas.
-            </p>
-          </div>
-        </div>
+      <div className="flex items-center justify-between gap-4">
+        <p className="text-sm text-gray-400 font-medium">
+          Gerencie e crie novos processos de vendas configurando suas etapas.
+        </p>
         {canCreate && (
           <Link
             href="/cockpit/crm/funis/novo"
-            className="bg-gradient-to-r from-[#2BAADF] to-[#1A8FBF] hover:shadow-[0_4px_24px_rgba(43,170,223,0.35)] text-white px-5 py-2.5 rounded-lg text-sm font-semibold transition-all inline-flex items-center gap-2"
+            className="bg-gradient-to-r from-[#2BAADF] to-[#1A8FBF] hover:shadow-[0_4px_24px_rgba(43,170,223,0.35)] text-white px-5 py-2.5 rounded-lg text-sm font-semibold transition-all inline-flex items-center gap-2 shrink-0"
           >
             <Plus className="w-4 h-4" />
             Novo Funil
@@ -168,6 +158,7 @@ export default async function FunisPage(props: {
                           
                           <Link 
                             href={`/cockpit/crm/funis/${pipe.id}`}
+                            data-testid="funil-abrir-kanban"
                             className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest bg-[#ffffff05] text-white border border-[#ffffff10] hover:bg-white hover:text-black transition-all shadow-xl"
                           >
                              Abrir Kanban

@@ -30,9 +30,10 @@ export default function LoginForm({ errorMsg }: { errorMsg?: string | null }) {
         </p>
       </div>
 
-      <form action="/api/auth/login" method="POST" className="flex flex-col gap-5">
+      <form action="/api/auth/login" method="POST" className="flex flex-col gap-5" data-testid="login-form">
         {displayError && (
           <div
+            data-testid="login-error"
             className="p-4 rounded-xl flex items-center gap-3 animate-shake"
             style={{
               background: 'rgba(220, 38, 38, 0.1)',

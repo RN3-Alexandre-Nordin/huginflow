@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { ProviderFactory } from '@/lib/omnichannel/ProviderFactory';
 import { TriageService } from '@/lib/omnichannel/TriageService';
 import { HuginMessage, HuginEvent } from '@/types/omnichannel';
+import { applyInboundChannelStatus } from '@/lib/omnichannel/empresa-webhooks';
 
 export async function POST(
   request: Request,
@@ -27,19 +28,19 @@ export async function POST(
   // 3. SE FOR ATUALIZAÇÃO DE STATUS: Atualizar banco diretamente
   if ('event' in parsed && (parsed as HuginEvent).event === 'status_update') {
     const event = parsed as HuginEvent;
-    
-    const { error: statusError } = await supabase
-      .from('crm_canais')
-      .update({ status: event.status })
-      .eq('provider', providerSlug)
-      .eq('provider_id', event.provider_id);
+    const applied = await applyInboundChannelStatus({
+      supabase,
+      provider: providerSlug,
+      providerId: event.provider_id,
+      newStatus: event.status,
+    })
 
-    if (statusError) {
-      console.error(`Erro ao atualizar status do canal: ${event.provider_id}`, statusError);
-      return NextResponse.json({ status: 'error', error: statusError.message });
+    if (applied.error) {
+      console.error(`Erro ao atualizar status do canal: ${event.provider_id}`, applied.error);
+      return NextResponse.json({ status: 'error', error: applied.error });
     }
 
-    return NextResponse.json({ status: 'success', type: 'status_synced' });
+    return NextResponse.json({ status: 'success', type: 'status_synced', updated: applied.updated });
   }
 
   // 4. SE FOR MENSAGENS: Iniciar processamento de negócio
@@ -85,8 +86,17 @@ export async function POST(
       leadId = newLead?.id;
     }
 
-    // Atualizar Estado da Conversa e Triagem
-    const conversaId = await TriageService.recordInboundMessage(msg, canal.id, supabase);
+    // Atualizar Estado da Conversa e Triagem (caminho único: conversas + interações + thread)
+    const conversaId = await TriageService.recordInboundMessage(
+      msg,
+      canal.id,
+      supabase,
+      leadId,
+      {
+        provider: msg.provider,
+        provider_id: msg.provider_id,
+      },
+    )
     const shouldRespond = await TriageService.shouldAiRespond(msg, canal.id, supabase);
 
     // Lógica de CRM (Cards no Kanban)
@@ -124,28 +134,13 @@ export async function POST(
               lead_id: leadId,
               titulo: `Omnichannel: ${msg.sender_name || 'Desconhecido'}`,
               cliente_nome: msg.sender_name || 'Desconhecido',
-              descricao: `Mensagem (${providerSlug}): ${msg.content}`
+              descricao: `Mensagem (${providerSlug}): ${msg.content}`,
+              conversa_id: conversaId,
             });
           }
         }
       }
     }
-
-    // Salvar Interação Histórica
-    await supabase.from('crm_interacoes').insert({
-      empresa_id: canal.empresa_id,
-      lead_id: leadId,
-      conversa_id: conversaId,
-      contact_phone: msg.sender_id,
-      contact_name: msg.sender_name || 'Desconhecido',
-      role: 'user',
-      content: msg.content,
-      metadata: { 
-        provider: msg.provider,
-        provider_id: msg.provider_id,
-        ai_triage: shouldRespond 
-      }
-    });
 
     // IA Response (Triagem)
     if (shouldRespond && canal.ia_config?.ativo) {

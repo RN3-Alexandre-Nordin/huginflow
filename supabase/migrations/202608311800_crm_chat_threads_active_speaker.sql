@@ -1,5 +1,5 @@
 -- Sessões por departamento: threads de assunto + falante ativo por telefone/canal.
--- Ver docs/planejamento-sessoes-por-departamento.md
+-- Sessões por departamento / falante ativo (ver docs/supabase-prod-deploy-pending.md)
 
 CREATE TABLE IF NOT EXISTS public.crm_chat_threads (
   id uuid PRIMARY KEY,

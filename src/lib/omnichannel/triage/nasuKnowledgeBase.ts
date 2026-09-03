@@ -17,7 +17,7 @@ export const NASU_KB_DOCUMENTOS = `Documentos via WhatsApp (PDF, foto, PIX, bole
 - financeiro_recibo: recibo → Financeiro.
 - financeiro_documento: NF, cobrança, PDF financeiro → Financeiro.
 - expedicao_comprovante: comprovante de entrega, logística → Expedição.
-- documento_nao_identificado: ilegível ou incerto → inferir funil pela conversa/KB; observação de leitura manual.
+- documento_nao_identificado: ilegível ou incerto → funil Atendimento (departamento Comercial); observação de leitura manual.
 Anexo automático só quando já existir card aberto do cliente com a MESMA categoria.
 `
 

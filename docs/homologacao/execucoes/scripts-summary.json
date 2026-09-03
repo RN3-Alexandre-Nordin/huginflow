@@ -1,0 +1,40 @@
+{
+  "ambiente": "DEV",
+  "baseUrl": "https://huginflow-local.rn3.tec.br",
+  "result": "PASS",
+  "summary": {
+    "passed": 3,
+    "failed": 0,
+    "skipped": 0,
+    "total": 3
+  },
+  "cases": [
+    {
+      "id": "SCR-INFRA-01",
+      "title": "[SCR-INFRA-01] App responde em /login e o health do omnichannel está saudável.",
+      "area": "Infraestrutura",
+      "expectation": "[SCR-INFRA-01] App responde em /login e o health do omnichannel está saudável.",
+      "passos": "GET /login (HTTP 200) e GET /api/health/omnichannel com healthy=true.",
+      "status": "passed",
+      "durationMs": 1414
+    },
+    {
+      "id": "SCR-AUTH-01",
+      "title": "[SCR-AUTH-01] Login Supabase com credencial válida cria sessão.",
+      "area": "Auth (API)",
+      "expectation": "[SCR-AUTH-01] Login Supabase com credencial válida cria sessão.",
+      "passos": "signInWithPassword com e-mail/senha do tenant de teste; espera session.user.",
+      "status": "passed",
+      "durationMs": 626
+    },
+    {
+      "id": "SCR-AUTH-02",
+      "title": "[SCR-AUTH-02] Senha errada é rejeitada pelo Auth.",
+      "area": "Auth (API)",
+      "expectation": "[SCR-AUTH-02] Senha errada é rejeitada pelo Auth.",
+      "passos": "signInWithPassword com senha inválida; espera erro Invalid login credentials.",
+      "status": "passed",
+      "durationMs": 133
+    }
+  ]
+}

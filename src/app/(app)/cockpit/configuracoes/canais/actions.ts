@@ -85,12 +85,33 @@ export async function syncChannelStatus(id: string, provider: string, providerId
         platformStatus = 'disconnected';
       }
 
+      const { data: current } = await supabase
+        .from("crm_canais")
+        .select("id, empresa_id, nome, provider, provider_id, status")
+        .eq("id", id)
+        .maybeSingle();
+
       const { error } = await supabase
         .from("crm_canais")
         .update({ status: platformStatus })
         .eq("id", id);
 
       if (error) throw error;
+
+      if (current && current.status !== platformStatus) {
+        const { notifyInboundChannelStatusChange } = await import(
+          "@/lib/omnichannel/empresa-webhooks"
+        );
+        await notifyInboundChannelStatusChange({
+          empresaId: current.empresa_id,
+          channelId: current.id,
+          channelName: current.nome,
+          provider: current.provider,
+          providerId: current.provider_id,
+          previousStatus: current.status,
+          newStatus: platformStatus,
+        });
+      }
 
       revalidatePath("/cockpit/configuracoes/canais");
       return { success: true, status: platformStatus };

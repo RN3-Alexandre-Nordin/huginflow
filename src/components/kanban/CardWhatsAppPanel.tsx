@@ -35,6 +35,8 @@ type Props = {
   pipelineId: string
   conversaId?: string | null
   leadName?: string | null
+  /** Card finalizado: só consulta, sem enviar mensagem. */
+  readOnly?: boolean
   onCancel: () => void
 }
 
@@ -72,6 +74,7 @@ export default function CardWhatsAppPanel({
   pipelineId,
   conversaId,
   leadName,
+  readOnly = false,
   onCancel,
 }: Props) {
   const [sessaoId, setSessaoId] = useState<string | null>(conversaId ?? null)
@@ -97,11 +100,9 @@ export default function CardWhatsAppPanel({
     let cancelled = false
     async function init() {
       setLoading(true)
-      let sid = conversaId ?? null
-      if (!sid) {
-        const res = await getSessaoIdByCardId(cardId)
-        sid = res.data ?? null
-      }
+      // Sempre resolve via servidor: corrige thread órfã / sessão sem crm_conversas
+      const res = await getSessaoIdByCardId(cardId)
+      const sid = res.data ?? conversaId ?? null
       if (cancelled) return
       setSessaoId(sid)
       if (sid) await loadThread(sid)
@@ -165,6 +166,22 @@ export default function CardWhatsAppPanel({
   }
 
   if (!sessaoId) {
+    if (readOnly) {
+      return (
+        <div className="space-y-4 animate-in fade-in duration-200">
+          <p className="text-[11px] text-gray-500 leading-relaxed">
+            Este card está finalizado e não possui histórico de WhatsApp para consulta.
+          </p>
+          <button
+            type="button"
+            onClick={onCancel}
+            className="w-full py-2.5 rounded-xl text-sm font-bold bg-[#ffffff08] text-gray-400 hover:text-white"
+          >
+            Voltar
+          </button>
+        </div>
+      )
+    }
     return (
       <div className="space-y-4 animate-in fade-in duration-200">
         <p className="text-[11px] text-gray-500 leading-relaxed">
@@ -194,7 +211,9 @@ export default function CardWhatsAppPanel({
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-bold text-white truncate">{leadDisplayName}</p>
-          <p className="text-[10px] text-gray-500">Histórico completo da conversa</p>
+          <p className="text-[10px] text-gray-500">
+            {readOnly ? 'Consulta — card finalizado (somente leitura)' : 'Histórico completo da conversa'}
+          </p>
         </div>
       </div>
 
@@ -245,40 +264,55 @@ export default function CardWhatsAppPanel({
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="pt-3 border-t border-[#ffffff0a] shrink-0 space-y-2">
-        <textarea
-          rows={2}
-          value={inputMessage}
-          onChange={(e) => setInputMessage(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault()
-              handleSend()
-            }
-          }}
-          placeholder="Digite sua mensagem…"
-          disabled={isSending}
-          className="w-full bg-[#050505] border border-[#ffffff10] focus:border-green-500/40 rounded-xl p-3 text-sm text-white outline-none resize-none"
-        />
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={handleSend}
-            disabled={isSending || !inputMessage.trim()}
-            className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-black bg-green-500 hover:bg-green-600 text-white disabled:opacity-50"
-          >
-            {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-            Enviar
-          </button>
+      {readOnly ? (
+        <div className="pt-3 border-t border-[#ffffff0a] shrink-0 space-y-2">
+          <p className="text-[11px] text-amber-400/90 text-center">
+            Card finalizado — conversa apenas para consulta.
+          </p>
           <button
             type="button"
             onClick={onCancel}
-            className="px-4 py-2.5 rounded-xl text-xs font-bold bg-[#ffffff08] text-gray-400 hover:text-white"
+            className="w-full py-2.5 rounded-xl text-xs font-bold bg-[#ffffff08] text-gray-400 hover:text-white"
           >
             Voltar
           </button>
         </div>
-      </div>
+      ) : (
+        <div className="pt-3 border-t border-[#ffffff0a] shrink-0 space-y-2">
+          <textarea
+            rows={2}
+            value={inputMessage}
+            onChange={(e) => setInputMessage(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                handleSend()
+              }
+            }}
+            placeholder="Digite sua mensagem…"
+            disabled={isSending}
+            className="w-full bg-[#050505] border border-[#ffffff10] focus:border-green-500/40 rounded-xl p-3 text-sm text-white outline-none resize-none"
+          />
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={handleSend}
+              disabled={isSending || !inputMessage.trim()}
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-black bg-green-500 hover:bg-green-600 text-white disabled:opacity-50"
+            >
+              {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+              Enviar
+            </button>
+            <button
+              type="button"
+              onClick={onCancel}
+              className="px-4 py-2.5 rounded-xl text-xs font-bold bg-[#ffffff08] text-gray-400 hover:text-white"
+            >
+              Voltar
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

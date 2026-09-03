@@ -156,7 +156,10 @@ export default function GlobalChatSidebar({ userId, userName, empresaId }: Globa
 
   return (
     <>
-      <button 
+      <button
+        type="button"
+        data-testid="chat-fab"
+        aria-label="Abrir conversas"
         onClick={() => setIsOpen(true)}
         className="fixed bottom-8 right-8 w-14 h-14 rounded-2xl bg-[#2BAADF] text-white flex items-center justify-center shadow-2xl shadow-[#2BAADF]/40 hover:scale-110 active:scale-95 transition-all z-50 group border border-[#ffffff1a] backdrop-blur-md"
       >
@@ -179,7 +182,9 @@ export default function GlobalChatSidebar({ userId, userName, empresaId }: Globa
         />
       )}
 
-      <div 
+      <div
+        data-testid="chat-panel"
+        data-open={isOpen ? 'true' : 'false'}
         className={`fixed top-4 bottom-4 right-4 w-[calc(100%-32px)] max-w-[950px] bg-[#0A0A0A]/95 backdrop-blur-xl border border-[#ffffff0a] rounded-[32px] shadow-[0_0_100px_rgba(0,0,0,0.8)] z-[70] transition-all duration-700 cubic-bezier(0.4, 0, 0.2, 1) flex overflow-hidden ${
           isOpen ? 'translate-x-0 opacity-100' : 'translate-x-[110%] opacity-0'
         }`}
@@ -187,7 +192,7 @@ export default function GlobalChatSidebar({ userId, userName, empresaId }: Globa
         <div className="w-[320px] md:w-[350px] flex-shrink-0 border-r border-[#ffffff0a] flex flex-col bg-[#ffffff02]">
            <div className="p-6 border-b border-[#ffffff0a]">
               <div className="flex items-center justify-between mb-6">
-                 <h4 className="text-lg font-black text-white italic tracking-tighter uppercase text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-500">Conversas</h4>
+                 <h4 data-testid="chat-panel-title" className="text-lg font-black text-white italic tracking-tighter uppercase text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-500">Conversas</h4>
                  <button onClick={() => setIsOpen(false)} className="md:hidden text-gray-500"><X /></button>
               </div>
               

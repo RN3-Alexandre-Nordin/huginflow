@@ -33,7 +33,7 @@ Marque **OK** / **Falha** e anote observações. Use **dev** antes do cutover em
 | App | `npm run dev` → `http://localhost:3000` |
 | Supabase **dev** | Migrations CRM: `202608311200`, `202608311230`, `202608311400`, `202608311800` |
 | Usuário admin | Acesso ao simulador (`/cockpit/crm/simulador`) |
-| Evolution (opcional) | Canal em `/cockpit/crm/canais` + webhook OK |
+| Evolution (opcional) | Canal em `/cockpit/configuracoes/canais` + webhook OK |
 
 ### Variáveis (`.env.local`)
 

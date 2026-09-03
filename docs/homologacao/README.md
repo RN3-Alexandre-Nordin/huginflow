@@ -13,6 +13,14 @@ Processo reutilizável para validar cada deploy em **produção** (`https://app.
 
 | Arquivo | Uso |
 |---------|-----|
+## E2E / Módulo de Testes (superadmin)
+
+| Item | Uso |
+|------|-----|
+| [`/cockpit/testes`](../../src/app/(app)/cockpit/testes/page.tsx) | UI RN3: disparar suíte, progresso, histórico HTML |
+| `TEST_RUNNER_ENABLED=true` | Obrigatório no `.env.local` (local/self-hosted) para o botão Rodar |
+| `npm run test:e2e:core` | Mesma suíte via CLI |
+| [execucoes/](./execucoes/) | Artefatos HTML/JSON por run (+ `agente-latest.html`) |
 | [plano-homologacao-versao.md](./plano-homologacao-versao.md) | Checklist mestre — copie por release (`homologacao-2026-07-15.md`) |
 | [stress-test-plan.md](./stress-test-plan.md) | Plano opcional de carga / stress |
 | `scripts/supabase/run-homologacao-prod.mjs` | Runner automatizado (blocos 1–11) |
@@ -48,4 +56,4 @@ node scripts/supabase/block2-test-auth-prod.mjs
 ## Histórico go-live NASU (2026-07-02)
 
 Blocos 1–11 automatizados em prod OK. Bloco 12 pendente (UAT NASU no sábado).  
-Detalhe item a item: `docs/plano-testes-go-live.md` (cópia local RN3, gitignored).
+Detalhe item a item: [script-teste-pacote-crm-ago-2026.md](./script-teste-pacote-crm-ago-2026.md) e [supabase-prod-deploy-pending.md](../supabase-prod-deploy-pending.md).

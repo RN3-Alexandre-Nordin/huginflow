@@ -21,6 +21,7 @@ import { updateCardStage } from '@/app/(app)/cockpit/crm/actions'
 import CardDetailsModal from './CardDetailsModal'
 import KanbanNewCardModal from './KanbanNewCardModal'
 import { useKanbanRealtime, type KanbanCard } from '@/hooks/useKanbanRealtime'
+import { navigateToOmniChat } from '@/lib/omni/chat-deep-link'
 
 interface Stage {
   id: string
@@ -109,7 +110,7 @@ export default function KanbanBoard({
   const [activeColumn, setActiveColumn] = useState<Stage | null>(null)
   const [activeCard, setActiveCard] = useState<Card | null>(null)
   const [inspectedCard, setInspectedCard] = useState<Card | null>(null)
-  const [initialModalTab, setInitialModalTab] = useState<'resumo' | 'chat'>('resumo')
+  const [initialModalTab, setInitialModalTab] = useState<'resumo' | 'chat' | 'whatsapp'>('resumo')
   const [showNewCardModal, setShowNewCardModal] = useState(false)
   const [isPending, startTransition] = useTransition()
 
@@ -128,7 +129,7 @@ export default function KanbanBoard({
     })
   }, [cards])
 
-  function openCardModal(card: Card, opts?: { tab?: 'resumo' | 'chat' }) {
+  function openCardModal(card: Card, opts?: { tab?: 'resumo' | 'chat' | 'whatsapp' }) {
     setInitialModalTab(opts?.tab ?? 'resumo')
     setInspectedCard(card)
   }
@@ -248,7 +249,7 @@ export default function KanbanBoard({
 
   return (
     <>
-      <div className="flex h-full w-full overflow-x-auto min-w-full pb-8 kanban-scroll relative">
+      <div data-testid="kanban-board" className="flex h-full w-full overflow-x-auto min-w-full pb-8 kanban-scroll relative">
         <DndContext
           sensors={sensors}
           collisionDetection={closestCorners}
@@ -266,6 +267,17 @@ export default function KanbanBoard({
                     pipelineId={pipelineId}
                     onCardEditClick={(card: any) => openCardModal(card)}
                     onCardChatClick={(card: any) => openCardModal(card, { tab: 'chat' })}
+                    onCardWhatsAppClick={(card: any) => {
+                      if (card.finalizado) {
+                        openCardModal(card, { tab: 'whatsapp' })
+                        return
+                      }
+                      if (card.conversa_id) {
+                        navigateToOmniChat(card.conversa_id, card.id)
+                        return
+                      }
+                      openCardModal(card, { tab: 'whatsapp' })
+                    }}
                     canMove={canMove}
                     canEdit={canEdit}
                     canViewAttachments={canViewAttachments}

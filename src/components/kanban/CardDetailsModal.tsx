@@ -20,6 +20,7 @@ import {
   Image as ImageIcon,
   Clock,
   Plus,
+  StickyNote,
   CheckCircle2,
 } from 'lucide-react'
 import {
@@ -37,8 +38,10 @@ import Link from 'next/link'
 import { buildLeadEditUrl } from '@/lib/kanban/kanban-deep-link'
 import CardRedirectPanel from '@/components/kanban/CardRedirectPanel'
 import CardWhatsAppPanel from '@/components/kanban/CardWhatsAppPanel'
+import { getSessaoIdByCardId } from '@/app/(app)/cockpit/crm/omni-chat-actions'
+import { navigateToOmniChat } from '@/lib/omni/chat-deep-link'
 
-type CardScreen = 'hub' | 'redirect' | 'whatsapp' | 'edit' | 'chat'
+type CardScreen = 'hub' | 'redirect' | 'whatsapp' | 'edit' | 'attachments' | 'chat'
 
 interface HistoryRecord {
   id: string
@@ -80,7 +83,7 @@ interface CardDetailsModalProps {
   canViewAttachments?: boolean
   canAddAttachments?: boolean
   canDeleteAttachments?: boolean
-  initialTab?: 'resumo' | 'chat'
+  initialTab?: 'resumo' | 'chat' | 'whatsapp'
 }
 
 const SCREEN_TITLES: Record<CardScreen, string> = {
@@ -88,7 +91,49 @@ const SCREEN_TITLES: Record<CardScreen, string> = {
   redirect: 'Encaminhar',
   whatsapp: 'WhatsApp',
   edit: 'Editar dados',
+  attachments: 'Anexos',
   chat: 'Chat interno',
+}
+
+function HubActionButton({
+  icon,
+  label,
+  hint,
+  tone,
+  onClick,
+  disabled,
+}: {
+  icon: React.ReactNode
+  label: string
+  hint: string
+  tone: 'orange' | 'green' | 'blue' | 'lilac' | 'neutral'
+  onClick: () => void
+  disabled?: boolean
+}) {
+  const tones = {
+    orange: 'bg-orange-500/8 border-orange-500/20 hover:bg-orange-500/15 text-orange-400',
+    green: 'bg-emerald-500/8 border-emerald-500/20 hover:bg-emerald-500/15 text-emerald-400',
+    blue: 'bg-[#2BAADF]/8 border-[#2BAADF]/20 hover:bg-[#2BAADF]/15 text-[#2BAADF]',
+    lilac: 'bg-purple-500/8 border-purple-500/25 hover:bg-purple-500/15 text-purple-400',
+    neutral: 'bg-[#ffffff04] border-[#ffffff10] hover:bg-[#ffffff08] text-gray-400',
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      data-testid={`hub-action-${label.toLowerCase()}`}
+      title={`${label} — ${hint}`}
+      className={`flex-1 min-w-0 flex flex-col items-center justify-center gap-0.5 px-1 py-1.5 rounded-md border transition-all disabled:opacity-40 ${tones[tone]}`}
+    >
+      <div className="w-5 h-5 rounded-md bg-black/25 flex items-center justify-center shrink-0 [&>svg]:w-3 [&>svg]:h-3">
+        {icon}
+      </div>
+      <span className="text-[9px] font-bold text-white leading-none truncate max-w-full">{label}</span>
+      <span className="text-[7px] text-gray-500 leading-none truncate max-w-full">{hint}</span>
+    </button>
+  )
 }
 
 export default function CardDetailsModal({
@@ -105,10 +150,13 @@ export default function CardDetailsModal({
   canDeleteAttachments = true,
   initialTab = 'resumo',
 }: CardDetailsModalProps) {
-  const [screen, setScreen] = useState<CardScreen>(initialTab === 'chat' ? 'chat' : 'hub')
+  const [screen, setScreen] = useState<CardScreen>(
+    initialTab === 'chat' ? 'chat' : initialTab === 'whatsapp' ? 'whatsapp' : 'hub',
+  )
   const [history, setHistory] = useState<HistoryRecord[]>([])
   const [loadingHistory, setLoadingHistory] = useState(false)
   const [isPending, startTransition] = useTransition()
+  const [openingWhatsApp, setOpeningWhatsApp] = useState(false)
   const [currentUser, setCurrentUser] = useState<{ id: string } | null>(null)
   const [chatSelection, setChatSelection] = useState<{ type: 'direct'; id: string; name: string } | null>(null)
 
@@ -125,6 +173,8 @@ export default function CardDetailsModal({
     responsavel_id: card.responsavel_id || '',
     data_prazo: card.data_prazo || '',
   })
+  const [observacaoDraft, setObservacaoDraft] = useState(card.observacao || '')
+  const [savedObservacao, setSavedObservacao] = useState(card.observacao || '')
 
   const currentStageName =
     stages.find((s) => s.id === card.stage_id)?.nome ||
@@ -169,15 +219,18 @@ export default function CardDetailsModal({
 
   useEffect(() => {
     setScreen(initialTab === 'chat' ? 'chat' : 'hub')
+    const obs = card.observacao || ''
     setFormData({
       titulo: card.titulo || '',
       cliente_nome: card.cliente_nome || '',
       valor: card.valor || 0,
       descricao: card.descricao || '',
-      observacao: card.observacao || '',
+      observacao: obs,
       responsavel_id: card.responsavel_id || '',
       data_prazo: card.data_prazo || '',
     })
+    setObservacaoDraft(obs)
+    setSavedObservacao(obs)
   }, [card.id, initialTab, card.titulo, card.cliente_nome, card.valor, card.descricao, card.observacao, card.responsavel_id, card.data_prazo])
 
   useEffect(() => {
@@ -185,8 +238,181 @@ export default function CardDetailsModal({
   }, [card.id])
 
   useEffect(() => {
-    if (screen === 'edit') loadFiles()
+    if (screen === 'edit' || screen === 'attachments' || screen === 'hub') loadFiles()
   }, [screen, card.id])
+
+  const attachmentsHint =
+    loadingFiles && files.length === 0
+      ? 'Carregando…'
+      : files.length === 0
+        ? 'Nenhum anexo'
+        : `${files.length} arquivo${files.length === 1 ? '' : 's'}`
+
+  const renderHubAttachmentsStrip = () => {
+    if (!canViewAttachments) return null
+
+    return (
+      <div
+        data-testid="hub-attachments-strip"
+        className="flex flex-col min-w-0 rounded-lg border border-cyan-500/20 bg-cyan-500/[0.04] overflow-hidden"
+      >
+        <div className="flex items-center gap-1.5 px-2 py-1 border-b border-cyan-500/15 shrink-0">
+          {canAddAttachments ? (
+            <label
+              data-testid="hub-attachments-clip"
+              className="w-7 h-7 rounded-md bg-cyan-500/15 border border-cyan-500/25 flex items-center justify-center text-cyan-400 hover:bg-cyan-500/25 cursor-pointer shrink-0"
+              title="Anexar arquivo"
+            >
+              {uploading ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Paperclip className="w-3.5 h-3.5" />
+              )}
+              <input type="file" className="hidden" onChange={handleFileUpload} disabled={uploading} />
+            </label>
+          ) : (
+            <div className="w-7 h-7 rounded-md bg-cyan-500/15 border border-cyan-500/25 flex items-center justify-center text-cyan-400 shrink-0">
+              <Paperclip className="w-3.5 h-3.5" />
+            </div>
+          )}
+          <div className="min-w-0 flex-1">
+            <p className="text-[8px] font-black uppercase tracking-widest text-cyan-400/90">Anexos</p>
+            <p className="text-[9px] text-gray-500 truncate">{attachmentsHint}</p>
+          </div>
+          <button
+            type="button"
+            data-testid="hub-attachments-ver"
+            onClick={() => setScreen('attachments')}
+            className="text-[8px] font-black uppercase tracking-wide text-cyan-400/80 hover:text-cyan-300 px-1.5 py-1 rounded hover:bg-cyan-500/10 shrink-0"
+          >
+            Ver
+          </button>
+        </div>
+        <div className="max-h-[52px] overflow-y-auto px-1.5 py-1 space-y-0.5 custom-scrollbar-thin">
+          {loadingFiles ? (
+            <div className="flex justify-center py-2">
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-gray-600" />
+            </div>
+          ) : files.length === 0 ? (
+            <p className="text-[9px] text-gray-600 italic px-1 py-1.5">
+              {canAddAttachments ? 'Clique no clipe para anexar' : 'Sem arquivos'}
+            </p>
+          ) : (
+            files.map((file) => (
+              <div
+                key={file.id}
+                className="flex items-center gap-1.5 px-1.5 py-1 rounded-md hover:bg-[#ffffff06] group"
+              >
+                {file.file_type?.startsWith('image/') ? (
+                  <ImageIcon className="w-3 h-3 text-cyan-400 shrink-0" />
+                ) : (
+                  <FileText className="w-3 h-3 text-gray-500 shrink-0" />
+                )}
+                <span className="flex-1 min-w-0 truncate text-[10px] text-gray-300 font-medium">
+                  {file.file_name}
+                </span>
+                {file.download_url && (
+                  <a
+                    href={file.download_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="opacity-70 group-hover:opacity-100 text-[#2BAADF] shrink-0"
+                    title="Baixar"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <Download className="w-3 h-3" />
+                  </a>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  const renderAttachmentsPanel = () => (
+    <div className="flex-1 min-h-0 flex flex-col gap-3 animate-in fade-in duration-200">
+      <p className="text-[11px] text-gray-500 leading-relaxed">
+        Anexe boletos, comprovantes e documentos do processo (máx. 5 MB por arquivo).
+      </p>
+      {canAddAttachments && (
+        <label className="flex items-center justify-center h-20 border border-dashed border-[#ffffff12] rounded-xl cursor-pointer hover:border-violet-500/40 hover:bg-violet-500/5 transition-colors">
+          {uploading ? (
+            <Loader2 className="w-5 h-5 animate-spin text-violet-400" />
+          ) : (
+            <span className="text-[11px] text-gray-400 flex items-center gap-2 font-medium">
+              <UploadCloud className="w-4 h-4 text-violet-400" />
+              Clique para anexar arquivo
+            </span>
+          )}
+          <input type="file" className="hidden" onChange={handleFileUpload} disabled={uploading} />
+        </label>
+      )}
+      <div className="flex-1 min-h-0 overflow-y-auto space-y-1.5 custom-scrollbar-thin">
+        {loadingFiles ? (
+          <div className="flex justify-center py-10">
+            <Loader2 className="w-5 h-5 animate-spin text-gray-600" />
+          </div>
+        ) : files.length === 0 ? (
+          <p className="text-[11px] text-gray-600 italic text-center py-8">Nenhum anexo neste card.</p>
+        ) : (
+          files.map((file) => (
+            <div
+              key={file.id}
+              className="flex items-center gap-2.5 p-2.5 rounded-xl bg-[#ffffff03] border border-[#ffffff08] text-[11px]"
+            >
+              {file.file_type?.startsWith('image/') ? (
+                <ImageIcon className="w-4 h-4 text-violet-400 shrink-0" />
+              ) : (
+                <FileText className="w-4 h-4 text-gray-500 shrink-0" />
+              )}
+              <div className="flex-1 min-w-0">
+                <p className="truncate text-gray-300 font-medium">{file.file_name}</p>
+                <p className="text-[9px] text-gray-600">
+                  {new Date(file.created_at).toLocaleString('pt-BR', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </p>
+              </div>
+              {file.download_url && (
+                <a
+                  href={file.download_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-1.5 rounded-lg text-[#2BAADF] hover:bg-[#2BAADF]/10"
+                  title="Baixar"
+                >
+                  <Download className="w-4 h-4" />
+                </a>
+              )}
+              {canDeleteAttachments && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (confirm('Remover anexo?')) {
+                      startTransition(async () => {
+                        await deleteCardFile(file.id, file.file_url)
+                        await loadFiles()
+                        await loadHistory()
+                      })
+                    }
+                  }}
+                  className="p-1.5 rounded-lg text-gray-600 hover:text-red-400 hover:bg-red-500/10"
+                  title="Remover"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  )
 
   const getActionIcon = (acao: string) => {
     switch (acao) {
@@ -262,113 +488,183 @@ export default function CardDetailsModal({
     return item.usuarios?.nome_completo || 'Sistema'
   }
 
-  const renderMainContent = () => (
-    <>
-      {screen === 'hub' && (
-        <div className="space-y-5 animate-in fade-in duration-200">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="p-3 rounded-xl bg-[#ffffff03] border border-[#ffffff08]">
-              <p className="text-[9px] font-black text-gray-600 uppercase tracking-widest mb-1">Responsável</p>
-              <p className="text-xs font-bold text-white truncate">{responsavelNome}</p>
-            </div>
-            <div className="p-3 rounded-xl bg-[#ffffff03] border border-[#ffffff08]">
-              <p className="text-[9px] font-black text-gray-600 uppercase tracking-widest mb-1">Prazo</p>
-              <p className="text-xs font-bold text-white">
-                {card.data_prazo
-                  ? new Date(card.data_prazo + 'T00:00:00').toLocaleDateString('pt-BR')
-                  : 'Sem prazo'}
-              </p>
-            </div>
-            <div className="p-3 rounded-xl bg-[#ffffff03] border border-[#ffffff08] col-span-2">
-              <p className="text-[9px] font-black text-gray-600 uppercase tracking-widest mb-1">Cliente</p>
-              <p className="text-xs font-bold text-white truncate">{card.cliente_nome || '—'}</p>
-            </div>
+  const observacaoDirty = observacaoDraft.trim() !== (savedObservacao || '').trim()
+
+  const saveObservacao = () => {
+    if (!canEdit || !observacaoDirty) return
+    startTransition(async () => {
+      const fd = new FormData()
+      fd.append('titulo', formData.titulo)
+      fd.append('cliente_nome', formData.cliente_nome)
+      fd.append('valor', formData.valor.toString())
+      fd.append('descricao', formData.descricao)
+      fd.append('observacao', observacaoDraft)
+      fd.append('responsavel_id', formData.responsavel_id || '')
+      fd.append('data_prazo', formData.data_prazo || '')
+
+      const res = await updateCrmCard(card.id, currentPipelineId, fd)
+      if (res?.error) {
+        alert('Erro ao salvar observações: ' + res.error)
+        return
+      }
+      setSavedObservacao(observacaoDraft)
+      setFormData((prev) => ({ ...prev, observacao: observacaoDraft }))
+      await loadHistory()
+    })
+  }
+
+  const renderHub = () => (
+    <div data-testid="card-hub" className="flex-1 min-h-0 grid grid-rows-[auto_minmax(200px,1fr)_auto] gap-2">
+      <div
+        className={`grid gap-1.5 ${canViewAttachments ? 'grid-cols-[1.15fr_0.85fr]' : 'grid-cols-1'}`}
+      >
+        <div data-testid="hub-meta" className="grid grid-cols-3 gap-1 min-w-0 content-start">
+          <div className="px-1.5 py-1 rounded-md bg-[#ffffff03] border border-[#ffffff08] min-w-0 self-start">
+            <p className="text-[7px] font-black text-gray-600 uppercase tracking-widest leading-none mb-0.5">
+              Responsável
+            </p>
+            <p className="text-[10px] font-bold text-white truncate leading-tight">{responsavelNome}</p>
           </div>
-
-          {card.descricao && (
-            <p className="text-[11px] text-gray-500 leading-relaxed line-clamp-3">{card.descricao}</p>
-          )}
-
-          {card.observacao && (
-            <div className="p-3 rounded-xl bg-orange-500/5 border border-orange-500/15">
-              <p className="text-[9px] font-black text-orange-400/80 uppercase tracking-widest mb-1">
-                Observação / briefing
-              </p>
-              <pre className="text-[11px] text-gray-400 leading-relaxed whitespace-pre-wrap">
-                {card.observacao}
-              </pre>
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 gap-2">
-            {canEdit && (
-              <button
-                type="button"
-                onClick={() => setScreen('redirect')}
-                className="flex items-center gap-3 w-full p-4 rounded-xl bg-orange-500/10 border border-orange-500/25 hover:bg-orange-500/20 transition-all text-left group"
-              >
-                <div className="w-10 h-10 rounded-lg bg-orange-500/20 flex items-center justify-center shrink-0">
-                  <Navigation className="w-5 h-5 text-orange-400" />
-                </div>
-                <div>
-                  <p className="text-sm font-black text-white">Encaminhar</p>
-                  <p className="text-[10px] text-gray-500">Operador, prazo e fila/estágio</p>
-                </div>
-                <ArrowRight className="w-4 h-4 text-orange-500/50 ml-auto group-hover:translate-x-0.5 transition-transform" />
-              </button>
-            )}
-
-            <button
-              type="button"
-              onClick={() => setScreen('whatsapp')}
-              className="flex items-center gap-3 w-full p-4 rounded-xl bg-green-500/10 border border-green-500/25 hover:bg-green-500/20 transition-all text-left group"
-            >
-              <div className="w-10 h-10 rounded-lg bg-green-500/20 flex items-center justify-center shrink-0">
-                <MessageCircle className="w-5 h-5 text-green-400" />
-              </div>
-              <div>
-                <p className="text-sm font-black text-white">WhatsApp</p>
-                <p className="text-[10px] text-gray-500">
-                  {card.conversa_id ? 'Ver histórico e responder' : 'Iniciar conversa'}
-                </p>
-              </div>
-              <ArrowRight className="w-4 h-4 text-green-500/50 ml-auto group-hover:translate-x-0.5 transition-transform" />
-            </button>
-
-            {canEdit && (
-              <button
-                type="button"
-                onClick={() => setScreen('edit')}
-                className="flex items-center gap-3 w-full p-4 rounded-xl bg-[#2BAADF]/10 border border-[#2BAADF]/25 hover:bg-[#2BAADF]/20 transition-all text-left group"
-              >
-                <div className="w-10 h-10 rounded-lg bg-[#2BAADF]/20 flex items-center justify-center shrink-0">
-                  <Edit3 className="w-5 h-5 text-[#2BAADF]" />
-                </div>
-                <div>
-                  <p className="text-sm font-black text-white">Editar dados</p>
-                  <p className="text-[10px] text-gray-500">Título, valor, descrição, anexos</p>
-                </div>
-                <ArrowRight className="w-4 h-4 text-[#2BAADF]/50 ml-auto group-hover:translate-x-0.5 transition-transform" />
-              </button>
-            )}
-
-            <button
-              type="button"
-              onClick={() => setScreen('chat')}
-              className="flex items-center gap-3 w-full p-4 rounded-xl bg-[#ffffff05] border border-[#ffffff10] hover:bg-[#ffffff08] transition-all text-left group"
-            >
-              <div className="w-10 h-10 rounded-lg bg-[#ffffff08] flex items-center justify-center shrink-0">
-                <MessageSquare className="w-5 h-5 text-gray-400" />
-              </div>
-              <div>
-                <p className="text-sm font-black text-white">Chat interno</p>
-                <p className="text-[10px] text-gray-500">Equipe sobre este card</p>
-              </div>
-              <ArrowRight className="w-4 h-4 text-gray-600 ml-auto group-hover:translate-x-0.5 transition-transform" />
-            </button>
+          <div className="px-1.5 py-1 rounded-md bg-[#ffffff03] border border-[#ffffff08] min-w-0 self-start">
+            <p className="text-[7px] font-black text-gray-600 uppercase tracking-widest leading-none mb-0.5">
+              Prazo
+            </p>
+            <p className="text-[10px] font-bold text-white truncate leading-tight">
+              {card.data_prazo
+                ? new Date(card.data_prazo + 'T00:00:00').toLocaleDateString('pt-BR')
+                : 'Sem prazo'}
+            </p>
+          </div>
+          <div className="px-1.5 py-1 rounded-md bg-[#ffffff03] border border-[#ffffff08] min-w-0 self-start">
+            <p className="text-[7px] font-black text-gray-600 uppercase tracking-widest leading-none mb-0.5">
+              Cliente
+            </p>
+            <p className="text-[10px] font-bold text-white truncate leading-tight">
+              {card.cliente_nome || '—'}
+            </p>
           </div>
         </div>
-      )}
+        {renderHubAttachmentsStrip()}
+      </div>
+
+      <div
+        data-testid="hub-observacoes"
+        className="min-h-[200px] h-full flex flex-col rounded-xl border border-[#2BAADF]/25 bg-[#111111] overflow-hidden"
+      >
+        <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-[#2BAADF]/15 shrink-0">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <StickyNote className="w-3.5 h-3.5 text-[#2BAADF] shrink-0" />
+            <span className="text-[9px] font-black uppercase tracking-widest text-[#2BAADF]">
+              Observações
+            </span>
+            {observacaoDirty && (
+              <span className="text-[8px] font-bold text-amber-400 uppercase tracking-wide">
+                · não salvo
+              </span>
+            )}
+          </div>
+          {canEdit && (
+            <button
+              type="button"
+              data-testid="hub-observacoes-salvar"
+              onClick={saveObservacao}
+              disabled={isPending || !observacaoDirty}
+              className="flex items-center gap-1 px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-wide bg-[#2BAADF] text-white hover:bg-[#1A8FBF] disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0"
+            >
+              {isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+              Salvar
+            </button>
+          )}
+        </div>
+        {canEdit ? (
+          <textarea
+            value={observacaoDraft}
+            onChange={(e) => setObservacaoDraft(e.target.value)}
+            placeholder="Briefing, contexto do atendimento, próximos passos…"
+            rows={8}
+            className="block w-full h-full min-h-[160px] bg-[#0A0A0A] px-3 py-2.5 text-[11px] text-gray-200 leading-relaxed outline-none resize-none placeholder:text-gray-600 border-0"
+          />
+        ) : (
+          <div className="h-full min-h-[160px] px-3 py-2.5 overflow-y-auto bg-[#0A0A0A] custom-scrollbar-thin">
+            <p className="text-[11px] text-gray-400 leading-relaxed whitespace-pre-wrap line-clamp-[8]">
+              {observacaoDraft.trim() || 'Sem observações registradas.'}
+            </p>
+          </div>
+        )}
+      </div>
+
+      <div
+        data-testid="hub-actions"
+        className="flex flex-row items-stretch gap-1.5 self-end w-full shrink-0"
+      >
+        {canEdit && (
+          <HubActionButton
+            tone="orange"
+            label="Encaminhar"
+            hint="Operador e funil"
+            icon={<Navigation />}
+            onClick={() => setScreen('redirect')}
+          />
+        )}
+        <HubActionButton
+          tone="green"
+          label="WhatsApp"
+          hint={
+            card.finalizado
+              ? 'Consulta'
+              : card.conversa_id
+                ? 'Abrir chat'
+                : 'Iniciar'
+          }
+          icon={openingWhatsApp ? <Loader2 className="animate-spin" /> : <MessageCircle />}
+          disabled={openingWhatsApp}
+          onClick={() => {
+            void (async () => {
+              if (card.finalizado) {
+                setScreen('whatsapp')
+                return
+              }
+              setOpeningWhatsApp(true)
+              try {
+                let sid = (card.conversa_id as string | null) ?? null
+                if (!sid) {
+                  const res = await getSessaoIdByCardId(card.id)
+                  sid = res.data
+                }
+                if (sid) {
+                  navigateToOmniChat(sid, card.id)
+                  return
+                }
+                setScreen('whatsapp')
+              } finally {
+                setOpeningWhatsApp(false)
+              }
+            })()
+          }}
+        />
+        {canEdit && (
+          <HubActionButton
+            tone="lilac"
+            label="Editar"
+            hint="Título e valor"
+            icon={<Edit3 />}
+            onClick={() => setScreen('edit')}
+          />
+        )}
+        <HubActionButton
+          tone="blue"
+          label="Chat"
+          hint="Equipe no card"
+          icon={<MessageSquare />}
+          onClick={() => setScreen('chat')}
+        />
+      </div>
+    </div>
+  )
+
+  const renderMainContent = () => (
+    <>
+      {screen === 'hub' && renderHub()}
 
       {screen === 'redirect' && canEdit && (
         <CardRedirectPanel
@@ -387,6 +683,7 @@ export default function CardDetailsModal({
           pipelineId={currentPipelineId}
           conversaId={card.conversa_id}
           leadName={card.cliente_nome}
+          readOnly={Boolean(card.finalizado)}
           onCancel={() => setScreen('hub')}
         />
       )}
@@ -451,60 +748,17 @@ export default function CardDetailsModal({
             </Link>
           )}
           {canViewAttachments && (
-            <section className="pt-2 border-t border-[#ffffff08]">
-              <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Anexos</p>
-              {canAddAttachments && (
-                <label className="flex items-center justify-center h-16 border border-dashed border-[#ffffff10] rounded-xl cursor-pointer hover:border-[#2BAADF]/30 mb-2">
-                  {uploading ? (
-                    <Loader2 className="w-5 h-5 animate-spin text-[#2BAADF]" />
-                  ) : (
-                    <span className="text-[10px] text-gray-500 flex items-center gap-1">
-                      <UploadCloud className="w-4 h-4" /> Anexar arquivo
-                    </span>
-                  )}
-                  <input type="file" className="hidden" onChange={handleFileUpload} disabled={uploading} />
-                </label>
+            <button
+              type="button"
+              onClick={() => setScreen('attachments')}
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-[11px] font-bold border border-violet-500/25 bg-violet-500/8 text-violet-300 hover:bg-violet-500/15 transition-colors"
+            >
+              <Paperclip className="w-3.5 h-3.5" />
+              Gerenciar anexos
+              {files.length > 0 && (
+                <span className="text-[9px] font-black text-violet-400/80">({files.length})</span>
               )}
-              <div className="space-y-1 max-h-32 overflow-y-auto">
-                {loadingFiles ? (
-                  <Loader2 className="w-4 h-4 animate-spin text-gray-600 mx-auto" />
-                ) : files.length === 0 ? (
-                  <p className="text-[10px] text-gray-600 italic">Nenhum anexo</p>
-                ) : (
-                  files.map((file) => (
-                    <div key={file.id} className="flex items-center gap-2 p-2 rounded-lg bg-[#ffffff03] text-[10px]">
-                      {file.file_type?.startsWith('image/') ? (
-                        <ImageIcon className="w-3.5 h-3.5 text-gray-500" />
-                      ) : (
-                        <FileText className="w-3.5 h-3.5 text-gray-500" />
-                      )}
-                      <span className="flex-1 truncate text-gray-400">{file.file_name}</span>
-                      {file.download_url && (
-                        <a href={file.download_url} target="_blank" rel="noopener noreferrer">
-                          <Download className="w-3.5 h-3.5 text-[#2BAADF]" />
-                        </a>
-                      )}
-                      {canDeleteAttachments && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (confirm('Remover anexo?')) {
-                              startTransition(async () => {
-                                await deleteCardFile(file.id, file.file_url)
-                                await loadFiles()
-                              })
-                            }
-                          }}
-                          className="text-gray-600 hover:text-red-400"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </div>
-                  ))
-                )}
-              </div>
-            </section>
+            </button>
           )}
           <button
             type="submit"
@@ -516,6 +770,8 @@ export default function CardDetailsModal({
           </button>
         </form>
       )}
+
+      {screen === 'attachments' && canViewAttachments && renderAttachmentsPanel()}
 
       {screen === 'chat' && (
         <div className="h-[min(480px,55vh)] flex flex-col animate-in fade-in duration-200">
@@ -549,64 +805,59 @@ export default function CardDetailsModal({
   )
 
   const renderHistorySidebar = () => (
-    <aside className="w-[300px] shrink-0 flex flex-col overflow-hidden bg-[#0A0A0A] border-l border-[#ffffff0a] min-h-0">
-      <div className="flex items-center justify-between p-5 pb-3 shrink-0">
-        <h4 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] flex items-center gap-2">
-          <History className="w-4 h-4 text-[#2BAADF]" /> Timeline
+    <aside className="w-[220px] shrink-0 flex flex-col overflow-hidden bg-[#0A0A0A] border-l border-[#ffffff0a] min-h-0">
+      <div className="flex items-center justify-between px-3 py-2.5 border-b border-[#ffffff08] shrink-0">
+        <h4 className="text-[9px] font-black text-gray-500 uppercase tracking-[0.15em] flex items-center gap-1.5">
+          <History className="w-3.5 h-3.5 text-[#2BAADF]" /> Timeline
         </h4>
-        <div className="px-2 py-0.5 rounded-full bg-[#ffffff05] border border-[#ffffff0a] text-[9px] font-bold text-gray-500 uppercase">
-          {history.length} eventos
-        </div>
+        <span className="text-[8px] font-bold text-gray-600 uppercase">{history.length}</span>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-5 pb-5 custom-scrollbar-thin min-h-0">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-2 custom-scrollbar-thin min-h-0">
         {loadingHistory ? (
-          <div className="flex flex-col items-center justify-center py-12 space-y-3">
-            <Loader2 className="w-6 h-6 text-[#2BAADF] animate-spin" />
-            <p className="text-[10px] text-gray-600 font-bold uppercase">Lendo…</p>
+          <div className="flex justify-center py-8">
+            <Loader2 className="w-5 h-5 text-[#2BAADF] animate-spin" />
           </div>
         ) : history.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 text-center opacity-30">
-            <History className="w-8 h-8 mb-2" />
-            <p className="text-xs font-bold uppercase tracking-widest">Sem registros</p>
-          </div>
+          <p className="text-[10px] text-gray-600 italic text-center py-8">Sem registros</p>
         ) : (
-          <div className="relative space-y-1">
-            <div className="absolute left-[13px] top-2 bottom-6 w-[2px] bg-gradient-to-b from-[#2BAADF]/20 via-[#ffffff05] to-transparent" />
+          <ul className="space-y-3">
             {history.map((item) => (
-              <div key={item.id} className="relative pl-9 pb-6 group">
+              <li key={item.id} className="flex gap-2.5">
                 <div
-                  className={`absolute left-0 top-1 w-7 h-7 rounded-lg border flex items-center justify-center shadow-lg z-10 ${getActionColor(item.acao)}`}
+                  className={`w-6 h-6 shrink-0 rounded-md border flex items-center justify-center mt-0.5 ${getActionColor(item.acao)}`}
                 >
                   {getActionIcon(item.acao)}
                 </div>
-                <div className="space-y-1">
-                  <span className="text-[10px] font-black text-[#2BAADF] uppercase tracking-wider block">
-                    {getActionLabel(item.acao)}
-                  </span>
-                  <div className="text-[11px] text-gray-400 font-medium">{historyUserName(item)}</div>
-                  <div className="text-[9px] text-gray-600">
-                    {new Date(item.created_at).toLocaleDateString('pt-BR')}{' '}
-                    {new Date(item.created_at).toLocaleTimeString('pt-BR', {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
+                <div className="min-w-0 flex-1 border-l border-[#ffffff08] pl-2.5">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="text-[9px] font-black text-[#2BAADF] uppercase tracking-wide truncate">
+                      {getActionLabel(item.acao)}
+                    </span>
+                    <span className="text-[8px] text-gray-600 font-mono shrink-0">
+                      {new Date(item.created_at).toLocaleTimeString('pt-BR', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </span>
                   </div>
+                  <p className="text-[10px] text-gray-500 truncate">{historyUserName(item)}</p>
                   {item.observacao && (
-                    <div className="mt-1.5 text-[10px] text-gray-500 bg-[#ffffff02] p-2 rounded border border-[#ffffff05] line-clamp-2">
+                    <p className="text-[9px] text-gray-600 mt-0.5 line-clamp-2 leading-snug">
                       {item.observacao}
-                    </div>
+                    </p>
                   )}
                 </div>
-              </div>
+              </li>
             ))}
-          </div>
+          </ul>
         )}
       </div>
     </aside>
   )
 
-  const showHistorySidebar = screen === 'hub' || screen === 'redirect' || screen === 'edit'
+  const showHistorySidebar =
+    screen === 'hub' || screen === 'redirect' || screen === 'edit' || screen === 'attachments'
 
   const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -624,6 +875,8 @@ export default function CardDetailsModal({
       const res = await updateCrmCard(card.id, currentPipelineId, fd)
       if (res?.error) alert('Erro ao salvar: ' + res.error)
       else {
+        setSavedObservacao(formData.observacao)
+        setObservacaoDraft(formData.observacao)
         await loadHistory()
         setScreen('hub')
       }
@@ -657,15 +910,20 @@ export default function CardDetailsModal({
   }
 
   const modalWidth =
-    showHistorySidebar ? 'max-w-5xl' : screen === 'whatsapp' ? 'max-w-lg' : 'max-w-2xl'
+    showHistorySidebar ? 'max-w-4xl' : screen === 'whatsapp' ? 'max-w-lg' : 'max-w-2xl'
+
+  const modalHeight =
+    screen === 'hub' && showHistorySidebar
+      ? 'h-[min(640px,90vh)]'
+      : 'max-h-[90vh]'
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm" data-testid="card-modal">
       <div
-        className={`bg-[#0F0F0F] border border-[#ffffff10] rounded-2xl w-full ${modalWidth} max-h-[90vh] flex flex-col shadow-[0_0_50px_-12px_rgba(0,0,0,0.5)] overflow-hidden animate-in fade-in zoom-in-95 duration-300`}
+        className={`bg-[#0F0F0F] border border-[#ffffff10] rounded-2xl w-full ${modalWidth} ${modalHeight} flex flex-col shadow-[0_0_50px_-12px_rgba(0,0,0,0.8)] overflow-hidden animate-in fade-in zoom-in-95 duration-300`}
       >
         {/* Header compacto */}
-        <div className="flex items-center justify-between p-4 border-b border-[#ffffff05] bg-gradient-to-r from-[#111] to-[#161616] shrink-0">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-[#ffffff05] bg-gradient-to-r from-[#111] to-[#161616] shrink-0">
           <div className="flex items-center gap-3 min-w-0">
             {screen !== 'hub' && (
               <button
@@ -714,13 +972,19 @@ export default function CardDetailsModal({
 
         {showHistorySidebar ? (
           <div className="flex-1 min-h-0 flex flex-row overflow-hidden">
-            <section className="flex-1 min-w-0 overflow-y-auto p-5 custom-scrollbar">
+            <section
+              className={`flex-1 min-w-0 min-h-0 p-3 ${
+                screen === 'hub'
+                  ? 'overflow-hidden flex flex-col'
+                  : 'overflow-y-auto custom-scrollbar'
+              }`}
+            >
               {renderMainContent()}
             </section>
             {renderHistorySidebar()}
           </div>
         ) : (
-          <section className="flex-1 overflow-y-auto p-5 custom-scrollbar min-h-0">
+          <section className="flex-1 overflow-y-auto p-4 custom-scrollbar min-h-0">
             {renderMainContent()}
           </section>
         )}

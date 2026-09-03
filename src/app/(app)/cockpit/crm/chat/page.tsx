@@ -1,16 +1,17 @@
 'use client'
 
-import { useState, useEffect, useRef, useLayoutEffect, useCallback, Suspense } from 'react'
+import { useState, useEffect, useRef, useLayoutEffect, useCallback, useMemo, Suspense } from 'react'
+import { createPortal } from 'react-dom'
 import { createClient } from '@/utils/supabase/client'
-import { useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { 
   Search, MessageSquare, Bot, User, 
-  Send, Phone, Navigation, MoreVertical, 
-  Paperclip, Smile, ShieldCheck, Loader2
+  Send, Phone, Navigation, PanelRight, 
+  Paperclip, Smile, ShieldCheck, Loader2,
+  X, ChevronUp, ChevronDown, Trash2,
 } from 'lucide-react'
 import { format } from 'date-fns'
-import { BackButton } from '@/components/BackButton'
-import { sendOmniMessage, sendOmniAttachment } from '../omni-actions'
+import { sendOmniMessage, sendOmniAttachment, deleteOmniMessage } from '../omni-actions'
 import {
   getOmniConversas,
   getOmniMensagens,
@@ -18,11 +19,18 @@ import {
   getSessaoIdByCardId,
   getLinkedCardBySessao,
   getCardForOmniRedirect,
+  getOmniCustomerContext,
+  type OmniCustomerContext,
 } from '../omni-chat-actions'
 import { OMNI_SESSAO_STORAGE_KEY } from '@/lib/omni/chat-deep-link'
+import { isOmniMessageDeleted, markOmniMetadataDeleted } from '@/lib/omnichannel/omni-message-deleted'
+import { DOCUMENT_MAX_BYTES } from '@/lib/omnichannel/document-constants'
 import { stripOutboundTags } from '@/lib/omnichannel/triage/parseTriageTags'
+import { maskPhone } from '@/utils/brasilian-formatters'
 import { hasPermission } from '@/utils/permissions'
 import ChatCardRedirectModal from '@/components/omni/ChatCardRedirectModal'
+import OmniCustomerContextPanel from '@/components/omni/OmniCustomerContextPanel'
+import CardConsultaDrawer from '@/components/crm/CardConsultaDrawer'
 
 interface Conversa {
   id: string
@@ -30,11 +38,65 @@ interface Conversa {
   status: 'ai' | 'human' | 'closed'
   last_message: string
   updated_at: string
+  /** Última mensagem da sessão (crm_conversas). */
+  role?: 'user' | 'assistant' | 'system' | string | null
+  direcao?: 'inbound' | 'outbound' | string | null
   crm_leads: {
     nome: string
     telefone: string
     whatsapp: string
   }
+}
+
+/** Verde = cliente ainda sem resposta; laranja = já respondida (IA ou humano). */
+function conversaAwaitingReply(chat: Conversa): boolean {
+  if (chat.direcao === 'inbound' || chat.role === 'user') return true
+  if (chat.direcao === 'outbound' || chat.role === 'assistant') return false
+  // Sem metadado: status ai costuma ser fila ainda não tratada pelo humano
+  return chat.status === 'ai'
+}
+
+function leadInitials(nome?: string | null): string {
+  const parts = (nome || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+  if (parts.length === 0) return '?'
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+  return `${parts[0][0] ?? ''}${parts[parts.length - 1][0] ?? ''}`.toUpperCase()
+}
+
+/** Exibe telefone BR legível (aceita 55 + DDD + número). */
+function formatLeadPhone(telefone?: string | null, whatsapp?: string | null): string {
+  const raw = (whatsapp || telefone || '').trim()
+  if (!raw) return 'Sem telefone'
+  let digits = raw.replace(/\D/g, '')
+  if (digits.startsWith('55') && digits.length >= 12) digits = digits.slice(2)
+  if (digits.length >= 10 && digits.length <= 11) return maskPhone(digits)
+  return raw
+}
+
+function LeadListAvatar({
+  nome,
+  awaitingReply,
+}: {
+  nome?: string | null
+  awaitingReply: boolean
+}) {
+  return (
+    <div
+      className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#1A1A1A] to-[#0A0A0A] border border-[#ffffff12] flex items-center justify-center shadow-[0_4px_12px_rgba(0,0,0,0.35)]"
+      aria-hidden
+    >
+      <span
+        className={`text-[11px] font-black tracking-tight ${
+          awaitingReply ? 'text-[#80B828]' : 'text-orange-500'
+        }`}
+      >
+        {leadInitials(nome)}
+      </span>
+    </div>
+  )
 }
 
 function conversaMatchesSessao(conversa: Conversa, sessaoId: string): boolean {
@@ -68,11 +130,20 @@ interface Mensagem {
     is_ai?: boolean
     sent_by?: string
     media_type?: string
+    file_name?: string
     transcription?: {
       status?: 'pending' | 'completed' | 'failed'
       text?: string
       error?: string
     }
+    document?: {
+      status?: string
+      resumo?: string
+    }
+    deleted?: boolean
+    whatsapp_deleted?: boolean
+    original_content?: string
+    sent_by?: string
   } | null
   usuarios?: {
     nome_completo: string
@@ -93,16 +164,53 @@ function formatMessageContent(msg: Mensagem): string {
     if (text) return `🎤 ${text}`
   }
   if (meta?.media_type === 'document' || meta?.media_type === 'image') {
-    const doc = meta.document as { status?: string; resumo?: string } | undefined
+    const doc = meta.document
     if (doc?.status === 'pending') return msg.content || '📎 Documento recebido — processando…'
     if (doc?.resumo) return `📎 ${doc.resumo}`
-    const fileName = (meta as { file_name?: string }).file_name
+    const fileName = meta.file_name
     if (fileName) return msg.content || `📎 ${fileName}`
   }
   if (msg.role === 'assistant' || msg.role === 'system') {
     return stripOutboundTags(msg.content)
   }
   return msg.content
+}
+
+function canDeleteOmniMessage(msg: Mensagem, profile: { id?: string; role_global?: string } | null): boolean {
+  if (!profile || msg.role === 'user') return false
+  if (isOmniMessageDeleted(msg.metadata)) return false
+  if (profile.role_global && profile.role_global !== 'operador') return true
+  return msg.user_id === profile.id || msg.metadata?.sent_by === profile.id
+}
+
+const DELETED_MSG_STORAGE_KEY = 'huginflow.omni.deleted-message-ids'
+
+function readDeletedMessageIds(): Set<string> {
+  if (typeof window === 'undefined') return new Set()
+  try {
+    const raw = sessionStorage.getItem(DELETED_MSG_STORAGE_KEY)
+    const parsed = raw ? (JSON.parse(raw) as unknown) : []
+    return new Set(Array.isArray(parsed) ? parsed.filter((id) => typeof id === 'string') : [])
+  } catch {
+    return new Set()
+  }
+}
+
+function rememberDeletedMessageId(id: string) {
+  const ids = readDeletedMessageIds()
+  ids.add(id)
+  sessionStorage.setItem(DELETED_MSG_STORAGE_KEY, JSON.stringify([...ids]))
+}
+
+function applyDeletedFlags(rows: Mensagem[]): Mensagem[] {
+  const remembered = readDeletedMessageIds()
+  return rows.map((row) => {
+    if (isOmniMessageDeleted(row.metadata) || !remembered.has(row.id)) return row
+    return {
+      ...row,
+      metadata: markOmniMetadataDeleted(row.metadata),
+    }
+  })
 }
 
 function getResponderLabel(msg: Mensagem): string | null {
@@ -124,7 +232,22 @@ function ChatLoadingFallback() {
   )
 }
 
+const OMNI_EMOJIS = [
+  '😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣', '😊', '😇',
+  '🙂', '😉', '😍', '🥰', '😘', '😗', '😋', '😛', '😜', '🤪',
+  '🤨', '🧐', '🤓', '😎', '🤩', '🥳', '😏', '😒', '😞', '😔',
+  '😟', '😕', '🙁', '😣', '😖', '😫', '😩', '🥺', '😢', '😭',
+  '😤', '😠', '😡', '🤬', '🤯', '😳', '🥵', '🥶', '😱', '😨',
+  '🤗', '🤔', '🤭', '🤫', '🤥', '😶', '😐', '😑', '😬', '🙄',
+  '😴', '🤤', '😪', '😷', '🤒', '🤕', '🤢', '🤮', '🤧', '🥴',
+  '👍', '👎', '👌', '✌️', '🤞', '🤟', '🤘', '👏', '🙌', '🤝',
+  '🙏', '💪', '🫶', '❤️', '🧡', '💛', '💚', '💙', '💜', '🖤',
+  '🤍', '💔', '💯', '✨', '🔥', '⭐', '🎉', '✅', '❌', '⚠️',
+  '📌', '📎', '📷', '📱', '💬', '👋', '🙏', '💸', '📄', '📦',
+] as const
+
 function ChatOmnichannelInner() {
+  const router = useRouter()
   const searchParams = useSearchParams()
   const sessaoParam = searchParams.get('sessao')
   const cardParam = searchParams.get('card')
@@ -135,11 +258,23 @@ function ChatOmnichannelInner() {
   const [loading, setLoading] = useState(true)
   const [profile, setProfile] = useState<any>(null)
   const [searchTerm, setSearchTerm] = useState('')
+  const [threadSearchOpen, setThreadSearchOpen] = useState(false)
+  const [threadSearchQuery, setThreadSearchQuery] = useState('')
+  const [threadMatchIndex, setThreadMatchIndex] = useState(0)
   const [inputMessage, setInputMessage] = useState('')
+  const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
+  const [emojiPickerPos, setEmojiPickerPos] = useState({ left: 12, bottom: 80 })
   const [isSending, setIsSending] = useState(false)
+  const [attachError, setAttachError] = useState<string | null>(null)
+  const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null)
   const [linkedCard, setLinkedCard] = useState<{ id: string; titulo: string } | null>(null)
   const [redirectOpen, setRedirectOpen] = useState(false)
   const [redirectLoading, setRedirectLoading] = useState(false)
+  const [contextOpen, setContextOpen] = useState(false)
+  const [customerContext, setCustomerContext] = useState<OmniCustomerContext | null>(null)
+  const [contextLoading, setContextLoading] = useState(false)
+  const [contextError, setContextError] = useState<string | null>(null)
+  const [consultaCardId, setConsultaCardId] = useState<string | null>(null)
   const [redirectCtx, setRedirectCtx] = useState<{
     card: {
       id: string
@@ -159,31 +294,139 @@ function ChatOmnichannelInner() {
   } | null>(null)
 
   const canEditCards = profile ? hasPermission(profile, 'cards', 'edit') : false
+  const encaminharCardTitulo =
+    linkedCard?.titulo ??
+    customerContext?.currentSessionCard?.titulo ??
+    'card do atendimento'
 
   const supabase = createClient()
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const threadSearchInputRef = useRef<HTMLInputElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const replyInputRef = useRef<HTMLTextAreaElement>(null)
+  const emojiPickerRef = useRef<HTMLDivElement>(null)
+  const emojiButtonRef = useRef<HTMLButtonElement>(null)
   const targetSessaoRef = useRef<string | null>(null)
   const selectedChatRef = useRef<Conversa | null>(null)
   const selectingRef = useRef(false)
+  const userPickedSessaoRef = useRef(false)
+  const syncingUrlFromPickRef = useRef(false)
 
   useEffect(() => {
     selectedChatRef.current = selectedChat
   }, [selectedChat])
 
+  // Pesquisa só na conversa aberta — limpa ao trocar de chat
+  useEffect(() => {
+    setThreadSearchOpen(false)
+    setThreadSearchQuery('')
+    setThreadMatchIndex(0)
+    setEmojiPickerOpen(false)
+  }, [selectedChat?.id])
+
+  useEffect(() => {
+    if (!emojiPickerOpen) return
+    function onPointerDown(e: PointerEvent) {
+      const target = e.target as Node
+      if (emojiPickerRef.current?.contains(target)) return
+      if (emojiButtonRef.current?.contains(target)) return
+      setEmojiPickerOpen(false)
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    return () => document.removeEventListener('pointerdown', onPointerDown)
+  }, [emojiPickerOpen])
+
+  useLayoutEffect(() => {
+    if (!emojiPickerOpen) return
+    const place = () => {
+      const btn = emojiButtonRef.current
+      if (!btn) return
+      const r = btn.getBoundingClientRect()
+      const width = 288
+      let left = r.left
+      if (left + width > window.innerWidth - 12) left = window.innerWidth - width - 12
+      if (left < 12) left = 12
+      setEmojiPickerPos({
+        left,
+        bottom: Math.max(12, window.innerHeight - r.top + 8),
+      })
+    }
+    place()
+    window.addEventListener('resize', place)
+    window.addEventListener('scroll', place, true)
+    return () => {
+      window.removeEventListener('resize', place)
+      window.removeEventListener('scroll', place, true)
+    }
+  }, [emojiPickerOpen])
+
+  useEffect(() => {
+    if (threadSearchOpen) {
+      const t = window.setTimeout(() => threadSearchInputRef.current?.focus(), 50)
+      return () => window.clearTimeout(t)
+    }
+  }, [threadSearchOpen])
+
+  const threadSearchNeedle = threadSearchQuery.trim().toLowerCase()
+  const threadMatchIds = useMemo(() => {
+    if (!threadSearchNeedle) return [] as string[]
+    return mensagens
+      .filter((msg) => formatMessageContent(msg).toLowerCase().includes(threadSearchNeedle))
+      .map((msg) => msg.id)
+  }, [mensagens, threadSearchNeedle])
+
+  useEffect(() => {
+    setThreadMatchIndex(0)
+  }, [threadSearchNeedle, selectedChat?.id])
+
+  useEffect(() => {
+    if (!threadSearchOpen || threadMatchIds.length === 0) return
+    const id = threadMatchIds[Math.min(threadMatchIndex, threadMatchIds.length - 1)]
+    const el = document.getElementById(`omni-msg-${id}`)
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [threadSearchOpen, threadMatchIds, threadMatchIndex])
+
   // Sincroniza alvo de deep link: ?sessao= > sessionStorage (click no card)
   useLayoutEffect(() => {
+    if (syncingUrlFromPickRef.current) {
+      syncingUrlFromPickRef.current = false
+      return
+    }
+
     if (sessaoParam) {
       targetSessaoRef.current = sessaoParam
+      userPickedSessaoRef.current = false
       clearStoredSessao()
       return
     }
+
+    if (cardParam) {
+      userPickedSessaoRef.current = false
+      return
+    }
+
     const stored = readStoredSessao()
     if (stored) {
       targetSessaoRef.current = stored
+      userPickedSessaoRef.current = false
       clearStoredSessao()
     }
   }, [sessaoParam, cardParam])
+
+  const selectChatManually = useCallback(
+    (chat: Conversa) => {
+      userPickedSessaoRef.current = true
+      targetSessaoRef.current = null
+      setSelectedChat(chat)
+
+      const params = new URLSearchParams(searchParams.toString())
+      params.set('sessao', chat.id)
+      params.delete('card')
+      syncingUrlFromPickRef.current = true
+      router.replace(`/cockpit/crm/chat?${params.toString()}`, { scroll: false })
+    },
+    [router, searchParams],
+  )
 
   const resolveSessaoFromUrl = useCallback(async (list: Conversa[], sessaoId: string): Promise<boolean> => {
     const inList = list.find((c) => conversaMatchesSessao(c, sessaoId))
@@ -207,7 +450,7 @@ function ChatOmnichannelInner() {
   }, [])
 
   const tryAutoSelect = useCallback(async (list: Conversa[]): Promise<boolean> => {
-    if (selectingRef.current) return false
+    if (selectingRef.current || userPickedSessaoRef.current) return false
     selectingRef.current = true
     try {
       let sessaoId = targetSessaoRef.current ?? sessaoParam
@@ -235,12 +478,14 @@ function ChatOmnichannelInner() {
     }
   }, [sessaoParam, cardParam, resolveSessaoFromUrl])
 
-  async function fetchConversas(me: any) {
+  async function fetchConversas(me: any, options?: { applyAutoSelect?: boolean }) {
     const { data, error } = await getOmniConversas()
     if (error) console.error('[Chat] Erro ao listar conversas:', error)
     const list = data || []
     setConversas(list)
-    await tryAutoSelect(list)
+    if (options?.applyAutoSelect) {
+      await tryAutoSelect(list)
+    }
     setLoading(false)
   }
 
@@ -256,15 +501,18 @@ function ChatOmnichannelInner() {
         .single()
       
       setProfile(me)
-      if (me) fetchConversas(me)
+      if (me) fetchConversas(me, { applyAutoSelect: true })
     }
     init()
   }, [])
 
+  // Deep link externo (?sessao= / ?card=) — não reexecutar a cada refresh da lista
   useEffect(() => {
     if (loading) return
+    if (userPickedSessaoRef.current) return
+    if (!sessaoParam && !cardParam && !targetSessaoRef.current) return
     void tryAutoSelect(conversas)
-  }, [loading, conversas, sessaoParam, cardParam, tryAutoSelect])
+  }, [loading, sessaoParam, cardParam, tryAutoSelect, conversas.length])
 
   useEffect(() => {
     if (!profile) return
@@ -372,13 +620,44 @@ function ChatOmnichannelInner() {
     }
   }, [selectedChat?.id, cardParam])
 
+  useEffect(() => {
+    if (!selectedChat || !contextOpen) {
+      if (!contextOpen) {
+        setCustomerContext(null)
+        setContextError(null)
+      }
+      return
+    }
+
+    let cancelled = false
+    setContextLoading(true)
+    setContextError(null)
+
+    void (async () => {
+      const res = await getOmniCustomerContext(selectedChat.id, linkedCard?.id ?? cardParam)
+      if (cancelled) return
+      setContextLoading(false)
+      if ('error' in res && res.error) {
+        setContextError(res.error)
+        setCustomerContext(null)
+      } else if (res.data) {
+        setCustomerContext(res.data)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [selectedChat?.id, contextOpen, linkedCard?.id, cardParam])
+
   async function openRedirectModal() {
     if (!selectedChat || redirectLoading) return
     setRedirectLoading(true)
-    const res = await getCardForOmniRedirect(
-      selectedChat.id,
-      linkedCard?.id ?? cardParam,
-    )
+    const cardHint =
+      linkedCard?.id ??
+      customerContext?.currentSessionCard?.id ??
+      cardParam
+    const res = await getCardForOmniRedirect(selectedChat.id, cardHint)
     setRedirectLoading(false)
     if (res.error) {
       alert(res.error)
@@ -419,7 +698,7 @@ function ChatOmnichannelInner() {
       setMensagens([])
       return
     }
-    setMensagens(data || [])
+    setMensagens(applyDeletedFlags((data || []) as Mensagem[]))
     setTimeout(scrollToBottom, 50)
   }
 
@@ -439,26 +718,105 @@ function ChatOmnichannelInner() {
     setIsSending(false)
   }
 
+  function insertEmoji(emoji: string) {
+    const el = replyInputRef.current
+    const start = el?.selectionStart ?? inputMessage.length
+    const end = el?.selectionEnd ?? inputMessage.length
+    const next = inputMessage.slice(0, start) + emoji + inputMessage.slice(end)
+    setInputMessage(next)
+    requestAnimationFrame(() => {
+      const cursor = start + emoji.length
+      el?.focus()
+      el?.setSelectionRange(cursor, cursor)
+    })
+  }
+
+  async function handleDeleteMessage(msg: Mensagem) {
+    if (!selectedChat || deletingMessageId) return
+    const ok = window.confirm(
+      'Apagar esta mensagem no WhatsApp do cliente? Ela continua visível aqui para o operador, marcada como apagada.',
+    )
+    if (!ok) return
+    setDeletingMessageId(msg.id)
+    const result = await deleteOmniMessage(selectedChat.id, msg.id)
+    setDeletingMessageId(null)
+    if (!result.success) {
+      alert(result.error || 'Não foi possível apagar a mensagem.')
+      return
+    }
+    rememberDeletedMessageId(msg.id)
+    setMensagens((prev) =>
+      prev.map((row) =>
+        row.id === msg.id
+          ? {
+              ...row,
+              metadata: markOmniMetadataDeleted(row.metadata, {
+                original_content: row.metadata?.original_content ?? row.content,
+              }),
+            }
+          : row,
+      ),
+    )
+    await fetchMensagens(selectedChat.id)
+  }
+
+  useEffect(() => {
+    setAttachError(null)
+  }, [selectedChat?.id])
+
   async function handleAttachmentSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     e.target.value = ''
     if (!file || !selectedChat || isSending) return
 
-    setIsSending(true)
-    const fd = new FormData()
-    fd.set('sessaoId', selectedChat.id)
-    fd.set('file', file)
-    const caption = inputMessage.trim()
-    if (caption) fd.set('caption', caption)
+    setAttachError(null)
 
-    const result = await sendOmniAttachment(fd)
-    if (result.success) {
-      setInputMessage('')
-      await fetchMensagens(selectedChat.id)
-    } else {
-      alert('Erro ao enviar anexo: ' + result.error)
+    const maxMb = Math.round(DOCUMENT_MAX_BYTES / 1024 / 1024)
+    if (file.size > DOCUMENT_MAX_BYTES) {
+      setAttachError(
+        `Arquivo muito grande (${(file.size / 1024 / 1024).toFixed(1)} MB). O limite é ${maxMb} MB.`,
+      )
+      return
     }
-    setIsSending(false)
+
+    const mimeType = file.type || ''
+    if (!mimeType.startsWith('image/') && mimeType !== 'application/pdf') {
+      setAttachError('Formato não suportado. Envie PDF ou imagem (PNG, JPG, WEBP).')
+      return
+    }
+
+    setIsSending(true)
+    try {
+      const fd = new FormData()
+      fd.set('sessaoId', selectedChat.id)
+      fd.set('file', file)
+      const caption = inputMessage.trim()
+      if (caption) fd.set('caption', caption)
+
+      const result = await sendOmniAttachment(fd)
+      if (result.success) {
+        setInputMessage('')
+        setAttachError(null)
+        await fetchMensagens(selectedChat.id)
+      } else {
+        const err = result.error || 'Falha ao enviar anexo.'
+        // Next.js body limit residual / genérico
+        if (/Body exceeded|bodySizeLimit|too large|Payload Too Large/i.test(err)) {
+          setAttachError(`Arquivo excede o limite de ${maxMb} MB.`)
+        } else {
+          setAttachError(err)
+        }
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Erro ao enviar anexo.'
+      if (/Body exceeded|bodySizeLimit|too large|Payload Too Large/i.test(msg)) {
+        setAttachError(`Arquivo excede o limite de ${maxMb} MB.`)
+      } else {
+        setAttachError(msg)
+      }
+    } finally {
+      setIsSending(false)
+    }
   }
 
   const scrollToBottom = () => {
@@ -475,66 +833,65 @@ function ChatOmnichannelInner() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-140px)] gap-4 animate-in fade-in duration-500">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <BackButton />
-          <div>
-            <h2 className="text-2xl font-bold tracking-tight text-white flex items-center gap-3">
-              <MessageSquare className="w-6 h-6 text-[#2BAADF]" />
-              Chat Omnichannel
-            </h2>
-            <p className="text-sm text-gray-400 mt-0.5">Atendimento em tempo real via WhatsApp e outros canais.</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="flex flex-1 bg-[#111111] border border-[#ffffff0a] rounded-2xl overflow-hidden shadow-2xl relative">
-        <div className="w-80 md:w-96 border-r border-[#ffffff0a] flex flex-col bg-[#111111]">
-          <div className="p-4 border-b border-[#ffffff0a]">
+    <div
+      data-testid="omni-chat-page"
+      className="flex flex-col flex-1 min-h-0 h-0 gap-2 overflow-hidden animate-in fade-in duration-500"
+    >
+      <div className="flex flex-1 min-h-0 overflow-hidden bg-[#111111] border border-[#ffffff0a] rounded-2xl shadow-2xl relative">
+        <div className="w-60 md:w-64 shrink-0 border-r border-[#ffffff0a] flex flex-col min-h-0 bg-[#111111]">
+          <div className="p-3 border-b border-[#ffffff0a]">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" />
               <input 
                 type="text" 
-                placeholder="Buscar lead ou telefone..." 
+                data-testid="omni-search"
+                placeholder="Buscar lead..." 
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full bg-[#0A0A0A] border border-[#ffffff0a] rounded-xl pl-10 pr-4 py-2.5 text-sm text-white focus:border-[#2BAADF] transition-all outline-none"
+                className="w-full bg-[#0A0A0A] border border-[#ffffff0a] rounded-lg pl-8 pr-3 py-2 text-xs text-white focus:border-[#2BAADF] transition-all outline-none"
               />
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto custom-scrollbar">
+          <div data-testid="omni-conversa-list" className="flex-1 overflow-y-auto custom-scrollbar">
             {filteredConversas.length === 0 ? (
-              <div className="p-10 text-center text-gray-600 text-sm italic">Nenhuma conversa encontrada</div>
+              <div className="p-6 text-center text-gray-600 text-xs italic">Nenhuma conversa encontrada</div>
             ) : (
               filteredConversas.map((chat) => (
                 <div 
-                  key={chat.id}
-                  onClick={() => setSelectedChat(chat)}
-                  className={`p-4 border-b border-[#ffffff05] cursor-pointer transition-all hover:bg-[#ffffff03] group relative ${selectedChat && conversaMatchesSessao(chat, selectedChat.id) ? 'bg-[#2BAADF]/10' : ''}`}
+                  key={chat.sessao_id ?? chat.id}
+                  data-testid="omni-conversa-item"
+                  onClick={() => selectChatManually(chat)}
+                  className={`p-3 border-b border-[#ffffff05] cursor-pointer transition-all hover:bg-[#ffffff03] group relative ${selectedChat && conversaMatchesSessao(chat, selectedChat.id) ? 'bg-[#2BAADF]/10' : ''}`}
                 >
                   {selectedChat && conversaMatchesSessao(chat, selectedChat.id) && <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#2BAADF]" />}
-                  <div className="flex items-center gap-3">
-                    <div className="relative">
-                       <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#1A1A1A] to-[#0A0A0A] border border-[#ffffff10] flex items-center justify-center text-white shadow-lg">
-                          <User className="w-6 h-6 text-gray-500" />
-                       </div>
-                       <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-[#111111] flex items-center justify-center ${chat.status === 'ai' ? 'bg-[#80B828]' : 'bg-orange-500'}`}>
-                          {chat.status === 'ai' ? <Bot className="w-2.5 h-2.5 text-white" /> : <User className="w-2.5 h-2.5 text-white" />}
-                       </div>
+                  <div className="flex items-center gap-2.5">
+                    <div className="relative shrink-0">
+                       <LeadListAvatar
+                         nome={chat.crm_leads?.nome}
+                         awaitingReply={conversaAwaitingReply(chat)}
+                       />
+                       <div
+                         className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-[#111111] ${
+                           conversaAwaitingReply(chat)
+                             ? 'bg-[#80B828] shadow-[0_0_6px_rgba(128,184,40,0.55)]'
+                             : 'bg-orange-500'
+                         }`}
+                         title={conversaAwaitingReply(chat) ? 'Aguardando resposta' : 'Já respondida'}
+                         aria-label={conversaAwaitingReply(chat) ? 'Aguardando resposta' : 'Já respondida'}
+                       />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm font-bold text-white truncate group-hover:text-[#2BAADF] transition-colors">
+                      <div className="flex items-center justify-between gap-1">
+                        <p className="text-xs font-bold text-white truncate group-hover:text-[#2BAADF] transition-colors">
                           {chat.crm_leads?.nome || 'Desconhecido'}
                         </p>
-                        <span className="text-[10px] text-gray-600 font-medium">
+                        <span className="text-[9px] text-gray-600 font-medium shrink-0">
                           {format(new Date(chat.updated_at), 'HH:mm')}
                         </span>
                       </div>
-                      <p className="text-xs text-gray-500 truncate mt-1 italic font-medium opacity-70">
-                        {stripOutboundTags(chat.last_message || '') || 'Nova conversa iniciada'}
+                      <p className="text-[10px] text-gray-500 truncate mt-0.5 font-medium opacity-70 tabular-nums">
+                        {formatLeadPhone(chat.crm_leads?.telefone, chat.crm_leads?.whatsapp)}
                       </p>
                     </div>
                   </div>
@@ -544,10 +901,10 @@ function ChatOmnichannelInner() {
           </div>
         </div>
 
-        <div className="flex-1 flex flex-col relative bg-[#0D0D0D]">
+        <div className="flex-1 flex flex-col min-h-0 overflow-hidden relative bg-[#0D0D0D]">
           {selectedChat ? (
             <>
-              <div className="h-20 border-b border-[#ffffff0a] flex items-center justify-between px-6 bg-[#111111]/80 backdrop-blur-md z-10">
+              <div className="h-20 shrink-0 border-b border-[#ffffff0a] flex items-center justify-between px-6 bg-[#111111]/80 backdrop-blur-md z-10">
                  <div className="flex items-center gap-4">
                     <div className="w-10 h-10 rounded-xl bg-[#2BAADF]/10 border border-[#2BAADF]/20 flex items-center justify-center">
                         <Phone className="w-5 h-5 text-[#2BAADF]" />
@@ -562,13 +919,28 @@ function ChatOmnichannelInner() {
                       </div>
                     </div>
                  </div>
-                 <div className="flex items-center gap-2">
-                    {canEditCards && linkedCard && (
+                 <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setThreadSearchOpen((v) => !v)}
+                      title="Pesquisar nesta conversa"
+                      className={`p-2.5 rounded-xl transition-all border ${
+                        threadSearchOpen
+                          ? 'bg-[#2BAADF]/15 border-[#2BAADF]/30 text-[#2BAADF]'
+                          : 'bg-[#ffffff05] hover:bg-[#ffffff0a] border-transparent text-gray-400 hover:text-white'
+                      }`}
+                      aria-label="Pesquisar nesta conversa"
+                      aria-pressed={threadSearchOpen}
+                      data-testid="omni-thread-search-toggle"
+                    >
+                      <Search className="w-5 h-5" />
+                    </button>
+                    {canEditCards && selectedChat && (
                       <button
                         type="button"
                         onClick={() => void openRedirectModal()}
                         disabled={redirectLoading}
-                        title={`Encaminhar card: ${linkedCard.titulo}`}
+                        title={`Encaminhar card: ${encaminharCardTitulo}`}
                         className="flex items-center gap-2 px-3 py-2 rounded-xl bg-orange-500/10 hover:bg-orange-500/20 text-orange-400 hover:text-orange-300 transition-all border border-orange-500/25 disabled:opacity-50"
                       >
                         {redirectLoading ? (
@@ -576,29 +948,123 @@ function ChatOmnichannelInner() {
                         ) : (
                           <Navigation className="w-4 h-4" />
                         )}
-                        <span className="text-[11px] font-black uppercase tracking-wider hidden sm:inline">
+                        <span className="text-[11px] font-black uppercase tracking-wider">
                           Encaminhar
                         </span>
                       </button>
                     )}
                     <button
                       type="button"
-                      className="p-2.5 rounded-xl bg-[#ffffff05] hover:bg-[#ffffff0a] text-gray-400 hover:text-white transition-all"
-                      aria-label="Mais opções"
+                      onClick={() => setContextOpen((v) => !v)}
+                      title="Contexto do cliente"
+                      className={`p-2.5 rounded-xl transition-all border ${
+                        contextOpen
+                          ? 'bg-[#2BAADF]/15 border-[#2BAADF]/30 text-[#2BAADF]'
+                          : 'bg-[#ffffff05] hover:bg-[#ffffff0a] border-transparent text-gray-400 hover:text-white'
+                      }`}
+                      aria-label="Contexto do cliente"
+                      aria-pressed={contextOpen}
                     >
-                       <MoreVertical className="w-5 h-5" />
+                       <PanelRight className="w-5 h-5" />
                     </button>
                  </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar-chat bg-grid-white/[0.01]">
+              {threadSearchOpen && (
+                <div className="shrink-0 border-b border-[#ffffff0a] bg-[#111111] px-4 py-2.5 flex items-center gap-2">
+                  <div className="relative flex-1 min-w-0">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" />
+                    <input
+                      ref={threadSearchInputRef}
+                      type="search"
+                      value={threadSearchQuery}
+                      onChange={(e) => setThreadSearchQuery(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Escape') {
+                          setThreadSearchOpen(false)
+                          setThreadSearchQuery('')
+                          return
+                        }
+                        if (e.key === 'Enter' && threadMatchIds.length > 0) {
+                          e.preventDefault()
+                          setThreadMatchIndex((i) =>
+                            e.shiftKey
+                              ? (i - 1 + threadMatchIds.length) % threadMatchIds.length
+                              : (i + 1) % threadMatchIds.length,
+                          )
+                        }
+                      }}
+                      placeholder="Pesquisar nesta conversa..."
+                      data-testid="omni-thread-search"
+                      className="w-full bg-[#0A0A0A] border border-[#ffffff0a] rounded-lg pl-9 pr-3 py-2 text-xs text-white focus:border-[#2BAADF] outline-none"
+                    />
+                  </div>
+                  <span className="text-[10px] text-gray-500 font-medium tabular-nums shrink-0 min-w-[4.5rem] text-center">
+                    {threadSearchNeedle
+                      ? threadMatchIds.length > 0
+                        ? `${Math.min(threadMatchIndex, threadMatchIds.length - 1) + 1}/${threadMatchIds.length}`
+                        : '0/0'
+                      : '—'}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={threadMatchIds.length === 0}
+                    onClick={() =>
+                      setThreadMatchIndex((i) =>
+                        (i - 1 + threadMatchIds.length) % threadMatchIds.length,
+                      )
+                    }
+                    className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-[#ffffff08] disabled:opacity-30"
+                    aria-label="Resultado anterior"
+                  >
+                    <ChevronUp className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    disabled={threadMatchIds.length === 0}
+                    onClick={() =>
+                      setThreadMatchIndex((i) => (i + 1) % threadMatchIds.length)
+                    }
+                    className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-[#ffffff08] disabled:opacity-30"
+                    aria-label="Próximo resultado"
+                  >
+                    <ChevronDown className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setThreadSearchOpen(false)
+                      setThreadSearchQuery('')
+                    }}
+                    className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-[#ffffff08]"
+                    aria-label="Fechar pesquisa"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+
+              <div className="flex flex-1 min-h-0 min-w-0 overflow-hidden">
+              <div className="flex-1 min-w-0 min-h-0 overflow-y-auto p-6 space-y-6 custom-scrollbar-chat bg-grid-white/[0.01]">
                 {mensagens.map((msg) => {
                   const responderLabel = getResponderLabel(msg)
                   const isAiResponder = responderLabel === 'Agente de IA'
+                  const isMatch =
+                    threadSearchOpen &&
+                    Boolean(threadSearchNeedle) &&
+                    threadMatchIds.includes(msg.id)
+                  const isActiveMatch =
+                    isMatch &&
+                    threadMatchIds[Math.min(threadMatchIndex, threadMatchIds.length - 1)] === msg.id
+                  const isDeleted = isOmniMessageDeleted(msg.metadata)
+                  const showDelete = canDeleteOmniMessage(msg, profile)
                   return (
                   <div 
                     key={msg.id}
-                    className={`flex ${msg.role === 'user' ? 'justify-start' : 'justify-end'} animate-in fade-in slide-in-from-bottom-2 duration-300`}
+                    id={`omni-msg-${msg.id}`}
+                    className={`flex ${msg.role === 'user' ? 'justify-start' : 'justify-end'} animate-in fade-in slide-in-from-bottom-2 duration-300 ${
+                      threadSearchOpen && threadSearchNeedle && !isMatch ? 'opacity-35' : ''
+                    }`}
                   >
                     <div className={`max-w-[75%] group relative`}>
                        <div className={`flex items-center gap-2 mb-1.5 px-1 ${msg.role === 'user' ? 'flex-row' : 'flex-row-reverse'}`}>
@@ -620,11 +1086,42 @@ function ChatOmnichannelInner() {
                           <span className="text-[9px] text-gray-700 font-mono">
                              {format(new Date(msg.created_at), 'HH:mm')}
                           </span>
+                          {isDeleted && (
+                            <span className="text-[9px] font-black uppercase tracking-[0.1em] text-amber-500/90">
+                              Apagada no WhatsApp
+                            </span>
+                          )}
+                          {showDelete && (
+                            <button
+                              type="button"
+                              title="Apagar no WhatsApp do cliente"
+                              disabled={deletingMessageId === msg.id}
+                              onClick={() => void handleDeleteMessage(msg)}
+                              className="p-0.5 rounded text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-100"
+                              aria-label="Apagar mensagem"
+                            >
+                              {deletingMessageId === msg.id ? (
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                              ) : (
+                                <Trash2 className="w-3 h-3" />
+                              )}
+                            </button>
+                          )}
                        </div>
                        <div className={`p-4 rounded-2xl shadow-xl text-[14px] leading-relaxed border ${
-                          msg.role === 'user' 
+                          isDeleted
+                            ? msg.role === 'user'
+                              ? 'bg-[#1A1A1A] text-gray-400 border-[#ffffff0a] rounded-tl-none opacity-70'
+                              : 'bg-gradient-to-br from-[#2BAADF]/55 to-[#1A8FBF]/55 text-white/80 border-[#2BAADF]/10 rounded-tr-none'
+                            : msg.role === 'user' 
                             ? 'bg-[#1A1A1A] text-gray-200 border-[#ffffff0a] rounded-tl-none' 
                             : 'bg-gradient-to-br from-[#2BAADF] to-[#1A8FBF] text-white border-[#2BAADF]/20 rounded-tr-none'
+                       } ${
+                          isActiveMatch
+                            ? 'ring-2 ring-[#80B828] ring-offset-2 ring-offset-[#0D0D0D]'
+                            : isMatch
+                              ? 'ring-1 ring-[#80B828]/50'
+                              : ''
                        }`}>
                           {formatMessageContent(msg)}
                        </div>
@@ -635,57 +1132,106 @@ function ChatOmnichannelInner() {
                 <div ref={messagesEndRef} />
               </div>
 
-              <div className="p-6 bg-[#111111]/90 border-t border-[#ffffff0a] backdrop-blur-sm">
-                 <div className="bg-[#0A0A0A] border border-[#ffffff0a] rounded-2xl p-2.5 focus-within:border-[#2BAADF]/50 transition-all shadow-inner">
-                    <textarea 
-                      placeholder="Responda aqui para assumir o controle... (IA pausará)"
-                      rows={2}
-                      value={inputMessage}
-                      onChange={(e) => setInputMessage(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                          e.preventDefault()
-                          handleSendMessage()
-                        }
-                      }}
-                      className="w-full bg-transparent border-none text-white text-sm p-3 outline-none resize-none placeholder-gray-600 font-medium leading-relaxed italic"
-                      disabled={isSending}
-                    />
-                    <div className="flex items-center justify-between border-t border-[#ffffff05] pt-3 mt-2 px-1">
-                       <div className="flex items-center gap-1">
-                          <input
-                            ref={fileInputRef}
-                            type="file"
-                            accept="application/pdf,image/*,.pdf,.png,.jpg,.jpeg,.webp"
-                            className="hidden"
-                            onChange={handleAttachmentSelect}
-                          />
-                          <button
-                            type="button"
-                            disabled={isSending || !selectedChat}
-                            onClick={() => fileInputRef.current?.click()}
-                            title="Enviar PDF ou imagem (máx. 5 MB)"
-                            className="p-2 text-gray-500 hover:text-[#2BAADF] hover:bg-[#2BAADF]/10 rounded-xl transition-all disabled:opacity-40"
-                          >
-                            <Paperclip className="w-5 h-5" />
-                          </button>
-                          <button type="button" disabled className="p-2 text-gray-600 rounded-xl opacity-40 cursor-not-allowed" title="Em breve"><Smile className="w-5 h-5" /></button>
-                       </div>
-                       <button 
-                         onClick={handleSendMessage}
-                         disabled={isSending || !inputMessage.trim()}
-                         className={`bg-gradient-to-r from-[#2BAADF] to-[#1A8FBF] hover:shadow-[0_4px_20px_rgba(43,170,223,0.4)] text-white px-6 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest flex items-center gap-2 transition-all transform active:scale-95 shadow-lg ${isSending ? 'opacity-50 cursor-not-allowed' : ''}`}
-                       >
-                          {isSending ? (
-                            <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
-                          ) : (
-                            <Send className="w-4 h-4" />
-                          )}
-                          {isSending ? 'Enviando...' : 'Enviar Mensagem'}
-                       </button>
+              {contextOpen && (
+                <OmniCustomerContextPanel
+                  context={customerContext}
+                  loading={contextLoading}
+                  error={contextError}
+                  onClose={() => setContextOpen(false)}
+                  onSelectCard={setConsultaCardId}
+                />
+              )}
+              </div>
+
+              <div className="shrink-0 overflow-visible p-4 sm:p-5 bg-[#111111]/90 border-t border-[#ffffff0a] backdrop-blur-sm">
+                 {attachError && (
+                   <div
+                     role="alert"
+                     className="mb-2 flex items-start gap-2 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-[12px] text-red-300"
+                   >
+                     <span className="flex-1 leading-relaxed">{attachError}</span>
+                     <button
+                       type="button"
+                       onClick={() => setAttachError(null)}
+                       className="shrink-0 p-0.5 text-red-400/80 hover:text-red-200"
+                       aria-label="Fechar aviso"
+                     >
+                       <X className="w-3.5 h-3.5" />
+                     </button>
+                   </div>
+                 )}
+                 <div className="bg-[#0A0A0A] border border-[#ffffff0a] rounded-2xl px-2 py-2 focus-within:border-[#2BAADF]/50 transition-all shadow-inner">
+                    <div className="flex items-end gap-1.5">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="application/pdf,image/*,.pdf,.png,.jpg,.jpeg,.webp"
+                        className="hidden"
+                        onChange={handleAttachmentSelect}
+                      />
+                      <button
+                        type="button"
+                        disabled={isSending || !selectedChat}
+                        onClick={() => fileInputRef.current?.click()}
+                        title="Enviar PDF ou imagem (máx. 5 MB)"
+                        className="shrink-0 p-2 mb-0.5 text-gray-500 hover:text-[#2BAADF] hover:bg-[#2BAADF]/10 rounded-xl transition-all disabled:opacity-40"
+                      >
+                        <Paperclip className="w-5 h-5" />
+                      </button>
+                      <button
+                        ref={emojiButtonRef}
+                        type="button"
+                        disabled={isSending || !selectedChat}
+                        onClick={() => setEmojiPickerOpen((v) => !v)}
+                        title="Inserir emoji"
+                        aria-label="Inserir emoji"
+                        aria-pressed={emojiPickerOpen}
+                        className={`shrink-0 p-2 mb-0.5 rounded-xl transition-all disabled:opacity-40 ${
+                          emojiPickerOpen
+                            ? 'text-[#2BAADF] bg-[#2BAADF]/10'
+                            : 'text-gray-500 hover:text-[#2BAADF] hover:bg-[#2BAADF]/10'
+                        }`}
+                      >
+                        <Smile className="w-5 h-5" />
+                      </button>
+                      <textarea
+                        ref={replyInputRef}
+                        data-testid="omni-reply-input"
+                        placeholder="Responda aqui para assumir o controle... (IA pausará)"
+                        rows={1}
+                        value={inputMessage}
+                        onChange={(e) => setInputMessage(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Escape' && emojiPickerOpen) {
+                            e.preventDefault()
+                            setEmojiPickerOpen(false)
+                            return
+                          }
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault()
+                            setEmojiPickerOpen(false)
+                            handleSendMessage()
+                          }
+                        }}
+                        className="flex-1 min-h-[44px] max-h-32 bg-transparent border-none text-white text-sm px-2 py-2.5 outline-none resize-none placeholder-gray-600 font-medium leading-relaxed"
+                        disabled={isSending}
+                      />
+                      <button
+                        type="button"
+                        onClick={handleSendMessage}
+                        disabled={isSending || !inputMessage.trim()}
+                        title={isSending ? 'Enviando...' : 'Enviar mensagem'}
+                        className={`shrink-0 mb-0.5 w-11 h-11 rounded-xl bg-gradient-to-r from-[#2BAADF] to-[#1A8FBF] hover:shadow-[0_4px_20px_rgba(43,170,223,0.4)] text-white flex items-center justify-center transition-all transform active:scale-95 shadow-lg disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none`}
+                      >
+                        {isSending ? (
+                          <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                        ) : (
+                          <Send className="w-4 h-4" />
+                        )}
+                      </button>
                     </div>
                  </div>
-                 <div className="mt-3 flex items-center justify-center gap-4 opacity-30 grayscale hover:grayscale-0 transition-all duration-700">
+                 <div className="mt-2 flex items-center justify-center gap-4 opacity-30 grayscale hover:grayscale-0 transition-all duration-700">
                     <span className="text-[10px] text-gray-500 font-black uppercase tracking-[0.2em] flex items-center gap-2">
                        <ShieldCheck className="w-3 h-3 text-[#2BAADF]" /> Criptografia Ponta-a-Ponta HuginFlow
                     </span>
@@ -710,8 +1256,81 @@ function ChatOmnichannelInner() {
                </div>
             </div>
           )}
+          {consultaCardId && (
+            <CardConsultaDrawer
+              cardId={consultaCardId}
+              onClose={() => setConsultaCardId(null)}
+            />
+          )}
         </div>
       </div>
+
+      {emojiPickerOpen &&
+        createPortal(
+          <div
+            ref={emojiPickerRef}
+            role="listbox"
+            aria-label="Emojis"
+            style={{
+              position: 'fixed',
+              left: emojiPickerPos.left,
+              bottom: emojiPickerPos.bottom,
+              width: 288,
+              zIndex: 80,
+              backgroundColor: '#1C1C1C',
+              border: '1px solid rgba(255,255,255,0.14)',
+              borderRadius: 16,
+              padding: 10,
+              boxShadow: '0 18px 50px rgba(0,0,0,0.7)',
+            }}
+          >
+            <p
+              style={{
+                margin: '0 0 8px',
+                fontSize: 10,
+                fontWeight: 800,
+                letterSpacing: '0.14em',
+                textTransform: 'uppercase',
+                color: '#9CA3AF',
+              }}
+            >
+              Emojis
+            </p>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(8, 32px)',
+                justifyContent: 'space-between',
+                gap: 4,
+                maxHeight: 176,
+                overflowY: 'auto',
+              }}
+            >
+              {OMNI_EMOJIS.map((emoji, i) => (
+                <button
+                  key={`${emoji}-${i}`}
+                  type="button"
+                  onClick={() => insertEmoji(emoji)}
+                  aria-label={`Inserir ${emoji}`}
+                  style={{
+                    width: 32,
+                    height: 32,
+                    border: 0,
+                    borderRadius: 8,
+                    background: 'transparent',
+                    cursor: 'pointer',
+                    fontSize: 20,
+                    lineHeight: '32px',
+                    padding: 0,
+                  }}
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
+          </div>,
+          document.body,
+        )}
 
       {redirectCtx && (
         <ChatCardRedirectModal

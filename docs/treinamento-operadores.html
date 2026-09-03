@@ -93,20 +93,27 @@
         <a href="#login">Entrar no sistema</a>
         <a href="#senha">Alterar senha</a>
         <a href="#navegacao">Navegação no Cockpit</a>
+        <a href="#navegacao-menu">6.1 Menu hambúrguer</a>
         <div class="section-label">Canal de entrada</div>
         <a href="#whatsapp">Chat Omnichannel (WhatsApp)</a>
         <a href="#whatsapp-assumir">Assumir conversa da IA</a>
+        <a href="#whatsapp-contexto">7.3 Painel contexto do cliente</a>
+        <a href="#whatsapp-multi-sessao">7.4 Várias conversas do mesmo lead</a>
+        <a href="#whatsapp-encaminhar">7.5 Encaminhar pelo chat</a>
+        <a href="#whatsapp-documentos">7.6 Documentos no WhatsApp</a>
         <a href="#whatsapp-boas-praticas">Boas práticas no WhatsApp</a>
         <div class="section-label">Equipe</div>
         <a href="#interno">Chat interno — visão geral</a>
         <a href="#interno-badge">8.1 Avisos de mensagens</a>
         <a href="#interno-encaminhar">8.2 Abrir card pelo chat</a>
         <a href="#interno-mencoes">8.3 Marcar usuário (@ / #)</a>
+        <a href="#interno-notificacoes">8.4 Avisos ao alterar card</a>
         <div class="section-label">Processos — Cards</div>
         <a href="#cards">Funil (Kanban)</a>
+        <a href="#cards-modal">9.0 Modal do card (novo layout)</a>
         <a href="#cards-atendimento">9.1 WhatsApp ↔ card do processo</a>
         <a href="#cards-encaminhar">9.2 Encaminhar a outro atendente</a>
-        <a href="#cards-pipeline">9.3 Enviar a outro pipeline</a>
+        <a href="#cards-pipeline">9.3 Enviar a outro pipeline (resumo IA)</a>
         <a href="#cards-chat-interno">9.4 Chat interno do card</a>
         <a href="#cards-mencoes">9.5 Menções @ e # no card</a>
         <a href="#cards-anexos">9.6 Anexar documentos</a>
@@ -115,11 +122,12 @@
         <a href="#fluxo">Fluxo do dia a dia</a>
         <a href="#cenarios">Cenários práticos</a>
         <a href="#problemas">Problemas comuns</a>
+        <a href="#alertas">12.1 Alertas do sistema</a>
         <a href="#glossario">Glossário</a>
         <div class="section-label">Treinamento ao vivo</div>
         <a href="#aula-90">Roteiro da aula (1h30)</a>
         <a href="#checklist">Checklist do operador</a>
-        <div class="section-label">Exercícios (23)</div>
+        <div class="section-label">Exercícios (27)</div>
         <a href="#sobre">Ex. 1 — Orientação</a>
         <a href="#login">Ex. 4–5 — Login e senha</a>
         <a href="#whatsapp">Ex. 7–9 — WhatsApp</a>
@@ -136,7 +144,7 @@
         <p class="meta">
           Acesso: <a href="https://app.huginflow.com/login" target="_blank" rel="noopener">app.huginflow.com/login</a> ·
           Ajuda dentro do app: ícone <strong>?</strong> no topo ·
-          Versão ago/2026
+          Versão set/2026 — pacote CRM (ago/set)
         </p>
       </header>
 
@@ -154,6 +162,7 @@
         <li><strong>Chat interno</strong> — coordenação entre colegas sobre o processo, <em>sem</em> expor nada ao cliente</li>
       </ul>
       <p>Este guia <strong>não substitui</strong> o manual completo da plataforma (ícone <strong>?</strong> → <em>Manual do sistema</em>), mas foca no que você precisa para <strong>operar workflows</strong> no dia a dia.</p>
+      <p>Atualização <strong>set/2026</strong> — pacote CRM: contexto no chat, sessões por departamento, modal do card com observações editáveis, <strong>anexos no hub</strong> (clipe + lista), ações em uma linha (Encaminhar · WhatsApp · Editar · Chat), encaminhamento com resumo IA, documentos WhatsApp e alertas de canal. Referência técnica: <code>docs/supabase-prod-deploy-pending.md</code> e roteiro de homologação em <code>docs/homologacao/script-teste-pacote-crm-ago-2026.md</code>.</p>
 
       <div class="exercise">
         <p class="exercise-title">Exercício 1 — Orientação inicial</p>
@@ -175,7 +184,10 @@
           <tr><td><strong>Lead</strong></td><td>Contato (pessoa ou empresa): nome, telefone, e-mail. Pode ser criado automaticamente quando alguém envia mensagem pelo WhatsApp.</td></tr>
           <tr><td><strong>Card</strong></td><td>Instância de um processo em andamento — um pedido, chamado ou demanda concreta. Tem responsável, etapa atual e histórico (Timeline).</td></tr>
           <tr><td><strong>Funil / Kanban</strong></td><td>Quadro do workflow com colunas (etapas). Você move cards conforme o processo avança.</td></tr>
-          <tr><td><strong>Conversa</strong></td><td>Thread de mensagens no canal de entrada (ex.: WhatsApp). Complementa o card; não substitui o registro do processo.</td></tr>
+          <tr><td><strong>Conversa</strong></td><td>Thread de mensagens no canal de entrada (ex.: WhatsApp). Pode existir <strong>mais de uma</strong> por lead quando há atendimentos em departamentos diferentes.</td></tr>
+          <tr><td><strong>Sessão / sessao_id</strong></td><td>Identificador único de cada conversa no OmniChat. Dois cards (Comercial e Financeiro) do mesmo cliente = duas sessões distintas na lista.</td></tr>
+          <tr><td><strong>Falante ativo</strong></td><td>Departamento que “segura” o WhatsApp daquele telefone no momento. Outros departamentos podem ter conversa própria, sem misturar histórico.</td></tr>
+          <tr><td><strong>Contexto do cliente</strong></td><td>Painel lateral no Chat Omnichannel: cadastro, card deste atendimento, histórico de cards e aviso se outro departamento está ativo.</td></tr>
           <tr><td><strong>Agente de IA</strong></td><td>Respostas automáticas na entrada do canal, antes de um humano assumir o fluxo.</td></tr>
           <tr><td><strong>Takeover / Gestão Humana</strong></td><td>Quando você responde no WhatsApp e passa a conduzir aquela conversa — a IA pausa.</td></tr>
           <tr><td><strong>Chat interno</strong></td><td>Coordenação entre colegas sobre o processo — nunca vai para o WhatsApp do cliente.</td></tr>
@@ -356,15 +368,31 @@
         <div class="card"><strong>Seu nome (rodapé do menu)</strong>Acesso a <strong>Alterar senha</strong>.</div>
       </div>
 
+      <h3 id="navegacao-menu">6.1 Menu hambúrguer (sidebar colapsável)</h3>
+      <p>No canto superior esquerdo do Cockpit há um botão de <strong>menu hambúrguer</strong> (três linhas). Use-o para:</p>
+      <ul>
+        <li><strong>Recolher</strong> o menu lateral e ganhar mais espaço para funil, chat ou kanban</li>
+        <li><strong>Expandir</strong> de novo quando precisar trocar de módulo</li>
+        <li>O conteúdo principal se <strong>redimensiona automaticamente</strong> — não fica cortado atrás do menu</li>
+      </ul>
+      <div class="alert info">
+        <strong>Dica:</strong> no Chat Omnichannel e no funil, deixe o menu recolhido se trabalha em monitor pequeno — você ganha largura para a conversa e o painel de contexto.
+      </div>
+
+      <figure class="screenshot">
+        <img src="manual/img/treinamento/cockpit-menu-hamburguer.png" alt="Menu hambúrguer recolhido" onerror="this.closest('figure').remove()" />
+        <figcaption>Menu hambúrguer — sidebar recolhida; o conteúdo principal ganha largura para chat ou funil</figcaption>
+      </figure>
+
       <div class="exercise">
         <p class="exercise-title">Exercício 6 — Tour pelo Cockpit</p>
         <p class="exercise-meta">⏱ ~8 min · Explore o ambiente</p>
         <ol>
           <li>Clique em <strong>Cockpit</strong>, depois em <strong>Chat Omnichannel</strong>, depois em <strong>Funis</strong> — observe o item ativo ficar destacado em azul.</li>
+          <li>Teste o <strong>menu hambúrguer</strong>: recolha o menu, abra o chat e expanda de novo.</li>
           <li>No topo, clique no ícone <strong>?</strong> e confirme que aparecem as opções <em>Manual do sistema</em> e <em>Treinamento do operador</em>.</li>
           <li>Abra o botão flutuante azul (canto inferior direito) e feche sem enviar mensagem — só para memorizar onde fica.</li>
           <li>Clique no seu nome no rodapé do menu e localize <strong>Alterar senha</strong>.</li>
-          <li>Volte ao Cockpit e identifique onde encerrar a sessão com segurança.</li>
         </ol>
         <p class="exercise-done"><strong>Concluiu quando:</strong> localizar em menos de 10 segundos: menu WhatsApp, funil, ajuda (?) e chat interno.</p>
       </div>
@@ -377,11 +405,12 @@
         <p class="procedure-title"><span>3</span> Abrir o Chat Omnichannel</p>
         <ol class="steps">
           <li>No menu lateral, clique em <strong>Chat Omnichannel</strong>.</li>
-          <li>A tela divide em duas partes:
-            <span class="hint"><strong>Esquerda:</strong> lista de conversas · <strong>Direita:</strong> mensagens da conversa selecionada</span>
+          <li>A tela divide em <strong>até três colunas</strong>:
+            <span class="hint"><strong>Esquerda:</strong> lista de conversas · <strong>Centro:</strong> mensagens · <strong>Direita (opcional):</strong> Contexto do cliente</span>
           </li>
-          <li>No topo da lista, use <strong>Buscar lead ou telefone…</strong> para achar alguém rapidamente.</li>
-          <li>Clique em uma conversa para abrir o histórico à direita.</li>
+          <li>No topo da lista, use <strong>Buscar lead…</strong> para achar alguém rapidamente.</li>
+          <li>Clique em uma conversa para abrir o histórico no centro.</li>
+          <li>No cabeçalho da conversa, use o ícone de <strong>painel lateral</strong> (direita) para abrir ou fechar o <strong>Contexto do cliente</strong>.</li>
         </ol>
       </div>
 
@@ -395,7 +424,7 @@
         <p class="exercise-meta">⏱ ~7 min · Chat Omnichannel</p>
         <ol>
           <li>Abra <strong>Chat Omnichannel</strong> pelo menu lateral.</li>
-          <li>Use <strong>Buscar lead ou telefone…</strong> e digite parte do nome ou número de um cliente de exemplo (o instrutor indicará qual).</li>
+          <li>Use <strong>Buscar lead…</strong> e digite parte do nome ou número de um cliente de exemplo (o instrutor indicará qual).</li>
           <li>Abra a conversa e role o histórico até o início — conte quantas mensagens são do cliente e quantas da IA.</li>
           <li>Identifique se o status atual é <strong>Atendimento Robotizado</strong> ou <strong>Gestão Humana</strong>.</li>
         </ol>
@@ -475,6 +504,128 @@
           <li>Troque com um colega: cada um avalia a resposta do outro em 30 segundos.</li>
         </ol>
         <p class="exercise-done"><strong>Concluiu quando:</strong> sua resposta estiver adequada para enviar ao cliente real ou ao simulador.</p>
+      </div>
+
+      <h3 id="whatsapp-contexto">7.3 Painel Contexto do cliente</h3>
+      <p>À direita da conversa (quando aberto), o painel <strong>Contexto do cliente</strong> reúne informações do lead e dos cards — sem sair do chat.</p>
+      <table>
+        <thead><tr><th>Bloco</th><th>O que mostra</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Cadastro</strong></td><td>Nome, telefone, WhatsApp, e-mail (quando cadastrados). Link para perfil completo do lead.</td></tr>
+          <tr><td><strong>Card deste atendimento</strong></td><td>Card ligado à conversa selecionada — funil, etapa, status aberto/fechado.</td></tr>
+          <tr><td><strong>Últimos atendimentos</strong></td><td>Outros cards recentes do mesmo cliente (últimos 90 dias).</td></tr>
+          <tr><td><strong>Outros departamentos</strong></td><td>Cards de áreas que você só consulta (visualização parcial, sem editar o funil deles).</td></tr>
+        </tbody>
+      </table>
+      <div class="procedure">
+        <p class="procedure-title"><span>4b</span> Consultar um card pelo painel</p>
+        <ol class="steps">
+          <li>Com uma conversa aberta, abra o painel <strong>Contexto do cliente</strong> (ícone no cabeçalho da conversa).</li>
+          <li>Clique em qualquer card listado — abre um <strong>drawer de consulta</strong> sobre o chat (não troca de página).</li>
+          <li>Leia título, funil, responsável, prazo e <strong>histórico</strong> (timeline de eventos).</li>
+          <li>Se o card for de <strong>outro departamento</strong>, detalhes internos podem estar ocultos — normal por permissão de área.</li>
+          <li>Feche com <strong>Esc</strong> ou clique fora para voltar à conversa.</li>
+        </ol>
+      </div>
+      <div class="alert ok">
+        <strong>Consulta ≠ editar:</strong> o drawer serve para <strong>ler contexto</strong>. Para alterar responsável, observações ou encaminhar, use o modal do card no funil ou <strong>Encaminhar</strong> no chat (§7.5).
+      </div>
+
+      <figure class="screenshot">
+        <img src="manual/img/treinamento/omni-contexto-cliente.png" alt="Painel Contexto do cliente" onerror="this.src='manual/img/05-chat-omni.png'" />
+        <figcaption>Painel <strong>Contexto do cliente</strong> — cadastro, card deste atendimento e histórico; ícone no cabeçalho da conversa</figcaption>
+      </figure>
+
+      <div class="exercise">
+        <p class="exercise-title">Exercício 9b — Contexto e consulta de card</p>
+        <p class="exercise-meta">⏱ ~7 min · Chat Omnichannel</p>
+        <ol>
+          <li>Abra uma conversa e ative o painel <strong>Contexto do cliente</strong>.</li>
+          <li>Identifique o bloco <strong>Card deste atendimento</strong> e anote funil + etapa.</li>
+          <li>Clique em um card em <strong>Últimos atendimentos</strong> e leia a timeline no drawer.</li>
+          <li>Feche o drawer e confirme que a conversa continua aberta.</li>
+        </ol>
+        <p class="exercise-done"><strong>Concluiu quando:</strong> abrir e fechar a consulta de um card sem perder a conversa selecionada.</p>
+      </div>
+
+      <h3 id="whatsapp-multi-sessao">7.4 Várias conversas do mesmo lead (por departamento)</h3>
+      <p>Com <strong>sessões por departamento</strong>, o mesmo cliente pode aparecer <strong>duas ou mais vezes</strong> na lista — uma conversa por área (ex.: Comercial e Financeiro).</p>
+      <ul>
+        <li>Selecione a conversa do <strong>departamento/funil</strong> em que você trabalha.</li>
+        <li>O contexto mostra o card correto para <strong>esta</strong> sessão.</li>
+        <li>Se outro departamento estiver ativo no WhatsApp, um <strong>aviso amarelo</strong> aparece no painel.</li>
+        <li>Ao trocar de linha com o mesmo nome, histórico e card mudam — comportamento esperado.</li>
+      </ul>
+      <div class="alert danger">
+        <strong>Erro comum:</strong> responder no Financeiro achando que está no Comercial. Confira cabeçalho (departamento) e <strong>Card deste atendimento</strong> antes de enviar.
+      </div>
+
+      <figure class="screenshot">
+        <img src="manual/img/05-chat-omni.png" alt="Lista com várias conversas" onerror="this.closest('figure').remove()" />
+        <figcaption>Lista do Chat Omnichannel — confira nome <em>e</em> departamento/sessão antes de responder quando o mesmo lead aparece mais de uma vez</figcaption>
+      </figure>
+
+      <div class="exercise">
+        <p class="exercise-title">Exercício 9c — Duas conversas, um lead</p>
+        <p class="exercise-meta">⏱ ~8 min · Multi-departamento</p>
+        <ol>
+          <li>Localize duas entradas com o <strong>mesmo nome</strong> na lista.</li>
+          <li>Abra cada uma e compare card e última mensagem.</li>
+          <li>Confirme históricos <strong>diferentes</strong>.</li>
+          <li>Volte para a conversa da sua área antes de responder.</li>
+        </ol>
+        <p class="exercise-done"><strong>Concluiu quando:</strong> explicar qual linha é “sua” e por quê.</p>
+      </div>
+
+      <h3 id="whatsapp-encaminhar">7.5 Encaminhar card pelo chat</h3>
+      <p>No cabeçalho, <strong>Encaminhar</strong> (laranja) abre o fluxo do card vinculado — operador, funil ou pipeline.</p>
+      <div class="procedure">
+        <ol class="steps">
+          <li>Abra conversa com card no contexto.</li>
+          <li>Clique <strong>Encaminhar</strong>.</li>
+          <li>Escolha destino (responsável, funil/estágio).</li>
+          <li>Em repasse para <strong>outro funil</strong>, revise o <strong>resumo gerado por IA</strong>, edite se necessário e confirme (texto mínimo ~20 caracteres).</li>
+          <li>A Timeline do card registra a migração.</li>
+        </ol>
+      </div>
+      <div class="alert info">
+        <strong>Resumo IA editável:</strong> vai para <strong>observações</strong> do card e histórico. Valide nomes, valores e prazos antes de confirmar.
+      </div>
+
+      <figure class="screenshot">
+        <img src="manual/img/treinamento/omni-encaminhar.png" alt="Encaminhar pelo chat omnichannel" onerror="this.src='manual/img/05-chat-omni.png'" />
+        <figcaption>Botão <strong>Encaminhar</strong> no cabeçalho da conversa — abre o fluxo de repasse do card vinculado</figcaption>
+      </figure>
+
+      <div class="exercise">
+        <p class="exercise-title">Exercício 9d — Encaminhar pelo chat</p>
+        <p class="exercise-meta">⏱ ~10 min</p>
+        <ol>
+          <li>Clique <strong>Encaminhar</strong> em conversa de teste.</li>
+          <li>Simule repasse (instrutor indica destino).</li>
+          <li>Edite uma linha do resumo IA se aparecer.</li>
+          <li>Confirme evento na timeline do card.</li>
+        </ol>
+        <p class="exercise-done"><strong>Concluiu quando:</strong> encaminhamento visível no histórico.</p>
+      </div>
+
+      <h3 id="whatsapp-documentos">7.6 Documentos enviados pelo cliente</h3>
+      <p>Boletos, comprovantes, PDFs e fotos: o sistema processa, exibe na conversa e pode vincular <strong>anexo</strong> ao card. Confira no modal do card → painel <strong>Anexos</strong> (topo do hub) ou botão <strong>Ver</strong>. Documento ilegível → peça reenvio ou registre observação manual.</p>
+
+      <figure class="screenshot">
+        <img src="manual/img/treinamento/card-anexos.png" alt="Anexos no card após documento WhatsApp" onerror="this.src='manual/img/treinamento/card-modal-hub.png'" />
+        <figcaption>Tela <strong>Anexos</strong> do card — envie ou baixe arquivos vinculados ao processo (máx. 5 MB)</figcaption>
+      </figure>
+
+      <div class="exercise">
+        <p class="exercise-title">Exercício 9e — Documento no WhatsApp</p>
+        <p class="exercise-meta">⏱ ~5 min</p>
+        <ol>
+          <li>Receba/simule PDF ou imagem.</li>
+          <li>Aguarde processamento na bolha.</li>
+          <li>Verifique anexo ou observação no card.</li>
+        </ol>
+        <p class="exercise-done"><strong>Concluiu quando:</strong> achar documento na conversa e no card.</p>
       </div>
 
       <h3>Fila do operador</h3>
@@ -575,8 +726,8 @@
         <ol class="steps">
           <li>No painel <strong>Conversas</strong>, selecione uma thread com etiqueta <strong>Card</strong> (ícone laranja <strong>#</strong>).</li>
           <li>No topo da área de mensagens, clique em <strong>Gestão do Card</strong> (botão laranja com ícone de link externo).</li>
-          <li>O modal <strong>Gestão de Lead</strong> abre na aba <strong>Dados &amp; Resumo</strong> — lá você edita responsável, prazo, observações e anexos.</li>
-          <li>Para <strong>encaminhar o caso</strong>: altere o <strong>Responsável</strong> (Editar Card) e deixe no chat interno do card um resumo do contexto para o novo atendente.</li>
+          <li>Abre o <strong>modal do card</strong> — hub com responsável, prazo, cliente, <strong>observações editáveis</strong>, ações rápidas e <strong>Timeline</strong> à direita.</li>
+          <li>Para <strong>encaminhar</strong>: use o botão laranja <strong>Encaminhar</strong> no hub ou repasse pelo chat Omnichannel (§7.5).</li>
         </ol>
       </div>
 
@@ -593,8 +744,8 @@
         <ol>
           <li>No painel de chat interno, localize uma conversa com etiqueta <strong>Card</strong> (ícone laranja <strong>#</strong>) — o instrutor indicará qual card usar.</li>
           <li>Clique em <strong>Gestão do Card</strong> no topo da thread.</li>
-          <li>No modal, identifique as abas <strong>Dados &amp; Resumo</strong>, <strong>Chat Interno</strong> e a coluna <strong>Timeline</strong>.</li>
-          <li>Volte ao chat interno e escreva uma linha de contexto para a equipe (ex.: <em>Cliente aguardando retorno sobre prazo.</em>).</li>
+          <li>No modal, identifique: metadados + painel de <strong>Anexos</strong> (topo), bloco <strong>Observações</strong> com <strong>Salvar</strong>, linha de ações (Encaminhar · WhatsApp · Editar · Chat) e coluna <strong>Timeline</strong>.</li>
+          <li>Escreva uma linha nas observações e salve — confirme na Timeline evento de edição.</li>
         </ol>
         <p class="exercise-done"><strong>Concluiu quando:</strong> abrir o modal completo do card a partir do chat interno em um único fluxo.</p>
       </div>
@@ -638,6 +789,14 @@
         <p class="exercise-done"><strong>Concluiu quando:</strong> uma mensagem sua contiver ao mesmo tempo menção a pessoa e a card.</p>
       </div>
 
+      <h3 id="interno-notificacoes">8.4 Avisos quando alguém altera seu card</h3>
+      <p>Se você é <strong>responsável</strong> por um card e outro colega (ou a IA) altera observação, move etapa, troca responsável ou anexa arquivo, você recebe aviso no <strong>chat interno do card</strong> (menção automática). Responda na thread do card — não no WhatsApp.</p>
+
+      <figure class="screenshot">
+        <img src="manual/img/treinamento/card-chat-interno.png" alt="Chat interno do card para avisos" onerror="this.src='manual/img/09-chat-interno.png'" />
+        <figcaption>Chat interno do card — use esta thread (não o WhatsApp) para responder avisos de alteração no processo</figcaption>
+      </figure>
+
       <div class="alert">
         <strong>Lembrete:</strong> mensagem no chat interno <strong>não</strong> chega ao WhatsApp. Se precisar falar com quem iniciou o contato, volte ao <strong>Chat Omnichannel</strong>.
       </div>
@@ -671,12 +830,12 @@
       </div>
 
       <div class="alert info">
-        <strong>Abrir o modal do card:</strong> clique no ícone <strong>↔ Transferir para Outro Funil</strong> (setas laranjas) no canto do tile — <em>não</em> basta clicar no título. Também é possível abrir pelo botão <strong>Gestão do Card</strong> no chat interno ou por link com <code>?cardId=</code> compartilhado pela equipe.
+        <strong>Abrir o modal do card:</strong> clique no ícone <strong>Gestão do Card</strong> (lápis azul) no canto do tile — <em>não</em> basta clicar no título. Também é possível abrir pelo botão <strong>Gestão do Card</strong> no chat interno ou por link com <code>?cardId=</code> compartilhado pela equipe.
       </div>
 
       <figure class="screenshot">
         <img src="manual/img/treinamento/kanban-tile-acoes.png" alt="Ícones do card no Kanban" onerror="this.src='manual/img/06-kanban.png'" />
-        <figcaption>Tile do card — ícones: finalizar (✓), transferir/abrir modal (↔), expandir detalhes (▼)</figcaption>
+        <figcaption>Tile do card — ícones: finalizar (✓), abrir modal <strong>Gestão do Card</strong> (lápis), expandir detalhes (▼)</figcaption>
       </figure>
 
       <div class="exercise">
@@ -686,10 +845,43 @@
           <li>Abra o funil indicado pelo instrutor e ative o filtro <strong>Meus Cards</strong>.</li>
           <li>Localize um card atribuído a você (ou use o card de demonstração).</li>
           <li>Arraste o card para a coluna seguinte e solte — confirme que ele permanece na nova etapa após atualizar a página.</li>
-          <li>Abra o modal pelo ícone <strong>↔</strong> (não clique só no título).</li>
+          <li>Abra o modal pelo ícone <strong>Gestão do Card</strong> (lápis azul — não clique só no título).</li>
           <li>Na Timeline, encontre o registro da movimentação que você acabou de fazer.</li>
         </ol>
         <p class="exercise-done"><strong>Concluiu quando:</strong> mover um card de etapa e ver o evento correspondente na Timeline.</p>
+      </div>
+
+      <h3 id="cards-modal">9.0 Modal do card (layout atual)</h3>
+      <p>Ao abrir o card (ícone <strong>Gestão do Card</strong> no Kanban ou no chat interno), você vê um hub compacto:</p>
+      <table>
+        <thead><tr><th>Área</th><th>Conteúdo</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Topo</strong></td><td>Título do card, funil · etapa, excluir/fechar</td></tr>
+          <tr><td><strong>Metadados + Anexos</strong></td><td>À esquerda: Responsável · Prazo · Cliente (compactos). À direita: painel <strong>Anexos</strong> com ícone de clipe, lista dos arquivos e botão <strong>Ver</strong></td></tr>
+          <tr><td><strong>Observações</strong></td><td>Campo grande editável + botão <strong>Salvar</strong> (indica “não salvo” se alterou)</td></tr>
+          <tr><td><strong>Ações (1 linha)</strong></td><td>Quatro botões compactos: <strong>Encaminhar</strong> (laranja) · <strong>WhatsApp</strong> (verde) · <strong>Editar</strong> (lilás) · <strong>Chat</strong> (azul)</td></tr>
+          <tr><td><strong>Timeline</strong></td><td>Coluna direita — criação, edições, migrações, anexos</td></tr>
+        </tbody>
+      </table>
+      <div class="alert info">
+        <strong>Observações e anexos no hub:</strong> anote o briefing no bloco central e clique <strong>Salvar</strong>. Arquivos ficam no painel de anexos ao lado dos metadados (clipe para enviar; <strong>Ver</strong> abre a tela completa). Use <strong>Editar</strong> só para título, valor, cliente e descrição.
+      </div>
+
+      <figure class="screenshot">
+        <img src="manual/img/treinamento/card-modal-hub.png" alt="Hub do modal do card" onerror="this.src='manual/img/treinamento/card-modal-resumo.png'" />
+        <figcaption>Hub do card — metadados + lista de anexos no topo, observações no centro, 4 ações na mesma linha e Timeline à direita</figcaption>
+      </figure>
+
+      <div class="exercise">
+        <p class="exercise-title">Exercício 14b — Observações no hub</p>
+        <p class="exercise-meta">⏱ ~5 min</p>
+        <ol>
+          <li>Abra modal de card de teste (ícone <strong>Gestão do Card</strong>).</li>
+          <li>Escreva observação no bloco central e clique <strong>Salvar</strong>.</li>
+          <li>Confirme evento na <strong>Timeline</strong>.</li>
+          <li>Feche e reabra — texto deve permanecer.</li>
+        </ol>
+        <p class="exercise-done"><strong>Concluiu quando:</strong> salvar observação sem entrar em Editar dados.</p>
       </div>
 
       <h3 id="cards-atendimento">9.1 Canal WhatsApp ↔ card do processo</h3>
@@ -697,17 +889,18 @@
 
       <div class="procedure">
         <ol class="steps">
-          <li>Converse com quem entrou em contato no <strong>Chat Omnichannel</strong> (§7).</li>
-          <li>No funil, localize o card vinculado (filtro <strong>Meus Cards</strong> ou busca).</li>
-          <li>Clique na seta <strong>▼</strong> do tile para <strong>expandir</strong> o card no Kanban.</li>
-          <li>Se houver conversa vinculada, aparece o botão verde <strong>Chat</strong> — clique para abrir a thread do WhatsApp em nova aba.</li>
-          <li>Registre no card o que foi combinado: abra o modal (ícone ↔) → <strong>Editar Card</strong> → campo <strong>Anotações Estratégicas</strong>.</li>
+          <li>Converse no <strong>Chat Omnichannel</strong> (§7).</li>
+          <li>No funil, localize o card (filtro <strong>Meus Cards</strong> ou busca).</li>
+          <li>Expanda o tile (▼) no Kanban.</li>
+          <li>Se <strong>já</strong> houver conversa: botão verde <strong>WhatsApp</strong> abre a thread vinculada.</li>
+          <li>Se <strong>não</strong> houver conversa: botão <strong>Iniciar conversa</strong> — digite a primeira mensagem; o sistema cria a sessão e preenche <code>conversa_id</code> no card.</li>
+          <li>Registre no card o combinado: observações no hub do modal (§9.0) ou consulta pelo painel de contexto no chat.</li>
         </ol>
       </div>
 
       <figure class="screenshot">
         <img src="manual/img/treinamento/card-atendimento-whatsapp.png" alt="Card expandido com link Chat" onerror="this.src='manual/img/06-kanban.png'" />
-        <figcaption>Card expandido no Kanban — botão <strong>Chat</strong> abre a conversa de WhatsApp vinculada</figcaption>
+        <figcaption>Card expandido no Kanban — botão verde <strong>WhatsApp</strong> ou <strong>Iniciar conversa</strong> conforme vínculo com o lead</figcaption>
       </figure>
 
       <div class="exercise">
@@ -716,68 +909,69 @@
         <ol>
           <li>No Chat Omnichannel, retome a conversa que você assumiu no exercício 8.</li>
           <li>No funil, encontre o card do mesmo cliente (busca ou <strong>Meus Cards</strong>).</li>
-          <li>Expanda o tile (▼) e, se existir, clique no botão verde <strong>Chat</strong> — confirme que abre a mesma conversa.</li>
-          <li>No modal (↔), em <strong>Editar Card</strong>, adicione uma observação sobre o que foi combinado com o cliente.</li>
+          <li>Expanda o tile (▼) e use <strong>WhatsApp</strong> ou <strong>Iniciar conversa</strong> conforme o caso.</li>
+          <li>No modal (<strong>Gestão do Card</strong>), salve uma observação no hub sobre o que foi combinado.</li>
         </ol>
         <p class="exercise-done"><strong>Concluiu quando:</strong> observação salva no card refletir o que foi tratado na conversa de WhatsApp.</p>
       </div>
 
       <h3 id="cards-encaminhar">9.2 Encaminhar processo para outro responsável</h3>
-      <p>Quando outro colega deve executar a próxima etapa do workflow:</p>
+      <p>Quando outro colega deve executar a próxima etapa:</p>
 
       <div class="procedure">
         <ol class="steps">
-          <li>Abra o modal do card (ícone ↔ no Kanban).</li>
-          <li>Clique em <strong>Editar Card</strong>.</li>
-          <li>No campo <strong>Responsável</strong>, selecione o colega e clique em <strong>Salvar Alterações</strong>.</li>
-          <li>Na aba <strong>Chat Interno</strong>, escreva o contexto do processo: solicitação, o que já foi dito e o próximo passo.</li>
-          <li>Opcional: clique no ícone de mensagem ao lado do nome do responsável na aba Resumo — abre <strong>chat privado</strong> sobre este card.</li>
-          <li>O novo responsável assume a conversa no WhatsApp quando enviar a primeira mensagem (§7.1).</li>
+          <li>Abra o modal do card (ícone <strong>Gestão do Card</strong>) ou use <strong>Encaminhar</strong> no chat Omnichannel.</li>
+          <li>Clique em <strong>Encaminhar</strong> (laranja) no hub do modal.</li>
+          <li>Selecione operador, funil/estágio ou pipeline conforme a tela de encaminhamento.</li>
+          <li>Deixe contexto nas <strong>observações</strong> (hub) ou no resumo IA ao migrar de funil.</li>
+          <li>Na thread do card no chat interno, use <code>@</code> para avisar o novo responsável.</li>
         </ol>
       </div>
 
       <figure class="screenshot">
-        <img src="manual/img/treinamento/card-encaminhar-responsavel.png" alt="Campo Responsável no card" onerror="this.src='manual/img/06-kanban.png'" />
-        <figcaption>Modal do card — alterar <strong>Responsável</strong> e ícone de chat privado ao lado do nome</figcaption>
+        <img src="manual/img/treinamento/card-encaminhar-responsavel.png" alt="Tela Encaminhar no modal" onerror="this.src='manual/img/06-kanban.png'" />
+        <figcaption>Hub → <strong>Encaminhar</strong> — departamento destino, prazo e repasse (operador/funil automáticos)</figcaption>
       </figure>
 
       <div class="exercise">
         <p class="exercise-title">Exercício 16 — Encaminhar para colega</p>
         <p class="exercise-meta">⏱ ~8 min · Em dupla (simulação)</p>
         <ol>
-          <li>Abra um card de teste atribuído a você.</li>
-          <li>Em <strong>Editar Card</strong>, altere o <strong>Responsável</strong> para o colega ao lado e salve.</li>
-          <li>Na aba <strong>Chat Interno</strong>, documente o repasse: solicitação, histórico relevante e próxima ação.</li>
-          <li>Use <code>@</code> para mencionar o novo responsável na mensagem.</li>
+          <li>Abra card de teste → <strong>Encaminhar</strong> no hub.</li>
+          <li>Altere responsável para o colega (instrutor valida).</li>
+          <li>Documente repasse nas observações e no chat interno com <code>@</code>.</li>
           <li>O colega confirma em voz alta que viu a menção e o card na lista dele.</li>
         </ol>
         <p class="exercise-done"><strong>Concluiu quando:</strong> o colega souber assumir o caso só pela mensagem interna + responsável atualizado.</p>
       </div>
 
-      <h3 id="cards-pipeline">9.3 Enviar card para outro pipeline (funil)</h3>
-      <p>Quando o processo muda de área (ex.: triagem → expedição), use a <strong>Transferência Rápida de Funil</strong> dentro do modal:</p>
+      <h3 id="cards-pipeline">9.3 Enviar card para outro pipeline (funil) — resumo IA</h3>
+      <p>Quando o processo muda de área (ex.: Comercial → Financeiro), use <strong>Encaminhar</strong> e escolha outro pipeline/funil:</p>
 
       <div class="procedure">
         <ol class="steps">
-          <li>Abra o modal do card (ícone ↔).</li>
-          <li>Na aba <strong>Dados &amp; Resumo</strong>, role até <strong>Transferência Rápida de Funil</strong>.</li>
-          <li>Escolha o <strong>Pipeline Destino</strong> e o <strong>Estágio Inicial</strong>.</li>
-          <li>Clique em <strong>Mover Agora</strong>. O card sai deste funil e aparece no destino; a Timeline registra a migração.</li>
+          <li>Abra o modal → <strong>Encaminhar</strong> (hub) ou botão no chat.</li>
+          <li>Selecione <strong>Pipeline / funil destino</strong> e estágio inicial.</li>
+          <li>O sistema gera <strong>resumo com IA</strong> a partir da conversa e do card — <strong>revise e edite</strong> antes de confirmar.</li>
+          <li>Confirme a transferência. O card sai deste funil e aparece no destino; Timeline registra <strong>Migração</strong>.</li>
+          <li>Urgência pode ser marcada no fluxo (normal / alta) — conforme tela de encaminhamento.</li>
         </ol>
+      </div>
+      <div class="alert info">
+        <strong>O que mudou (set/2026):</strong> não há mais formulário de “handover estruturado” com campos fixos. Tudo concentra-se no <strong>resumo editável</strong> + observações do card.
       </div>
 
       <figure class="screenshot">
-        <img src="manual/img/treinamento/card-transferir-funil.png" alt="Transferência Rápida de Funil" onerror="this.src='manual/img/06-kanban.png'" />
-        <figcaption>Transferência Rápida de Funil — pipeline destino, estágio e botão <strong>Mover Agora</strong></figcaption>
+        <img src="manual/img/treinamento/card-transferir-funil.png" alt="Encaminhar para outro departamento" onerror="this.src='manual/img/06-kanban.png'" />
+        <figcaption>Encaminhar entre departamentos/funis — revise o resumo IA ao confirmar migração cross-pipeline</figcaption>
       </figure>
 
       <div class="exercise">
         <p class="exercise-title">Exercício 17 — Transferir de pipeline (observação)</p>
         <p class="exercise-meta">⏱ ~5 min · Somente leitura se houver um único funil na empresa</p>
         <ol>
-          <li>Abra o modal de um card → aba <strong>Dados &amp; Resumo</strong>.</li>
-          <li>Localize a seção <strong>Transferência Rápida de Funil</strong> e leia os campos <strong>Pipeline Destino</strong> e <strong>Estágio Inicial</strong>.</li>
-          <li>Se o instrutor liberar, transfira um card de demonstração para outro funil e confirme na Timeline.</li>
+          <li>Abra modal → <strong>Encaminhar</strong> e localize opção de mudar funil/pipeline.</li>
+          <li>Se instrutor liberar, transfira card demo e edite uma linha do resumo IA.</li>
           <li>Se a empresa tiver só um funil, descreva em uma frase quando você usaria essa função no dia a dia.</li>
         </ol>
         <p class="exercise-done"><strong>Concluiu quando:</strong> souber onde fica a transferência e qual funil/stágio escolheria em um caso real.</p>
@@ -788,8 +982,7 @@
 
       <div class="procedure">
         <ol class="steps">
-          <li>Abra o modal do card (ícone ↔).</li>
-          <li>Clique na aba <strong>Chat Interno</strong> (ponto laranja indica atividade).</li>
+          <li>Abra modal → botão azul <strong>Chat</strong> no hub (linha de ações).</li>
           <li>Digite a nota para a equipe e envie — <strong>não vai para o WhatsApp</strong> do cliente.</li>
           <li>Use os filtros <strong>Todos</strong> / <strong>Mencionados</strong> para ver só mensagens em que você foi citado.</li>
           <li>A mesma thread aparece no painel flutuante de chat interno (§8), com etiqueta <strong>Card</strong>.</li>
@@ -798,15 +991,15 @@
 
       <figure class="screenshot">
         <img src="manual/img/treinamento/card-chat-interno.png" alt="Aba Chat Interno do card" onerror="this.src='manual/img/09-chat-interno.png'" />
-        <figcaption>Aba <strong>Chat Interno</strong> no modal — filtros Todos / Mencionados</figcaption>
+        <figcaption>Aba <strong>Chat interno</strong> no modal — filtros <strong>Todos</strong> / <strong>Mencionados</strong>; digite <code>@</code> ou <code>#</code> no campo inferior</figcaption>
       </figure>
 
       <div class="exercise">
         <p class="exercise-title">Exercício 18 — Chat interno dentro do card</p>
         <p class="exercise-meta">⏱ ~5 min · Modal do card</p>
         <ol>
-          <li>Abra o modal do card de treinamento → aba <strong>Chat Interno</strong>.</li>
-          <li>Envie uma nota para a equipe (ex.: <em>Cliente pediu segunda via de boleto — aguardando financeiro.</em>).</li>
+          <li>Abra modal → <strong>Chat</strong> (azul) no hub.</li>
+          <li>Envie nota para a equipe (ex.: <em>Cliente pediu segunda via de boleto.</em>).</li>
           <li>Abra o painel flutuante de chat interno e confirme que a mesma thread aparece com etiqueta <strong>Card</strong>.</li>
           <li>Alterne o filtro <strong>Todos</strong> / <strong>Mencionados</strong> e observe a diferença.</li>
         </ol>
@@ -830,7 +1023,7 @@
         <p class="exercise-title">Exercício 19 — Menções no chat do card</p>
         <p class="exercise-meta">⏱ ~5 min · Aba Chat Interno do modal</p>
         <ol>
-          <li>Na aba <strong>Chat Interno</strong>, mencione um colega com <code>@</code> pedindo validação de informação.</li>
+          <li>Na tela de chat interno do card, mencione um colega com <code>@</code>.</li>
           <li>Mencione outro card relacionado com <code>#</code> (se existir na lista).</li>
           <li>Peça ao colega para responder na mesma thread.</li>
         </ol>
@@ -840,23 +1033,25 @@
       <h3 id="cards-anexos">9.6 Anexar documentos no card</h3>
       <div class="procedure">
         <ol class="steps">
-          <li>Abra o modal → aba <strong>Dados &amp; Resumo</strong>.</li>
-          <li>Localize a seção <strong>Anexos e Documentos</strong>.</li>
-          <li><strong>Clique</strong> na área tracejada ou <strong>arraste</strong> o arquivo (PDF, PNG, JPG, DOC, DOCX, XLS, XLSX).</li>
+          <li>Abra o modal do card (ícone <strong>Gestão do Card</strong>).</li>
+          <li>No topo, à direita dos metadados, use o painel <strong>Anexos</strong>:
+            <span class="hint"><strong>Clipe:</strong> seleciona e envia um arquivo · <strong>Lista:</strong> mostra os já anexados · <strong>Ver:</strong> abre a tela completa de anexos</span>
+          </li>
+          <li>Na tela completa (ou pelo clipe), envie PDF, PNG, JPG, DOC, DOCX, XLS ou XLSX.</li>
           <li>Tamanho máximo: <strong>5 MB</strong> por arquivo.</li>
-          <li>Após o upload, baixe pelo ícone de download ou remova pelo ícone de lixeira (se sua permissão permitir).</li>
+          <li>Baixe pelo ícone de download ou remova pela lixeira (se sua permissão permitir).</li>
           <li>Cada anexo gera evento na <strong>Timeline</strong> (Anexo / Remoção).</li>
         </ol>
       </div>
 
       <figure class="screenshot">
-        <img src="manual/img/treinamento/card-anexos.png" alt="Anexos no card" onerror="this.src='manual/img/06-kanban.png'" />
-        <figcaption>Seção <strong>Anexos e Documentos</strong> — arrastar arquivos ou clicar para selecionar</figcaption>
+        <img src="manual/img/treinamento/card-modal-hub.png" alt="Painel Anexos no hub do card" onerror="this.src='manual/img/treinamento/card-modal-resumo.png'" />
+        <figcaption>Hub — painel <strong>Anexos</strong> ao lado de Responsável/Prazo/Cliente, com lista visível e botão Ver</figcaption>
       </figure>
 
       <figure class="screenshot">
-        <img src="manual/img/treinamento/card-modal-resumo.png" alt="Modal Gestão de Lead" onerror="this.src='manual/img/06-kanban.png'" />
-        <figcaption>Modal <strong>Gestão de Lead</strong> — abas Dados &amp; Resumo, Chat Interno e Timeline à direita</figcaption>
+        <img src="manual/img/treinamento/card-anexos.png" alt="Tela completa de anexos" onerror="this.src='manual/img/06-kanban.png'" />
+        <figcaption>Tela <strong>Anexos</strong> — área para enviar arquivo e lista com download/remoção (máx. 5 MB)</figcaption>
       </figure>
 
       <div class="exercise">
@@ -864,21 +1059,26 @@
         <p class="exercise-meta">⏱ ~7 min · Arquivo de exemplo ≤ 5 MB</p>
         <ol>
           <li>Peça ao instrutor um PDF ou imagem de teste (ou use um print da tela).</li>
-          <li>No modal → <strong>Anexos e Documentos</strong>, envie o arquivo (clique ou arraste).</li>
-          <li>Aguarde o upload e teste o download pelo ícone correspondente.</li>
-          <li>Na <strong>Timeline</strong>, localize o evento de anexo registrado.</li>
+          <li>No hub do card, clique no <strong>clipe</strong> do painel Anexos (ou em <strong>Ver</strong> e depois anexe).</li>
+          <li>Aguarde o upload: o arquivo deve aparecer na lista do hub e na Timeline.</li>
+          <li>Teste o download pelo ícone correspondente.</li>
         </ol>
-        <p class="exercise-done"><strong>Concluiu quando:</strong> o anexo aparecer na lista e na Timeline do card.</p>
+        <p class="exercise-done"><strong>Concluiu quando:</strong> o anexo aparecer na lista do hub e na Timeline do card.</p>
       </div>
 
       <h3>Outras ações no card</h3>
       <table>
         <thead><tr><th>Ação</th><th>Onde</th></tr></thead>
         <tbody>
-          <tr><td><strong>Editar dados</strong></td><td>Modal → <strong>Editar Card</strong> → Salvar</td></tr>
-          <tr><td><strong>Finalizar / Reabrir</strong></td><td>Ícone ✓ no tile do Kanban (verde quando finalizado)</td></tr>
-          <tr><td><strong>Ver histórico</strong></td><td>Coluna <strong>Timeline</strong> no modal (movimentos, edições, anexos)</td></tr>
-          <tr><td><strong>Criar card novo</strong></td><td>Botão <strong>Novo Card</strong> no funil (se permissão <code>cards.create</code>)</td></tr>
+          <tr><td><strong>Observações / briefing</strong></td><td>Hub → bloco Observações → <strong>Salvar</strong></td></tr>
+          <tr><td><strong>Anexar / baixar arquivos</strong></td><td>Hub → painel <strong>Anexos</strong> (clipe ou Ver)</td></tr>
+          <tr><td><strong>Editar título, valor, descrição</strong></td><td>Hub → botão lilás <strong>Editar</strong></td></tr>
+          <tr><td><strong>Chat da equipe no card</strong></td><td>Hub → botão azul <strong>Chat</strong></td></tr>
+          <tr><td><strong>Finalizar / Reabrir</strong></td><td>Ícone ✓ no tile (vermelho = aberto, verde = finalizado)</td></tr>
+          <tr><td><strong>Data/hora de criação</strong></td><td>Rodapé do tile: <em>Hoje 14:32</em>, <em>Ontem</em> ou <em>dd/MM HH:mm</em>; expandido mostra “Criado em …” com hora</td></tr>
+          <tr><td><strong>Iniciar conversa WhatsApp</strong></td><td>Tile expandido ou botão verde <strong>WhatsApp</strong> no hub</td></tr>
+          <tr><td><strong>Ver histórico</strong></td><td>Timeline no modal ou drawer de consulta no chat</td></tr>
+          <tr><td><strong>Criar card novo</strong></td><td><strong>Novo Card</strong> no funil (se <code>cards.create</code>)</td></tr>
         </tbody>
       </table>
 
@@ -915,19 +1115,21 @@
       <p>Referência do ciclo processo + canal de entrada — use quando não souber o próximo passo:</p>
       <div class="flow-box">Contato envia WhatsApp (entrada)
     ↓
-Conversa aparece no Chat Omnichannel
+Conversa aparece no Chat Omnichannel (pode haver mais de uma por departamento)
+    ↓
+Consulte Contexto do cliente (card, histórico, outros deptos)
     ↓
 Você lê o histórico e assume (Gestão Humana)
     ↓
 Responde no canal de entrada
     ↓
-Abre e atualiza o card do processo no funil
+Atualiza observações no card (hub) e move etapa no funil
     ↓
-Registra observações, anexos e responsável
+Documentos do cliente → verificar anexo no card
     ↓
-Se precisar de ajuda → chat interno (@ colega ou aba do card)
+Se precisar repassar → Encaminhar (resumo IA se mudar de funil)
     ↓
-Move card para a etapa correta do workflow
+Chat interno (@ colega) — responsável recebe aviso se alterarem seu card
     ↓
 Finaliza card quando o processo concluir</div>
 
@@ -935,7 +1137,9 @@ Finaliza card quando o processo concluir</div>
         <li>Troquei a senha padrão no primeiro acesso</li>
         <li>Li o histórico antes de responder no WhatsApp</li>
         <li>Assumi a conversa (Gestão Humana) quando fui atender</li>
-        <li>Atualizei o card relacionado</li>
+        <li>Consultei o painel Contexto do cliente quando relevante</li>
+        <li>Escolhi a conversa correta quando o lead tinha mais de uma linha</li>
+        <li>Salvei observações no hub do card</li>
         <li>Usei chat interno para dúvidas com a equipe</li>
         <li>Salvei anexos importantes no card</li>
         <li>Card na etapa certa ou finalizado</li>
@@ -983,20 +1187,39 @@ Finaliza card quando o processo concluir</div>
       <div class="scenario">
         <h4>Cenário C — Passar caso para outro colega</h4>
         <ol>
-          <li>No card, altere o campo <strong>Responsável</strong> para o colega.</li>
+          <li>Use <strong>Encaminhar</strong> no hub ou no chat; confirme resumo IA se mudou de funil.</li>
           <li>No <strong>chat interno do card</strong>, explique o contexto do processo: solicitação, histórico e pendências.</li>
           <li>Se necessário, avise o colega com <code>@</code> no chat interno.</li>
           <li>A conversa no WhatsApp pode continuar com o novo responsável quando ele assumir.</li>
         </ol>
       </div>
 
-      <div class="exercise">
-        <p class="exercise-title">Exercício 23 — Role-play dos cenários A, B e C</p>
-        <p class="exercise-meta">⏱ ~15 min · Grupos de 2 ou 3 pessoas</p>
+      <div class="scenario">
+        <h4>Cenário D — Mesmo cliente, Comercial e Financeiro</h4>
         <ol>
-          <li><strong>Grupo 1:</strong> execute o Cenário A (prazo de entrega) de ponta a ponta.</li>
-          <li><strong>Grupo 2:</strong> execute o Cenário B (contato na entrada com IA).</li>
-          <li><strong>Grupo 3:</strong> execute o Cenário C (repasse para colega).</li>
+          <li>Na lista do chat, identifique <strong>duas conversas</strong> com o mesmo nome.</li>
+          <li>Abra a do seu departamento; confira <strong>Card deste atendimento</strong> no contexto.</li>
+          <li>Responda só na sessão correta; use consulta de card para ver o outro funil sem editá-lo.</li>
+          <li>Se precisar repassar entre áreas, use <strong>Encaminhar</strong> com resumo IA revisado.</li>
+        </ol>
+      </div>
+
+      <div class="scenario">
+        <h4>Cenário E — Cliente envia boleto ou comprovante</h4>
+        <ol>
+          <li>Veja o documento na conversa (status processando → concluído).</li>
+          <li>Abra o card e confirme anexo ou observação gerada.</li>
+          <li>Se ilegível, peça reenvio pelo WhatsApp e registre nas observações.</li>
+        </ol>
+      </div>
+
+      <div class="exercise">
+        <p class="exercise-title">Exercício 23 — Role-play dos cenários A–E</p>
+        <p class="exercise-meta">⏱ ~20 min · Grupos de 2 ou 3 pessoas</p>
+        <ol>
+          <li><strong>Grupo 1:</strong> Cenário A (prazo de entrega).</li>
+          <li><strong>Grupo 2:</strong> Cenário B (IA na entrada) + E (documento).</li>
+          <li><strong>Grupo 3:</strong> Cenário C (repasse) ou D (multi-departamento).</li>
           <li>Cada grupo apresenta em 2 minutos o que fez e onde teve dúvida.</li>
         </ol>
         <p class="exercise-done"><strong>Concluiu quando:</strong> seu grupo completar um dos três cenários sem ajuda do instrutor na segunda tentativa.</p>
@@ -1016,11 +1239,26 @@ Finaliza card quando o processo concluir</div>
           <tr><td>Anexo não sobe</td><td>Arquivo maior que 5 MB ou formato bloqueado. Reduza ou converta o arquivo.</td></tr>
           <tr><td>Chat interno — colega não respondeu</td><td>Use <code>@</code> com o nome. Em urgência, ligue ou fale pelo canal oficial da empresa.</td></tr>
           <tr><td>Tela “Acesso Restrito”</td><td>Sem permissão para aquela função. Gestor ajusta Grupos de Acesso.</td></tr>
-          <tr><td>Empresa suspensa / Acesso suspenso</td><td>Contacte RN3 ou gestor administrativo.</td></tr>
+          <tr><td>Lista mostra o mesmo cliente duas vezes</td><td>Normal com sessões por departamento — escolha a linha da sua área (§7.4).</td></tr>
+          <tr><td>Cliquei na conversa errada e voltou sozinha</td><td>Evite links antigos com <code>?sessao=</code> de outra área — selecione manualmente na lista.</td></tr>
+          <tr><td>Modal de canal WhatsApp desconectado</td><td>Canal caiu — avise o gestor para reconectar em Configurações. Não ignore o alerta.</td></tr>
+          <tr><td>Resumo IA no encaminhamento errado</td><td>Edite o texto antes de confirmar — você é responsável pelo conteúdo final.</td></tr>
+          <tr><td>Consulta de card “visualização parcial”</td><td>Card de outro departamento — você vê metadados, não detalhes internos sensíveis.</td></tr>
         </tbody>
       </table>
 
       <p>Para mais detalhes, use o manual completo: ícone <strong>?</strong> no Cockpit ou peça ajuda ao suporte.</p>
+
+      <h3 id="alertas">12.1 Alertas do sistema</h3>
+      <table>
+        <thead><tr><th>Alerta</th><th>O que fazer</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Modal — canal WhatsApp desconectado</strong></td><td>Informe o gestor. Mensagens podem falhar até reconectar o canal.</td></tr>
+          <tr><td><strong>Aviso amarelo — outro departamento ativo</strong></td><td>Leia no contexto; responda na sessão do seu funil.</td></tr>
+          <tr><td><strong>Menção no chat interno do card</strong></td><td>Alguém alterou ou comentou seu card — abra a thread.</td></tr>
+          <tr><td><strong>Observações · não salvo</strong></td><td>Clique <strong>Salvar</strong> no hub antes de fechar o modal.</td></tr>
+        </tbody>
+      </table>
 
       <!-- GLOSSÁRIO -->
       <h2 id="glossario">13. Glossário</h2>
@@ -1036,33 +1274,38 @@ Finaliza card quando o processo concluir</div>
           <tr><td>Estágio / Coluna</td><td>Etapa do funil onde o card está</td></tr>
           <tr><td>Timeline</td><td>Histórico de eventos do card</td></tr>
           <tr><td>DM</td><td>Mensagem direta entre dois usuários no chat interno</td></tr>
+          <tr><td>Sessão (sessao_id)</td><td>Identificador único de uma conversa no OmniChat — um lead pode ter várias</td></tr>
+          <tr><td>Falante ativo</td><td>Departamento que concentra o WhatsApp daquele telefone no momento</td></tr>
+          <tr><td>Contexto do cliente</td><td>Painel lateral no chat com cadastro, cards e avisos</td></tr>
+          <tr><td>Consulta de card</td><td>Drawer read-only para ler card sem sair do chat</td></tr>
+          <tr><td>Encaminhar</td><td>Repasse de card — operador, funil ou pipeline, com resumo IA quando cross-funil</td></tr>
           <tr><td>Grupo de acesso</td><td>Conjunto de permissões do seu usuário</td></tr>
         </tbody>
       </table>
 
       <!-- AULA 90 -->
-      <h2 id="aula-90">Apêndice A — Roteiro da aula online (1h30)</h2>
-      <p>Se você está participando do treinamento ao vivo, o instrutor seguirá este cronograma. Use as seções acima como material de apoio durante a aula.</p>
+      <h2 id="aula-90">Apêndice A — Roteiro da aula online (2h)</h2>
+      <p>Roteiro atualizado para o pacote CRM set/2026 (contexto no chat, multi-departamento, modal do card, encaminhamento IA).</p>
       <table>
         <thead><tr><th>Horário</th><th>Tópico</th><th>Seção / exercício</th></tr></thead>
         <tbody>
-          <tr><td>0:00 – 0:05</td><td>Apresentação e login</td><td>§4 · Ex. 4</td></tr>
-          <tr><td>0:05 – 0:15</td><td>Trocar senha padrão (todos)</td><td>§5 · Ex. 5</td></tr>
-          <tr><td>0:15 – 0:20</td><td>Tour pelo Cockpit</td><td>§6 · Ex. 6</td></tr>
-          <tr><td>0:20 – 0:45</td><td>Chat WhatsApp: abrir, assumir, responder</td><td>§7 · Ex. 7–9</td></tr>
-          <tr><td>0:45 – 1:05</td><td>Chat interno: badge, card, menções</td><td>§8 · Ex. 10–13</td></tr>
-          <tr><td>1:05 – 1:25</td><td>Cards: workflow, encaminhar, anexos</td><td>§9 · Ex. 14–21</td></tr>
-          <tr><td>1:25 – 1:30</td><td>Desafio integrado e dúvidas</td><td>§10 · Ex. 22–23</td></tr>
+          <tr><td>0:00 – 0:15</td><td>Login, senha, tour Cockpit + menu hambúrguer</td><td>§4–6 · Ex. 4–6</td></tr>
+          <tr><td>0:15 – 0:40</td><td>Chat: assumir, contexto, multi-sessão</td><td>§7 · Ex. 7–9c</td></tr>
+          <tr><td>0:40 – 0:55</td><td>Encaminhar pelo chat, documentos</td><td>§7.5–7.6 · Ex. 9d–9e</td></tr>
+          <tr><td>0:55 – 1:15</td><td>Chat interno, menções, avisos ao responsável</td><td>§8 · Ex. 10–13</td></tr>
+          <tr><td>1:15 – 1:45</td><td>Funil, modal hub, observações, encaminhar IA</td><td>§9 · Ex. 14–21</td></tr>
+          <tr><td>1:45 – 2:00</td><td>Desafio integrado (cenários A–E)</td><td>§10–11 · Ex. 22–23</td></tr>
         </tbody>
       </table>
 
       <h2 id="checklist">Apêndice B — Checklist do operador</h2>
-      <p>Imprima ou salve este checklist. Marque a cada execução de processo. Se completou os <strong>23 exercícios</strong>, você está pronto para operar workflows com supervisão mínima.</p>
+      <p>Imprima ou salve este checklist. Marque a cada execução de processo. Se completou os <strong>27 exercícios</strong> (incl. 9b–9e e 14b), você está pronto para operar com supervisão mínima.</p>
       <ul class="checklist">
         <li>Senha pessoal definida (não uso mais a padrão)</li>
         <li>Li o histórico completo da conversa</li>
         <li>Status Gestão Humana quando estou atendendo</li>
-        <li>Card atualizado (dados + observações)</li>
+          <li>Escolhi a conversa correta quando havia mais de uma linha do mesmo lead</li>
+          <li>Salvei observações no hub do card</li>
         <li>Chat interno usado para dúvidas com a equipe</li>
         <li>Anexos salvos no card quando relevante</li>
         <li>Card na etapa correta ou finalizado</li>
@@ -1074,7 +1317,7 @@ Finaliza card quando o processo concluir</div>
       </div>
 
       <footer>
-        Hugin Flow — Guia do Operador · RN3 Soluções Digitais<br />
+        Hugin Flow — Guia do Operador · RN3 Soluções Digitais · Rev. set/2026<br />
         Arquivo: <code>docs/treinamento-operadores.html</code> · Consulta permanente pós-treinamento<br />
         Suporte operacional: gestor da empresa · Suporte plataforma: RN3
       </footer>

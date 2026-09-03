@@ -1,0 +1,116 @@
+{
+  "ambiente": "DEV",
+  "baseUrl": "https://huginflow-local.rn3.tec.br",
+  "commit": "2b87c5d",
+  "startedAt": "2026-09-03T00:46:29.252Z",
+  "durationSec": 404,
+  "result": "FAIL",
+  "summary": {
+    "passed": 4,
+    "failed": 5,
+    "skipped": 6,
+    "total": 15
+  },
+  "cases": [
+    {
+      "id": "UI-AUTH-01",
+      "title": "[UI-AUTH-01] Login com credencial válida → Cockpit",
+      "status": "passed",
+      "durationMs": 5889
+    },
+    {
+      "id": "UI-AUTH-02",
+      "title": "[UI-AUTH-02] Senha errada → mensagem de erro",
+      "status": "passed",
+      "durationMs": 2263
+    },
+    {
+      "id": "UI-AUTH-03",
+      "title": "[UI-AUTH-03] Sem sessão, /cockpit → login",
+      "status": "passed",
+      "durationMs": 793
+    },
+    {
+      "id": "_sessao: restaurar login para restante d",
+      "title": "_sessao: restaurar login para restante da suíte",
+      "status": "passed",
+      "durationMs": 2700
+    },
+    {
+      "id": "UI-CARD-01",
+      "title": "[UI-CARD-01] Abrir modal (Gestão do Card)",
+      "status": "failed",
+      "error": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed",
+      "screenshot": "D:\\Sistemas\\huginflow\\docs\\homologacao\\execucoes\\assets\\UI-CARD-01-test-failed-1.png",
+      "durationMs": 23186
+    },
+    {
+      "id": "UI-CARD-02",
+      "title": "[UI-CARD-02] Hub: Responsável, Prazo, Cliente",
+      "status": "skipped",
+      "durationMs": 0
+    },
+    {
+      "id": "UI-CARD-03",
+      "title": "[UI-CARD-03] Hub: Observações + Salvar",
+      "status": "skipped",
+      "durationMs": 0
+    },
+    {
+      "id": "UI-CARD-04",
+      "title": "[UI-CARD-04] Hub: painel Anexos (clipe + Ver)",
+      "status": "skipped",
+      "durationMs": 0
+    },
+    {
+      "id": "UI-CARD-05",
+      "title": "[UI-CARD-05] Hub: 4 ações na mesma linha",
+      "status": "skipped",
+      "durationMs": 0
+    },
+    {
+      "id": "UI-CHAT-01",
+      "title": "[UI-CHAT-01] Botão flutuante abre Conversas",
+      "status": "timedOut",
+      "error": "\u001b[31mTest timeout of 90000ms exceeded while running \"beforeEach\" hook.\u001b[39m",
+      "screenshot": "D:\\Sistemas\\huginflow\\docs\\homologacao\\execucoes\\assets\\UI-CHAT-01-test-failed-1.png",
+      "durationMs": 90038
+    },
+    {
+      "id": "UI-FUNIL-01",
+      "title": "[UI-FUNIL-01] Lista Funis → Abrir Kanban",
+      "status": "timedOut",
+      "error": "\u001b[31mTest timeout of 90000ms exceeded while running \"beforeEach\" hook.\u001b[39m",
+      "screenshot": "D:\\Sistemas\\huginflow\\docs\\homologacao\\execucoes\\assets\\UI-FUNIL-01-test-failed-1.png",
+      "durationMs": 90034
+    },
+    {
+      "id": "UI-FUNIL-02",
+      "title": "[UI-FUNIL-02] Colunas do board visíveis",
+      "status": "skipped",
+      "durationMs": 0
+    },
+    {
+      "id": "UI-NAV-01",
+      "title": "[UI-NAV-01] Menu lateral: Cockpit, Omni, Funis",
+      "status": "timedOut",
+      "error": "\u001b[31mTest timeout of 90000ms exceeded while running \"beforeEach\" hook.\u001b[39m",
+      "screenshot": "D:\\Sistemas\\huginflow\\docs\\homologacao\\execucoes\\assets\\UI-NAV-01-test-failed-1.png",
+      "durationMs": 90041
+    },
+    {
+      "id": "UI-OMNI-01",
+      "title": "[UI-OMNI-01] Abrir Chat Omnichannel + lista carrega",
+      "status": "timedOut",
+      "error": "\u001b[31mTest timeout of 90000ms exceeded while running \"beforeEach\" hook.\u001b[39m",
+      "screenshot": "D:\\Sistemas\\huginflow\\docs\\homologacao\\execucoes\\assets\\UI-OMNI-01-test-failed-1.png",
+      "durationMs": 90040
+    },
+    {
+      "id": "UI-OMNI-02",
+      "title": "[UI-OMNI-02] Selecionar conversa + campo responder",
+      "status": "skipped",
+      "durationMs": 0
+    }
+  ]
+}

@@ -138,6 +138,132 @@ export class ChatThreadService {
   }
 
   /**
+   * Vincula o card à sessão WhatsApp inbound (onde a mensagem chegou).
+   * Se a thread não existir, materializa (nunca deixa só conversa_id órfão).
+   */
+  static async bindCardToInboundSession(
+    supabase: SupabaseClient,
+    input: {
+      empresaId: string
+      sessaoId: string
+      cardId: string
+      leadId: string
+      pipelineId: string
+      departamentoId?: string | null
+      canalId?: string | null
+      externalId?: string | null
+      status?: string | null
+    },
+  ): Promise<ChatThread | null> {
+    const now = new Date().toISOString()
+    const existing = await this.getById(supabase, input.sessaoId)
+
+    if (existing) {
+      if (existing.empresa_id !== input.empresaId) {
+        throw new Error('Thread pertence a outra empresa.')
+      }
+
+      // Thread de outro card: não rouba; só aponta o card para a sessão inbound
+      if (existing.card_id && existing.card_id !== input.cardId) {
+        await supabase
+          .from('crm_cards')
+          .update({ conversa_id: input.sessaoId, updated_at: now })
+          .eq('id', input.cardId)
+          .eq('empresa_id', input.empresaId)
+        return existing
+      }
+
+      // Não sobrescreve departamento de outra área se já houver e o input for outro
+      const nextDept =
+        input.departamentoId &&
+        existing.departamento_id &&
+        input.departamentoId !== existing.departamento_id &&
+        existing.card_id &&
+        existing.card_id !== input.cardId
+          ? existing.departamento_id
+          : (input.departamentoId ?? existing.departamento_id)
+
+      const { data: updated, error } = await supabase
+        .from('crm_chat_threads')
+        .update({
+          card_id: input.cardId,
+          lead_id: input.leadId || existing.lead_id,
+          pipeline_id: input.pipelineId || existing.pipeline_id,
+          departamento_id: nextDept,
+          status: existing.status === 'closed' ? 'human' : existing.status,
+          updated_at: now,
+        })
+        .eq('id', input.sessaoId)
+        .eq('empresa_id', input.empresaId)
+        .select('*')
+        .single()
+
+      if (error) throw new Error(error.message)
+
+      await supabase
+        .from('crm_cards')
+        .update({ conversa_id: input.sessaoId, updated_at: now })
+        .eq('id', input.cardId)
+        .eq('empresa_id', input.empresaId)
+
+      return (updated as ChatThread) ?? existing
+    }
+
+    // Materializa thread a partir do histórico ou dos IDs informados
+    let canalId = input.canalId ?? null
+    let externalId = input.externalId ?? null
+
+    if (!canalId || !externalId) {
+      const { data: hist } = await supabase
+        .from('crm_conversas')
+        .select('canal_id, external_id')
+        .eq('sessao_id', input.sessaoId)
+        .eq('empresa_id', input.empresaId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      canalId = canalId || (hist?.canal_id as string | null)
+      externalId = externalId || (hist?.external_id as string | null)
+    }
+
+    if (!canalId || !externalId) {
+      throw new Error(
+        'Não foi possível materializar thread: canal_id/external_id ausentes.',
+      )
+    }
+
+    const { data: created, error: createErr } = await supabase
+      .from('crm_chat_threads')
+      .insert({
+        id: input.sessaoId,
+        empresa_id: input.empresaId,
+        canal_id: canalId,
+        external_id: externalId,
+        lead_id: input.leadId || null,
+        card_id: input.cardId,
+        departamento_id: input.departamentoId ?? null,
+        pipeline_id: input.pipelineId || null,
+        status: input.status || 'human',
+        created_at: now,
+        updated_at: now,
+      })
+      .select('*')
+      .single()
+
+    if (createErr || !created) {
+      throw new Error(createErr?.message ?? 'Falha ao criar thread no bind.')
+    }
+
+    await supabase
+      .from('crm_cards')
+      .update({ conversa_id: input.sessaoId, updated_at: now })
+      .eq('id', input.cardId)
+      .eq('empresa_id', input.empresaId)
+
+    return created as ChatThread
+  }
+
+  /**
    * Garante thread para o card. Se card já tem conversa_id válida, reusa;
    * senão cria nova sessão isolada (não reaproveita a do telefone de outro depto).
    */
@@ -167,14 +293,29 @@ export class ChatThreadService {
       .eq('empresa_id', input.empresaId)
       .maybeSingle()
 
-    // Reusa conversa_id do card só se já for uma thread própria (mesmo card_id)
+    // Reusa conversa_id do card só se já for thread própria (mesmo card + empresa)
+    // e sem conflito de departamento.
     if (card?.conversa_id && /^[0-9a-fA-F-]{36}$/.test(card.conversa_id)) {
       const byId = await this.getById(supabase, card.conversa_id)
-      if (byId && byId.card_id === input.cardId && byId.status !== 'closed') {
+      if (byId && byId.empresa_id !== input.empresaId) {
+        // Tenant errado — cria sessão nova
+      } else if (
+        byId &&
+        byId.card_id === input.cardId &&
+        byId.status !== 'closed' &&
+        (!input.departamentoId ||
+          !byId.departamento_id ||
+          byId.departamento_id === input.departamentoId)
+      ) {
         return { thread: byId, created: false }
-      }
-      // conversa compartilhada com outro card/telefone → cria sessão nova para isolamento
-      if (byId && byId.card_id && byId.card_id !== input.cardId) {
+      } else if (
+        byId &&
+        byId.departamento_id &&
+        input.departamentoId &&
+        byId.departamento_id !== input.departamentoId
+      ) {
+        // Outro departamento no mesmo telefone → sessão isolada
+      } else if (byId && byId.card_id && byId.card_id !== input.cardId) {
         // fall through to create
       } else if (byId && !byId.card_id) {
         // Thread legado sem card: reivindica para este card
@@ -188,6 +329,7 @@ export class ChatThreadService {
             updated_at: new Date().toISOString(),
           })
           .eq('id', byId.id)
+          .eq('empresa_id', input.empresaId)
           .select('*')
           .single()
         if (claimed) {
@@ -197,6 +339,35 @@ export class ChatThreadService {
             .eq('id', input.cardId)
             .eq('empresa_id', input.empresaId)
           return { thread: claimed as ChatThread, created: false }
+        }
+      } else if (!byId) {
+        // Card aponta para sessão existente (ex.: só em crm_conversas) — materializa thread
+        // com o MESMO id (não abandona histórico).
+        const now = new Date().toISOString()
+        const { data: materialised, error: matErr } = await supabase
+          .from('crm_chat_threads')
+          .insert({
+            id: card.conversa_id,
+            empresa_id: input.empresaId,
+            canal_id: input.canalId,
+            external_id: input.externalId,
+            lead_id: input.leadId,
+            card_id: input.cardId,
+            departamento_id: input.departamentoId ?? null,
+            pipeline_id: input.pipelineId,
+            status: 'human',
+            created_at: now,
+            updated_at: now,
+          })
+          .select('*')
+          .single()
+        if (!matErr && materialised) {
+          return { thread: materialised as ChatThread, created: true }
+        }
+        // conflito de PK / race → tenta ler de novo
+        const again = await this.getById(supabase, card.conversa_id)
+        if (again && again.empresa_id === input.empresaId) {
+          return { thread: again, created: false }
         }
       }
     }
@@ -262,12 +433,16 @@ export class ChatThreadService {
           status: input.status ?? undefined,
           updated_at: now,
           ...(input.leadId ? { lead_id: input.leadId } : {}),
+          ...(input.cardId ? { card_id: input.cardId } : {}),
+          ...(input.departamentoId ? { departamento_id: input.departamentoId } : {}),
+          ...(input.pipelineId ? { pipeline_id: input.pipelineId } : {}),
         })
         .eq('id', input.sessaoId)
+        .eq('empresa_id', input.empresaId)
       return
     }
 
-    await supabase.from('crm_chat_threads').insert({
+    const { error } = await supabase.from('crm_chat_threads').insert({
       id: input.sessaoId,
       empresa_id: input.empresaId,
       canal_id: input.canalId,
@@ -280,6 +455,9 @@ export class ChatThreadService {
       created_at: now,
       updated_at: now,
     })
+    if (error) {
+      console.error('[ChatThread] syncThreadFromAppend insert:', error.message)
+    }
   }
 
   static async countOpenThreadsForPhone(

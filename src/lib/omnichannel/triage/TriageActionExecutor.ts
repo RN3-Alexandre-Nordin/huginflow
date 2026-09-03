@@ -1,9 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { ConversaHistoricoService } from '@/lib/omnichannel/ConversaHistoricoService'
 import { notifyCardAssignmentAndChanges } from '@/lib/crm/notifyCardResponsavel'
-import { isDeptSessionsEnabled } from '@/lib/omnichannel/dept-sessions-constants'
-import { ChatThreadService } from '@/lib/omnichannel/ChatThreadService'
-import { normalizeWhatsAppPhone } from '@/lib/omnichannel/phone'
+import { SessionPersistenceService } from '@/lib/omnichannel/SessionPersistenceService'
 import type { ParsedAiTags, TriageAction } from './parseTriageTags'
 import { pickAssignee, resolveFunilFromTriage, type SystemFacts } from './systemFacts'
 
@@ -47,6 +45,19 @@ export class TriageActionExecutor {
       executed.push('ASK_CLARIFY')
       reasons.push('IA pediu esclarecimento — sem CREATE_CARD/HANDOVER.')
       await this.logReasoning(supabase, input, reasons.join(' '), { actions: [...executed] })
+      return { executed, cardId, responsavelId, handover: false, reasoning: reasons.join(' ') }
+    }
+
+    if (actions.has('OUT_OF_SCOPE')) {
+      executed.push('OUT_OF_SCOPE')
+      reasons.push(
+        'Fora do escopo da empresa — sem CREATE_CARD/HANDOVER. Resposta curta de redirecionamento.',
+      )
+      await this.logReasoning(supabase, input, reasons.join(' '), {
+        actions: [...executed],
+        triage: tags.triage,
+        crm_status: tags.crmStatus ?? 'FORA_ESCOPO',
+      })
       return { executed, cardId, responsavelId, handover: false, reasoning: reasons.join(' ') }
     }
 
@@ -136,6 +147,17 @@ export class TriageActionExecutor {
             ? `Card atualizado e atribuído a ${assignee.nome} (${assignee.id}).`
             : 'Card atualizado sem responsável (fila).',
         )
+        await SessionPersistenceService.ensureSession(supabase, {
+          empresaId: input.empresaId,
+          canalId: input.canalId,
+          externalId: input.contactPhone,
+          sessaoId: input.sessaoId,
+          leadId: input.leadId,
+          cardId,
+          pipelineId: funil.id,
+          departamentoId: funil.departamento_id,
+          status: 'human',
+        })
       }
     } else {
       const { data: created, error } = await supabase
@@ -149,8 +171,8 @@ export class TriageActionExecutor {
           titulo: `WhatsApp: ${input.contactName}`,
           cliente_nome: input.contactName,
           descricao: resumo.slice(0, 2000),
-          // Com dept sessions: conversa própria do card (não herda falante ativo de outro depto)
-          conversa_id: isDeptSessionsEnabled() ? null : input.sessaoId,
+          // Com dept sessions: conversa_id aponta para a sessão WhatsApp inbound
+          conversa_id: input.sessaoId,
           observacao: tags.triage?.motivo ?? null,
           metadados,
         })
@@ -169,35 +191,27 @@ export class TriageActionExecutor {
             : 'Card criado sem responsável (fila).',
         )
 
-        if (cardId && isDeptSessionsEnabled()) {
-          try {
-            const phone = normalizeWhatsAppPhone(input.contactPhone)
-            const { data: canalRow } = await supabase
-              .from('crm_canais')
-              .select('id')
-              .eq('id', input.canalId)
-              .maybeSingle()
-            if (canalRow && phone) {
-              const { thread } = await ChatThreadService.ensureThreadForCard(supabase, {
-                empresaId: input.empresaId,
-                canalId: input.canalId,
-                externalId: phone,
-                leadId: input.leadId,
-                cardId,
-                pipelineId: funil.id,
-                departamentoId: funil.departamento_id,
-              })
-              reasons.push(
-                `Thread isolada criada sessao=${thread.id} (falante ativo não alterado).`,
-              )
-            }
-          } catch (err) {
-            console.error('[TriageAction] thread isolada:', err)
-            // fallback: mantém vínculo com sessão inbound
+        if (cardId) {
+          const ensured = await SessionPersistenceService.ensureSession(supabase, {
+            empresaId: input.empresaId,
+            canalId: input.canalId,
+            externalId: input.contactPhone,
+            sessaoId: input.sessaoId,
+            leadId: input.leadId,
+            cardId,
+            pipelineId: funil.id,
+            departamentoId: funil.departamento_id,
+            status: 'human',
+          })
+          if (ensured.success) {
+            reasons.push(`Card vinculado à sessão WhatsApp inbound (${input.sessaoId}).`)
+          } else {
+            console.error('[TriageAction] ensureSession:', ensured.error)
             await supabase
               .from('crm_cards')
               .update({ conversa_id: input.sessaoId })
               .eq('id', cardId)
+              .eq('empresa_id', input.empresaId)
           }
         }
       }
@@ -210,8 +224,8 @@ export class TriageActionExecutor {
       executed.push('HANDOVER')
       reasons.push(
         assignee
-          ? `Conversa em status human + atribuido_a_id=${assignee.id}. IA em silêncio.`
-          : 'Conversa em status human sem atribuído (fila da equipe).',
+          ? `Conversa em status human + atribuido_a_id=${assignee.id}. IA segue até o humano responder.`
+          : 'Conversa em status human sem atribuído (fila). IA segue até o humano responder.',
       )
     }
 
@@ -260,13 +274,13 @@ export class TriageActionExecutor {
   ) {
     const now = new Date().toISOString()
 
-    // Propaga atribuição em todas as linhas da sessão (dedupe do inbox usa a mais recente)
+    // Handover: status human + responsável. NÃO seta last_human_interaction —
+    // o freeze da IA só começa quando o operador de fato responde.
     const { error } = await supabase
       .from('crm_conversas')
       .update({
         status: 'human',
         atribuido_a_id: responsavelId,
-        last_human_interaction: now,
         updated_at: now,
       })
       .eq('sessao_id', input.sessaoId)
@@ -279,7 +293,6 @@ export class TriageActionExecutor {
         {
           status: 'human',
           atribuido_a_id: responsavelId,
-          last_human_interaction: now,
         },
         supabase,
       )
@@ -292,15 +305,19 @@ export class TriageActionExecutor {
     reasoning: string,
     meta: Record<string, unknown>,
   ) {
-    await supabase.from('crm_interacoes').insert({
-      empresa_id: input.empresaId,
-      lead_id: input.leadId,
-      conversa_id: input.sessaoId,
-      contact_phone: input.contactPhone,
-      contact_name: input.contactName,
+    await SessionPersistenceService.persistMessage(supabase, {
+      empresaId: input.empresaId,
+      canalId: input.canalId,
+      externalId: input.contactPhone,
+      leadId: input.leadId,
+      sessaoId: input.sessaoId,
+      cardId: meta.card_id as string | null | undefined,
       role: 'system',
       content: '(Triagem IA)',
-      log_sistema: reasoning,
+      direcao: 'outbound',
+      contactPhone: input.contactPhone,
+      contactName: input.contactName,
+      logSistema: reasoning,
       metadata: { type: 'ai_triage_reasoning', ...meta },
     })
   }

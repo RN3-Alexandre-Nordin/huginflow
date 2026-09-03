@@ -3,6 +3,7 @@ import { buildEvolutionProviderConfig } from '@/lib/omnichannel/evolution-config
 import { EvolutionProvider } from '@/lib/omnichannel/providers/EvolutionProvider'
 import type { HuginMessage } from '@/types/omnichannel'
 import { ConversaHistoricoService } from '@/lib/omnichannel/ConversaHistoricoService'
+import { SessionPersistenceService } from '@/lib/omnichannel/SessionPersistenceService'
 import { CardDocumentMatcher } from '@/lib/omnichannel/triage/CardDocumentMatcher'
 import { CardAttachmentService } from '@/lib/omnichannel/services/CardAttachmentService'
 import { DocumentCardEnsurer } from '@/lib/omnichannel/services/DocumentCardEnsurer'
@@ -92,6 +93,7 @@ export class DocumentInboundService {
           empresaId,
           leadId,
           sessaoId,
+          canalId: canal.id,
           contactPhone: message.sender_id,
           contactName: message.sender_name || 'Usuário WhatsApp',
           facts,
@@ -124,7 +126,16 @@ export class DocumentInboundService {
           )
         }
 
-        await this.logDocumentReasoning(supabase, message, leadId, sessaoId, reasons, cardId, categoria)
+        await this.logDocumentReasoning(
+          supabase,
+          message,
+          leadId,
+          sessaoId,
+          canal.id,
+          reasons,
+          cardId,
+          categoria,
+        )
 
         await this.sendAutoReply(message, canal, supabase, leadId, sessaoId, {
           text: docResult.tooLarge ? DOCUMENT_TOO_LARGE : autoReply,
@@ -178,6 +189,7 @@ export class DocumentInboundService {
           empresaId,
           leadId,
           sessaoId,
+          canalId: canal.id,
           contactPhone: message.sender_id,
           contactName: message.sender_name || 'Usuário WhatsApp',
           facts,
@@ -218,6 +230,7 @@ export class DocumentInboundService {
           empresaId,
           leadId,
           sessaoId,
+          canalId: canal.id,
           contactPhone: message.sender_id,
           contactName: message.sender_name || 'Usuário WhatsApp',
           facts,
@@ -248,6 +261,7 @@ export class DocumentInboundService {
         message,
         leadId,
         sessaoId,
+        canal.id,
         reasons,
         cardId,
         classification.categoria,
@@ -270,6 +284,7 @@ export class DocumentInboundService {
           empresaId,
           leadId,
           sessaoId,
+          canalId: canal.id,
           contactPhone: message.sender_id,
           contactName: message.sender_name || 'Usuário WhatsApp',
           facts,
@@ -299,19 +314,24 @@ export class DocumentInboundService {
     message: HuginMessage,
     leadId: string,
     sessaoId: string,
+    canalId: string,
     reasons: string[],
     cardId: string | null,
     categoria: string,
   ) {
-    await supabase.from('crm_interacoes').insert({
-      empresa_id: message.empresa_id,
-      lead_id: leadId,
-      conversa_id: sessaoId,
-      contact_phone: message.sender_id,
-      contact_name: message.sender_name || 'Usuário WhatsApp',
+    await SessionPersistenceService.persistMessage(supabase, {
+      empresaId: message.empresa_id,
+      canalId,
+      externalId: message.sender_id,
+      leadId,
+      sessaoId,
+      cardId,
       role: 'system',
       content: '(Documento WhatsApp)',
-      log_sistema: reasons.join(' '),
+      direcao: 'outbound',
+      contactPhone: message.sender_id,
+      contactName: message.sender_name || 'Usuário WhatsApp',
+      logSistema: reasons.join(' '),
       metadata: {
         type: 'whatsapp_document_reasoning',
         card_id: cardId,
@@ -332,7 +352,6 @@ export class DocumentInboundService {
       .update({
         status: 'human',
         atribuido_a_id: responsavelId,
-        last_human_interaction: now,
         updated_at: now,
       })
       .eq('sessao_id', sessaoId)
@@ -356,26 +375,31 @@ export class DocumentInboundService {
     const { text, cardId, responsavelId, handover } = opts
     const empresaId = message.empresa_id
 
-    const { data: insertedMsg } = await supabase
-      .from('crm_interacoes')
-      .insert({
-        empresa_id: empresaId,
-        lead_id: leadId,
-        conversa_id: sessaoId,
-        contact_phone: message.sender_id,
-        contact_name: message.sender_name || 'Usuário WhatsApp',
-        role: 'assistant',
-        content: text,
-        metadata: {
-          provider: 'evolution',
-          is_ai: true,
-          document_auto_reply: true,
-          card_id: cardId,
-          responsavel_id: responsavelId,
-        },
-      })
-      .select('id')
-      .single()
+    const persist = await SessionPersistenceService.persistMessage(supabase, {
+      empresaId,
+      canalId: canal.id,
+      externalId: message.sender_id,
+      leadId,
+      sessaoId,
+      cardId,
+      role: 'assistant',
+      content: text,
+      direcao: 'outbound',
+      status: handover ? 'human' : 'ai',
+      atribuidoAId: responsavelId,
+      isAi: true,
+      contactPhone: message.sender_id,
+      contactName: message.sender_name || 'Usuário WhatsApp',
+      metadata: {
+        provider: 'evolution',
+        is_ai: true,
+        document_auto_reply: true,
+        card_id: cardId,
+        responsavel_id: responsavelId,
+      },
+    })
+
+    const insertedMsgId = persist.interacaoId
 
     const config = buildEvolutionProviderConfig(canal)
     const provider = new EvolutionProvider()
@@ -385,7 +409,7 @@ export class DocumentInboundService {
       config,
     )
 
-    if (sendResult.success && insertedMsg?.id) {
+    if (sendResult.success && insertedMsgId) {
       await supabase
         .from('crm_interacoes')
         .update({
@@ -398,29 +422,8 @@ export class DocumentInboundService {
             card_id: cardId,
           },
         })
-        .eq('id', insertedMsg.id)
+        .eq('id', insertedMsgId)
     }
-
-    await ConversaHistoricoService.appendMessage(
-      {
-        empresa_id: empresaId,
-        canal_id: canal.id,
-        external_id: message.sender_id,
-        lead_id: leadId,
-        role: 'assistant',
-        content: text,
-        direcao: 'outbound',
-        status: handover ? 'human' : 'ai',
-        atribuido_a_id: responsavelId,
-        is_ai: true,
-        metadata: {
-          document_auto_reply: true,
-          card_id: cardId,
-          provider_message_id: sendResult.messageId,
-        },
-      },
-      supabase,
-    )
 
     if (handover) {
       await this.applyHandover(supabase, empresaId, sessaoId, responsavelId)

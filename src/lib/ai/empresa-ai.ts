@@ -57,11 +57,22 @@ export async function generateEmbedding(text: string, config: EmpresaAiConfig): 
   return result.data[0]?.embedding ?? []
 }
 
-export async function generateText(prompt: string, config: EmpresaAiConfig): Promise<string> {
+export type GenerateTextOptions = {
+  maxTokens?: number
+  temperature?: number
+}
+
+export async function generateText(
+  prompt: string,
+  config: EmpresaAiConfig,
+  options: GenerateTextOptions = {},
+): Promise<string> {
   const client = new OpenAI({ apiKey: config.apiKey })
   const result = await client.chat.completions.create({
     model: config.model,
     messages: [{ role: 'user', content: prompt }],
+    ...(options.maxTokens != null ? { max_tokens: options.maxTokens } : {}),
+    ...(options.temperature != null ? { temperature: options.temperature } : {}),
   })
   return result.choices[0]?.message?.content?.trim() ?? ''
 }

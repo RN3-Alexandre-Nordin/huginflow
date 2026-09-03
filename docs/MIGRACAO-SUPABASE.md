@@ -26,9 +26,9 @@ node scripts/supabase/prod-deploy/build-bundle.mjs
 | 2026-09-02 | `revert_handover_structured` | ✅ | ✅ | `supabase/migrations/202609021000_revert_handover_structured.sql` | Remove `crm_handover_config`, `handover_ja_feito`, `handover_pendencias` — resumo IA em `observacao` |
 | 2026-09-01 | `crm_cards_handover_structured` | ↩️ revertido | ↩️ revertido | `supabase/migrations/202609011400_crm_cards_handover_structured.sql` | Substituído por resumo IA |
 | 2026-09-01 | `empresas_crm_handover_config` | ↩️ revertido | ↩️ revertido | `supabase/migrations/202609011200_empresas_crm_handover_config.sql` | Substituído por resumo IA |
-| 2026-08-31 | `crm_chat_threads_active_speaker` | ✅ | ⏳ | `supabase/migrations/202608311800_crm_chat_threads_active_speaker.sql` | Threads + falante ativo — [cutover-sessoes-departamento-prod.md](./cutover-sessoes-departamento-prod.md) |
-| 2026-08-31 | Planejamento: sessões por departamento / falante ativo | ✅ MVP | ⏳ | `docs/planejamento-sessoes-por-departamento.md` | MVP implementado em dev |
-| 2026-08-31 | Chat: notificar responsável em alteração de card | ✅ | ⏳ | `src/lib/crm/notifyCardResponsavel.ts` (+ actions/triage) | Só código — [cutover-crm-ux-notificacoes-prod.md](./cutover-crm-ux-notificacoes-prod.md) |
+| 2026-08-31 | `crm_chat_threads_active_speaker` | ✅ | ⏳ | `supabase/migrations/202608311800_crm_chat_threads_active_speaker.sql` | Threads + falante ativo |
+| 2026-08-31 | Sessões por departamento / falante ativo (MVP) | ✅ MVP | ⏳ | código + migration acima | Implementado em dev |
+| 2026-08-31 | Chat: notificar responsável em alteração de card | ✅ | ⏳ | `src/lib/crm/notifyCardResponsavel.ts` (+ actions/triage) | Só código |
 | 2026-08-31 | Kanban: data/hora criação no card | ✅ | ⏳ | `KanbanItem.tsx` | Só código |
 | 2026-08-31 | Documentos: ensurer + heurística boleto | ✅ | ⏳ | `DocumentCardEnsurer.ts` | Só código — cutover documentos |
 | 2026-08-31 | `crm_card_files_whatsapp_inbound` | ✅ | ⏳ | `supabase/migrations/202608311400_crm_card_files_whatsapp_inbound.sql` | source / provider_message_id |
@@ -82,7 +82,7 @@ Aplicar após o pacote finance (ou em cutover CRM dedicado). Detalhes: [supabase
 | 20 | `crm_card_files_whatsapp_inbound` | `supabase/migrations/202608311400_crm_card_files_whatsapp_inbound.sql` |
 | 21 | `crm_chat_threads_active_speaker` | `supabase/migrations/202608311800_crm_chat_threads_active_speaker.sql` |
 
-Código associado (sem SQL): documentos WhatsApp, ensurer, kanban data/hora, notify responsável — ver cutovers linkados no índice de deploy.
+Código associado (sem SQL): documentos WhatsApp, ensurer, kanban data/hora, notify responsável — ver changelog em [supabase-prod-deploy-pending.md](./supabase-prod-deploy-pending.md).
 
 **Roteiro de homologação:** [homologacao/script-teste-pacote-crm-ago-2026.md](./homologacao/script-teste-pacote-crm-ago-2026.md)
 

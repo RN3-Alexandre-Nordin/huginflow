@@ -2,8 +2,7 @@ import Link from "next/link"
 import { redirect } from "next/navigation"
 import { getMyProfile } from "@/app/(app)/cockpit/actions"
 import { isRn3SuperAdmin } from "@/utils/permissions"
-import { FileText, Plus, Eye, Pencil } from "lucide-react"
-import BackButton from '@/components/BackButton'
+import { Plus, Eye, Pencil } from "lucide-react"
 import { listContratos } from "./actions"
 import { formatBRL, formatDateBR } from "@/lib/finance/format"
 import { CONTRATO_STATUS_COLOR, CONTRATO_STATUS } from "@/lib/finance/contrato-constants"
@@ -39,16 +38,7 @@ export default async function ContratosPage(props: {
   return (
     <div className="space-y-6 pb-20 font-sans">
       <div className="flex items-center justify-between flex-wrap gap-4">
-        <div className="flex items-center gap-4">
-          <BackButton fallbackHref="/cockpit/financeiro" />
-          <div>
-            <h2 className="text-2xl font-bold tracking-tight text-white flex items-center gap-3">
-              <FileText className="w-6 h-6 text-[#E8A317]" />
-              Contratos comerciais
-            </h2>
-            <p className="text-sm text-gray-400 mt-1">{contratos.length} contrato(s)</p>
-          </div>
-        </div>
+        <p className="text-sm text-gray-400">{contratos.length} contrato(s)</p>
         {canCreate && (
           <Link
             href="/cockpit/financeiro/contratos/novo"

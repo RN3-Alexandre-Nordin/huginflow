@@ -11,6 +11,8 @@ import CockpitSidebarNav from './CockpitSidebarNav'
 import type { CockpitNavPermissions } from '@/utils/cockpit-nav-permissions'
 import CockpitUserMenu from './_components/CockpitUserMenu'
 import CockpitHelpButton from '@/components/CockpitHelpButton'
+import { BackButton } from '@/components/BackButton'
+import { resolveCockpitNav } from './cockpit-nav'
 import { Menu, X } from 'lucide-react'
 import styles from './CockpitShell.module.css'
 
@@ -47,6 +49,9 @@ export default function CockpitShell({
   empresaId,
 }: Props) {
   const pathname = usePathname()
+  const { item: navItem, isExact: isMenuEntry } = resolveCockpitNav(pathname)
+  const PageIcon = navItem.icon
+  const showPageBack = isMenuEntry && pathname !== '/cockpit'
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [ready, setReady] = useState(false)
 
@@ -168,8 +173,19 @@ export default function CockpitShell({
                 >
                   {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
                 </button>
-                <h1 className="truncate text-base font-bold tracking-tight text-white/90 uppercase italic sm:text-xl">
-                  Cockpit de Operações
+                {showPageBack && (
+                  <BackButton
+                    fallbackHref="/cockpit"
+                    className="shrink-0 rounded-xl border border-[#ffffff10] bg-[#ffffff05] p-2.5 text-gray-400 transition-colors hover:bg-[#ffffff10] hover:text-white"
+                    iconClassName="h-5 w-5"
+                  />
+                )}
+                <h1
+                  className="flex min-w-0 items-center gap-2 truncate text-base font-bold tracking-tight text-white/90 sm:text-xl"
+                  data-testid="cockpit-page-title"
+                >
+                  <PageIcon className="h-5 w-5 shrink-0 text-[#2BAADF]" aria-hidden />
+                  <span className="truncate">{navItem.name}</span>
                 </h1>
               </div>
               <div className="flex shrink-0 items-center gap-4">
