@@ -7,6 +7,8 @@
  * - Hugin dev/treino → sistema_origem `hugin_flow_dev` + JWKS deste ambiente
  */
 
+import { createPrivateKey, createPublicKey } from 'crypto'
+
 export const BIFROST_JWT_AUDIENCE = 'bifrost'
 export const BIFROST_JWT_TTL_SECONDS = 60
 
@@ -68,16 +70,71 @@ export function getBifrostJwtKid(): string {
   return getBifrostSistemaOrigem() === 'hugin_flow' ? 'hugin-1' : 'hugin-dev-1'
 }
 
-/** PEM PKCS8; aceita `\n` literal na env. */
-export function getBifrostJwtPrivateKeyPem(): string | null {
-  const raw = process.env.BIFROST_JWT_PRIVATE_KEY?.trim()
+/**
+ * Normaliza PEM vindo de env/Swarm/GitHub Secrets:
+ * aspas, `\n`/`\\n`, PKCS#1 → PKCS#8.
+ */
+export function normalizePemKey(raw: string, kind: 'private' | 'public'): string {
+  let pem = raw.trim()
+  if (
+    (pem.startsWith('"') && pem.endsWith('"')) ||
+    (pem.startsWith("'") && pem.endsWith("'"))
+  ) {
+    pem = pem.slice(1, -1).trim()
+  }
+
+  pem = pem.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+  // Expand escaped newlines (pode vir duplo do Swarm: \\n)
+  for (let i = 0; i < 4 && pem.includes('\\n'); i += 1) {
+    pem = pem.replace(/\\n/g, '\n')
+  }
+  pem = pem.replace(/\\r/g, '').trim()
+
+  if (!pem.includes('BEGIN') && /^[A-Za-z0-9+/=\s]+$/.test(pem)) {
+    const body = pem.replace(/\s+/g, '')
+    const lines = body.match(/.{1,64}/g)?.join('\n') ?? body
+    pem =
+      kind === 'private'
+        ? `-----BEGIN PRIVATE KEY-----\n${lines}\n-----END PRIVATE KEY-----`
+        : `-----BEGIN PUBLIC KEY-----\n${lines}\n-----END PUBLIC KEY-----`
+  }
+
+  if (kind === 'private' && /BEGIN RSA PRIVATE KEY/.test(pem)) {
+    pem = createPrivateKey(pem).export({ type: 'pkcs8', format: 'pem' }).toString()
+  }
+
+  if (kind === 'public' && /BEGIN RSA PUBLIC KEY/.test(pem)) {
+    pem = createPublicKey(pem).export({ type: 'spki', format: 'pem' }).toString()
+  }
+
+  return pem.trim() + '\n'
+}
+
+function readPemFromEnv(
+  plainName: string,
+  b64Name: string,
+  kind: 'private' | 'public',
+): string | null {
+  const b64 = process.env[b64Name]?.trim()
+  if (b64) {
+    try {
+      const decoded = Buffer.from(b64, 'base64').toString('utf8')
+      return normalizePemKey(decoded, kind)
+    } catch {
+      // fallback para plain abaixo
+    }
+  }
+  const raw = process.env[plainName]?.trim()
   if (!raw) return null
-  return raw.replace(/\\n/g, '\n')
+  return normalizePemKey(raw, kind)
+}
+
+/** PEM PKCS8; aceita `\n` literal, aspas, ou `BIFROST_JWT_PRIVATE_KEY_B64`. */
+export function getBifrostJwtPrivateKeyPem(): string | null {
+  return readPemFromEnv('BIFROST_JWT_PRIVATE_KEY', 'BIFROST_JWT_PRIVATE_KEY_B64', 'private')
 }
 
 /** PEM SPKI público opcional (se ausente, deriva da privada). */
 export function getBifrostJwtPublicKeyPem(): string | null {
-  const raw = process.env.BIFROST_JWT_PUBLIC_KEY?.trim()
-  if (!raw) return null
-  return raw.replace(/\\n/g, '\n')
+  return readPemFromEnv('BIFROST_JWT_PUBLIC_KEY', 'BIFROST_JWT_PUBLIC_KEY_B64', 'public')
 }

@@ -170,11 +170,11 @@ jobs:
               exit 1
             fi
 
-            # App aceita PEM com \\n literal; normaliza quebras reais da secret
-            bifrost_pem_oneline() {
-              printf '%s' "$1" | tr -d '\r' | sed ':a;N;$!ba;s/\n/\\n/g'
+            # Base64 evita corromper PEM no docker service update --env-add
+            bifrost_pem_b64() {
+              printf '%s' "$1" | tr -d '\r' | base64 -w0 2>/dev/null || printf '%s' "$1" | tr -d '\r' | base64 | tr -d '\n'
             }
-            BIFROST_PRIV_ESC="$(bifrost_pem_oneline "$BIFROST_JWT_PRIVATE_KEY")"
+            BIFROST_PRIV_B64="$(bifrost_pem_b64 "$BIFROST_JWT_PRIVATE_KEY")"
             BIFROST_KID_VALUE="${BIFROST_JWT_KID:-hugin-1}"
             BIFROST_ISSUER_VALUE="${BIFROST_JWT_ISSUER:-https://app.huginflow.com/bifrost}"
 
@@ -202,14 +202,17 @@ jobs:
               --env-add BIFROST_SISTEMA_ORIGEM=hugin_flow
               --env-add "BIFROST_JWT_ISSUER=${BIFROST_ISSUER_VALUE}"
               --env-add "BIFROST_JWT_KID=${BIFROST_KID_VALUE}"
-              --env-add "BIFROST_JWT_PRIVATE_KEY=${BIFROST_PRIV_ESC}"
+              --env-add "BIFROST_JWT_PRIVATE_KEY_B64=${BIFROST_PRIV_B64}"
             )
             if [ -n "${BIFROST_JWT_PUBLIC_KEY:-}" ]; then
-              BIFROST_PUB_ESC="$(bifrost_pem_oneline "$BIFROST_JWT_PUBLIC_KEY")"
-              UPDATE_ARGS+=(--env-add "BIFROST_JWT_PUBLIC_KEY=${BIFROST_PUB_ESC}")
+              BIFROST_PUB_B64="$(bifrost_pem_b64 "$BIFROST_JWT_PUBLIC_KEY")"
+              UPDATE_ARGS+=(--env-add "BIFROST_JWT_PUBLIC_KEY_B64=${BIFROST_PUB_B64}")
             fi
 
             docker service update "${UPDATE_ARGS[@]}" "$SERVICE"
+            # Remove PEM plain corrompido do deploy anterior (se existir)
+            docker service update --env-rm BIFROST_JWT_PRIVATE_KEY "$SERVICE" >/dev/null 2>&1 || true
+            docker service update --env-rm BIFROST_JWT_PUBLIC_KEY "$SERVICE" >/dev/null 2>&1 || true
 
             docker service ps "$SERVICE" --no-trunc
             docker image prune -f

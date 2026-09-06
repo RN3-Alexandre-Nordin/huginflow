@@ -33,7 +33,14 @@ async function loadPrivateKey(): Promise<BifrostPrivateKey> {
   if (!pem) {
     throw new Error('BIFROST_JWT_PRIVATE_KEY não configurada.')
   }
-  cachedPrivateKey = await importPKCS8(pem, 'RS256')
+  try {
+    cachedPrivateKey = await importPKCS8(pem, 'RS256')
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    throw new Error(
+      `Chave Bifrost inválida (PEM PKCS#8). ${msg}. Use BEGIN PRIVATE KEY ou secret B64 no deploy.`,
+    )
+  }
   return cachedPrivateKey
 }
 
@@ -85,19 +92,29 @@ export async function signBifrostEmbedToken(input: BifrostEmbedClaimsInput): Pro
   const privateKey = await loadPrivateKey()
   const now = Math.floor(Date.now() / 1000)
 
-  return new SignJWT({
-    user_id: input.userId,
-    email: input.email.trim(),
-    name: input.name.trim(),
-    tenant: input.tenantId,
-    empresa: input.empresaNome.trim() || 'Empresa',
-    sistema_origem: getBifrostSistemaOrigem(),
-  })
-    .setProtectedHeader({ alg: 'RS256', kid: getBifrostJwtKid(), typ: 'JWT' })
-    .setIssuer(getBifrostJwtIssuer())
-    .setAudience(BIFROST_JWT_AUDIENCE)
-    .setIssuedAt(now)
-    .setExpirationTime(now + BIFROST_JWT_TTL_SECONDS)
-    .setJti(randomUUID())
-    .sign(privateKey)
+  try {
+    return await new SignJWT({
+      user_id: input.userId,
+      email: input.email.trim(),
+      name: input.name.trim(),
+      tenant: input.tenantId,
+      empresa: input.empresaNome.trim() || 'Empresa',
+      sistema_origem: getBifrostSistemaOrigem(),
+    })
+      .setProtectedHeader({ alg: 'RS256', kid: getBifrostJwtKid(), typ: 'JWT' })
+      .setIssuer(getBifrostJwtIssuer())
+      .setAudience(BIFROST_JWT_AUDIENCE)
+      .setIssuedAt(now)
+      .setExpirationTime(now + BIFROST_JWT_TTL_SECONDS)
+      .setJti(randomUUID())
+      .sign(privateKey)
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    if (/pkcs8|PKCS#?8|asymmetric key/i.test(msg)) {
+      throw new Error(
+        'Chave Bifrost inválida (PEM PKCS#8). Confira a secret BIFROST_JWT_PRIVATE_KEY / B64 no deploy.',
+      )
+    }
+    throw err
+  }
 }

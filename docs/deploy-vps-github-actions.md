@@ -84,7 +84,7 @@ Secrets **Bifrost** (runtime no `deploy-prod` → Swarm):
 
 | Secret | Obrigatório | Valor |
 |--------|-------------|--------|
-| `BIFROST_JWT_PRIVATE_KEY` | sim | PEM PKCS8 (com quebras reais ou `\n`) |
+| `BIFROST_JWT_PRIVATE_KEY` | sim | PEM PKCS8 (`-----BEGIN PRIVATE KEY-----`). O CI converte para `BIFROST_JWT_PRIVATE_KEY_B64` no Swarm. |
 | `BIFROST_JWT_PUBLIC_KEY` | não | PEM SPKI público (opcional) |
 | `BIFROST_JWT_KID` | não | Default `hugin-1` |
 | `BIFROST_JWT_ISSUER` | não | Default `https://app.huginflow.com/bifrost` |
