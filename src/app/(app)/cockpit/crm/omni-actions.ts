@@ -16,6 +16,7 @@ import { normalizeWhatsAppPhone } from '@/lib/omnichannel/phone'
 import { WHATSAPP_SENDER_LABELS } from '@/lib/omnichannel/whatsapp-outbound'
 import { isDeptSessionsEnabled } from '@/lib/omnichannel/dept-sessions-constants'
 import { DOCUMENT_MAX_BYTES } from '@/lib/omnichannel/document-constants'
+import { CardAttachmentService } from '@/lib/omnichannel/services/CardAttachmentService'
 import { linkLeadToCard } from '@/lib/crm/resolveLead'
 import {
   ActiveSpeakerService,
@@ -543,16 +544,55 @@ export async function sendOmniAttachment(formData: FormData) {
     }
 
     const arrayBuffer = await file.arrayBuffer()
-    const base64 = Buffer.from(arrayBuffer).toString('base64')
+    const fileBuffer = Buffer.from(arrayBuffer)
+    const base64 = fileBuffer.toString('base64')
     const mediatype = resolveMediaType(mimeType)
     const displayContent = caption || `📎 ${file.name}`
 
+    if (!me.empresa_id) {
+      return { success: false, error: 'Empresa do usuário não identificada.' }
+    }
+    const empresaId = me.empresa_id
+
+    // Card aberto desta sessão (isolamento por conversa + tenant)
+    let cardId: string | null = null
+    const { data: cardBySessao } = await supabase
+      .from('crm_cards')
+      .select('id')
+      .eq('empresa_id', empresaId)
+      .eq('conversa_id', sessaoId)
+      .eq('finalizado', false)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    cardId = cardBySessao?.id ?? null
+
+    if (!cardId) {
+      const { data: thread } = await supabase
+        .from('crm_chat_threads')
+        .select('card_id')
+        .eq('id', sessaoId)
+        .eq('empresa_id', empresaId)
+        .maybeSingle()
+      if (thread?.card_id) {
+        const { data: openByThread } = await supabase
+          .from('crm_cards')
+          .select('id')
+          .eq('id', thread.card_id)
+          .eq('empresa_id', empresaId)
+          .eq('finalizado', false)
+          .maybeSingle()
+        cardId = openByThread?.id ?? null
+      }
+    }
+
     const persistMedia = await SessionPersistenceService.persistMessage(supabase, {
-      empresaId: me.empresa_id!,
+      empresaId,
       canalId: conversa.canal_id,
       externalId,
       leadId: lead.id,
       sessaoId,
+      cardId: cardId ?? undefined,
       role: 'assistant',
       content: displayContent,
       direcao: 'outbound',
@@ -625,6 +665,39 @@ export async function sendOmniAttachment(formData: FormData) {
           content: displayContent,
         })
       }
+
+      // Anexa ao card (mesmo arquivo enviado ao cliente) — não bloqueia o envio WhatsApp
+      if (cardId) {
+        try {
+          let attachClient = supabase
+          try {
+            attachClient = createAdminClient()
+          } catch {
+            attachClient = supabase
+          }
+          const attach = await CardAttachmentService.attachFromInbound(attachClient, {
+            cardId,
+            empresaId,
+            buffer: fileBuffer,
+            fileName: file.name,
+            mimeType,
+            providerMessageId: waMessageId || `omni-outbound:${insertedMsg.id}`,
+            interacaoId: insertedMsg.id,
+            source: 'whatsapp_outbound',
+            uploadedBy: me.id,
+          })
+          if (!attach.ok) {
+            console.error('[OmniActions] Anexo no card falhou:', attach.error)
+          }
+        } catch (attachErr) {
+          console.error('[OmniActions] Anexo no card exception:', attachErr)
+        }
+      } else {
+        console.warn(
+          `[OmniActions] Sessão ${sessaoId} sem card aberto — arquivo enviado no WhatsApp sem gravar em crm_card_files`,
+        )
+      }
+
       revalidatePath('/cockpit/crm/chat')
       return { success: true, messageId: waMessageId }
     }
@@ -635,6 +708,7 @@ export async function sendOmniAttachment(formData: FormData) {
         metadata: { ...insertedMsg.metadata, status: 'error', provider_error: result.error },
       })
       .eq('id', insertedMsg.id)
+      .eq('empresa_id', empresaId)
 
     return {
       success: false,

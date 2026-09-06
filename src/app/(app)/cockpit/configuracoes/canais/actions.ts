@@ -77,11 +77,25 @@ export async function syncChannelStatus(id: string, provider: string, providerId
       );
       console.log(`[actions] Sincronizando status para ${providerId}: Evo State = ${state}`);
       
-      let platformStatus = 'pairing';
+      // Default: desconectado. "pairing" só quando Evolution pede QR de fato.
+      let platformStatus = 'disconnected';
+      const normalized = String(state || '').toLowerCase();
 
-      if (state === 'open' || state === 'connected') {
+      if (normalized === 'open' || normalized === 'connected') {
         platformStatus = 'connected';
-      } else if (state === 'close' || state === 'refused' || state === 'disconnected') {
+      } else if (
+        normalized === 'pairing' ||
+        normalized === 'qrcode'
+      ) {
+        platformStatus = 'pairing';
+      } else if (
+        normalized === 'close' ||
+        normalized === 'closed' ||
+        normalized === 'refused' ||
+        normalized === 'disconnected' ||
+        normalized === 'connecting' ||
+        normalized === 'logout'
+      ) {
         platformStatus = 'disconnected';
       }
 

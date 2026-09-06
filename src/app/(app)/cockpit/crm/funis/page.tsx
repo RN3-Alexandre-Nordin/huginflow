@@ -45,7 +45,7 @@ export default async function FunisPage(props: {
        descricao, 
        is_public, 
        created_at,
-       crm_cards (id),
+       crm_cards (id, finalizado),
        pipeline_stages (id)
     `)
     .order("created_at", { ascending: false })
@@ -118,7 +118,9 @@ export default async function FunisPage(props: {
         ) : (
            <div className="divide-y divide-[#ffffff05]">
               {pipelines.map(pipe => {
-                 const totalCards = Array.isArray(pipe.crm_cards) ? pipe.crm_cards.length : 0
+                 const totalCards = Array.isArray(pipe.crm_cards)
+                   ? pipe.crm_cards.filter((c: { finalizado?: boolean | null }) => c.finalizado !== true).length
+                   : 0
                  const totalStages = Array.isArray(pipe.pipeline_stages) ? pipe.pipeline_stages.length : 0
 
                  return (

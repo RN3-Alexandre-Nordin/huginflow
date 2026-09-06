@@ -9,6 +9,7 @@ import { normalizeWhatsAppPhone } from '@/lib/omnichannel/phone'
 import { isOmniMessageDeleted, markOmniMetadataDeleted } from '@/lib/omnichannel/omni-message-deleted'
 import { ActiveSpeakerService } from '@/lib/omnichannel/ChatThreadService'
 import { canConsultCard, isTenantAdmin } from '@/lib/crm/cardConsultaAccess'
+import { getUserDepartamentoIds } from '@/lib/crm/userDepartamentos'
 
 /** Uma entrada por thread (última mensagem de cada sessao_id). */
 function dedupeSessoes<T extends { sessao_id: string; created_at?: string; updated_at?: string }>(
@@ -38,23 +39,15 @@ function firstRelation<T>(value: T | T[] | null | undefined): T | null {
   return value ?? null
 }
 
-async function getUserDepartamentoIds(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  userId: string,
-): Promise<string[]> {
-  const { data } = await supabase
-    .from('usuarios_departamentos')
-    .select('departamento_id')
-    .eq('usuario_id', userId)
-  return (data ?? []).map((r) => r.departamento_id).filter(Boolean)
-}
-
 /**
  * Operador acessa a sessão WhatsApp se:
- * - for o atribuído da conversa / fila sem dono, OU
- * - for responsável do card, OU
- * - pertencer ao mesmo departamento do funil do card, OU
- * - o grupo dele tiver acesso ao funil do card (pipeline_grupo_acesso).
+ * - for o atribuído da conversa, OU
+ * - a thread for do seu departamento / funil do grupo (histórico pós-encaminhar), OU
+ * - (legado / sem depto na thread) responsável do card / funil do grupo.
+ *
+ * Isolamento: com sessões por departamento, o card_id na thread de origem NÃO libera
+ * o destino a ver o histórico do outro depto (card já está no funil novo).
+ * Admin / não-operador: vê todas da empresa (sempre filtrado por empresa_id nas queries).
  */
 async function operadorPodeAcessarSessao(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -63,46 +56,85 @@ async function operadorPodeAcessarSessao(
   conversa?: { atribuido_a_id?: string | null; status?: string | null } | null,
 ): Promise<boolean> {
   if (me.role_global !== 'operador') return true
+  if (!me.empresa_id) return false
 
-  if (conversa) {
-    if (conversa.atribuido_a_id === me.id) return true
-    if (!conversa.atribuido_a_id && conversa.status === 'human') return true
+  if (conversa?.atribuido_a_id === me.id) return true
+
+  const userDeptIds = await getUserDepartamentoIds(supabase, me.id, me.grupo_id)
+
+  const { data: thread } = await supabase
+    .from('crm_chat_threads')
+    .select('card_id, departamento_id, pipeline_id, empresa_id')
+    .eq('id', sessaoId)
+    .eq('empresa_id', me.empresa_id)
+    .maybeSingle()
+
+  if (thread && thread.empresa_id !== me.empresa_id) return false
+
+  // Com isolamento por depto: dono da thread = departamento/funil da thread (não o card atual).
+  if (isDeptSessionsEnabled() && thread) {
+    if (thread.departamento_id) {
+      return userDeptIds.includes(thread.departamento_id)
+    }
+
+    if (thread.pipeline_id) {
+      if (!me.grupo_id) return false
+      const { data: threadPipeAccess } = await supabase
+        .from('pipeline_grupo_acesso')
+        .select('pipeline_id')
+        .eq('grupo_id', me.grupo_id)
+        .eq('pipeline_id', thread.pipeline_id)
+        .maybeSingle()
+      return Boolean(threadPipeAccess)
+    }
+    // Thread sem depto/funil → cai no fallback de card (legado)
+  } else {
+    if (thread?.departamento_id && userDeptIds.includes(thread.departamento_id)) {
+      return true
+    }
+
+    if (thread?.pipeline_id && me.grupo_id) {
+      const { data: threadPipeAccess } = await supabase
+        .from('pipeline_grupo_acesso')
+        .select('pipeline_id')
+        .eq('grupo_id', me.grupo_id)
+        .eq('pipeline_id', thread.pipeline_id)
+        .maybeSingle()
+      if (threadPipeAccess) return true
+    }
   }
 
   const cardIds = new Set<string>()
 
   const { data: cardsByConversa } = await supabase
     .from('crm_cards')
-    .select('id, responsavel_id, pipeline_id, pipelines(departamento_id)')
+    .select('id, responsavel_id, pipeline_id, pipelines(departamento_id), empresa_id')
     .eq('conversa_id', sessaoId)
     .eq('empresa_id', me.empresa_id)
 
   for (const c of cardsByConversa ?? []) {
-    cardIds.add(c.id)
+    if (c.empresa_id === me.empresa_id) cardIds.add(c.id)
   }
 
-  const { data: thread } = await supabase
-    .from('crm_chat_threads')
-    .select('card_id')
-    .eq('id', sessaoId)
-    .maybeSingle()
-
-  if (thread?.card_id) cardIds.add(thread.card_id)
+  // Fallback legado: só chega aqui se a thread não tem departamento/funil
+  // (com dept sessions + depto/funil na thread já retornamos acima).
+  if (thread?.card_id) {
+    cardIds.add(thread.card_id)
+  }
 
   if (cardIds.size === 0) return false
 
-  let cards = cardsByConversa ?? []
+  let cards = (cardsByConversa ?? []).filter((c) => c.empresa_id === me.empresa_id)
   const missingIds = [...cardIds].filter((id) => !cards.some((c) => c.id === id))
   if (missingIds.length > 0) {
     const { data: extra } = await supabase
       .from('crm_cards')
-      .select('id, responsavel_id, pipeline_id, pipelines(departamento_id)')
+      .select('id, responsavel_id, pipeline_id, pipelines(departamento_id), empresa_id')
       .in('id', missingIds)
       .eq('empresa_id', me.empresa_id)
-    cards = [...cards, ...(extra ?? [])]
+    cards = [...cards, ...((extra ?? []).filter((c) => c.empresa_id === me.empresa_id))]
   }
 
-  const userDeptIds = await getUserDepartamentoIds(supabase, me.id)
   const pipelineIds = [...new Set(cards.map((c) => c.pipeline_id).filter(Boolean))]
 
   let grupoPipelineIds = new Set<string>()
@@ -116,6 +148,8 @@ async function operadorPodeAcessarSessao(
   }
 
   for (const card of cards) {
+    if (card.empresa_id !== me.empresa_id) continue
+
     const deptId =
       firstRelation(
         (card as { pipelines?: { departamento_id?: string | null } | { departamento_id?: string | null }[] | null })
@@ -131,7 +165,6 @@ async function operadorPodeAcessarSessao(
       return true
     }
 
-    // Fallback: grupo do operador tem acesso ao funil (mesmo sem usuarios_departamentos)
     if (card.pipeline_id && grupoPipelineIds.has(card.pipeline_id)) {
       return true
     }
@@ -207,14 +240,32 @@ export async function getSessaoIdByCardId(cardId: string) {
   if (error) return { error: error.message, data: null }
   if (!card) return { error: 'Card não encontrado', data: null }
 
-  // Acesso ao WhatsApp do card: mesma regra de consulta (responsável / depto / grupo do funil)
+  const deptId =
+    firstRelation(
+      (card as { pipelines?: { departamento_id?: string | null } | { departamento_id?: string | null }[] | null })
+        .pipelines,
+    )?.departamento_id ?? null
+
   if (me.role_global === 'operador') {
-    const userDeptIds = await getUserDepartamentoIds(supabase, me.id)
-    const deptId =
-      firstRelation(
-        (card as { pipelines?: { departamento_id?: string | null } | { departamento_id?: string | null }[] | null })
-          .pipelines,
-      )?.departamento_id ?? null
+    const userDeptIds = await getUserDepartamentoIds(supabase, me.id, me.grupo_id)
+
+    // Após encaminhar cross-dept: preferir a thread do próprio departamento do operador
+    // (histórico isolado), não o conversa_id atual do card no destino.
+    if (userDeptIds.length > 0) {
+      const { data: ownDeptThread } = await supabase
+        .from('crm_chat_threads')
+        .select('id')
+        .eq('card_id', cardId)
+        .eq('empresa_id', me.empresa_id)
+        .in('departamento_id', userDeptIds)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (ownDeptThread?.id) {
+        return { data: ownDeptThread.id }
+      }
+    }
 
     let allowedByCard = canConsultCard(me, userDeptIds, {
       responsavel_id: card.responsavel_id,
@@ -241,6 +292,7 @@ export async function getSessaoIdByCardId(cardId: string) {
     conversaId: card.conversa_id,
     leadId: card.lead_id,
     empresaId: card.empresa_id,
+    departamentoId: deptId,
   })
 
   if (!resolved) return { error: 'Card sem conversa vinculada', data: null }
@@ -249,8 +301,8 @@ export async function getSessaoIdByCardId(cardId: string) {
 }
 
 /**
- * Escolhe a sessão WhatsApp com histórico real.
- * Evita thread órfã vazia criada no handover quando as msgs estão na sessão inbound.
+ * Escolhe a sessão WhatsApp do card sem puxar histórico de outro departamento.
+ * Prioridade: conversa_id do card → thread aberta do card → thread do mesmo depto.
  */
 async function resolveWhatsAppSessaoForCard(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -259,86 +311,62 @@ async function resolveWhatsAppSessaoForCard(
     conversaId: string | null
     leadId: string | null
     empresaId: string
+    departamentoId?: string | null
   },
 ): Promise<string | null> {
-  const candidates = new Set<string>()
-  if (input.conversaId) candidates.add(input.conversaId)
+  // 1) Ponteiro atual do card, se a thread for da empresa (e preferencialmente do depto atual)
+  if (input.conversaId) {
+    const { data: byPointer } = await supabase
+      .from('crm_chat_threads')
+      .select('id, departamento_id, status, empresa_id')
+      .eq('id', input.conversaId)
+      .eq('empresa_id', input.empresaId)
+      .maybeSingle()
 
-  const { data: threadByCard } = await supabase
+    if (byPointer?.id) {
+      const deptOk =
+        !input.departamentoId ||
+        !byPointer.departamento_id ||
+        byPointer.departamento_id === input.departamentoId
+      if (deptOk) return byPointer.id
+    }
+  }
+
+  // 2) Thread aberta do card
+  const { data: openThread } = await supabase
     .from('crm_chat_threads')
-    .select('id')
+    .select('id, departamento_id')
     .eq('card_id', input.cardId)
+    .eq('empresa_id', input.empresaId)
     .neq('status', 'closed')
     .order('updated_at', { ascending: false })
-    .limit(3)
+    .limit(1)
+    .maybeSingle()
 
-  for (const t of threadByCard ?? []) {
-    if (t.id) candidates.add(t.id)
+  if (openThread?.id) {
+    const deptOk =
+      !input.departamentoId ||
+      !openThread.departamento_id ||
+      openThread.departamento_id === input.departamentoId
+    if (deptOk) return openThread.id
   }
 
-  if (input.leadId) {
-    const { data: leadInteracoes } = await supabase
-      .from('crm_interacoes')
-      .select('conversa_id')
-      .eq('lead_id', input.leadId)
+  // 3) Thread do card no mesmo departamento (inclui closed — consulta)
+  if (input.departamentoId) {
+    const { data: deptThread } = await supabase
+      .from('crm_chat_threads')
+      .select('id')
+      .eq('card_id', input.cardId)
       .eq('empresa_id', input.empresaId)
-      .not('conversa_id', 'is', null)
-      .order('created_at', { ascending: false })
-      .limit(50)
-
-    for (const row of leadInteracoes ?? []) {
-      if (row.conversa_id) candidates.add(row.conversa_id)
-    }
-
-    const { data: leadConversas } = await supabase
-      .from('crm_conversas')
-      .select('sessao_id')
-      .eq('lead_id', input.leadId)
-      .eq('empresa_id', input.empresaId)
-      .order('created_at', { ascending: false })
-      .limit(50)
-
-    for (const row of leadConversas ?? []) {
-      if (row.sessao_id) candidates.add(row.sessao_id)
-    }
+      .eq('departamento_id', input.departamentoId)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (deptThread?.id) return deptThread.id
   }
 
-  if (candidates.size === 0) return null
-
-  let best: string | null = null
-  let bestScore = -1
-
-  for (const sessaoId of candidates) {
-    const [{ count: interacoesCount }, { count: conversasCount }] = await Promise.all([
-      supabase
-        .from('crm_interacoes')
-        .select('id', { count: 'exact', head: true })
-        .eq('conversa_id', sessaoId),
-      supabase
-        .from('crm_conversas')
-        .select('id', { count: 'exact', head: true })
-        .eq('sessao_id', sessaoId),
-    ])
-
-    const score = (interacoesCount ?? 0) + (conversasCount ?? 0)
-    // Prefere a conversa_id do card em empate; senão a com mais histórico
-    const tieBreak = sessaoId === input.conversaId ? 0.5 : 0
-    if (score + tieBreak > bestScore) {
-      bestScore = score + tieBreak
-      best = sessaoId
-    }
-  }
-
-  // Se a sessão escolhida tem histórico e difere da gravada no card, corrige o vínculo
-  if (best && best !== input.conversaId && bestScore >= 1) {
-    await supabase
-      .from('crm_cards')
-      .update({ conversa_id: best, updated_at: new Date().toISOString() })
-      .eq('id', input.cardId)
-      .eq('empresa_id', input.empresaId)
-  }
-
-  return best ?? input.conversaId
+  // 4) Fallback: conversa_id gravada (mesmo que thread ainda não exista)
+  return input.conversaId
 }
 
 /** Carrega uma sessão específica (deep link a partir do card). */
@@ -973,6 +1001,87 @@ export async function getCardForOmniRedirect(sessaoId: string, cardIdHint?: stri
   }
 }
 
+/** Contexto para abrir CardDetailsModal a partir do chat omnichannel. */
+export async function getCardForOmniDetails(sessaoId: string, cardIdHint?: string | null) {
+  const me = await getMyProfile()
+  if (!me) return { error: 'Não autenticado' }
+
+  if (!hasPermission(me, 'cards', 'view') && !hasPermission(me, 'cards', 'edit')) {
+    return { error: 'Sem permissão para abrir o card' }
+  }
+
+  const supabase = await createClient()
+
+  const { data: convRows } = await supabase
+    .from('crm_conversas')
+    .select('atribuido_a_id, status')
+    .eq('sessao_id', sessaoId)
+    .order('updated_at', { ascending: false })
+    .limit(1)
+
+  const allowed = await operadorPodeAcessarSessao(supabase, me, sessaoId, convRows?.[0] ?? null)
+  if (!allowed) return { error: 'Sem permissão para esta conversa' }
+
+  const { card, error } = await findOpenCardForSessao(supabase, me, sessaoId, cardIdHint)
+  if (error) return { error }
+  if (!card) {
+    const inaccessible = await describeInaccessibleCardForSessao(me, sessaoId, cardIdHint)
+    if (inaccessible) return { error: inaccessible }
+    return {
+      error:
+        'Nenhum card aberto vinculado a esta conversa. Finalize a venda ou vincule um card no funil.',
+    }
+  }
+
+  const stages = [...(card.pipelines?.pipeline_stages ?? [])].sort(
+    (a, b) => (a.ordem ?? 0) - (b.ordem ?? 0),
+  )
+
+  let usuariosQuery = supabase
+    .from('usuarios')
+    .select('id, nome_completo')
+    .eq('ativo', true)
+    .order('nome_completo')
+
+  if (me.role_global !== 'superadmin') {
+    usuariosQuery = usuariosQuery.eq('empresa_id', me.empresa_id)
+  }
+
+  const { data: usuarios } = await usuariosQuery
+
+  return {
+    data: {
+      card: {
+        id: card.id,
+        titulo: card.titulo || '',
+        cliente_nome: card.cliente_nome,
+        valor: card.valor,
+        descricao: card.descricao,
+        observacao: card.observacao,
+        responsavel_id: card.responsavel_id,
+        data_prazo: card.data_prazo,
+        stage_id: card.stage_id,
+        lead_id: card.lead_id,
+        pipeline_id: card.pipeline_id,
+        conversa_id: card.conversa_id,
+        finalizado: false,
+      },
+      pipelineId: card.pipeline_id,
+      pipelineName: card.pipelines?.nome ?? 'Funil atual',
+      stages,
+      usuarios: (usuarios ?? []).map((u) => ({
+        id: u.id,
+        nome_completo: u.nome_completo || 'Usuário',
+      })),
+      canEdit: hasPermission(me, 'cards', 'edit'),
+      canDelete: hasPermission(me, 'cards', 'delete'),
+      canViewAttachments: hasPermission(me, 'card_attachments', 'view'),
+      canAddAttachments: hasPermission(me, 'card_attachments', 'create'),
+      canDeleteAttachments: hasPermission(me, 'card_attachments', 'delete'),
+    },
+  }
+}
+
 export type OmniCustomerContextLead = {
   id: string | null
   nome: string | null
@@ -1179,7 +1288,7 @@ export async function getOmniCustomerContext(sessaoId: string, cardIdHint?: stri
   const allowed = await operadorPodeAcessarSessao(supabase, me, sessaoId, conversa)
   if (!allowed) return { error: 'Sem permissão para esta conversa' }
 
-  const userDeptIds = await getUserDepartamentoIds(supabase, me.id)
+  const userDeptIds = await getUserDepartamentoIds(supabase, me.id, me.grupo_id)
   const tenantAdmin = isTenantAdmin(me)
 
   const { card: sessionCardRow } = await findOpenCardForSessao(

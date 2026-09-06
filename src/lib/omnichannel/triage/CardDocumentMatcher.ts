@@ -14,8 +14,8 @@ function readCardCategoria(metadados: unknown): string | null {
 }
 
 /**
- * Match estrito: card aberto do lead com a mesma categoria classificada.
- * Prioriza card da conversa atual quando a categoria também bate.
+ * Match: card aberto do lead com a mesma categoria; se não houver, o DocumentCardEnsurer
+ * reutiliza qualquer card aberto do lead (um atendimento = um card).
  */
 export class CardDocumentMatcher {
   static async findMatchingCard(

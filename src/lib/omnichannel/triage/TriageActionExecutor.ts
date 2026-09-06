@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { ConversaHistoricoService } from '@/lib/omnichannel/ConversaHistoricoService'
 import { notifyCardAssignmentAndChanges } from '@/lib/crm/notifyCardResponsavel'
 import { SessionPersistenceService } from '@/lib/omnichannel/SessionPersistenceService'
+import { ChatThreadService } from '@/lib/omnichannel/ChatThreadService'
 import type { ParsedAiTags, TriageAction } from './parseTriageTags'
 import { pickAssignee, resolveFunilFromTriage, type SystemFacts } from './systemFacts'
 
@@ -38,6 +39,7 @@ export class TriageActionExecutor {
     const executed: TriageAction[] = []
     let cardId = facts.card_id
     let responsavelId: string | null = facts.card_responsavel_id
+    let activeSessaoId = input.sessaoId
     let handover = false
     const reasons: string[] = []
 
@@ -119,6 +121,17 @@ export class TriageActionExecutor {
     }
 
     if (facts.card_aberto && facts.card_id) {
+      const { data: currentThread } = await supabase
+        .from('crm_chat_threads')
+        .select('departamento_id')
+        .eq('id', input.sessaoId)
+        .eq('empresa_id', input.empresaId)
+        .maybeSingle()
+
+      const fromDept = currentThread?.departamento_id ?? null
+      const toDept = funil.departamento_id ?? null
+      const crossDept = Boolean(fromDept && toDept && fromDept !== toDept)
+
       const { error } = await supabase
         .from('crm_cards')
         .update({
@@ -147,17 +160,36 @@ export class TriageActionExecutor {
             ? `Card atualizado e atribuído a ${assignee.nome} (${assignee.id}).`
             : 'Card atualizado sem responsável (fila).',
         )
-        await SessionPersistenceService.ensureSession(supabase, {
-          empresaId: input.empresaId,
-          canalId: input.canalId,
-          externalId: input.contactPhone,
-          sessaoId: input.sessaoId,
-          leadId: input.leadId,
-          cardId,
-          pipelineId: funil.id,
-          departamentoId: funil.departamento_id,
-          status: 'human',
-        })
+
+        if (crossDept) {
+          const fork = await ChatThreadService.forkSessionOnDepartmentTransfer(supabase, {
+            empresaId: input.empresaId,
+            cardId,
+            fromDepartamentoId: fromDept,
+            toDepartamentoId: toDept,
+            toPipelineId: funil.id,
+            leadId: input.leadId,
+            toDepartamentoNome: funil.nome,
+          })
+          if (fork.newSessaoId) activeSessaoId = fork.newSessaoId
+          reasons.push(
+            fork.forked
+              ? `Fork de conversa para ${funil.nome} (isolamento; mesmo card).`
+              : `Fork não necessário/falhou: ${fork.reason ?? 'n/a'}`,
+          )
+        } else {
+          await SessionPersistenceService.ensureSession(supabase, {
+            empresaId: input.empresaId,
+            canalId: input.canalId,
+            externalId: input.contactPhone,
+            sessaoId: input.sessaoId,
+            leadId: input.leadId,
+            cardId,
+            pipelineId: funil.id,
+            departamentoId: funil.departamento_id,
+            status: 'human',
+          })
+        }
       }
     } else {
       const { data: created, error } = await supabase
@@ -219,7 +251,11 @@ export class TriageActionExecutor {
 
     const shouldHandover = actions.has('HANDOVER') || Boolean(assignee)
     if (shouldHandover && cardId) {
-      await this.applyHandover(supabase, input, assignee?.id ?? null)
+      await this.applyHandover(
+        supabase,
+        { ...input, sessaoId: activeSessaoId },
+        assignee?.id ?? null,
+      )
       handover = true
       executed.push('HANDOVER')
       reasons.push(

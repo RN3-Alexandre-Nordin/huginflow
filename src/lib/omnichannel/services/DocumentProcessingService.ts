@@ -33,7 +33,8 @@ export type DocumentMediaMetadata = {
   file_name?: string
   file_length?: number
   document: {
-    status: 'pending' | 'processed' | 'failed'
+    /** attached = baixado/anexado sem OCR (atendimento humano) */
+    status: 'pending' | 'processed' | 'failed' | 'attached'
     categoria?: string
     confianca?: number
     legivel?: boolean
@@ -44,6 +45,28 @@ export type DocumentMediaMetadata = {
     processed_at?: string
   }
 }
+
+export type DownloadedInboundDocument =
+  | {
+      ok: true
+      buffer: Buffer
+      fileName: string
+      mimeType: string
+      displayContent: string
+      metadata: DocumentMediaMetadata
+      reasoning: string
+    }
+  | {
+      ok: false
+      displayContent: string
+      metadata: DocumentMediaMetadata
+      reasoning: string
+      error: string
+      tooLarge?: boolean
+      buffer?: Buffer
+      fileName?: string
+      mimeType?: string
+    }
 
 export type ProcessedInboundDocument =
   | {
@@ -147,6 +170,137 @@ export class DocumentProcessingService {
         fileName,
         mimeType,
       })
+    }
+  }
+
+  /**
+   * Baixa mídia WhatsApp sem OCR/classificação (modo humano / silêncio IA).
+   * Atualiza a interação só com legenda/nome do arquivo — não grava texto OCR no chat.
+   */
+  static async downloadInboundMediaOnly(
+    message: HuginMessage,
+    canal: CanalFields,
+    supabase: SupabaseClient,
+    opts?: { providerMessageId?: string; sessaoId?: string },
+  ): Promise<DownloadedInboundDocument> {
+    const raw = message.metadata?.raw as EvolutionRawMessage | undefined
+    const docMeta = extractDocumentMessagePayload(raw)
+    const imgMeta = extractImageMessagePayload(raw)
+    const meta = docMeta ?? imgMeta
+    const mediaType: 'document' | 'image' = docMeta ? 'document' : 'image'
+    const caption = (meta?.caption ?? message.content ?? '').trim()
+    const fileNameHint =
+      meta?.fileName ||
+      (message.metadata as { file_name?: string } | undefined)?.file_name ||
+      'documento'
+
+    const baseMeta: DocumentMediaMetadata = {
+      media_type: mediaType,
+      mimetype: meta?.mimetype,
+      file_name: fileNameHint,
+      file_length: meta?.fileLength,
+      document: { status: 'pending' },
+    }
+
+    const chatContent = caption || `📎 ${fileNameHint}`
+
+    if (!raw || !meta) {
+      const failedMeta: DocumentMediaMetadata = {
+        ...baseMeta,
+        document: {
+          status: 'failed',
+          error: 'Payload de mídia ausente.',
+          processed_at: new Date().toISOString(),
+        },
+      }
+      await this.patchInteracao(supabase, message, opts, chatContent, failedMeta)
+      return {
+        ok: false,
+        displayContent: chatContent,
+        metadata: failedMeta,
+        reasoning: 'Payload de mídia ausente.',
+        error: 'Payload de mídia ausente.',
+        fileName: fileNameHint,
+        mimeType: meta?.mimetype || 'application/octet-stream',
+      }
+    }
+
+    try {
+      const media = await EvolutionMediaService.fetchDocumentFromMessage(canal, raw)
+      const fileName = media.fileName ?? meta.fileName ?? fileNameHint
+      const mimeType = media.mimeType || meta.mimetype || 'application/octet-stream'
+      const displayContent = caption || `📎 ${fileName}`
+
+      if (media.buffer.length > DOCUMENT_MAX_BYTES) {
+        const tooLargeMeta: DocumentMediaMetadata = {
+          media_type: mediaType,
+          mimetype: mimeType,
+          file_name: fileName,
+          file_length: media.buffer.length,
+          document: {
+            status: 'failed',
+            error: `Arquivo excede ${DOCUMENT_MAX_BYTES} bytes`,
+            processed_at: new Date().toISOString(),
+          },
+        }
+        await this.patchInteracao(supabase, message, opts, displayContent, tooLargeMeta)
+        return {
+          ok: false,
+          displayContent,
+          metadata: tooLargeMeta,
+          reasoning: `Arquivo excede ${DOCUMENT_MAX_BYTES} bytes`,
+          error: `Arquivo excede ${DOCUMENT_MAX_BYTES} bytes`,
+          tooLarge: true,
+          buffer: media.buffer,
+          fileName,
+          mimeType,
+        }
+      }
+
+      const attachedMeta: DocumentMediaMetadata = {
+        media_type: mediaType,
+        mimetype: mimeType,
+        file_name: fileName,
+        file_length: media.buffer.length,
+        document: {
+          status: 'attached',
+          resumo: fileName,
+          processed_at: new Date().toISOString(),
+        },
+      }
+
+      await this.patchInteracao(supabase, message, opts, displayContent, attachedMeta)
+
+      return {
+        ok: true,
+        buffer: media.buffer,
+        fileName,
+        mimeType,
+        displayContent,
+        metadata: attachedMeta,
+        reasoning: 'Mídia baixada sem OCR (atendimento humano).',
+      }
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : 'Erro desconhecido'
+      console.error('[DocumentProcessing] downloadOnly:', errMsg, err)
+      const failedMeta: DocumentMediaMetadata = {
+        ...baseMeta,
+        document: {
+          status: 'failed',
+          error: errMsg,
+          processed_at: new Date().toISOString(),
+        },
+      }
+      await this.patchInteracao(supabase, message, opts, chatContent, failedMeta)
+      return {
+        ok: false,
+        displayContent: chatContent,
+        metadata: failedMeta,
+        reasoning: errMsg,
+        error: errMsg,
+        fileName: fileNameHint,
+        mimeType: meta?.mimetype || 'application/octet-stream',
+      }
     }
   }
 

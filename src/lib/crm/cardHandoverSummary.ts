@@ -29,10 +29,21 @@ Analise tom, sentimento e contexto para definir urgencia:
 - normal: fluxo padrão
 - alta: cliente impaciente, cobrança de retorno, prazo próximo, reclamação grave ou risco operacional
 
+## Obrigatório — dados comerciais (se existirem na conversa)
+Varra o histórico e EXTRAIA explicitamente (não omita se aparecer):
+- valores / preços / totais / descontos (ex.: R$ 1.200, diária, mensalidade)
+- prazos / datas / duração do contrato ou locação (ex.: 1 mês, entrega dia X)
+- quantidades e itens (ex.: 50 andaimes)
+- condições negociadas (frete, instalação, caução, forma de pagamento, validade da proposta)
+
+Inclua esses pontos no "motivo" e/ou em "feito"/"pendencias" conforme couber.
+Se o valor/prazo/condição foi falado, DEVE constar no JSON — não resuma só o assunto genérico.
+
 Regras:
 - Não invente dados ausentes na conversa ou no card.
 - Frases curtas; omita campo vazio com string vazia.
 - Se não houver chat, use título/descrição do card.
+- Prefira números concretos a frases vagas ("aluguel de andaimes" sem valor/prazo é insuficiente se a conversa tiver esses dados).
 
 Responda APENAS com JSON válido (sem markdown):
 {"motivo":"...","feito":"...","pendencias":"...","urgencia":"baixa|normal|alta"}`
@@ -239,7 +250,9 @@ export async function generateCardHandoverSummary(
 ${cardContext || 'Sem dados adicionais no card.'}
 
 [HISTÓRICO DA CONVERSA]
-${transcript || 'Nenhuma mensagem registrada para este lead.'}`
+${transcript || 'Nenhuma mensagem registrada para este lead.'}
+
+Lembrete final: se houver valor, prazo, quantidade ou condição no histórico, cite-os nos campos motivo/feito/pendencias.`
 
   try {
     const summary = await generateText(prompt, {

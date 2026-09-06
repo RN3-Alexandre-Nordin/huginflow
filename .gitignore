@@ -28,6 +28,7 @@
 # misc
 .DS_Store
 *.pem
+scripts/bifrost/.keys/
 
 # debug
 npm-debug.log*

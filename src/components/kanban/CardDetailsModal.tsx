@@ -30,6 +30,8 @@ import {
   getCardFiles,
   uploadCardFile,
   deleteCardFile,
+  updateCardStage,
+  toggleCardFinalizado,
 } from '@/app/(app)/cockpit/crm/actions'
 import { createClient } from '@/utils/supabase/client'
 import ChatWindow from '@/components/chat/ChatWindow'
@@ -106,7 +108,7 @@ function HubActionButton({
   icon: React.ReactNode
   label: string
   hint: string
-  tone: 'orange' | 'green' | 'blue' | 'lilac' | 'neutral'
+  tone: 'orange' | 'green' | 'blue' | 'lilac' | 'neutral' | 'red'
   onClick: () => void
   disabled?: boolean
 }) {
@@ -116,6 +118,7 @@ function HubActionButton({
     blue: 'bg-[#2BAADF]/8 border-[#2BAADF]/20 hover:bg-[#2BAADF]/15 text-[#2BAADF]',
     lilac: 'bg-purple-500/8 border-purple-500/25 hover:bg-purple-500/15 text-purple-400',
     neutral: 'bg-[#ffffff04] border-[#ffffff10] hover:bg-[#ffffff08] text-gray-400',
+    red: 'bg-red-500/10 border-red-500/25 hover:bg-red-500/18 text-red-400',
   }
 
   return (
@@ -157,6 +160,8 @@ export default function CardDetailsModal({
   const [loadingHistory, setLoadingHistory] = useState(false)
   const [isPending, startTransition] = useTransition()
   const [openingWhatsApp, setOpeningWhatsApp] = useState(false)
+  const [finalizing, setFinalizing] = useState(false)
+  const [localFinalizado, setLocalFinalizado] = useState(Boolean(card.finalizado))
   const [currentUser, setCurrentUser] = useState<{ id: string } | null>(null)
   const [chatSelection, setChatSelection] = useState<{ type: 'direct'; id: string; name: string } | null>(null)
 
@@ -175,11 +180,64 @@ export default function CardDetailsModal({
   })
   const [observacaoDraft, setObservacaoDraft] = useState(card.observacao || '')
   const [savedObservacao, setSavedObservacao] = useState(card.observacao || '')
+  const [localStageId, setLocalStageId] = useState(card.stage_id as string)
+  const [stageMoveError, setStageMoveError] = useState<string | null>(null)
+
+  const funnelStages = [...stages].sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0))
 
   const currentStageName =
-    stages.find((s) => s.id === card.stage_id)?.nome ||
+    stages.find((s) => s.id === localStageId)?.nome ||
     card.pipeline_stages?.nome ||
     '—'
+
+  useEffect(() => {
+    setLocalStageId(card.stage_id)
+    setLocalFinalizado(Boolean(card.finalizado))
+    setStageMoveError(null)
+  }, [card.id, card.stage_id, card.finalizado])
+
+  const handleToggleFinalizado = () => {
+    if (!canEdit || finalizing) return
+    const nextFinalizado = !localFinalizado
+    const ok = window.confirm(
+      nextFinalizado
+        ? `Finalizar o card "${card.titulo || 'Card'}"?\n\nEle sairá do fluxo ativo e a sessão WhatsApp poderá ser liberada para novo atendimento. Essa ação pode ser revertida reabrindo o card.`
+        : `Reabrir o card "${card.titulo || 'Card'}"?\n\nEle voltará ao quadro como ativo.`,
+    )
+    if (!ok) return
+    setFinalizing(true)
+    startTransition(async () => {
+      try {
+        const res = await toggleCardFinalizado(card.id, currentPipelineId, nextFinalizado)
+        if (res?.error) {
+          window.alert(res.error)
+          return
+        }
+        setLocalFinalizado(nextFinalizado)
+        await loadHistory()
+      } finally {
+        setFinalizing(false)
+      }
+    })
+  }
+
+  const moveToStage = (newStageId: string) => {
+    if (!canEdit || !newStageId || newStageId === localStageId) return
+    if (!funnelStages.some((s) => s.id === newStageId)) {
+      setStageMoveError('Estágio inválido para este funil.')
+      return
+    }
+    setStageMoveError(null)
+    startTransition(async () => {
+      const res = await updateCardStage(card.id, currentPipelineId, newStageId)
+      if (res?.error) {
+        setStageMoveError(res.error)
+        return
+      }
+      setLocalStageId(newStageId)
+      await loadHistory()
+    })
+  }
 
   const responsavelNome =
     card.responsavel?.nome_completo ||
@@ -254,7 +312,7 @@ export default function CardDetailsModal({
     return (
       <div
         data-testid="hub-attachments-strip"
-        className="flex flex-col min-w-0 rounded-lg border border-cyan-500/20 bg-cyan-500/[0.04] overflow-hidden"
+        className="flex flex-col min-w-0 h-full min-h-[118px] rounded-lg border border-cyan-500/20 bg-cyan-500/[0.04] overflow-hidden"
       >
         <div className="flex items-center gap-1.5 px-2 py-1 border-b border-cyan-500/15 shrink-0">
           {canAddAttachments ? (
@@ -288,7 +346,7 @@ export default function CardDetailsModal({
             Ver
           </button>
         </div>
-        <div className="max-h-[52px] overflow-y-auto px-1.5 py-1 space-y-0.5 custom-scrollbar-thin">
+        <div className="flex-1 min-h-0 overflow-y-auto px-1.5 py-1 space-y-0.5 custom-scrollbar-thin">
           {loadingFiles ? (
             <div className="flex justify-center py-2">
               <Loader2 className="w-3.5 h-3.5 animate-spin text-gray-600" />
@@ -327,6 +385,57 @@ export default function CardDetailsModal({
             ))
           )}
         </div>
+      </div>
+    )
+  }
+
+  const renderHubStages = () => {
+    if (funnelStages.length === 0) return null
+
+    return (
+      <div
+        data-testid="hub-stages"
+        className="rounded-md border border-[#ffffff0a] bg-[#ffffff03] px-1.5 py-1 space-y-1 min-w-0"
+      >
+        <div className="flex items-center gap-1.5 min-w-0">
+          <p className="text-[7px] font-black text-gray-500 uppercase tracking-widest shrink-0">
+            Estágio
+          </p>
+          <span className="text-[8px] font-bold text-[#2BAADF] truncate">{currentStageName}</span>
+        </div>
+        <div className="flex flex-wrap gap-0.5">
+          {funnelStages.map((stage) => {
+            const active = stage.id === localStageId
+            return (
+              <button
+                key={stage.id}
+                type="button"
+                data-testid={`hub-stage-${stage.id}`}
+                disabled={!canEdit || isPending || active}
+                onClick={() => moveToStage(stage.id)}
+                title={
+                  active
+                    ? 'Estágio atual'
+                    : canEdit
+                      ? `Mover para ${stage.nome}`
+                      : 'Sem permissão para mover'
+                }
+                className={`px-1.5 py-0.5 rounded text-[8px] font-bold transition-colors border truncate max-w-[7.5rem] ${
+                  active
+                    ? 'bg-[#2BAADF]/20 border-[#2BAADF]/40 text-[#2BAADF]'
+                    : canEdit
+                      ? 'bg-[#ffffff05] border-[#ffffff10] text-gray-300 hover:border-[#2BAADF]/35 hover:text-white'
+                      : 'bg-[#ffffff03] border-[#ffffff08] text-gray-600 cursor-not-allowed'
+                } disabled:opacity-60`}
+              >
+                {stage.nome}
+              </button>
+            )
+          })}
+        </div>
+        {stageMoveError && (
+          <p className="text-[8px] text-red-400 font-medium">{stageMoveError}</p>
+        )}
       </div>
     )
   }
@@ -514,42 +623,47 @@ export default function CardDetailsModal({
   }
 
   const renderHub = () => (
-    <div data-testid="card-hub" className="flex-1 min-h-0 grid grid-rows-[auto_minmax(200px,1fr)_auto] gap-2">
+    <div data-testid="card-hub" className="flex-1 min-h-0 grid grid-rows-[auto_minmax(160px,1fr)_auto] gap-2">
       <div
-        className={`grid gap-1.5 ${canViewAttachments ? 'grid-cols-[1.15fr_0.85fr]' : 'grid-cols-1'}`}
+        className={`grid gap-1.5 items-stretch ${
+          canViewAttachments ? 'grid-cols-[1.15fr_0.85fr]' : 'grid-cols-1'
+        }`}
       >
-        <div data-testid="hub-meta" className="grid grid-cols-3 gap-1 min-w-0 content-start">
-          <div className="px-1.5 py-1 rounded-md bg-[#ffffff03] border border-[#ffffff08] min-w-0 self-start">
-            <p className="text-[7px] font-black text-gray-600 uppercase tracking-widest leading-none mb-0.5">
-              Responsável
-            </p>
-            <p className="text-[10px] font-bold text-white truncate leading-tight">{responsavelNome}</p>
+        <div className="flex flex-col gap-1.5 min-w-0">
+          <div data-testid="hub-meta" className="grid grid-cols-3 gap-1 min-w-0 content-start">
+            <div className="px-1.5 py-1 rounded-md bg-[#ffffff03] border border-[#ffffff08] min-w-0 self-start">
+              <p className="text-[7px] font-black text-gray-600 uppercase tracking-widest leading-none mb-0.5">
+                Responsável
+              </p>
+              <p className="text-[10px] font-bold text-white truncate leading-tight">{responsavelNome}</p>
+            </div>
+            <div className="px-1.5 py-1 rounded-md bg-[#ffffff03] border border-[#ffffff08] min-w-0 self-start">
+              <p className="text-[7px] font-black text-gray-600 uppercase tracking-widest leading-none mb-0.5">
+                Prazo
+              </p>
+              <p className="text-[10px] font-bold text-white truncate leading-tight">
+                {card.data_prazo
+                  ? new Date(card.data_prazo + 'T00:00:00').toLocaleDateString('pt-BR')
+                  : 'Sem prazo'}
+              </p>
+            </div>
+            <div className="px-1.5 py-1 rounded-md bg-[#ffffff03] border border-[#ffffff08] min-w-0 self-start">
+              <p className="text-[7px] font-black text-gray-600 uppercase tracking-widest leading-none mb-0.5">
+                Cliente
+              </p>
+              <p className="text-[10px] font-bold text-white truncate leading-tight">
+                {card.cliente_nome || '—'}
+              </p>
+            </div>
           </div>
-          <div className="px-1.5 py-1 rounded-md bg-[#ffffff03] border border-[#ffffff08] min-w-0 self-start">
-            <p className="text-[7px] font-black text-gray-600 uppercase tracking-widest leading-none mb-0.5">
-              Prazo
-            </p>
-            <p className="text-[10px] font-bold text-white truncate leading-tight">
-              {card.data_prazo
-                ? new Date(card.data_prazo + 'T00:00:00').toLocaleDateString('pt-BR')
-                : 'Sem prazo'}
-            </p>
-          </div>
-          <div className="px-1.5 py-1 rounded-md bg-[#ffffff03] border border-[#ffffff08] min-w-0 self-start">
-            <p className="text-[7px] font-black text-gray-600 uppercase tracking-widest leading-none mb-0.5">
-              Cliente
-            </p>
-            <p className="text-[10px] font-bold text-white truncate leading-tight">
-              {card.cliente_nome || '—'}
-            </p>
-          </div>
+          {renderHubStages()}
         </div>
         {renderHubAttachmentsStrip()}
       </div>
 
       <div
         data-testid="hub-observacoes"
-        className="min-h-[200px] h-full flex flex-col rounded-xl border border-[#2BAADF]/25 bg-[#111111] overflow-hidden"
+        className="min-h-[140px] h-full flex flex-col rounded-xl border border-[#2BAADF]/25 bg-[#111111] overflow-hidden"
       >
         <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-[#2BAADF]/15 shrink-0">
           <div className="flex items-center gap-1.5 min-w-0">
@@ -582,10 +696,10 @@ export default function CardDetailsModal({
             onChange={(e) => setObservacaoDraft(e.target.value)}
             placeholder="Briefing, contexto do atendimento, próximos passos…"
             rows={8}
-            className="block w-full h-full min-h-[160px] bg-[#0A0A0A] px-3 py-2.5 text-[11px] text-gray-200 leading-relaxed outline-none resize-none placeholder:text-gray-600 border-0"
+            className="block w-full h-full min-h-[120px] bg-[#0A0A0A] px-3 py-2.5 text-[11px] text-gray-200 leading-relaxed outline-none resize-none placeholder:text-gray-600 border-0"
           />
         ) : (
-          <div className="h-full min-h-[160px] px-3 py-2.5 overflow-y-auto bg-[#0A0A0A] custom-scrollbar-thin">
+          <div className="h-full min-h-[120px] px-3 py-2.5 overflow-y-auto bg-[#0A0A0A] custom-scrollbar-thin">
             <p className="text-[11px] text-gray-400 leading-relaxed whitespace-pre-wrap line-clamp-[8]">
               {observacaoDraft.trim() || 'Sem observações registradas.'}
             </p>
@@ -604,13 +718,14 @@ export default function CardDetailsModal({
             hint="Operador e funil"
             icon={<Navigation />}
             onClick={() => setScreen('redirect')}
+            disabled={localFinalizado}
           />
         )}
         <HubActionButton
           tone="green"
           label="WhatsApp"
           hint={
-            card.finalizado
+            localFinalizado
               ? 'Consulta'
               : card.conversa_id
                 ? 'Abrir chat'
@@ -620,7 +735,7 @@ export default function CardDetailsModal({
           disabled={openingWhatsApp}
           onClick={() => {
             void (async () => {
-              if (card.finalizado) {
+              if (localFinalizado) {
                 setScreen('whatsapp')
                 return
               }
@@ -649,6 +764,7 @@ export default function CardDetailsModal({
             hint="Título e valor"
             icon={<Edit3 />}
             onClick={() => setScreen('edit')}
+            disabled={localFinalizado}
           />
         )}
         <HubActionButton
@@ -658,6 +774,16 @@ export default function CardDetailsModal({
           icon={<MessageSquare />}
           onClick={() => setScreen('chat')}
         />
+        {canEdit && (
+          <HubActionButton
+            tone={localFinalizado ? 'green' : 'red'}
+            label={localFinalizado ? 'Reabrir' : 'Finalizar'}
+            hint={localFinalizado ? 'Voltar ao fluxo' : 'Encerrar card'}
+            icon={finalizing ? <Loader2 className="animate-spin" /> : <CheckCircle2 />}
+            disabled={finalizing || isPending}
+            onClick={handleToggleFinalizado}
+          />
+        )}
       </div>
     </div>
   )
@@ -683,7 +809,7 @@ export default function CardDetailsModal({
           pipelineId={currentPipelineId}
           conversaId={card.conversa_id}
           leadName={card.cliente_nome}
-          readOnly={Boolean(card.finalizado)}
+          readOnly={localFinalizado}
           onCancel={() => setScreen('hub')}
         />
       )}

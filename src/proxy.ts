@@ -24,6 +24,7 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith('/api/auth/login') ||   // Login form POST (sem sessão prévia)
     pathname.startsWith('/api/health') ||       // Diagnóstico omnichannel (sem auth)
     pathname.startsWith('/api/inbound') ||      // Inbound leads public API (sem auth)
+    pathname.startsWith('/api/bifrost/jwks') || // JWKS público para Bifrost validar JWT
     pathname.startsWith('/favicon') ||          // favicon
     /\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|woff|woff2|ttf|map)$/.test(pathname)
   ) {

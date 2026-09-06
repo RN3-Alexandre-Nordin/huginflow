@@ -19,13 +19,13 @@ Comparativo entre projetos:
 | **Dev** | `vujqukqsfwmoezwyuoum` | [huginflow-dev](https://supabase.com/dashboard/project/vujqukqsfwmoezwyuoum) |
 | **Prod** | `zmypzexefjbovuknjlid` | [huginflow-prod](https://supabase.com/dashboard/project/zmypzexefjbovuknjlid) |
 
-**Última migration no prod:** `revert_handover_structured` (2026-09-02)
+**Última migration no prod (MCP 2026-09-06):** cutover CRM + Analytics BI + `empresa_webhooks` + `test_runs` + `crm_interacoes` UPDATE RLS (além de finance/AR e `revert_handover_structured`, já presentes).
 
-**Última migration no dev (além do acima):** pacote **Analytics BI MVP** (2026-09-02) — ver § Analytics abaixo; **+** `test_runs` (módulo testes RN3, 2026-09-02) — `202609021800_test_runs.sql` (dev ✅ MCP; prod ⏳); **+** `202609031630_crm_interacoes_update_rls.sql` (dev ✅ MCP 2026-09-03; prod ⏳)
+**Última migration no dev:** alinhada ao pacote acima.
 
-**Analytics BI (dev ✅, prod ⏳):** `202609021200` … `202609021204` — índices, colunas SLA, RPCs `fn_analytics_*`
+**Analytics BI (dev ✅, prod ✅ MCP 2026-09-06):** `202609021200` … `202609021204` — índices, colunas SLA, RPCs `fn_analytics_*`
 
-**Prod não possui hoje:** nenhuma tabela `finance_*`, RPCs AR, nem campos de contrato em `empresas`.
+**Finance/AR em prod:** já aplicado (bundle histórico).
 
 ---
 
@@ -35,21 +35,23 @@ Registrar aqui tudo homologado em **dev** e ainda **não** em produção (além 
 
 | Data | Pacote | Dev | Prod | Doc detalhado | Notas |
 |------|--------|-----|------|---------------|-------|
-| 2026-09-03 | **Webhooks de saída** (`empresa_webhooks`) para alarme de canal desconectado | ✅ SQL | ⏳ SQL + código | Canais | Migration `202609031700`; POST JSON + HMAC `X-HuginFlow-Signature` |
-| 2026-09-03 | **Sessão omnichannel — caminho único** (`SessionPersistenceService`) + heal órfãos DEV | ✅ código + heal DEV | ⏳ código + heal opcional | § Sessão única | Sem migration; writers unificados; monitor `scripts/omnichannel/monitor-orphan-sessions.sql` |
-| 2026-09-02 | **Analytics BI — backend MVP** (índices + RPCs relatórios) | ✅ SQL | ⏳ SQL | § Analytics BI | Migrations `202609021200`–`202609021204`; sem triggers; app front ainda não consome |
-| 2026-09-01 | **Alerta desconexão canais inbound** (modal cockpit para toda a empresa) | ✅ SQL | ⏳ SQL + código | § Performance + canais realtime | Migration `202609011200_crm_canais_realtime.sql` (dev ✅ MCP); código: `useChannelConnectionAlerts`, `ChannelDisconnectModal`, `ChannelConnectionAlertProvider` |
-| 2026-09-01 | **Cockpit: menu hambúrguer** (sidebar colapsável + redimensionamento do frame) | ✅ | ⏳ código | — | `CockpitShell.tsx` + `CockpitShell.module.css`; sem SQL |
-| 2026-09-02 | Encaminhamento: resumo IA editável (remove handover estruturado) | ✅ | ⏳ código | § Encaminhamento IA | Migration `202609021000` — drop `crm_handover_config` + JSONB handover (**prod SQL ✅**) |
+| 2026-09-03 | **Webhooks de saída** (`empresa_webhooks`) para alarme de canal desconectado | ✅ SQL | ✅ SQL MCP 2026-09-06 · ⏳ código no release | Canais | Migration `202609031700` + unique URL; POST JSON + HMAC `X-HuginFlow-Signature` |
+| 2026-09-03 | **Sessão omnichannel — caminho único** (`SessionPersistenceService`) + heal órfãos DEV | ✅ código + heal DEV | ⏳ código no release · heal opcional | § Sessão única | Sem migration; writers unificados; monitor `scripts/omnichannel/monitor-orphan-sessions.sql` |
+| 2026-09-02 | **Analytics BI — backend MVP** (índices + RPCs relatórios) | ✅ SQL | ✅ SQL MCP 2026-09-06 | § Analytics BI | Migrations `202609021200`–`202609021204`; sem triggers; app front ainda não consome |
+| 2026-09-02 | **test_runs** (módulo testes RN3) | ✅ SQL | ✅ SQL MCP 2026-09-06 | — | `202609021800_test_runs.sql` |
+| 2026-09-03 | **crm_interacoes UPDATE RLS** (apagar mensagem WhatsApp) | ✅ SQL | ✅ SQL MCP 2026-09-06 | — | `202609031630_crm_interacoes_update_rls.sql` |
+| 2026-09-01 | **Alerta desconexão canais inbound** (modal cockpit para toda a empresa) | ✅ SQL | ✅ SQL MCP 2026-09-06 · ⏳ código no release | § Performance + canais realtime | Migration `202609011200_crm_canais_realtime.sql`; código: banner + modal |
+| 2026-09-01 | **Cockpit: menu hambúrguer** (sidebar colapsável + redimensionamento do frame) | ✅ | ⏳ código no release | — | `CockpitShell.tsx` + `CockpitShell.module.css`; sem SQL |
+| 2026-09-02 | Encaminhamento: resumo IA editável (remove handover estruturado) | ✅ | ✅ SQL · ⏳ código no release | § Encaminhamento IA | Migration `202609021000` (**prod SQL ✅**) |
 | 2026-09-01 | Handover estruturado (briefing ao encaminhar card cross-funil) | ↩️ revertido | ↩️ revertido | § Encaminhamento IA | Substituído por resumo IA em `observacao` + urgência em `metadados.prioridade` |
-| 2026-08-31 | Encaminhamento inteligente CRM (roteamento dept/funil/operador) | ✅ | ⏳ código | cutover CRM ago/2026 | Sem SQL; `cardRedirectRouting.ts` + admin client no preview |
-| 2026-08-31 | Performance + Realtime (chat inbox RPC, `crm_cards` realtime) | ✅ | ⏳ | § Performance + Realtime | Migrations `202608311200`, `202608311230` |
-| 2026-08-31 | Documentos WhatsApp (OCR, match, anexo, auto-reply) | ✅ | ⏳ | § Documentos WhatsApp | Migration `202608311400` + código |
-| 2026-08-31 | Documentos — fallback determinístico (`DocumentCardEnsurer`) + heurística nome (`Boleto.pdf`) | ✅ | ⏳ | § Documentos WhatsApp | Sem SQL novo; nunca fica sem card/encaminhamento |
-| 2026-08-31 | Simulador: mic + anexo PDF/imagem (homolog sem Evolution) | ✅ | ⏳ | § Documentos WhatsApp | Código `simulador/actions.ts` |
-| 2026-08-31 | Kanban: data **e hora** de criação no card | ✅ | ⏳ | § CRM UX | Só código |
-| 2026-08-31 | Sessões por departamento (falante ativo + iniciar conversa) MVP | ✅ | ⏳ | § Sessões por departamento | Migration `202608311800` + código |
-| 2026-08-31 | Chat interno: avisar responsável quando terceiro/IA altera o card | ✅ | ⏳ | § CRM UX | `notifyCardResponsavel.ts`; usa `chat_messages` |
+| 2026-08-31 | Encaminhamento inteligente CRM (roteamento dept/funil/operador) | ✅ | ⏳ código no release | cutover CRM ago/2026 | Sem SQL; `cardRedirectRouting.ts` + admin client no preview |
+| 2026-08-31 | Performance + Realtime (chat inbox RPC, `crm_cards` realtime) | ✅ | ✅ SQL MCP 2026-09-06 | § Performance + Realtime | Migrations `202608311200`, `202608311230` |
+| 2026-08-31 | Documentos WhatsApp (OCR, match, anexo, auto-reply) | ✅ | ✅ SQL MCP 2026-09-06 · ⏳ código no release | § Documentos WhatsApp | Migration `202608311400` + código |
+| 2026-08-31 | Documentos — fallback determinístico (`DocumentCardEnsurer`) + heurística nome (`Boleto.pdf`) | ✅ | ⏳ código no release | § Documentos WhatsApp | Sem SQL novo; nunca fica sem card/encaminhamento |
+| 2026-08-31 | Simulador: mic + anexo PDF/imagem (homolog sem Evolution) | ✅ | ⏳ código no release | § Documentos WhatsApp | Código `simulador/actions.ts` |
+| 2026-08-31 | Kanban: data **e hora** de criação no card | ✅ | ⏳ código no release | § CRM UX | Só código |
+| 2026-08-31 | Sessões por departamento (falante ativo + iniciar conversa) MVP | ✅ | ✅ SQL MCP 2026-09-06 · ⏳ código no release | § Sessões por departamento | Migration `202608311800` + código |
+| 2026-08-31 | Chat interno: avisar responsável quando terceiro/IA altera o card | ✅ | ⏳ código no release | § CRM UX | `notifyCardResponsavel.ts`; usa `chat_messages` |
 
 **Legenda:** ✅ aplicado · ⏳ pendente · 📋 planejado (não implementado)
 
@@ -71,7 +73,7 @@ Registrar aqui tudo homologado em **dev** e ainda **não** em produção (além 
 
 > Planejamento: [planejamento-modulo-relatorios-bi.md](./planejamento-modulo-relatorios-bi.md)
 
-**Status:** Dev ✅ · Prod ⏳ · Front-end relatórios 📋 (próxima fase)
+**Status:** Dev ✅ · Prod ✅ (MCP 2026-09-06) · Front-end relatórios 📋 (próxima fase)
 
 | Migration | Conteúdo |
 |-----------|----------|

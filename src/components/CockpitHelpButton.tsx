@@ -3,7 +3,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
-import { BookOpen, ChevronDown, GraduationCap, HelpCircle } from 'lucide-react'
+import {
+  BookOpen,
+  ChevronDown,
+  ChevronRight,
+  GraduationCap,
+  Headphones,
+  HelpCircle,
+  ListTodo,
+  Ticket,
+} from 'lucide-react'
+import BifrostSupportModal, {
+  type BifrostEmbedMode,
+} from '@/components/bifrost/BifrostSupportModal'
 
 const HELP_ITEMS = [
   {
@@ -26,6 +38,9 @@ export default function CockpitHelpButton() {
   const [open, setOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
   const [coords, setCoords] = useState<MenuCoords>({ top: 0, right: 0 })
+  const [chamadosOpen, setChamadosOpen] = useState(false)
+  const [bifrostOpen, setBifrostOpen] = useState(false)
+  const [bifrostMode, setBifrostMode] = useState<BifrostEmbedMode>('abrir-chamado')
   const buttonRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -47,7 +62,19 @@ export default function CockpitHelpButton() {
     setOpen(true)
   }, [updateCoords])
 
-  const closeMenu = useCallback(() => setOpen(false), [])
+  const closeMenu = useCallback(() => {
+    setOpen(false)
+    setChamadosOpen(false)
+  }, [])
+
+  const openBifrost = useCallback(
+    (mode: BifrostEmbedMode) => {
+      closeMenu()
+      setBifrostMode(mode)
+      setBifrostOpen(true)
+    },
+    [closeMenu],
+  )
 
   useEffect(() => {
     if (!open) return
@@ -86,8 +113,73 @@ export default function CockpitHelpButton() {
         className="fixed w-[min(100vw-2rem,320px)] py-2 rounded-xl border border-[#ffffff10] bg-[#141414] shadow-xl shadow-black/50 z-[200]"
       >
         <p className="px-4 py-2 text-[10px] font-black uppercase tracking-widest text-gray-500 border-b border-[#ffffff08] mb-1">
-          Escolha o manual
+          Central de ajuda
         </p>
+
+        <div className="mx-1.5">
+          <button
+            type="button"
+            role="menuitem"
+            aria-expanded={chamadosOpen}
+            onClick={() => setChamadosOpen((v) => !v)}
+            className="flex w-full items-start gap-3 px-3 py-3 rounded-lg text-left hover:bg-[#ffffff08] transition-colors group"
+          >
+            <div className="p-2 rounded-lg bg-orange-500/10 border border-orange-500/20 text-orange-400 shrink-0 group-hover:scale-105 transition-transform">
+              <Ticket className="w-4 h-4" />
+            </div>
+            <div className="min-w-0 flex-1 pt-0.5">
+              <p className="text-sm font-bold text-white group-hover:text-orange-300 transition-colors">
+                Chamados
+              </p>
+              <p className="text-[11px] text-gray-500 leading-snug mt-0.5">
+                Abrir suporte ou acompanhar protocolos
+              </p>
+            </div>
+            <ChevronRight
+              className={`w-4 h-4 shrink-0 text-gray-500 mt-2 transition-transform ${chamadosOpen ? 'rotate-90' : ''}`}
+            />
+          </button>
+
+          {chamadosOpen ? (
+            <div className="mb-1 ml-2 space-y-0.5 border-l border-[#ffffff10] pl-2">
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => openBifrost('abrir-chamado')}
+                className="flex w-full items-start gap-2.5 rounded-lg px-2.5 py-2.5 text-left hover:bg-[#ffffff08] transition-colors group"
+              >
+                <Headphones className="w-3.5 h-3.5 mt-0.5 shrink-0 text-orange-400/80" />
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-white group-hover:text-orange-300">
+                    Abrir chamado
+                  </p>
+                  <p className="text-[10px] text-gray-500 leading-snug">
+                    Novo chamado no Bifrost
+                  </p>
+                </div>
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => openBifrost('meus-chamados')}
+                className="flex w-full items-start gap-2.5 rounded-lg px-2.5 py-2.5 text-left hover:bg-[#ffffff08] transition-colors group"
+              >
+                <ListTodo className="w-3.5 h-3.5 mt-0.5 shrink-0 text-orange-400/80" />
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-white group-hover:text-orange-300">
+                    Meus chamados
+                  </p>
+                  <p className="text-[10px] text-gray-500 leading-snug">
+                    Lista, status e comentários
+                  </p>
+                </div>
+              </button>
+            </div>
+          ) : null}
+        </div>
+
+        <div className="mx-3 my-1 border-t border-[#ffffff08]" />
+
         {HELP_ITEMS.map((item) => {
           const Icon = item.icon
           return (
@@ -134,6 +226,12 @@ export default function CockpitHelpButton() {
       </button>
 
       {mounted && menu ? createPortal(menu, document.body) : null}
+
+      <BifrostSupportModal
+        open={bifrostOpen}
+        mode={bifrostMode}
+        onClose={() => setBifrostOpen(false)}
+      />
     </>
   )
 }

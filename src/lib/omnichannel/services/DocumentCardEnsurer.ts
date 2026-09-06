@@ -12,6 +12,7 @@ import {
   notifyCardResponsavelOnChange,
 } from '@/lib/crm/notifyCardResponsavel'
 import { SessionPersistenceService } from '@/lib/omnichannel/SessionPersistenceService'
+import { ChatThreadService } from '@/lib/omnichannel/ChatThreadService'
 
 export type EnsureDocumentCardInput = {
   empresaId: string
@@ -191,6 +192,92 @@ export class DocumentCardEnsurer {
         motivo: obs ?? resumo,
       },
       atribuido_em: new Date().toISOString(),
+    }
+
+    // Já existe atendimento aberto: atualiza o MESMO card — nunca 2º card.
+    // Se o funil muda de departamento → FORK de conversa (isolamento); senão reusa sessão.
+    if (facts.card_aberto && facts.card_id) {
+      const { data: currentThread } = await supabase
+        .from('crm_chat_threads')
+        .select('id, departamento_id, canal_id, external_id')
+        .eq('id', sessaoId)
+        .eq('empresa_id', empresaId)
+        .maybeSingle()
+
+      const fromDept = currentThread?.departamento_id ?? null
+      const toDept = funil.departamento_id ?? null
+      const crossDept = Boolean(fromDept && toDept && fromDept !== toDept)
+
+      const { error: updErr } = await supabase
+        .from('crm_cards')
+        .update({
+          pipeline_id: funil.id,
+          stage_id: funil.estagio_inicial_id,
+          responsavel_id: assignee?.id ?? facts.card_responsavel_id ?? null,
+          titulo: `WhatsApp: ${contactName}`,
+          cliente_nome: contactName,
+          descricao: resumo.slice(0, 2000),
+          conversa_id: sessaoId,
+          observacao: obs,
+          metadados,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', facts.card_id)
+        .eq('empresa_id', empresaId)
+
+      if (updErr) {
+        return {
+          cardId: null,
+          responsavelId: null,
+          handover: false,
+          created: false,
+          reasoning: `Encaminhamento falhou ao atualizar card: ${updErr.message}`,
+        }
+      }
+
+      let activeSessaoId = sessaoId
+      if (crossDept) {
+        const fork = await ChatThreadService.forkSessionOnDepartmentTransfer(supabase, {
+          empresaId,
+          cardId: facts.card_id,
+          fromDepartamentoId: fromDept,
+          toDepartamentoId: toDept,
+          toPipelineId: funil.id,
+          leadId,
+          fromDepartamentoNome: null,
+          toDepartamentoNome: funil.nome,
+        })
+        if (fork.newSessaoId) activeSessaoId = fork.newSessaoId
+      } else if (canalId) {
+        try {
+          await SessionPersistenceService.ensureSession(supabase, {
+            empresaId,
+            canalId,
+            externalId: contactPhone,
+            sessaoId,
+            leadId,
+            cardId: facts.card_id,
+            pipelineId: funil.id,
+            departamentoId: funil.departamento_id,
+            status: 'human',
+          })
+        } catch (err) {
+          console.error('[DocumentCardEnsurer] ensureSession (update):', err)
+        }
+      }
+
+      const responsavelId = assignee?.id ?? facts.card_responsavel_id ?? null
+      await this.applyHandover(supabase, empresaId, activeSessaoId, responsavelId)
+
+      return {
+        cardId: facts.card_id,
+        responsavelId,
+        handover: true,
+        created: false,
+        reasoning: assignee
+          ? `Card existente atualizado para funil ${funil.nome} (categoria=${categoria})${crossDept ? ' com fork de conversa' : ''} e atribuído a ${assignee.nome}.`
+          : `Card existente atualizado para funil ${funil.nome} (categoria=${categoria})${crossDept ? ' com fork de conversa' : ''}.`,
+      }
     }
 
     const { data: created, error } = await supabase

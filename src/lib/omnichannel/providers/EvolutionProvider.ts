@@ -394,13 +394,13 @@ export class EvolutionProvider implements BaseProvider {
       let platformStatus: 'connected' | 'disconnected' | 'pairing' = 'disconnected';
 
       if (state === 'open' || state === 'connected') platformStatus = 'connected';
-      else if (state === 'connecting' || state === 'pairing' || state === 'qrcode')
-        platformStatus = 'pairing';
+      else if (state === 'pairing' || state === 'qrcode') platformStatus = 'pairing';
       else if (
         state === 'close' ||
         state === 'closed' ||
         state === 'refused' ||
         state === 'disconnected' ||
+        state === 'connecting' ||
         state === 'logout'
       )
         platformStatus = 'disconnected';
@@ -446,7 +446,8 @@ export class EvolutionProvider implements BaseProvider {
       let content = messageContent
       if (type === 'audio' && !messageContent) content = AUDIO_PLACEHOLDER
       if ((type === 'document' || type === 'image') && !messageContent) {
-        content = DOCUMENT_PLACEHOLDER
+        const fileHint = docMeta?.fileName || imgMeta?.fileName
+        content = fileHint ? `📎 ${fileHint}` : DOCUMENT_PLACEHOLDER
       }
 
       if (!content && type === 'text') return null

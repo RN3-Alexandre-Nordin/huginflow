@@ -19,6 +19,9 @@ import {
   type RedirectDestination,
 } from '@/lib/crm/cardRedirectRouting'
 import { generateCardHandoverSummary, type HandoverUrgencia } from '@/lib/crm/cardHandoverSummary'
+import { SessionPersistenceService } from '@/lib/omnichannel/SessionPersistenceService'
+import { ChatThreadService } from '@/lib/omnichannel/ChatThreadService'
+import { isDeptSessionsEnabled } from '@/lib/omnichannel/dept-sessions-constants'
 
 export async function createPipeline(formData: FormData) {
   try {
@@ -199,20 +202,36 @@ export async function updateCardStage(cardId: string, pipelineId: string, newSta
   }
   const supabase = await createClient()
 
-  // Buscar current para histórico + notificação
+  // Buscar current para histórico + notificação + tenant
   const { data: currentCard } = await supabase
     .from('crm_cards')
-    .select('stage_id, titulo, responsavel_id, empresa_id')
+    .select('stage_id, titulo, responsavel_id, empresa_id, pipeline_id')
     .eq('id', cardId)
     .single()
-  const de_stage_id = currentCard?.stage_id
 
-  // Fetch SLA from the new stage to compute data_prazo
+  if (!currentCard) return { error: 'Card não encontrado.' }
+
+  if (me?.role_global !== 'superadmin' && currentCard.empresa_id !== me?.empresa_id) {
+    return { error: 'Card de outra empresa.' }
+  }
+
+  if (currentCard.pipeline_id !== pipelineId) {
+    return { error: 'Funil do card não confere.' }
+  }
+
+  const de_stage_id = currentCard.stage_id
+
+  // Estágio deve pertencer ao mesmo funil (não permite pular para outro pipeline)
   const { data: stageData } = await supabase
     .from('pipeline_stages')
-    .select('sla_dias, nome')
+    .select('sla_dias, nome, pipeline_id')
     .eq('id', newStageId)
-    .single()
+    .eq('pipeline_id', pipelineId)
+    .maybeSingle()
+
+  if (!stageData) {
+    return { error: 'Estágio inválido para este funil.' }
+  }
 
   const now = new Date()
   // sla_dias = null → mesmo dia (0 dias); sla_dias = N → hoje + N dias
@@ -230,6 +249,8 @@ export async function updateCardStage(cardId: string, pipelineId: string, newSta
   // Tenant Isolation
   if (me?.role_global !== 'superadmin') {
     query.eq('empresa_id', me?.empresa_id ?? '')
+  } else {
+    query.eq('empresa_id', currentCard.empresa_id)
   }
 
   const { error } = await query
@@ -285,10 +306,40 @@ export async function transferCardPipeline(
 
   const { data: currentCard } = await supabase
     .from('crm_cards')
-    .select('stage_id, titulo, responsavel_id, empresa_id, metadados, observacao')
+    .select('stage_id, titulo, responsavel_id, empresa_id, metadados, observacao, lead_id, conversa_id')
     .eq('id', cardId)
     .single()
+
+  if (!currentCard?.empresa_id) {
+    return { error: 'Card sem empresa.' }
+  }
+
+  // Tenant Isolation na leitura (admin client)
+  if (me?.role_global !== 'superadmin' && currentCard.empresa_id !== me?.empresa_id) {
+    return { error: 'Card de outra empresa.' }
+  }
+
   const de_stage_id = currentCard?.stage_id
+
+  const [{ data: fromPipe }, { data: toPipe }] = await Promise.all([
+    supabase
+      .from('pipelines')
+      .select('id, nome, departamento_id, empresa_id')
+      .eq('id', currentPipelineId)
+      .maybeSingle(),
+    supabase
+      .from('pipelines')
+      .select('id, nome, departamento_id, empresa_id')
+      .eq('id', toPipelineId)
+      .maybeSingle(),
+  ])
+
+  if (!toPipe || toPipe.empresa_id !== currentCard.empresa_id) {
+    return { error: 'Funil de destino inválido para a empresa do card.' }
+  }
+  if (fromPipe && fromPipe.empresa_id !== currentCard.empresa_id) {
+    return { error: 'Funil de origem inválido para a empresa do card.' }
+  }
 
   const cardPatch: Record<string, unknown> = {
     pipeline_id: toPipelineId,
@@ -312,10 +363,47 @@ export async function transferCardPipeline(
   // Tenant Isolation (Obrigatório ao usar Admin Client)
   if (me?.role_global !== 'superadmin') {
     query.eq('empresa_id', me?.empresa_id ?? '')
+  } else {
+    query.eq('empresa_id', currentCard.empresa_id)
   }
 
   const { error } = await query
   if (error) return { error: error.message }
+
+  // Isolamento: fork de sessão WhatsApp no destino (histórico não viaja; mesmo card)
+  if (isDeptSessionsEnabled()) {
+    const fromDept = fromPipe?.departamento_id ?? null
+    const toDept = toPipe?.departamento_id ?? null
+    if (fromDept && toDept && fromDept !== toDept) {
+      let fromDeptNome: string | null = fromPipe?.nome ?? null
+      let toDeptNome: string | null = toPipe?.nome ?? null
+      const [{ data: fd }, { data: td }] = await Promise.all([
+        supabase.from('departamentos').select('nome').eq('id', fromDept).eq('empresa_id', currentCard.empresa_id).maybeSingle(),
+        supabase.from('departamentos').select('nome').eq('id', toDept).eq('empresa_id', currentCard.empresa_id).maybeSingle(),
+      ])
+      if (fd?.nome) fromDeptNome = fd.nome
+      if (td?.nome) toDeptNome = td.nome
+
+      try {
+        const fork = await ChatThreadService.forkSessionOnDepartmentTransfer(supabase, {
+          empresaId: currentCard.empresa_id,
+          cardId,
+          fromDepartamentoId: fromDept,
+          toDepartamentoId: toDept,
+          toPipelineId,
+          leadId: currentCard.lead_id,
+          resolvedByUsuarioId: me?.id ?? null,
+          fromDepartamentoNome: fromDeptNome,
+          toDepartamentoNome: toDeptNome,
+        })
+        console.log(
+          `[transferCardPipeline] fork=${fork.forked} old=${fork.oldSessaoId} new=${fork.newSessaoId} ${fork.reason ?? ''}`,
+        )
+      } catch (err) {
+        console.error('[transferCardPipeline] Falha no fork de sessão:', err)
+      }
+    }
+  }
 
   if (me?.id) {
      await supabase.from('crm_cards_history').insert([{
@@ -331,11 +419,6 @@ export async function transferCardPipeline(
   }
 
   if (currentCard?.responsavel_id && currentCard.empresa_id && me?.id) {
-    const { data: toPipe } = await supabase
-      .from('pipelines')
-      .select('nome')
-      .eq('id', toPipelineId)
-      .maybeSingle()
     const { data: toStage } = await supabase
       .from('pipeline_stages')
       .select('nome')
@@ -475,13 +558,17 @@ export async function toggleCardFinalizado(cardId: string, pipelineId: string, s
 
   const { data: before } = await supabase
     .from('crm_cards')
-    .select('titulo, responsavel_id, empresa_id')
+    .select('titulo, responsavel_id, empresa_id, conversa_id')
     .eq('id', cardId)
     .single()
 
+  const nowIso = new Date().toISOString()
   const query = supabase
     .from('crm_cards')
-    .update({ finalizado: status })
+    .update({
+      finalizado: status,
+      finalizado_em: status ? nowIso : null,
+    })
     .eq('id', cardId)
 
   // Tenant Isolation
@@ -507,6 +594,27 @@ export async function toggleCardFinalizado(cardId: string, pipelineId: string, s
      }])
   }
 
+  // Finalizar: libera bloqueio WhatsApp (silêncio/humano) para novo atendimento IA
+  if (status === true && before?.empresa_id) {
+    const empresaId =
+      me?.role_global === 'superadmin' ? before.empresa_id : (me?.empresa_id ?? before.empresa_id)
+    if (empresaId === before.empresa_id) {
+      try {
+        const admin = createAdminClient()
+        const released = await SessionPersistenceService.releaseWhatsAppOnCardFinalize(admin, {
+          empresaId,
+          cardId,
+          resolvedByUsuarioId: me?.id ?? null,
+        })
+        console.log(
+          `[toggleCardFinalizado] release WhatsApp card=${cardId} released=${released.released} sessao=${released.sessaoId ?? 'n/a'} ${released.reason ?? ''}`,
+        )
+      } catch (err) {
+        console.error('[toggleCardFinalizado] Falha ao liberar WhatsApp:', err)
+      }
+    }
+  }
+
   if (me?.id && before?.responsavel_id && before.empresa_id) {
     await notifyCardResponsavelOnChange({
       supabase,
@@ -520,7 +628,8 @@ export async function toggleCardFinalizado(cardId: string, pipelineId: string, s
     })
   }
 
-  revalidatePath(`/cockpit/crm/${pipelineId}`)
+  revalidatePath(`/cockpit/crm/funis/${pipelineId}`)
+  revalidatePath('/cockpit/crm/funis')
   return { success: true }
 }
 

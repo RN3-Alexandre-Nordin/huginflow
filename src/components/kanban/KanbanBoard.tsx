@@ -78,27 +78,40 @@ export default function KanbanBoard({
     setCards(initialCards)
   }, [initialStages, initialCards])
 
-  // Deep Linking from URL (?cardId=...)
+  const [activeColumn, setActiveColumn] = useState<Stage | null>(null)
+  const [activeCard, setActiveCard] = useState<Card | null>(null)
+  const [inspectedCard, setInspectedCard] = useState<Card | null>(null)
+  const [initialModalTab, setInitialModalTab] = useState<'resumo' | 'chat' | 'whatsapp'>('resumo')
+  const [showNewCardModal, setShowNewCardModal] = useState(false)
+  const [isPending, startTransition] = useTransition()
+  /** Evita reabrir modal a cada setCards do drag quando a URL ainda tem ?cardId= */
+  const deepLinkHandledRef = React.useRef(false)
+  /** Bloqueia clique fantasma (lápis) logo após soltar o card */
+  const suppressCardOpenUntilRef = React.useRef(0)
+
+  // Deep Linking from URL (?cardId=...) — uma vez só, não em todo update do drag
   React.useEffect(() => {
-    if (typeof window === 'undefined') return
+    if (typeof window === 'undefined' || deepLinkHandledRef.current) return
     const params = new URLSearchParams(window.location.search)
     const cardIdParam = params.get('cardId')
-    
-    if (cardIdParam && cards.length > 0) {
-      const card = cards.find(c => c.id === cardIdParam)
-      if (card) {
-        setInspectedCard(card)
-      }
-    }
+    if (!cardIdParam || cards.length === 0) return
+
+    const card = cards.find((c) => c.id === cardIdParam)
+    if (!card) return
+
+    deepLinkHandledRef.current = true
+    setInspectedCard(card)
   }, [cards])
 
   // Deep Linking from Custom Events
   React.useEffect(() => {
-    const handleOpenCard = (e: any) => {
-      const { cardId, tab } = e.detail
-      const card = cards.find(c => c.id === cardId)
+    const handleOpenCard = (e: Event) => {
+      const detail = (e as CustomEvent<{ cardId?: string; tab?: 'resumo' | 'chat' | 'whatsapp' }>).detail
+      const cardId = detail?.cardId
+      if (!cardId) return
+      const card = cards.find((c) => c.id === cardId)
       if (card) {
-        setInitialModalTab(tab || 'resumo')
+        setInitialModalTab(detail.tab || 'resumo')
         setInspectedCard(card)
       }
     }
@@ -106,13 +119,6 @@ export default function KanbanBoard({
     window.addEventListener('open-card-modal', handleOpenCard)
     return () => window.removeEventListener('open-card-modal', handleOpenCard)
   }, [cards])
-
-  const [activeColumn, setActiveColumn] = useState<Stage | null>(null)
-  const [activeCard, setActiveCard] = useState<Card | null>(null)
-  const [inspectedCard, setInspectedCard] = useState<Card | null>(null)
-  const [initialModalTab, setInitialModalTab] = useState<'resumo' | 'chat' | 'whatsapp'>('resumo')
-  const [showNewCardModal, setShowNewCardModal] = useState(false)
-  const [isPending, startTransition] = useTransition()
 
   useKanbanRealtime(pipelineId, setCards, {
     showFinalizados,
@@ -129,7 +135,17 @@ export default function KanbanBoard({
     })
   }, [cards])
 
+  function clearCardIdFromUrl() {
+    if (typeof window === 'undefined') return
+    const url = new URL(window.location.href)
+    if (!url.searchParams.has('cardId')) return
+    url.searchParams.delete('cardId')
+    const next = `${url.pathname}${url.search}${url.hash}`
+    window.history.replaceState({}, '', next)
+  }
+
   function openCardModal(card: Card, opts?: { tab?: 'resumo' | 'chat' | 'whatsapp' }) {
+    if (Date.now() < suppressCardOpenUntilRef.current) return
     setInitialModalTab(opts?.tab ?? 'resumo')
     setInspectedCard(card)
   }
@@ -137,12 +153,13 @@ export default function KanbanBoard({
   function closeCardModal() {
     setInspectedCard(null)
     setInitialModalTab('resumo')
+    clearCardIdFromUrl()
   }
 
   const columnsId = useMemo(() => stages.map((col) => col.id), [stages])
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 3 } }),
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   )
 
@@ -213,6 +230,12 @@ export default function KanbanBoard({
   }
 
   function onDragEnd(event: DragEndEvent) {
+    const wasCardDrag = event.active.data.current?.type === 'Card'
+    if (wasCardDrag) {
+      // Clique fantasma no lápis após soltar o drag
+      suppressCardOpenUntilRef.current = Date.now() + 400
+    }
+
     setActiveColumn(null)
     setActiveCard(null)
 
@@ -292,31 +315,33 @@ export default function KanbanBoard({
             </SortableContext>
           </div>
 
-          <DragOverlay>
-            {activeColumn && (
-              <KanbanColumn
-                column={activeColumn}
-                cards={cards.filter((c) => c.stage_id === activeColumn.id)}
-                pipelineId={pipelineId}
-                canMove={canMove}
-                canEdit={canEdit}
-                canViewAttachments={canViewAttachments}
-                canAddAttachments={canAddAttachments}
-                canDeleteAttachments={canDeleteAttachments}
-              />
-            )}
-            {activeCard && (
-              <KanbanItem 
-                card={activeCard} 
-                isOverlay 
-                pipelineId={pipelineId}
-                canMove={canMove}
-                canEdit={canEdit}
-                canViewAttachments={canViewAttachments}
-                canAddAttachments={canAddAttachments}
-                canDeleteAttachments={canDeleteAttachments}
-              />
-            )}
+          <DragOverlay dropAnimation={null}>
+            <div className="pointer-events-none">
+              {activeColumn && (
+                <KanbanColumn
+                  column={activeColumn}
+                  cards={cards.filter((c) => c.stage_id === activeColumn.id)}
+                  pipelineId={pipelineId}
+                  canMove={canMove}
+                  canEdit={canEdit}
+                  canViewAttachments={canViewAttachments}
+                  canAddAttachments={canAddAttachments}
+                  canDeleteAttachments={canDeleteAttachments}
+                />
+              )}
+              {activeCard && (
+                <KanbanItem
+                  card={activeCard}
+                  isOverlay
+                  pipelineId={pipelineId}
+                  canMove={canMove}
+                  canEdit={canEdit}
+                  canViewAttachments={canViewAttachments}
+                  canAddAttachments={canAddAttachments}
+                  canDeleteAttachments={canDeleteAttachments}
+                />
+              )}
+            </div>
           </DragOverlay>
         </DndContext>
 

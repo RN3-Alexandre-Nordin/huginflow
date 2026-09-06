@@ -4,6 +4,7 @@ import { createClient } from '@/utils/supabase/server'
 import { getMyProfile } from '@/app/(app)/cockpit/actions'
 import { hasPermission } from '@/utils/permissions'
 import { canConsultCard } from '@/lib/crm/cardConsultaAccess'
+import { getUserDepartamentoIds } from '@/lib/crm/userDepartamentos'
 
 function firstRelation<T>(value: T | T[] | null | undefined): T | null {
   if (Array.isArray(value)) return value[0] ?? null
@@ -20,17 +21,6 @@ function cardSolicitacao(card: {
   const desc = card.descricao?.trim()
   if (desc) return desc
   return card.titulo?.trim() || 'Sem descrição'
-}
-
-async function getUserDepartamentoIds(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  userId: string,
-): Promise<string[]> {
-  const { data } = await supabase
-    .from('usuarios_departamentos')
-    .select('departamento_id')
-    .eq('usuario_id', userId)
-  return (data ?? []).map((r) => r.departamento_id).filter(Boolean)
 }
 
 type PipelineRef = {
@@ -183,7 +173,7 @@ export async function getCardConsultaContext(cardId: string) {
   const departamento = firstRelation(pipeline?.departamentos ?? null)
   const departamentoId = pipeline?.departamento_id ?? departamento?.id ?? null
 
-  const userDeptIds = await getUserDepartamentoIds(supabase, me.id)
+  const userDeptIds = await getUserDepartamentoIds(supabase, me.id, me.grupo_id)
   const accessOpts = {
     responsavel_id: row.responsavel_id as string | null,
     departamento_id: departamentoId,

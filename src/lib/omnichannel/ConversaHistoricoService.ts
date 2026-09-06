@@ -81,7 +81,13 @@ export class ConversaHistoricoService {
       latest = await this.getSessaoSnapshot(sessaoId, supabase)
     } else {
       latest = await this.getLatestSessao(input.canal_id, input.external_id, supabase)
-      sessaoId = latest?.sessao_id ?? randomUUID()
+      // Sessão encerrada (card finalizado) → novo atendimento / nova thread
+      if (latest?.status === 'closed') {
+        latest = null
+        sessaoId = randomUUID()
+      } else {
+        sessaoId = latest?.sessao_id ?? randomUUID()
+      }
     }
 
     const now = new Date().toISOString()

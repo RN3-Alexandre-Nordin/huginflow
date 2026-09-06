@@ -8,7 +8,7 @@ import {
   Search, MessageSquare, Bot, User, 
   Send, Phone, Navigation, PanelRight, 
   Paperclip, Smile, ShieldCheck, Loader2,
-  X, ChevronUp, ChevronDown, Trash2,
+  X, ChevronUp, ChevronDown, Trash2, LayoutGrid,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { sendOmniMessage, sendOmniAttachment, deleteOmniMessage } from '../omni-actions'
@@ -19,18 +19,20 @@ import {
   getSessaoIdByCardId,
   getLinkedCardBySessao,
   getCardForOmniRedirect,
+  getCardForOmniDetails,
   getOmniCustomerContext,
   type OmniCustomerContext,
 } from '../omni-chat-actions'
 import { OMNI_SESSAO_STORAGE_KEY } from '@/lib/omni/chat-deep-link'
 import { isOmniMessageDeleted, markOmniMetadataDeleted } from '@/lib/omnichannel/omni-message-deleted'
-import { DOCUMENT_MAX_BYTES } from '@/lib/omnichannel/document-constants'
+import { DOCUMENT_MAX_BYTES, DOCUMENT_PLACEHOLDER } from '@/lib/omnichannel/document-constants'
 import { stripOutboundTags } from '@/lib/omnichannel/triage/parseTriageTags'
 import { maskPhone } from '@/utils/brasilian-formatters'
 import { hasPermission } from '@/utils/permissions'
 import ChatCardRedirectModal from '@/components/omni/ChatCardRedirectModal'
 import OmniCustomerContextPanel from '@/components/omni/OmniCustomerContextPanel'
 import CardConsultaDrawer from '@/components/crm/CardConsultaDrawer'
+import CardDetailsModal from '@/components/kanban/CardDetailsModal'
 
 interface Conversa {
   id: string
@@ -143,11 +145,17 @@ interface Mensagem {
     deleted?: boolean
     whatsapp_deleted?: boolean
     original_content?: string
-    sent_by?: string
   } | null
   usuarios?: {
     nome_completo: string
   } | null
+}
+
+function isDocumentProcessPlaceholder(content: string | undefined | null): boolean {
+  const t = (content ?? '').trim()
+  if (!t) return true
+  if (t === DOCUMENT_PLACEHOLDER) return true
+  return /documento recebido.*processando/i.test(t)
 }
 
 function formatMessageContent(msg: Mensagem): string {
@@ -165,15 +173,34 @@ function formatMessageContent(msg: Mensagem): string {
   }
   if (meta?.media_type === 'document' || meta?.media_type === 'image') {
     const doc = meta.document
-    if (doc?.status === 'pending') return msg.content || '📎 Documento recebido — processando…'
-    if (doc?.resumo) return `📎 ${doc.resumo}`
     const fileName = meta.file_name
-    if (fileName) return msg.content || `📎 ${fileName}`
+    const caption =
+      msg.content?.trim() && !isDocumentProcessPlaceholder(msg.content)
+        ? msg.content.trim()
+        : null
+    // Pendente / anexado (humano): legenda ou nome do arquivo — sem "processando…"
+    if (doc?.status === 'pending' || doc?.status === 'attached') {
+      if (caption) return caption
+      return fileName ? `📎 ${fileName}` : '📎 Documento recebido'
+    }
+    if (doc?.resumo) {
+      if (caption) return caption
+      return `📎 ${doc.resumo}`
+    }
+    if (fileName) return caption ?? `📎 ${fileName}`
   }
   if (msg.role === 'assistant' || msg.role === 'system') {
     return stripOutboundTags(msg.content)
   }
   return msg.content
+}
+
+function shouldHideOmniMessage(msg: Mensagem): boolean {
+  const type = msg.metadata?.type
+  // Reasoning interno de documento — não exibir na bolha do chat
+  if (type === 'whatsapp_document_reasoning') return true
+  if (msg.role === 'system' && msg.content === '(Documento WhatsApp)') return true
+  return false
 }
 
 function canDeleteOmniMessage(msg: Mensagem, profile: { id?: string; role_global?: string } | null): boolean {
@@ -275,6 +302,19 @@ function ChatOmnichannelInner() {
   const [contextLoading, setContextLoading] = useState(false)
   const [contextError, setContextError] = useState<string | null>(null)
   const [consultaCardId, setConsultaCardId] = useState<string | null>(null)
+  const [openingCard, setOpeningCard] = useState(false)
+  const [editCardCtx, setEditCardCtx] = useState<{
+    card: Record<string, unknown>
+    pipelineId: string
+    pipelineName: string
+    stages: { id: string; nome: string; ordem?: number | null }[]
+    usuarios: { id: string; nome_completo: string }[]
+    canEdit: boolean
+    canDelete: boolean
+    canViewAttachments: boolean
+    canAddAttachments: boolean
+    canDeleteAttachments: boolean
+  } | null>(null)
   const [redirectCtx, setRedirectCtx] = useState<{
     card: {
       id: string
@@ -294,6 +334,7 @@ function ChatOmnichannelInner() {
   } | null>(null)
 
   const canEditCards = profile ? hasPermission(profile, 'cards', 'edit') : false
+  const canViewCards = profile ? hasPermission(profile, 'cards', 'view') : false
   const encaminharCardTitulo =
     linkedCard?.titulo ??
     customerContext?.currentSessionCard?.titulo ??
@@ -368,12 +409,16 @@ function ChatOmnichannelInner() {
   }, [threadSearchOpen])
 
   const threadSearchNeedle = threadSearchQuery.trim().toLowerCase()
+  const visibleMensagens = useMemo(
+    () => mensagens.filter((msg) => !shouldHideOmniMessage(msg)),
+    [mensagens],
+  )
   const threadMatchIds = useMemo(() => {
     if (!threadSearchNeedle) return [] as string[]
-    return mensagens
+    return visibleMensagens
       .filter((msg) => formatMessageContent(msg).toLowerCase().includes(threadSearchNeedle))
       .map((msg) => msg.id)
-  }, [mensagens, threadSearchNeedle])
+  }, [visibleMensagens, threadSearchNeedle])
 
   useEffect(() => {
     setThreadMatchIndex(0)
@@ -649,6 +694,32 @@ function ChatOmnichannelInner() {
       cancelled = true
     }
   }, [selectedChat?.id, contextOpen, linkedCard?.id, cardParam])
+
+  async function openLinkedCardFromChat() {
+    if (!selectedChat || openingCard) return
+    setOpeningCard(true)
+    try {
+      const hint =
+        linkedCard?.id ??
+        customerContext?.currentSessionCard?.id ??
+        cardParam ??
+        null
+      const res = await getCardForOmniDetails(selectedChat.id, hint)
+      if (res.error) {
+        window.alert(res.error)
+        return
+      }
+      if (res.data) {
+        setLinkedCard({
+          id: String(res.data.card.id),
+          titulo: String(res.data.card.titulo || 'Card'),
+        })
+        setEditCardCtx(res.data)
+      }
+    } finally {
+      setOpeningCard(false)
+    }
+  }
 
   async function openRedirectModal() {
     if (!selectedChat || redirectLoading) return
@@ -935,6 +1006,25 @@ function ChatOmnichannelInner() {
                     >
                       <Search className="w-5 h-5" />
                     </button>
+                    {canViewCards && selectedChat && (
+                      <button
+                        type="button"
+                        onClick={() => void openLinkedCardFromChat()}
+                        disabled={openingCard}
+                        title={`Abrir edição do card: ${encaminharCardTitulo}`}
+                        className="flex items-center gap-2 px-3 py-2 rounded-xl bg-[#2BAADF]/10 hover:bg-[#2BAADF]/20 text-[#2BAADF] hover:text-[#5bc4ea] transition-all border border-[#2BAADF]/25 disabled:opacity-50"
+                        data-testid="omni-open-card"
+                      >
+                        {openingCard ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <LayoutGrid className="w-4 h-4" />
+                        )}
+                        <span className="text-[11px] font-black uppercase tracking-wider">
+                          Card
+                        </span>
+                      </button>
+                    )}
                     {canEditCards && selectedChat && (
                       <button
                         type="button"
@@ -1046,7 +1136,7 @@ function ChatOmnichannelInner() {
 
               <div className="flex flex-1 min-h-0 min-w-0 overflow-hidden">
               <div className="flex-1 min-w-0 min-h-0 overflow-y-auto p-6 space-y-6 custom-scrollbar-chat bg-grid-white/[0.01]">
-                {mensagens.map((msg) => {
+                {visibleMensagens.map((msg) => {
                   const responderLabel = getResponderLabel(msg)
                   const isAiResponder = responderLabel === 'Agente de IA'
                   const isMatch =
@@ -1264,6 +1354,22 @@ function ChatOmnichannelInner() {
           )}
         </div>
       </div>
+
+      {editCardCtx && (
+        <CardDetailsModal
+          card={editCardCtx.card}
+          currentPipelineId={editCardCtx.pipelineId}
+          currentPipelineName={editCardCtx.pipelineName}
+          stages={editCardCtx.stages}
+          usuarios={editCardCtx.usuarios}
+          onClose={() => setEditCardCtx(null)}
+          canEdit={editCardCtx.canEdit}
+          canDelete={editCardCtx.canDelete}
+          canViewAttachments={editCardCtx.canViewAttachments}
+          canAddAttachments={editCardCtx.canAddAttachments}
+          canDeleteAttachments={editCardCtx.canDeleteAttachments}
+        />
+      )}
 
       {emojiPickerOpen &&
         createPortal(

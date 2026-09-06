@@ -114,7 +114,7 @@ export class SessionPersistenceService {
       }
     }
 
-    // Resolve sessao: forçada → snapshot existente do telefone → nova UUID
+    // Resolve sessao: forçada → snapshot aberto do telefone → nova UUID (não reabre closed)
     let provisionalSessao = input.sessaoId ?? null
     if (!provisionalSessao) {
       const latest = await ConversaHistoricoService.getLatestSessao(
@@ -122,7 +122,7 @@ export class SessionPersistenceService {
         externalId,
         supabase,
       )
-      if (latest?.sessao_id) {
+      if (latest?.sessao_id && latest.status !== 'closed') {
         const owned = await this.assertSessaoEmpresa(supabase, latest.sessao_id, empresaId)
         if (owned) provisionalSessao = latest.sessao_id
       }
@@ -644,5 +644,164 @@ export class SessionPersistenceService {
       .maybeSingle()
 
     return (canal?.id as string | undefined) ?? null
+  }
+
+  /**
+   * Ao finalizar card: encerra TODAS as sessões WhatsApp do card (threads + histórico),
+   * zera last_human_interaction (freeze da IA) e remove falante ativo —
+   * para a IA poder iniciar novo atendimento.
+   *
+   * Nota: crm_cards.conversa_id é text; crm_chat_threads.id / crm_conversas.sessao_id são uuid.
+   * Preferimos IDs vindos de crm_chat_threads (uuid nativo) para evitar falha silenciosa no PostgREST.
+   */
+  static async releaseWhatsAppOnCardFinalize(
+    supabase: SupabaseClient,
+    opts: {
+      empresaId: string
+      cardId: string
+      resolvedByUsuarioId?: string | null
+    },
+  ): Promise<{ released: boolean; sessaoId: string | null; reason?: string }> {
+    const empresaId = opts.empresaId
+    const cardId = opts.cardId
+
+    const { data: card, error: cardErr } = await supabase
+      .from('crm_cards')
+      .select('id, conversa_id')
+      .eq('id', cardId)
+      .eq('empresa_id', empresaId)
+      .maybeSingle()
+
+    if (cardErr) {
+      console.error('[SessionPersistence] release finalize card lookup:', cardErr.message)
+      return { released: false, sessaoId: null, reason: cardErr.message }
+    }
+
+    if (!card) {
+      return { released: false, sessaoId: null, reason: 'Card não encontrado na empresa.' }
+    }
+
+    const { data: threadsByCard, error: threadsErr } = await supabase
+      .from('crm_chat_threads')
+      .select('id, canal_id, external_id, status')
+      .eq('empresa_id', empresaId)
+      .eq('card_id', cardId)
+
+    if (threadsErr) {
+      console.error('[SessionPersistence] release finalize threads:', threadsErr.message)
+      return { released: false, sessaoId: null, reason: threadsErr.message }
+    }
+
+    const threadRows = threadsByCard ?? []
+    const sessaoIds = new Set<string>(threadRows.map((t) => String(t.id)))
+
+    // Resolve conversa_id (text) → thread uuid, se ainda não estiver no set
+    if (card.conversa_id && !sessaoIds.has(String(card.conversa_id))) {
+      const { data: byConversa } = await supabase
+        .from('crm_chat_threads')
+        .select('id, canal_id, external_id, status')
+        .eq('empresa_id', empresaId)
+        .eq('id', card.conversa_id)
+        .maybeSingle()
+      if (byConversa?.id) {
+        sessaoIds.add(String(byConversa.id))
+        threadRows.push(byConversa)
+      } else {
+        // Fallback: limpar histórico mesmo se a thread sumiu
+        sessaoIds.add(String(card.conversa_id))
+      }
+    }
+
+    if (sessaoIds.size === 0) {
+      return { released: false, sessaoId: null, reason: 'Card sem sessão WhatsApp vinculada.' }
+    }
+
+    let canalId: string | null = null
+    let externalId: string | null = null
+    let primarySessao: string | null = null
+
+    for (const t of threadRows) {
+      if (!canalId && t.canal_id) canalId = t.canal_id as string
+      if (!externalId && t.external_id) externalId = t.external_id as string
+      if (!primarySessao && t.status !== 'closed') primarySessao = String(t.id)
+    }
+    if (!primarySessao) primarySessao = [...sessaoIds][0] ?? null
+
+    if ((!canalId || !externalId) && primarySessao) {
+      const { data: latestConversa } = await supabase
+        .from('crm_conversas')
+        .select('canal_id, external_id')
+        .eq('empresa_id', empresaId)
+        .eq('sessao_id', primarySessao)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      canalId = canalId ?? (latestConversa?.canal_id as string | null) ?? null
+      externalId = externalId ?? (latestConversa?.external_id as string | null) ?? null
+    }
+
+    const now = new Date().toISOString()
+    const sessaoList = [...sessaoIds]
+
+    const { error: closeThreadsErr } = await supabase
+      .from('crm_chat_threads')
+      .update({
+        status: 'closed',
+        resolved_at: now,
+        resolved_by_usuario_id: opts.resolvedByUsuarioId ?? null,
+        updated_at: now,
+      })
+      .eq('empresa_id', empresaId)
+      .in('id', sessaoList)
+
+    if (closeThreadsErr) {
+      console.error(
+        '[SessionPersistence] release finalize close threads:',
+        closeThreadsErr.message,
+      )
+    }
+
+    // Zera freeze em TODAS as linhas das sessões do card
+    const { error: conversasErr } = await supabase
+      .from('crm_conversas')
+      .update({
+        status: 'closed',
+        last_human_interaction: null,
+        atribuido_a_id: null,
+        updated_at: now,
+      })
+      .eq('empresa_id', empresaId)
+      .in('sessao_id', sessaoList)
+
+    if (conversasErr) {
+      console.error(
+        `[SessionPersistence] Falha ao zerar freeze card=${cardId}:`,
+        conversasErr.message,
+      )
+    }
+
+    if (canalId && externalId) {
+      const normalizedExternal = normalizeWhatsAppPhone(externalId) || externalId
+      const externals = Array.from(new Set([normalizedExternal, externalId].filter(Boolean)))
+
+      for (const ext of externals) {
+        const { error: speakerErr } = await supabase
+          .from('crm_phone_active_speaker')
+          .delete()
+          .eq('empresa_id', empresaId)
+          .eq('canal_id', canalId)
+          .eq('external_id', ext)
+          .in('active_sessao_id', sessaoList)
+
+        if (speakerErr) {
+          console.error('[SessionPersistence] release finalize speaker:', speakerErr.message)
+        }
+      }
+    }
+
+    console.log(
+      `[SessionPersistence] WhatsApp liberado ao finalizar card=${cardId} sessoes=${sessaoList.join(',')} freeze_cleared=1`,
+    )
+    return { released: true, sessaoId: primarySessao }
   }
 }

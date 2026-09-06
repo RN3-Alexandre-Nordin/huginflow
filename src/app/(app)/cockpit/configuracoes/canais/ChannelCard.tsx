@@ -29,9 +29,9 @@ export default function ChannelCard({ canal: initialCanal, onDelete }: { canal: 
 
   const info = PROVIDER_INFO[canal.provider] || { name: canal.provider, icon: Share2, label: 'Canal Genérico' };
 
-  // Sync status automatically on mount if "pairing"
+  // Sync status on mount when not clearly connected
   useEffect(() => {
-    if (canal.status === 'pairing') {
+    if (canal.status !== 'connected' && canal.status !== 'open') {
       handleSyncStatus();
     }
   }, []);
@@ -160,12 +160,25 @@ export default function ChannelCard({ canal: initialCanal, onDelete }: { canal: 
   };
 
   const isConnected = canal.status === "connected" || canal.status === "open";
-  const isPairing = canal.status === "pairing";
+  // "pairing" = aguardando leitura do QR (só enquanto o QR está aberto na tela)
+  const isAwaitingQr = canal.status === "pairing" && showQR;
+
+  const statusLabel = isConnected
+    ? "Conectado"
+    : isAwaitingQr
+      ? "Aguardando QR..."
+      : "Desconectado";
+
+  const statusTone = isConnected
+    ? "bg-green-500/10 text-green-500 border-green-500/20"
+    : isAwaitingQr
+      ? "bg-amber-500/10 text-amber-400 border-amber-500/25 animate-pulse-ring"
+      : "bg-red-500/10 text-red-500 border-red-500/20";
 
   return (
     <div className="group relative bg-[#111111] border border-[#ffffff0a] rounded-3xl p-7 hover:border-[#2BAADF]/30 transition-all duration-500 shadow-xl overflow-hidden flex flex-col min-h-[350px]">
       {/* Accent Glow */}
-      <div className={`absolute -top-16 -right-16 w-32 h-32 rounded-full blur-[50px] opacity-[0.05] transition-all duration-700 ${isConnected ? "bg-green-500" : isPairing ? "bg-[#2BAADF]" : "bg-red-500"}`} />
+      <div className={`absolute -top-16 -right-16 w-32 h-32 rounded-full blur-[50px] opacity-[0.05] transition-all duration-700 ${isConnected ? "bg-green-500" : isAwaitingQr ? "bg-amber-500" : "bg-red-500"}`} />
 
       <div className="flex flex-col gap-6 relative z-10 h-full">
         {/* Header Section */}
@@ -174,14 +187,14 @@ export default function ChannelCard({ canal: initialCanal, onDelete }: { canal: 
             canal.provider === 'internal'
               ? 'bg-orange-500/10 border-orange-500/20'
               : isConnected ? 'bg-green-500/10 border-green-500/20'
-              : isPairing ? 'bg-[#2BAADF]/10 border-[#2BAADF]/20'
+              : isAwaitingQr ? 'bg-amber-500/10 border-amber-500/20'
               : 'bg-red-500/10 border-red-500/20'
           }`}>
             <info.icon className={`w-6 h-6 ${
               canal.provider === 'internal'
                 ? 'text-orange-500'
                 : isConnected ? 'text-green-500'
-                : isPairing ? 'text-[#2BAADF]'
+                : isAwaitingQr ? 'text-amber-400'
                 : 'text-red-500'
             }`} />
           </div>
@@ -194,8 +207,8 @@ export default function ChannelCard({ canal: initialCanal, onDelete }: { canal: 
             >
               <RefreshCw className="w-3 h-3" />
             </button>
-            <span className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all duration-500 ${isConnected ? "bg-green-500/10 text-green-500 border-green-500/20" : isPairing ? "bg-[#2BAADF]/10 text-[#2BAADF] border-[#2BAADF]/20 animate-pulse-ring" : "bg-red-500/10 text-red-500 border-red-500/20"}`}>
-              {isConnected ? "Ativo" : isPairing ? "Aguardando..." : "Desconectado"}
+            <span className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all duration-500 ${statusTone}`}>
+              {statusLabel}
             </span>
           </div>
         </div>

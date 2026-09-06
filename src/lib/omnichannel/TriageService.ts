@@ -65,13 +65,37 @@ export class TriageService {
       return false
     }
 
+    // Card finalizado / sessões encerradas: sem thread aberta para o telefone → IA livre,
+    // mesmo se linhas antigas de crm_conversas ainda tiverem last_human_interaction.
+    if (isDeptSessionsEnabled()) {
+      const { count: openThreads, error: openErr } = await supabase
+        .from('crm_chat_threads')
+        .select('id', { count: 'exact', head: true })
+        .eq('empresa_id', message.empresa_id)
+        .eq('canal_id', canalId)
+        .eq('external_id', externalId)
+        .neq('status', 'closed')
+
+      if (openErr) {
+        console.error('[Triage] Erro ao contar threads abertas:', openErr)
+      } else if (!openThreads) {
+        console.log(
+          `[Triage] Nenhuma sessão aberta para ${externalId} — IA liberada (pós-finalização/encerramento)`,
+        )
+        return true
+      }
+    }
+
     // Modo silêncio: só após interação HUMANA real (operador respondeu).
     // Handover da IA seta status=human, mas NÃO deve congelar até o humano falar.
     if (conversa.last_human_interaction) {
       const lastInteraction = new Date(conversa.last_human_interaction).getTime()
       const diffInMinutes = (Date.now() - lastInteraction) / (1000 * 60)
+      const empresaSilence =
+        conversa.empresas &&
+        (Array.isArray(conversa.empresas) ? conversa.empresas[0] : conversa.empresas)
       const timeout =
-        (conversa.empresas as { ia_silence_timeout?: number } | null)?.ia_silence_timeout ?? 60
+        (empresaSilence as { ia_silence_timeout?: number } | null)?.ia_silence_timeout ?? 60
 
       if (diffInMinutes < timeout) {
         console.log(

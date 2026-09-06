@@ -6,7 +6,7 @@ import { logout } from '@/app/actions'
 import LanguageSwitcher from '@/components/LanguageSwitcher'
 import GlobalChatSidebar from '@/components/chat/GlobalChatSidebar'
 import { CockpitRealtimeProvider } from '@/contexts/CockpitRealtimeContext'
-import { ChannelConnectionAlertProvider } from '@/contexts/ChannelConnectionAlertContext'
+import { ChannelConnectionAlertProvider, ChannelDisconnectBannerSlot } from '@/contexts/ChannelConnectionAlertContext'
 import CockpitSidebarNav from './CockpitSidebarNav'
 import type { CockpitNavPermissions } from '@/utils/cockpit-nav-permissions'
 import CockpitUserMenu from './_components/CockpitUserMenu'
@@ -204,6 +204,8 @@ export default function CockpitShell({
             </header>
 
             <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4 sm:p-8">{children}</div>
+
+            <ChannelDisconnectBannerSlot />
 
             {!mustChangePassword && (
               <GlobalChatSidebar userId={userId} userName={userName} empresaId={empresaId ?? ''} />

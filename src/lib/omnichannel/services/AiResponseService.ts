@@ -136,7 +136,20 @@ export class AiResponseService {
         `[AiResponse] Triagem: ${triageResult.reasoning} actions=${triageResult.executed.join(',') || 'none'}`,
       )
 
-      const textToSend = responseForWhatsApp || stripOutboundTags(response)
+      let textToSend = responseForWhatsApp || stripOutboundTags(response)
+
+      // Não confirme encaminhamento se CREATE_CARD/HANDOVER falhou (evita mentir ao cliente)
+      const wantedCard =
+        tags.actions.includes('CREATE_CARD') ||
+        tags.actions.includes('HANDOVER') ||
+        tags.actions.includes('QUEUE_UNASSIGNED')
+      if (wantedCard && !triageResult.cardId) {
+        textToSend =
+          'Recebi sua solicitação e já estou registrando internamente. Em instantes um atendente dá continuidade por aqui.'
+        console.warn(
+          `[AiResponse] CREATE_CARD pedido mas card não criado — resposta ajustada. reason=${triageResult.reasoning}`,
+        )
+      }
 
       if (!textToSend) {
         await this.handleFailure(supabase, message, canal.id, leadId, sessaoId, 'Resposta vazia após limpeza.')

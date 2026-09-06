@@ -8,6 +8,9 @@ export type AttachInboundInput = {
   mimeType: string
   providerMessageId?: string
   interacaoId?: string
+  /** manual | whatsapp_inbound | whatsapp_outbound */
+  source?: string
+  uploadedBy?: string | null
 }
 
 export type AttachInboundResult =
@@ -27,6 +30,8 @@ export class CardAttachmentService {
       mimeType,
       providerMessageId,
       interacaoId,
+      source = 'whatsapp_inbound',
+      uploadedBy = null,
     } = input
 
     if (providerMessageId) {
@@ -65,8 +70,8 @@ export class CardAttachmentService {
       file_name: safeName,
       file_url: filePath,
       file_type: mimeType,
-      uploaded_by: null,
-      source: 'whatsapp_inbound',
+      uploaded_by: uploadedBy,
+      source,
     }
 
     if (interacaoId) insertPayload.interacao_id = interacaoId

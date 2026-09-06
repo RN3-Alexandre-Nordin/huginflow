@@ -113,34 +113,269 @@ export class ChatThreadService {
   static async getById(
     supabase: SupabaseClient,
     sessaoId: string,
+    empresaId?: string,
   ): Promise<ChatThread | null> {
-    const { data } = await supabase
-      .from('crm_chat_threads')
-      .select('*')
-      .eq('id', sessaoId)
-      .maybeSingle()
+    let q = supabase.from('crm_chat_threads').select('*').eq('id', sessaoId)
+    if (empresaId) q = q.eq('empresa_id', empresaId)
+    const { data } = await q.maybeSingle()
     return (data as ChatThread | null) ?? null
   }
 
   static async getOpenByCard(
     supabase: SupabaseClient,
     cardId: string,
+    empresaId?: string,
   ): Promise<ChatThread | null> {
-    const { data } = await supabase
+    let q = supabase
       .from('crm_chat_threads')
       .select('*')
       .eq('card_id', cardId)
       .neq('status', 'closed')
       .order('updated_at', { ascending: false })
       .limit(1)
-      .maybeSingle()
+    if (empresaId) q = q.eq('empresa_id', empresaId)
+    const { data } = await q.maybeSingle()
     return (data as ChatThread | null) ?? null
   }
 
   /**
-   * Vincula o card à sessão WhatsApp inbound (onde a mensagem chegou).
-   * Se a thread não existir, materializa (nunca deixa só conversa_id órfão).
+   * Modelo (regra de produto):
+   * - 1 card = 1 atendimento (pode atravessar funis/depts/operadores).
+   * - N conversas WhatsApp por card (1 por departamento que atendeu) — FORK.
+   * - Histórico NÃO viaja: origem mantém a thread fechada; destino ganha sessão vazia
+   *   no MESMO card_id (nunca cria segundo crm_cards).
+   * - Isolamento por departamento + empresa_id; anexos ficam no card.
    */
+  static async forkSessionOnDepartmentTransfer(
+    supabase: SupabaseClient,
+    input: {
+      empresaId: string
+      cardId: string
+      fromDepartamentoId: string | null
+      toDepartamentoId: string | null
+      toPipelineId: string
+      leadId?: string | null
+      resolvedByUsuarioId?: string | null
+      fromDepartamentoNome?: string | null
+      toDepartamentoNome?: string | null
+    },
+  ): Promise<{ forked: boolean; oldSessaoId: string | null; newSessaoId: string | null; reason?: string }> {
+    const {
+      empresaId,
+      cardId,
+      fromDepartamentoId,
+      toDepartamentoId,
+      toPipelineId,
+      leadId,
+    } = input
+
+    if (
+      !fromDepartamentoId ||
+      !toDepartamentoId ||
+      fromDepartamentoId === toDepartamentoId
+    ) {
+      return {
+        forked: false,
+        oldSessaoId: null,
+        newSessaoId: null,
+        reason: 'Mesmo departamento — sem fork.',
+      }
+    }
+
+    const { data: card } = await supabase
+      .from('crm_cards')
+      .select('id, conversa_id, lead_id')
+      .eq('id', cardId)
+      .eq('empresa_id', empresaId)
+      .maybeSingle()
+
+    if (!card) {
+      return { forked: false, oldSessaoId: null, newSessaoId: null, reason: 'Card não encontrado.' }
+    }
+
+    let oldThread = await this.getOpenByCard(supabase, cardId, empresaId)
+    if (!oldThread && card.conversa_id) {
+      oldThread = await this.getById(supabase, card.conversa_id, empresaId)
+    }
+
+    const now = new Date().toISOString()
+    const oldSessaoId = oldThread?.id ?? (card.conversa_id as string | null) ?? null
+
+    if (oldThread && oldThread.status !== 'closed') {
+      await supabase
+        .from('crm_chat_threads')
+        .update({
+          status: 'closed',
+          resolved_at: now,
+          resolved_by_usuario_id: input.resolvedByUsuarioId ?? null,
+          // Mantém departamento_id + card_id: origem continua vendo o histórico isolado
+          updated_at: now,
+        })
+        .eq('id', oldThread.id)
+        .eq('empresa_id', empresaId)
+
+      // Fecha conversas da origem; zera freeze nesta sessão (destino começa limpo)
+      const { error: oldConvErr } = await supabase
+        .from('crm_conversas')
+        .update({
+          status: 'closed',
+          last_human_interaction: null,
+          updated_at: now,
+        })
+        .eq('sessao_id', oldThread.id)
+        .eq('empresa_id', empresaId)
+
+      if (oldConvErr) {
+        console.error('[ChatThread] fork clear freeze origem:', oldConvErr.message)
+      }
+
+      if (oldThread.canal_id && oldThread.external_id) {
+        const destLabel = input.toDepartamentoNome || 'outro departamento'
+        await supabase.from('crm_conversas').insert({
+          sessao_id: oldThread.id,
+          empresa_id: empresaId,
+          canal_id: oldThread.canal_id,
+          lead_id: leadId ?? card.lead_id ?? oldThread.lead_id,
+          external_id: oldThread.external_id,
+          role: 'system',
+          content: `Encaminhado para ${destLabel}. Histórico permanece neste departamento (mesmo card).`,
+          direcao: 'outbound',
+          last_message: `Encaminhado para ${destLabel}`,
+          status: 'closed',
+          metadata: {
+            type: 'dept_transfer_fork',
+            to_departamento_id: toDepartamentoId,
+            card_id: cardId,
+          },
+          created_at: now,
+          updated_at: now,
+        })
+      }
+    }
+
+    const canalId = oldThread?.canal_id
+    const externalId = oldThread?.external_id
+    if (!canalId || !externalId) {
+      // Sem canal: card já está no funil destino; destino cria sessão ao abrir WhatsApp
+      await supabase
+        .from('crm_cards')
+        .update({ conversa_id: null, updated_at: now })
+        .eq('id', cardId)
+        .eq('empresa_id', empresaId)
+      return {
+        forked: Boolean(oldSessaoId),
+        oldSessaoId,
+        newSessaoId: null,
+        reason: 'Sem canal/external — conversa_id limpa; destino cria sessão ao abrir WhatsApp.',
+      }
+    }
+
+    // Já existe sessão aberta no depto destino para ESTE card? Reusa (não cria 2ª)
+    const { data: existingDest } = await supabase
+      .from('crm_chat_threads')
+      .select('*')
+      .eq('empresa_id', empresaId)
+      .eq('card_id', cardId)
+      .eq('departamento_id', toDepartamentoId)
+      .neq('status', 'closed')
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (existingDest) {
+      await supabase
+        .from('crm_cards')
+        .update({ conversa_id: existingDest.id, updated_at: now })
+        .eq('id', cardId)
+        .eq('empresa_id', empresaId)
+
+      await ActiveSpeakerService.activate(supabase, {
+        empresaId,
+        canalId,
+        externalId,
+        sessaoId: existingDest.id,
+        departamentoId: toDepartamentoId,
+        activatedBy: input.resolvedByUsuarioId ?? null,
+        reason: 'dept_transfer_reuse',
+      })
+
+      return {
+        forked: true,
+        oldSessaoId,
+        newSessaoId: existingDest.id,
+        reason: 'Reusou sessão aberta do destino (mesmo card).',
+      }
+    }
+
+    const newSessaoId = randomUUID()
+    const { error: insertErr } = await supabase.from('crm_chat_threads').insert({
+      id: newSessaoId,
+      empresa_id: empresaId,
+      canal_id: canalId,
+      external_id: externalId,
+      lead_id: leadId ?? card.lead_id ?? oldThread?.lead_id ?? null,
+      card_id: cardId, // MESMO card — nunca cria crm_cards aqui
+      departamento_id: toDepartamentoId,
+      pipeline_id: toPipelineId,
+      status: 'human',
+      created_at: now,
+      updated_at: now,
+    })
+
+    if (insertErr) {
+      console.error('[ChatThread] fork insert:', insertErr.message)
+      return {
+        forked: false,
+        oldSessaoId,
+        newSessaoId: null,
+        reason: insertErr.message,
+      }
+    }
+
+    await supabase
+      .from('crm_cards')
+      .update({ conversa_id: newSessaoId, updated_at: now })
+      .eq('id', cardId)
+      .eq('empresa_id', empresaId)
+
+    const fromLabel = input.fromDepartamentoNome || 'outro departamento'
+    await supabase.from('crm_conversas').insert({
+      sessao_id: newSessaoId,
+      empresa_id: empresaId,
+      canal_id: canalId,
+      lead_id: leadId ?? card.lead_id ?? null,
+      external_id: externalId,
+      role: 'system',
+      content: `Continuação do mesmo atendimento (encaminhado de ${fromLabel}). Histórico do departamento anterior não é compartilhado.`,
+      direcao: 'outbound',
+      last_message: `Encaminhado de ${fromLabel}`,
+      status: 'human',
+      metadata: {
+        type: 'dept_transfer_fork',
+        from_departamento_id: fromDepartamentoId,
+        from_sessao_id: oldSessaoId,
+        card_id: cardId,
+      },
+      created_at: now,
+      updated_at: now,
+    })
+
+    await ActiveSpeakerService.activate(supabase, {
+      empresaId,
+      canalId,
+      externalId,
+      sessaoId: newSessaoId,
+      departamentoId: toDepartamentoId,
+      activatedBy: input.resolvedByUsuarioId ?? null,
+      reason: 'dept_transfer_fork',
+    })
+
+    console.log(
+      `[ChatThread] Fork dept card=${cardId} old=${oldSessaoId} new=${newSessaoId} ${fromDepartamentoId}→${toDepartamentoId}`,
+    )
+
+    return { forked: true, oldSessaoId, newSessaoId }
+  }
   static async bindCardToInboundSession(
     supabase: SupabaseClient,
     input: {
@@ -173,15 +408,31 @@ export class ChatThreadService {
         return existing
       }
 
-      // Não sobrescreve departamento de outra área se já houver e o input for outro
-      const nextDept =
-        input.departamentoId &&
-        existing.departamento_id &&
-        input.departamentoId !== existing.departamento_id &&
-        existing.card_id &&
-        existing.card_id !== input.cardId
-          ? existing.departamento_id
-          : (input.departamentoId ?? existing.departamento_id)
+      // Isolamento: nunca muda departamento_id da thread existente (histórico fica no depto).
+      // Se o card precisa ir a outro depto, o caller deve usar forkSessionOnDepartmentTransfer.
+      const deptMismatch =
+        Boolean(input.departamentoId) &&
+        Boolean(existing.departamento_id) &&
+        input.departamentoId !== existing.departamento_id
+
+      if (deptMismatch && existing.card_id === input.cardId) {
+        const fork = await this.forkSessionOnDepartmentTransfer(supabase, {
+          empresaId: input.empresaId,
+          cardId: input.cardId,
+          fromDepartamentoId: existing.departamento_id,
+          toDepartamentoId: input.departamentoId ?? null,
+          toPipelineId: input.pipelineId,
+          leadId: input.leadId,
+        })
+        if (fork.newSessaoId) {
+          return (await this.getById(supabase, fork.newSessaoId, input.empresaId)) ?? existing
+        }
+        return existing
+      }
+
+      const nextDept = deptMismatch
+        ? existing.departamento_id // outro card / não forkável: preserva isolamento
+        : (input.departamentoId ?? existing.departamento_id)
 
       const { data: updated, error } = await supabase
         .from('crm_chat_threads')
@@ -264,8 +515,10 @@ export class ChatThreadService {
   }
 
   /**
-   * Garante thread para o card. Se card já tem conversa_id válida, reusa;
-   * senão cria nova sessão isolada (não reaproveita a do telefone de outro depto).
+   * Garante thread para o card.
+   * - Mesmo depto: reusa sessão aberta.
+   * - Depto diferente: FORK (fecha origem, cria sessão vazia no destino) — mesmo card_id.
+   * - Nunca cria segundo crm_cards.
    */
   static async ensureThreadForCard(
     supabase: SupabaseClient,
@@ -281,9 +534,31 @@ export class ChatThreadService {
       forceNewIfSharedPhone?: boolean
     },
   ): Promise<{ thread: ChatThread; created: boolean }> {
-    const existing = await this.getOpenByCard(supabase, input.cardId)
+    const existing = await this.getOpenByCard(supabase, input.cardId, input.empresaId)
     if (existing) {
-      return { thread: existing, created: false }
+      const deptMismatch =
+        Boolean(input.departamentoId) &&
+        Boolean(existing.departamento_id) &&
+        existing.departamento_id !== input.departamentoId
+
+      if (!deptMismatch) {
+        return { thread: existing, created: false }
+      }
+
+      // Isolamento: fork via transfer helper (mesmo card, sessão nova no destino)
+      const fork = await this.forkSessionOnDepartmentTransfer(supabase, {
+        empresaId: input.empresaId,
+        cardId: input.cardId,
+        fromDepartamentoId: existing.departamento_id,
+        toDepartamentoId: input.departamentoId ?? null,
+        toPipelineId: input.pipelineId,
+        leadId: input.leadId,
+      })
+      if (fork.newSessaoId) {
+        const dest = await this.getById(supabase, fork.newSessaoId, input.empresaId)
+        if (dest) return { thread: dest, created: true }
+      }
+      // Se fork falhou, cai no fluxo abaixo
     }
 
     const { data: card } = await supabase
@@ -310,11 +585,33 @@ export class ChatThreadService {
         return { thread: byId, created: false }
       } else if (
         byId &&
+        byId.card_id === input.cardId &&
         byId.departamento_id &&
         input.departamentoId &&
         byId.departamento_id !== input.departamentoId
       ) {
-        // Outro departamento no mesmo telefone → sessão isolada
+        // Mesmo card, depto diferente: fork (isolamento)
+        const fork = await this.forkSessionOnDepartmentTransfer(supabase, {
+          empresaId: input.empresaId,
+          cardId: input.cardId,
+          fromDepartamentoId: byId.departamento_id,
+          toDepartamentoId: input.departamentoId,
+          toPipelineId: input.pipelineId,
+          leadId: input.leadId,
+        })
+        if (fork.newSessaoId) {
+          const dest = await this.getById(supabase, fork.newSessaoId, input.empresaId)
+          if (dest) return { thread: dest, created: true }
+        }
+      } else if (
+        byId &&
+        byId.departamento_id &&
+        input.departamentoId &&
+        byId.departamento_id !== input.departamentoId &&
+        byId.card_id &&
+        byId.card_id !== input.cardId
+      ) {
+        // Telefone com thread de OUTRO card/atendimento → não reaproveita; cria abaixo
       } else if (byId && byId.card_id && byId.card_id !== input.cardId) {
         // fall through to create
       } else if (byId && !byId.card_id) {
@@ -372,6 +669,28 @@ export class ChatThreadService {
       }
     }
 
+    // Antes de criar sessão nova: se já existe aberta neste depto para o card, reusa
+    if (input.departamentoId) {
+      const { data: destOpen } = await supabase
+        .from('crm_chat_threads')
+        .select('*')
+        .eq('empresa_id', input.empresaId)
+        .eq('card_id', input.cardId)
+        .eq('departamento_id', input.departamentoId)
+        .neq('status', 'closed')
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      if (destOpen) {
+        await supabase
+          .from('crm_cards')
+          .update({ conversa_id: destOpen.id, updated_at: new Date().toISOString() })
+          .eq('id', input.cardId)
+          .eq('empresa_id', input.empresaId)
+        return { thread: destOpen as ChatThread, created: false }
+      }
+    }
+
     const sessaoId = randomUUID()
     const now = new Date().toISOString()
     const { data: created, error } = await supabase
@@ -422,15 +741,17 @@ export class ChatThreadService {
     const now = new Date().toISOString()
     const { data: existing } = await supabase
       .from('crm_chat_threads')
-      .select('id')
+      .select('id, status')
       .eq('id', input.sessaoId)
       .maybeSingle()
 
     if (existing) {
+      // Não reabrir thread encerrada (ex.: card finalizado) — novo atendimento usa nova sessão
+      const reopenBlocked = existing.status === 'closed' && input.status && input.status !== 'closed'
       await supabase
         .from('crm_chat_threads')
         .update({
-          status: input.status ?? undefined,
+          ...(reopenBlocked ? {} : input.status ? { status: input.status } : {}),
           updated_at: now,
           ...(input.leadId ? { lead_id: input.leadId } : {}),
           ...(input.cardId ? { card_id: input.cardId } : {}),

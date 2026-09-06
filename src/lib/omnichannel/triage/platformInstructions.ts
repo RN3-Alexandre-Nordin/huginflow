@@ -69,7 +69,7 @@ Quando a mensagem indicar documento recebido/processado:
 
 ## Saída
 1) Resposta ao cliente (texto limpo, SEM colchetes).
-2) Ao FINAL, tags de sistema:
+2) Ao FINAL, tags de sistema — TRIAGE com **um campo por linha** (nunca colar tudo numa linha só):
 
 [TRIAGE:
 departamento_id=...

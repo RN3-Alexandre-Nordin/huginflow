@@ -104,6 +104,7 @@ export default function KanbanItem({
 }) {
   const [isExpanded, setIsExpanded] = useState(false)
   const [dndReady, setDndReady] = useState(false)
+  const suppressClickRef = React.useRef(false)
 
   React.useEffect(() => {
     setDndReady(true)
@@ -115,7 +116,25 @@ export default function KanbanItem({
     data: { type: "Card", card },
   })
 
+  React.useEffect(() => {
+    if (!isDragging) return
+    suppressClickRef.current = true
+  }, [isDragging])
+
+  React.useEffect(() => {
+    if (isDragging || !suppressClickRef.current) return
+    const t = window.setTimeout(() => {
+      suppressClickRef.current = false
+    }, 400)
+    return () => window.clearTimeout(t)
+  }, [isDragging])
+
   const style = { transition, transform: CSS.Transform.toString(transform) }
+
+  function safeEditClick() {
+    if (suppressClickRef.current || isDragging) return
+    onEditClick?.()
+  }
   const formattedValue = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(card.valor || 0)
   const prazoStatus = getPrazoStatus(card.data_prazo)
   const createdLabel = formatCardDateTime(card.created_at)
@@ -186,7 +205,11 @@ export default function KanbanItem({
                 data-testid="card-gestao-btn"
                 onPointerDown={(e) => { e.stopPropagation(); e.preventDefault() }}
                 onPointerUp={(e) => e.stopPropagation()}
-                onClick={(e) => { e.stopPropagation(); e.preventDefault(); onEditClick?.() }}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  e.preventDefault()
+                  safeEditClick()
+                }}
                 className="p-1.5 rounded-md bg-[#ffffff05] hover:bg-[#2BAADF]/10 transition-colors cursor-pointer border border-[#ffffff0a] hover:border-[#2BAADF]/30"
                 title="Gestão do Card"
               >
@@ -293,7 +316,7 @@ export default function KanbanItem({
                 onClick={(e) => {
                   e.stopPropagation()
                   e.preventDefault()
-                  onEditClick?.()
+                  safeEditClick()
                 }}
                 className="flex items-center gap-1.5 text-xs font-semibold text-emerald-400 hover:text-white bg-emerald-500/10 hover:bg-emerald-500/25 px-2.5 py-1.5 rounded-lg transition-colors border border-emerald-500/20"
                 title="Abrir o card para digitar a mensagem e iniciar a conversa WhatsApp"

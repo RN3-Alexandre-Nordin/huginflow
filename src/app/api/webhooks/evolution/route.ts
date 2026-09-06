@@ -11,6 +11,9 @@ import { applyInboundChannelStatus } from '@/lib/omnichannel/empresa-webhooks';
 import { SessionPersistenceService } from '@/lib/omnichannel/SessionPersistenceService';
 import { isDeptSessionsEnabled } from '@/lib/omnichannel/dept-sessions-constants';
 import { ActiveSpeakerService } from '@/lib/omnichannel/ChatThreadService';
+import { DocumentInboundService } from '@/lib/omnichannel/services/DocumentInboundService';
+import { shouldProcessAsDocument } from '@/lib/omnichannel/services/DocumentProcessingService';
+import { AudioTranscriptionService } from '@/lib/omnichannel/services/AudioTranscriptionService';
 
 function createWebhookSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -132,8 +135,10 @@ async function handleMessageUpsert(
       const { data: existingCard } = await supabase
         .from('crm_cards')
         .select('id')
+        .eq('empresa_id', canal.empresa_id)
         .eq('lead_id', leadId)
         .eq('pipeline_id', pipelineId)
+        .eq('finalizado', false)
         .maybeSingle();
 
       if (!existingCard) {
@@ -150,17 +155,6 @@ async function handleMessageUpsert(
     }
   }
 
-  const audioMeta =
-    msg.type === 'audio'
-      ? {
-          media_type: msg.metadata?.media_type,
-          mimetype: msg.metadata?.mimetype,
-          ptt: msg.metadata?.ptt,
-          duration_seconds: msg.metadata?.duration_seconds,
-          transcription: msg.metadata?.transcription,
-        }
-      : {}
-
   const documentMeta =
     msg.type === 'document' || msg.type === 'image'
       ? {
@@ -169,6 +163,20 @@ async function handleMessageUpsert(
           file_name: msg.metadata?.file_name,
           file_length: msg.metadata?.file_length,
           document: msg.metadata?.document,
+          // Necessário para download Evolution (OCR ou anexo humano)
+          raw: msg.metadata?.raw,
+        }
+      : {}
+
+  const audioMeta =
+    msg.type === 'audio'
+      ? {
+          media_type: msg.metadata?.media_type,
+          mimetype: msg.metadata?.mimetype,
+          ptt: msg.metadata?.ptt,
+          duration_seconds: msg.metadata?.duration_seconds,
+          transcription: msg.metadata?.transcription,
+          raw: msg.metadata?.raw,
         }
       : {}
 
@@ -188,6 +196,11 @@ async function handleMessageUpsert(
     }
   }
 
+  // Avalia silêncio da IA antes de persistir para não sobrescrever status=human.
+  const shouldRespond = await TriageService.shouldAiRespond(msg, canal.id, supabase)
+  const iaEnabled = isChannelAiEnabled(canal.ia_config)
+  const aiWillHandle = shouldRespond && iaEnabled
+
   const persist = await SessionPersistenceService.persistMessage(supabase, {
     empresaId: canal.empresa_id,
     canalId: canal.id,
@@ -196,7 +209,7 @@ async function handleMessageUpsert(
     role: 'user',
     content: msg.content,
     direcao: 'inbound',
-    status: 'ai',
+    status: aiWillHandle ? 'ai' : 'human',
     contactPhone: msg.sender_id,
     contactName: msg.sender_name || 'Usuário WhatsApp',
     createdAt: msg.created_at ? new Date(msg.created_at).toISOString() : undefined,
@@ -226,34 +239,53 @@ async function handleMessageUpsert(
     `[Webhook Evolution][${timestampId}] Sessão OK sessao=${sessaoId} interacao=${persist.interacaoId}`,
   )
 
-  const shouldRespond = await TriageService.shouldAiRespond(msg, canal.id, supabase);
-  const iaEnabled = isChannelAiEnabled(canal.ia_config);
+  msg.metadata = {
+    ...msg.metadata,
+    lead_id: leadId,
+    conversa_id: sessaoId,
+  }
 
-  if (shouldRespond && iaEnabled) {
+  if (aiWillHandle) {
     console.log(
       `[Webhook Evolution][${timestampId}] IA ativa → Gemini + WhatsApp (lead=${leadId})`,
-    );
-
-    msg.metadata = {
-      ...msg.metadata,
-      lead_id: leadId,
-      conversa_id: sessaoId,
-    };
+    )
 
     AiResponseService.processAutoResponse(msg, canal, supabase).catch((err) => {
-      console.error(`[Webhook Evolution][${timestampId}] Erro AiResponseService:`, err);
-    });
+      console.error(`[Webhook Evolution][${timestampId}] Erro AiResponseService:`, err)
+    })
   } else {
     console.log(
       `[Webhook Evolution][${timestampId}] IA ignorada: shouldRespond=${shouldRespond} iaEnabled=${iaEnabled} ia_config=${JSON.stringify(canal.ia_config)}`,
-    );
+    )
+
+    // Mídia ainda precisa ser baixada/anexada mesmo com operador no controle.
+    if (shouldProcessAsDocument(msg) && DocumentInboundService.isEnabled()) {
+      console.log(
+        `[Webhook Evolution][${timestampId}] Documento em silêncio IA → download+anexo sem OCR`,
+      )
+      DocumentInboundService.process(msg, canal, supabase, { skipAutoReply: true }).catch(
+        (err) => {
+          console.error(`[Webhook Evolution][${timestampId}] Erro DocumentInbound (humano):`, err)
+        },
+      )
+    } else if (msg.type === 'audio') {
+      console.log(
+        `[Webhook Evolution][${timestampId}] Áudio em silêncio IA → transcrição sem resposta`,
+      )
+      AudioTranscriptionService.transcribeInboundAudio(msg, canal, supabase, {
+        providerMessageId: msg.id,
+        sessaoId,
+      }).catch((err) => {
+        console.error(`[Webhook Evolution][${timestampId}] Erro AudioTranscription (humano):`, err)
+      })
+    }
   }
 
   return NextResponse.json({
     status: 'SUCCESS',
     leadId,
     conversaId: sessaoId,
-    aiTriggered: shouldRespond && iaEnabled,
+    aiTriggered: aiWillHandle,
   });
 }
 
