@@ -126,12 +126,66 @@ jobs:
           VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
           VPS_SSH_PASSPHRASE: ${{ secrets.VPS_SSH_PASSPHRASE }}
 
+      - name: Preparar chave Bifrost (Base64 one-line no runner)
+        if: steps.deploy_ready.outputs.ready == 'true'
+        id: bifrost_pem
+        env:
+          BIFROST_JWT_PRIVATE_KEY: ${{ secrets.BIFROST_JWT_PRIVATE_KEY }}
+          BIFROST_JWT_PUBLIC_KEY: ${{ secrets.BIFROST_JWT_PUBLIC_KEY }}
+          BIFROST_JWT_PRIVATE_KEY_B64: ${{ secrets.BIFROST_JWT_PRIVATE_KEY_B64 }}
+        run: |
+          python3 <<'PY'
+          import base64, os, sys
+
+          def expand_escapes(s: str) -> str:
+              s = s.strip().strip('"').strip("'")
+              for _ in range(4):
+                  if "\\n" in s:
+                      s = s.replace("\\n", "\n")
+              return s.replace("\\r", "").replace("\r\n", "\n").replace("\r", "\n").strip()
+
+          def encode_pem(pem: str, expect: str) -> str:
+              pem = expand_escapes(pem)
+              if "BEGIN" not in pem or expect not in pem:
+                  raise SystemExit(f"Secret inválida: esperado PEM com BEGIN … {expect}")
+              return base64.b64encode(pem.encode("utf-8")).decode("ascii")
+
+          pre = os.environ.get("BIFROST_JWT_PRIVATE_KEY_B64", "").strip()
+          if pre and "BEGIN" not in pre:
+              raw = base64.b64decode(pre).decode("utf-8", errors="replace")
+              if "BEGIN" in raw and "PRIVATE KEY" in raw:
+                  priv_b64 = "".join(pre.split())
+              else:
+                  raise SystemExit("BIFROST_JWT_PRIVATE_KEY_B64 não decodifica para PEM PRIVATE KEY")
+          else:
+              pem = os.environ.get("BIFROST_JWT_PRIVATE_KEY", "")
+              if not pem.strip():
+                  raise SystemExit(
+                      "Configure a secret BIFROST_JWT_PRIVATE_KEY (PEM PKCS#8) no GitHub Actions."
+                  )
+              priv_b64 = encode_pem(pem, "PRIVATE KEY")
+
+          # round-trip check on runner (onde a secret multilinha funciona)
+          check = base64.b64decode(priv_b64).decode("utf-8")
+          if "BEGIN" not in check or "PRIVATE KEY" not in check or "END" not in check:
+              raise SystemExit("Falha no round-trip da chave privada Bifrost")
+
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:
+              fh.write(f"private_b64={priv_b64}\n")
+              pub = os.environ.get("BIFROST_JWT_PUBLIC_KEY", "").strip()
+              if pub:
+                  pub_b64 = encode_pem(pub, "PUBLIC KEY")
+                  fh.write(f"public_b64={pub_b64}\n")
+
+          print(f"Bifrost private key OK (b64_len={len(priv_b64)})")
+          PY
+
       - name: Deploy Swarm na VPS de produção
         if: steps.deploy_ready.outputs.ready == 'true'
         uses: appleboy/ssh-action@v1.2.0
         env:
-          BIFROST_JWT_PRIVATE_KEY: ${{ secrets.BIFROST_JWT_PRIVATE_KEY }}
-          BIFROST_JWT_PUBLIC_KEY: ${{ secrets.BIFROST_JWT_PUBLIC_KEY }}
+          BIFROST_PRIV_B64: ${{ steps.bifrost_pem.outputs.private_b64 }}
+          BIFROST_PUB_B64: ${{ steps.bifrost_pem.outputs.public_b64 }}
           BIFROST_JWT_KID: ${{ secrets.BIFROST_JWT_KID }}
           BIFROST_JWT_ISSUER: ${{ secrets.BIFROST_JWT_ISSUER }}
         with:
@@ -142,7 +196,7 @@ jobs:
           port: 22
           timeout: 60s
           command_timeout: 10m
-          envs: BIFROST_JWT_PRIVATE_KEY,BIFROST_JWT_PUBLIC_KEY,BIFROST_JWT_KID,BIFROST_JWT_ISSUER
+          envs: BIFROST_PRIV_B64,BIFROST_PUB_B64,BIFROST_JWT_KID,BIFROST_JWT_ISSUER
           script: |
             set -euo pipefail
             IMAGE="${{ steps.ghcr.outputs.image }}:latest"
@@ -164,17 +218,11 @@ jobs:
             fi
             echo "==> Service alvo: $SERVICE"
 
-            if [ -z "${BIFROST_JWT_PRIVATE_KEY:-}" ]; then
-              echo "ERROR: GitHub secret BIFROST_JWT_PRIVATE_KEY não configurada."
-              echo "O embed Bifrost em produção exige a chave privada RSA (PKCS8)."
+            if [ -z "${BIFROST_PRIV_B64:-}" ]; then
+              echo "ERROR: BIFROST_PRIV_B64 vazio — falha na preparação da chave no runner."
               exit 1
             fi
 
-            # Base64 evita corromper PEM no docker service update --env-add
-            bifrost_pem_b64() {
-              printf '%s' "$1" | tr -d '\r' | base64 -w0 2>/dev/null || printf '%s' "$1" | tr -d '\r' | base64 | tr -d '\n'
-            }
-            BIFROST_PRIV_B64="$(bifrost_pem_b64 "$BIFROST_JWT_PRIVATE_KEY")"
             BIFROST_KID_VALUE="${BIFROST_JWT_KID:-hugin-1}"
             BIFROST_ISSUER_VALUE="${BIFROST_JWT_ISSUER:-https://app.huginflow.com/bifrost}"
 
@@ -185,7 +233,7 @@ jobs:
             echo "==> Pull $IMAGE"
             docker pull "$IMAGE"
 
-            echo "==> Atualizando service (inclui BIFROST_*)"
+            echo "==> Atualizando service (BIFROST via Base64 one-line)"
             UPDATE_ARGS=(
               --image "$IMAGE"
               --env-add HUGINFLOW_ENV=production
@@ -204,8 +252,7 @@ jobs:
               --env-add "BIFROST_JWT_KID=${BIFROST_KID_VALUE}"
               --env-add "BIFROST_JWT_PRIVATE_KEY_B64=${BIFROST_PRIV_B64}"
             )
-            if [ -n "${BIFROST_JWT_PUBLIC_KEY:-}" ]; then
-              BIFROST_PUB_B64="$(bifrost_pem_b64 "$BIFROST_JWT_PUBLIC_KEY")"
+            if [ -n "${BIFROST_PUB_B64:-}" ]; then
               UPDATE_ARGS+=(--env-add "BIFROST_JWT_PUBLIC_KEY_B64=${BIFROST_PUB_B64}")
             fi
 

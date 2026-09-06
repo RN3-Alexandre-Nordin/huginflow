@@ -117,16 +117,38 @@ function readPemFromEnv(
 ): string | null {
   const b64 = process.env[b64Name]?.trim()
   if (b64) {
-    try {
-      const decoded = Buffer.from(b64, 'base64').toString('utf8')
-      return normalizePemKey(decoded, kind)
-    } catch {
-      // fallback para plain abaixo
+    const decoded = Buffer.from(b64.replace(/\s+/g, ''), 'base64').toString('utf8')
+    const pem = normalizePemKey(decoded, kind)
+    const expect =
+      kind === 'private' ? /BEGIN (RSA )?PRIVATE KEY/ : /BEGIN (RSA )?PUBLIC KEY/
+    if (!expect.test(pem)) {
+      throw new Error(
+        `${b64Name} não decodifica para PEM válido (${kind}). Refaça o deploy / secret.`,
+      )
     }
+    try {
+      if (kind === 'private') createPrivateKey(pem)
+      else createPublicKey(pem)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      throw new Error(`${b64Name} PEM ilegível: ${msg}`)
+    }
+    return pem
   }
+
   const raw = process.env[plainName]?.trim()
   if (!raw) return null
-  return normalizePemKey(raw, kind)
+  const pem = normalizePemKey(raw, kind)
+  try {
+    if (kind === 'private') createPrivateKey(pem)
+    else createPublicKey(pem)
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    throw new Error(
+      `${plainName} inválida (${kind}). Use PKCS#8 (BEGIN PRIVATE KEY) ou *_B64. ${msg}`,
+    )
+  }
+  return pem
 }
 
 /** PEM PKCS8; aceita `\n` literal, aspas, ou `BIFROST_JWT_PRIVATE_KEY_B64`. */
