@@ -60,9 +60,9 @@ export default function OutboundWebhooksPanel({ canManage }: { canManage: boolea
     setHooks((hooksRes.data ?? []) as WebhookRow[])
     setDeliveries((deliveriesRes.data ?? []) as DeliveryRow[])
     if ('url' in presetRes) {
-      setCnpj(presetRes.cnpj)
-      setPresetUrl(presetRes.url)
-      setPresetMessage(presetRes.message)
+      setCnpj(presetRes.cnpj ?? null)
+      setPresetUrl(presetRes.url ?? null)
+      setPresetMessage(presetRes.message ?? null)
     } else {
       setPresetMessage(presetRes.error)
     }

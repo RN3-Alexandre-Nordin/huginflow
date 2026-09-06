@@ -131,6 +131,7 @@ interface Mensagem {
   metadata?: {
     is_ai?: boolean
     sent_by?: string
+    type?: string
     media_type?: string
     file_name?: string
     transcription?: {

@@ -61,7 +61,7 @@ interface Usuario {
 interface Stage {
   id: string
   nome: string
-  ordem?: number
+  ordem?: number | null
 }
 
 interface CardFile {

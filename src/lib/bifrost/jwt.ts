@@ -3,7 +3,6 @@ import {
   importPKCS8,
   SignJWT,
   type JWK,
-  type KeyLike,
 } from 'jose'
 import {
   BIFROST_JWT_AUDIENCE,
@@ -23,10 +22,12 @@ export type BifrostEmbedClaimsInput = {
   empresaNome: string
 }
 
-let cachedPrivateKey: KeyLike | Uint8Array | null = null
+type BifrostPrivateKey = Awaited<ReturnType<typeof importPKCS8>>
+
+let cachedPrivateKey: BifrostPrivateKey | null = null
 let cachedPublicJwk: JWK | null = null
 
-async function loadPrivateKey(): Promise<KeyLike | Uint8Array> {
+async function loadPrivateKey(): Promise<BifrostPrivateKey> {
   if (cachedPrivateKey) return cachedPrivateKey
   const pem = getBifrostJwtPrivateKeyPem()
   if (!pem) {
