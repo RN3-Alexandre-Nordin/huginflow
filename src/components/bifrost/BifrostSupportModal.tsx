@@ -44,11 +44,13 @@ const MODE_META: Record<
 export default function BifrostSupportModal({ open, onClose, mode }: Props) {
   const [mounted, setMounted] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [iframeLoading, setIframeLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [embed, setEmbed] = useState<EmbedPayload | null>(null)
   const [success, setSuccess] = useState<SuccessInfo | null>(null)
   const [copied, setCopied] = useState(false)
   const iframeRef = useRef<HTMLIFrameElement>(null)
+  const iframeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const meta = MODE_META[mode]
   const HeaderIcon = mode === 'meus-chamados' ? ListTodo : Headphones
 
@@ -56,12 +58,21 @@ export default function BifrostSupportModal({ open, onClose, mode }: Props) {
     setMounted(true)
   }, [])
 
+  const clearIframeTimer = useCallback(() => {
+    if (iframeTimerRef.current) {
+      clearTimeout(iframeTimerRef.current)
+      iframeTimerRef.current = null
+    }
+  }, [])
+
   const loadEmbed = useCallback(async () => {
     setLoading(true)
+    setIframeLoading(false)
     setError(null)
     setEmbed(null)
     setSuccess(null)
     setCopied(false)
+    clearIframeTimer()
     try {
       const res = await fetch('/api/bifrost/embed-token', {
         method: 'POST',
@@ -78,14 +89,20 @@ export default function BifrostSupportModal({ open, onClose, mode }: Props) {
         throw new Error(data.error || 'Não foi possível abrir o suporte.')
       }
       setEmbed({ embedUrl: data.embedUrl, bifrostOrigin: data.bifrostOrigin })
+      setIframeLoading(true)
+      iframeTimerRef.current = setTimeout(() => {
+        setIframeLoading(false)
+        setError(
+          'O Bifrost demorou para responder no iframe. Confira se o sistema hugin_flow está cadastrado com o JWKS atual de app.huginflow.com e se o Bifrost não redireciona para URL inválida (0.0.0.0).',
+        )
+      }, 20000)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Erro ao abrir suporte'
       setError(message)
-      window.alert(message)
     } finally {
       setLoading(false)
     }
-  }, [meta.next])
+  }, [meta.next, clearIframeTimer])
 
   useEffect(() => {
     if (!open) {
@@ -93,10 +110,13 @@ export default function BifrostSupportModal({ open, onClose, mode }: Props) {
       setError(null)
       setSuccess(null)
       setCopied(false)
+      setIframeLoading(false)
+      clearIframeTimer()
       return
     }
     void loadEmbed()
-  }, [open, mode, loadEmbed])
+    return () => clearIframeTimer()
+  }, [open, mode, loadEmbed, clearIframeTimer])
 
   useEffect(() => {
     if (!open || !embed?.bifrostOrigin || success || !meta.listenCreate) return
@@ -188,10 +208,12 @@ export default function BifrostSupportModal({ open, onClose, mode }: Props) {
         </div>
 
         <div className="flex-1 relative bg-[#0a0a0a] min-h-0">
-          {loading && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-gray-400 z-10">
+          {(loading || iframeLoading) && !error && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-gray-400 z-10 pointer-events-none">
               <Loader2 className="w-7 h-7 animate-spin text-[#2BAADF]" />
-              <p className="text-xs font-medium">Preparando sessão segura…</p>
+              <p className="text-xs font-medium">
+                {loading ? 'Preparando sessão segura…' : 'Carregando Bifrost…'}
+              </p>
             </div>
           )}
 
@@ -208,13 +230,17 @@ export default function BifrostSupportModal({ open, onClose, mode }: Props) {
             </div>
           )}
 
-          {!loading && embed?.embedUrl && !success && (
+          {!loading && embed?.embedUrl && !success && !error && (
             <iframe
               ref={iframeRef}
               title={meta.title}
               src={embed.embedUrl}
               className="w-full h-full border-0"
               allow="clipboard-write"
+              onLoad={() => {
+                clearIframeTimer()
+                setIframeLoading(false)
+              }}
             />
           )}
 
