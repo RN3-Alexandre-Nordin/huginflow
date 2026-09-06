@@ -2,6 +2,8 @@
 
 Integração do Hugin Flow com o embed Bifrost (`/embed/sso`) para o usuário do tenant abrir chamado com sistema/empresa/usuário pré-preenchidos via JWT RS256.
 
+**Dual-ambiente:** Hugin **prod** e Hugin **dev/treino** usam o **mesmo** Bifrost (`https://bifrost.rn3.tec.br`), com `sistema_origem` e JWKS distintos.
+
 ## Endpoints Hugin
 
 | Método | Path | Auth | Uso |
@@ -11,35 +13,57 @@ Integração do Hugin Flow com o embed Bifrost (`/embed/sso`) para o usuário do
 
 ## Cadastro no Bifrost (`sistemas_origem`)
 
-| Campo | Valor |
-|-------|--------|
-| `codigo` | `hugin_flow` |
-| `audience` | `bifrost` |
-| `issuer` | `https://app.huginflow.com/bifrost` (ou o valor de `BIFROST_JWT_ISSUER`) |
-| `jwks_url` | `{APP_PUBLIC_URL}/api/bifrost/jwks` |
+Dois registros no Bifrost produção:
 
-Exemplos de `jwks_url`:
+| Ambiente Hugin | `codigo` / claim `sistema_origem` | `issuer` | `jwks_url` |
+|----------------|-------------------------------------|----------|------------|
+| Produção (`app.huginflow.com`) | `hugin_flow` | `https://app.huginflow.com/bifrost` | `https://app.huginflow.com/api/bifrost/jwks` |
+| Dev / treinamento | `hugin_flow_dev` | issuer do ambiente de treino (ex. `https://dev.huginflow.com/bifrost` ou túnel) | JWKS **público** desse ambiente (não o de prod) |
 
-- Local (Hugin na porta do app): `http://localhost:3001/api/bifrost/jwks` (ajuste a porta)
-- Túnel / staging: `https://huginflow-local.rn3.tec.br/api/bifrost/jwks`
-- Produção: `https://app.huginflow.com/api/bifrost/jwks`
+`audience` em ambos: `bifrost`.
 
 ## Variáveis de ambiente (Hugin)
 
+### Produção
+
 ```env
-BIFROST_URL=http://localhost:3000
-BIFROST_ORIGIN=http://localhost:3000
+BIFROST_URL=https://bifrost.rn3.tec.br
+BIFROST_ORIGIN=https://bifrost.rn3.tec.br
+BIFROST_SISTEMA_ORIGEM=hugin_flow
 BIFROST_JWT_ISSUER=https://app.huginflow.com/bifrost
 BIFROST_JWT_KID=hugin-1
 BIFROST_JWT_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----"
-# opcional (se omitido, JWKS deriva da privada no server):
-# BIFROST_JWT_PUBLIC_KEY="-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----"
 ```
+
+### Dev / treinamento (stack Portainer ou `.env.local`)
+
+```env
+BIFROST_URL=https://bifrost.rn3.tec.br
+BIFROST_ORIGIN=https://bifrost.rn3.tec.br
+BIFROST_SISTEMA_ORIGEM=hugin_flow_dev
+BIFROST_JWT_ISSUER=https://dev.huginflow.com/bifrost
+BIFROST_JWT_KID=hugin-dev-1
+BIFROST_JWT_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----"
+```
+
+Defaults no código (se a env faltar):
+
+| Variável | Default |
+|----------|---------|
+| `BIFROST_URL` / `BIFROST_ORIGIN` | `https://bifrost.rn3.tec.br` |
+| `BIFROST_SISTEMA_ORIGEM` | `hugin_flow` se `HUGINFLOW_ENV=production` ou app URL de prod; senão `hugin_flow_dev` |
+| `BIFROST_JWT_ISSUER` | derivado do `sistema_origem` + `NEXT_PUBLIC_APP_URL` |
+| `BIFROST_JWT_KID` | `hugin-1` (prod) / `hugin-dev-1` (dev) |
+
+**Não** use `sistema_origem=hugin_flow` no treino se o Bifrost prod valida esse código com JWKS/chave de `app.huginflow.com`.
+
+Local com Bifrost no PC: sobrescreva `BIFROST_URL` / `BIFROST_ORIGIN` para `http://localhost:3001` (ou a porta do Bifrost).
 
 Gerar chaves locais:
 
 ```bash
 node scripts/bifrost/generate-keypair.mjs
+node scripts/bifrost/inject-env-local.mjs
 ```
 
 **Não** committe `scripts/bifrost/.keys/`.
@@ -50,8 +74,8 @@ Menu **?** (header do Cockpit) → **Chamados**:
 
 | Item | Embed |
 |------|--------|
-| **Abrir chamado** | `/embed/sso?token=…&origin=…&next=/embed/chamados/novo` |
-| **Meus chamados** | `/embed/sso?token=…&origin=…&next=/embed/chamados` |
+| **Abrir chamado** | `{BIFROST_URL}/embed/sso?token=…&origin=…&next=/embed/chamados/novo` |
+| **Meus chamados** | `{BIFROST_URL}/embed/sso?token=…&origin=…&next=/embed/chamados` |
 
 `POST /api/bifrost/embed-token` aceita body `{ "next": "/embed/chamados" | "/embed/chamados/novo" | … }` (só paths `/embed/...`).
 
@@ -62,5 +86,6 @@ Ao receber `postMessage` `{ source: "bifrost", type: "chamado-criado", protocolo
 ## Segurança
 
 - Privada só no server; emissão apenas em `POST /api/bifrost/embed-token`.
-- JWT: `iss`, `aud=bifrost`, `jti`, `exp` (+60s), claims `user_id`, `email`, `name`, `tenant`, `empresa`, `sistema_origem=hugin_flow`.
+- JWT: `iss`, `aud=bifrost`, `jti`, `exp` (+60s), claims `user_id`, `email`, `name`, `tenant`, `empresa`, `sistema_origem` (env).
+- JWKS público em prod e em dev (sem redirect para login).
 - Listener valida `event.origin`.

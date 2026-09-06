@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 import { getMyProfile } from '@/lib/auth/getMyProfile'
-import { getBifrostOrigin, getBifrostUrl } from '@/lib/bifrost/config'
+import {
+  getBifrostOrigin,
+  getBifrostSistemaOrigem,
+  getBifrostUrl,
+} from '@/lib/bifrost/config'
 import { signBifrostEmbedToken } from '@/lib/bifrost/jwt'
 
 export const dynamic = 'force-dynamic'
@@ -9,6 +13,7 @@ export const dynamic = 'force-dynamic'
 type EmbedTokenResponse = {
   embedUrl: string
   bifrostOrigin: string
+  sistemaOrigem: string
   expiresIn: number
 }
 
@@ -95,6 +100,7 @@ export async function POST(request: NextRequest) {
     const body: EmbedTokenResponse = {
       embedUrl,
       bifrostOrigin: getBifrostOrigin(),
+      sistemaOrigem: getBifrostSistemaOrigem(),
       expiresIn: 60,
     }
 

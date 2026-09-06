@@ -7,11 +7,11 @@ import {
 import {
   BIFROST_JWT_AUDIENCE,
   BIFROST_JWT_TTL_SECONDS,
-  BIFROST_SISTEMA_ORIGEM,
   getBifrostJwtIssuer,
   getBifrostJwtKid,
   getBifrostJwtPrivateKeyPem,
   getBifrostJwtPublicKeyPem,
+  getBifrostSistemaOrigem,
 } from '@/lib/bifrost/config'
 
 export type BifrostEmbedClaimsInput = {
@@ -91,7 +91,7 @@ export async function signBifrostEmbedToken(input: BifrostEmbedClaimsInput): Pro
     name: input.name.trim(),
     tenant: input.tenantId,
     empresa: input.empresaNome.trim() || 'Empresa',
-    sistema_origem: BIFROST_SISTEMA_ORIGEM,
+    sistema_origem: getBifrostSistemaOrigem(),
   })
     .setProtectedHeader({ alg: 'RS256', kid: getBifrostJwtKid(), typ: 'JWT' })
     .setIssuer(getBifrostJwtIssuer())
