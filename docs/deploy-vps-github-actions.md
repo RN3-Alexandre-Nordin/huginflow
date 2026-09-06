@@ -80,6 +80,19 @@ Get-Content $env:USERPROFILE\.ssh\huginflow_deploy.pub
 
 Secrets de **build** (já existentes): `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, etc.
 
+Secrets **Bifrost** (runtime no `deploy-prod` → Swarm):
+
+| Secret | Obrigatório | Valor |
+|--------|-------------|--------|
+| `BIFROST_JWT_PRIVATE_KEY` | sim | PEM PKCS8 (com quebras reais ou `\n`) |
+| `BIFROST_JWT_PUBLIC_KEY` | não | PEM SPKI público (opcional) |
+| `BIFROST_JWT_KID` | não | Default `hugin-1` |
+| `BIFROST_JWT_ISSUER` | não | Default `https://app.huginflow.com/bifrost` |
+
+O workflow também fixa em prod: `BIFROST_URL` / `BIFROST_ORIGIN` = `https://bifrost.rn3.tec.br`, `BIFROST_SISTEMA_ORIGEM=hugin_flow`.
+
+Detalhes: [bifrost-embed.md](./bifrost-embed.md).
+
 ### 3. VPS — authorized_keys
 
 Na VPS, como `VPS_USER`:

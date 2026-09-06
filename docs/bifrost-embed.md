@@ -68,6 +68,19 @@ node scripts/bifrost/inject-env-local.mjs
 
 **Não** committe `scripts/bifrost/.keys/`.
 
+### Produção via GitHub Actions
+
+Secrets no repositório (Settings → Secrets → Actions), injetadas no Swarm pelo job `deploy-prod`:
+
+| Secret | Obrigatório |
+|--------|-------------|
+| `BIFROST_JWT_PRIVATE_KEY` | sim |
+| `BIFROST_JWT_PUBLIC_KEY` | não |
+| `BIFROST_JWT_KID` | não (default `hugin-1`) |
+| `BIFROST_JWT_ISSUER` | não (default `https://app.huginflow.com/bifrost`) |
+
+URL/ORIGIN/`sistema_origem` de prod são fixos no workflow (`bifrost.rn3.tec.br` / `hugin_flow`).
+
 ## UX
 
 Menu **?** (header do Cockpit) → **Chamados**:

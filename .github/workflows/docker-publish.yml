@@ -129,6 +129,11 @@ jobs:
       - name: Deploy Swarm na VPS de produção
         if: steps.deploy_ready.outputs.ready == 'true'
         uses: appleboy/ssh-action@v1.2.0
+        env:
+          BIFROST_JWT_PRIVATE_KEY: ${{ secrets.BIFROST_JWT_PRIVATE_KEY }}
+          BIFROST_JWT_PUBLIC_KEY: ${{ secrets.BIFROST_JWT_PUBLIC_KEY }}
+          BIFROST_JWT_KID: ${{ secrets.BIFROST_JWT_KID }}
+          BIFROST_JWT_ISSUER: ${{ secrets.BIFROST_JWT_ISSUER }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
@@ -137,6 +142,7 @@ jobs:
           port: 22
           timeout: 60s
           command_timeout: 10m
+          envs: BIFROST_JWT_PRIVATE_KEY,BIFROST_JWT_PUBLIC_KEY,BIFROST_JWT_KID,BIFROST_JWT_ISSUER
           script: |
             set -euo pipefail
             IMAGE="${{ steps.ghcr.outputs.image }}:latest"
@@ -158,6 +164,20 @@ jobs:
             fi
             echo "==> Service alvo: $SERVICE"
 
+            if [ -z "${BIFROST_JWT_PRIVATE_KEY:-}" ]; then
+              echo "ERROR: GitHub secret BIFROST_JWT_PRIVATE_KEY não configurada."
+              echo "O embed Bifrost em produção exige a chave privada RSA (PKCS8)."
+              exit 1
+            fi
+
+            # App aceita PEM com \\n literal; normaliza quebras reais da secret
+            bifrost_pem_oneline() {
+              printf '%s' "$1" | tr -d '\r' | sed ':a;N;$!ba;s/\n/\\n/g'
+            }
+            BIFROST_PRIV_ESC="$(bifrost_pem_oneline "$BIFROST_JWT_PRIVATE_KEY")"
+            BIFROST_KID_VALUE="${BIFROST_JWT_KID:-hugin-1}"
+            BIFROST_ISSUER_VALUE="${BIFROST_JWT_ISSUER:-https://app.huginflow.com/bifrost}"
+
             if [ -n "${{ secrets.GHCR_PULL_TOKEN }}" ]; then
               echo "${{ secrets.GHCR_PULL_TOKEN }}" | docker login ghcr.io -u "${{ github.repository_owner }}" --password-stdin
             fi
@@ -165,20 +185,33 @@ jobs:
             echo "==> Pull $IMAGE"
             docker pull "$IMAGE"
 
-            echo "==> Atualizando service"
-            docker service update \
-              --image "$IMAGE" \
-              --env-add HUGINFLOW_ENV=production \
-              --env-add NEXT_PUBLIC_APP_URL=https://app.huginflow.com \
-              --env-add NEXT_PUBLIC_SITE_URL=https://huginflow.com \
-              --env-add SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }} \
-              --env-add SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }} \
-              --env-add WHATSAPP_API_URL=https://evo.rn3.tec.br \
-              --env-add WHATSAPP_API_URL_PROD=https://evo.rn3.tec.br \
-              --env-add HUGINFLOW_WEBHOOK_URL=https://app.huginflow.com/api/webhooks/evolution \
-              --env-add HUGINFLOW_WEBHOOK_URL_PROD=https://app.huginflow.com/api/webhooks/evolution \
-              "$SERVICE"
+            echo "==> Atualizando service (inclui BIFROST_*)"
+            UPDATE_ARGS=(
+              --image "$IMAGE"
+              --env-add HUGINFLOW_ENV=production
+              --env-add NEXT_PUBLIC_APP_URL=https://app.huginflow.com
+              --env-add NEXT_PUBLIC_SITE_URL=https://huginflow.com
+              --env-add SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+              --env-add SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+              --env-add WHATSAPP_API_URL=https://evo.rn3.tec.br
+              --env-add WHATSAPP_API_URL_PROD=https://evo.rn3.tec.br
+              --env-add HUGINFLOW_WEBHOOK_URL=https://app.huginflow.com/api/webhooks/evolution
+              --env-add HUGINFLOW_WEBHOOK_URL_PROD=https://app.huginflow.com/api/webhooks/evolution
+              --env-add BIFROST_URL=https://bifrost.rn3.tec.br
+              --env-add BIFROST_ORIGIN=https://bifrost.rn3.tec.br
+              --env-add BIFROST_SISTEMA_ORIGEM=hugin_flow
+              --env-add "BIFROST_JWT_ISSUER=${BIFROST_ISSUER_VALUE}"
+              --env-add "BIFROST_JWT_KID=${BIFROST_KID_VALUE}"
+              --env-add "BIFROST_JWT_PRIVATE_KEY=${BIFROST_PRIV_ESC}"
+            )
+            if [ -n "${BIFROST_JWT_PUBLIC_KEY:-}" ]; then
+              BIFROST_PUB_ESC="$(bifrost_pem_oneline "$BIFROST_JWT_PUBLIC_KEY")"
+              UPDATE_ARGS+=(--env-add "BIFROST_JWT_PUBLIC_KEY=${BIFROST_PUB_ESC}")
+            fi
+
+            docker service update "${UPDATE_ARGS[@]}" "$SERVICE"
 
             docker service ps "$SERVICE" --no-trunc
             docker image prune -f
             echo "==> Deploy concluído"
+
