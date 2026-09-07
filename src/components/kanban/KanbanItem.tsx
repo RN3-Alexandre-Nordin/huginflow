@@ -157,6 +157,8 @@ export default function KanbanItem({
   return (
     <div
       ref={setNodeRef}
+      data-testid="kanban-card"
+      data-card-id={card.id}
       style={style}
       {...dndProps}
       className={`relative w-full p-4 bg-[#111111] border border-[#ffffff0a] rounded-xl transition-all group ${isOverlay ? 'shadow-2xl scale-[1.02]' : 'shadow-md shadow-black/20'} ${canMove ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'}`}
@@ -167,6 +169,7 @@ export default function KanbanItem({
       {/* Top Bar: Title & Toggle */}
       <div className="flex items-start justify-between pointer-events-none">
         <h4
+          data-testid="kanban-card-title"
           className="text-sm font-bold text-white transition-colors pr-2"
           style={isExpanded ? { color: stageColor } : {}}
         >

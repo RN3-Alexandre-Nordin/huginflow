@@ -21,7 +21,7 @@ Antes de cada entrega importante, um comando único roda a bateria, gera um **re
 ## 2. Como rodar (alvo)
 
 ```bash
-# Um comando só (dev) — Fase 1: scripts SCR-* + UI e2e-core
+# Um comando só (dev) — Fases 1–3: scripts SCR-* + UI e2e-core
 npm run test:agent:dev
 
 # Só scripts (rápido):
@@ -32,7 +32,7 @@ npm run test:agent:scripts
 #   docs/homologacao/execucoes/agente-latest.html / .json
 ```
 
-No módulo `/cockpit/testes` (superadmin), escolha a suite **Fase 1 — Agente**.
+No módulo `/cockpit/testes` (superadmin), escolha a suite **Fases 1–3 — Agente**.
 
 ---
 
@@ -109,6 +109,7 @@ Legenda de **status**:
 | UI-CHAT-03 | Mencionar `@` abre lista | §8.3 | `fase-3` `ui` |
 | UI-PERM-01 | Usuário sem permissão → Acesso Interditado / oculto | RBAC | `fase-3` `ui` |
 | UI-TENANT-01 | Não vazar funil de outra empresa | Multi-tenant | `fase-3` `ui` |
+| UI-DASH-01 | KPIs e filtros do dashboard gestor | §10 | `fase-4` `ui` |
 
 ### 4.2 Scripts / API (homologação existente → adaptados a **dev**)
 
@@ -131,13 +132,16 @@ Legenda de **status**:
 | SCR-RBAC-01 | 11 | Permissões | `fase-3` `script` |
 | SCR-UAT | 12 | UAT cliente real | `manual` |
 
-### 4.3 Expansões futuras (já no radar)
+### 4.3 Expansões implementadas
 
 | ID | Tema | Status |
 |----|------|--------|
-| UI-BI-01 | Módulo Relatórios / BI (quando front existir) | `fase-5` |
-| UI-FIN-01 | Financeiro / contratos (se operador usa) | `fase-5` |
-| SCR-ANALYTICS-01 | RPCs `fn_analytics_*` | `fase-5` |
+| UI-BI-01 | Módulo Relatórios / BI | `fase-5` `implementado` |
+| UI-FIN-01 | Financeiro restrito ao RN3 | `fase-5` `implementado` |
+| SCR-ANALYTICS-01 | RPCs `fn_analytics_*` | `fase-5` `implementado` |
+| UI-OMNI-DEPT | ACL por departamento somente no Omnichannel | `fase-5` `implementado` |
+| UI-BIFROST-01 | Abrir formulário e consultar chamados via SSO | `fase-5` `implementado` |
+| UI-BIFROST-02 | Acesso direto ao formulário e consulta no domínio Bifrost | `fase-5` `implementado` |
 | UI-OMNI-MULTI | Duas sessões mesmo lead (deptos) | `fase-3` |
 | UI-CARD-MOVE | Arrastar card de coluna | `fase-3` |
 
@@ -151,7 +155,7 @@ Legenda de **status**:
 | **1 — Núcleo verde** | Em seguida (~1 semana) | Todos os IDs `fase-1` (UI + SCR-INFRA/AUTH) + relatório unificado | `npm run test:agent:dev` |
 | **2 — Card + chat + funil scripts** | +1–2 semanas | UI-OMNI-03/04, UI-CARD-06/07, UI-CHAT-02, SCR-FUNIL, SCR-CHAT, SCR-EMP | mesma suíte, mais casos |
 | **3 — Segurança e leads** | +2 semanas | RBAC UI, tenant, menções, leads, canais, multi-sessão, drag card | — |
-| **4 — IA / WhatsApp / RAG** | Após núcleo estável | Scripts 7–10; WhatsApp sem QR; simulador | — |
+| **4 — IA / WhatsApp / RAG** | Após núcleo estável | Scripts 7–10; WhatsApp sem QR; simulador | `npm run test:agent:scripts:phase4` |
 | **5 — Prod smoke + BI** | Quando fase 1–2 confiáveis | Mesma bateria apontando prod (tenant teste) + analytics/BI | `npm run test:agent:prod-smoke` |
 
 **Regra de ouro:** só avança de fase se a anterior estiver **verde 3 runs seguidos** em dev.
@@ -161,7 +165,7 @@ Legenda de **status**:
 ## 6. Ordem do dia a dia (dev)
 
 1. Subir app: `npm run dev:turbo`
-2. Rodar agente: `npm run test:agent:dev` (ou `/cockpit/testes` → Fase 1)
+2. Rodar agente: `npm run test:agent:dev` (ou `/cockpit/testes` → Fases 1–5)
 3. Ler o **HTML** em `docs/homologacao/execucoes/agente-latest.html`
 4. Se vermelho → corrige → roda de novo
 5. Só então merge / preparação de deploy
@@ -219,4 +223,101 @@ Não jogamos fora a homologação: o agente **automatiza e reporta**; o checklis
 
 **Como validar:** `npm run dev:turbo` → `npm run test:agent:dev` → abrir `docs/homologacao/execucoes/agente-latest.html`.
 
-**Próximo:** Fase 2 — card anexos/upload, encaminhar, chat thread, scripts SCR-EMP/FUNIL/CHAT.
+**Próximo:** manter a suíte Fases 1–5 verde e executar o smoke read-only antes de releases.
+
+---
+
+## 11. Fase 2 — status
+
+| Item | Status |
+|------|--------|
+| UI `UI-NAV-02`, `UI-OMNI-03/04`, `UI-CARD-06/07`, `UI-CHAT-02` | ✅ implementado |
+| Seletores estáveis para contexto, encaminhar, anexos e thread de card | ✅ |
+| Scripts `SCR-EMP-01`, `SCR-FUNIL-01`, `SCR-CHAT-01` | ✅ implementado |
+| Cleanup de funil/card/anexo/chat filtrado por `empresa_id` | ✅ |
+| Runner e relatório unificados Fases 1–2 | ✅ |
+| Três execuções DEV verdes consecutivas | ✅ 26/26 em cada run |
+
+Os scripts mutáveis exigem `TEST_ALLOW_MUTATIONS=1`, credenciais explícitas
+`TEST_EMAIL`/`TEST_PASSWORD` e chave de service role para cleanup. É obrigatório
+fixar `TEST_TENANT_ID`; se a credencial pertencer a outro tenant, o preflight aborta antes
+de qualquer escrita.
+
+---
+
+## 12. Fase 3 — status
+
+| Item | Status |
+|------|--------|
+| UI menções, RBAC, tenant, multi-sessão e drag de card | ✅ implementado |
+| Scripts `SCR-LEAD-01`, `SCR-CANAL-01`, `SCR-RBAC-01` | ✅ implementado |
+| Endpoint inbound valida canal → tenant → funil → etapa e faz rollback | ✅ |
+| Migration `202609071530_phase3_permission_rls.sql` | ✅ aplicada em DEV via MCP |
+| Runner e catálogo Fases 1–3 | ✅ |
+| Três execuções DEV verdes consecutivas | ✅ 34/34 em cada run |
+
+Runs verdes finais: `905b7593-5922-4905-a895-b9ac3806f9c4`,
+`591b085c-8662-4e3d-af1c-237f007209a0` e
+`80ebda2b-784c-4cb0-ac08-2435bf6a82d9`.
+
+---
+
+## 13. Fase 4 — status
+
+| Item | Status |
+|------|--------|
+| Scripts `SCR-RAG-01`, `SCR-SIM-01`, `SCR-WA-01`, `SCR-DASH-01` | ✅ implementados |
+| RAG determinístico com vetor 3072, storage, busca semântica e cleanup | ✅ |
+| Simulador fora de escopo pela UI, com sessão e reasoning auditável | ✅ |
+| Webhook Evolution sintético com IA desligada e sem envio externo | ✅ |
+| Dashboard por deltas de cards, vendas, chats e gargalo | ✅ |
+| UI `UI-DASH-01` e seletores estáveis | ✅ implementados |
+| Migration `202609071900_phase4_knowledge_rbac.sql` | ✅ aplicada em DEV via MCP |
+| Runner, catálogo e módulo Fases 1–4 | ✅ |
+| Três execuções DEV verdes consecutivas | ✅ 39/39 em cada run |
+
+QR escaneado (`SCR-WA-QR`) e áudio WhatsApp real (`SCR-WA-AUDIO`) continuam
+manuais. A bateria obrigatória não cria instância Evolution, não envia mensagens
+externas e não realiza chamadas pagas de IA.
+
+Runs verdes finais: `5e6bc7c2-b927-4e77-9694-256d8757af2f`,
+`0888e776-79ae-4d5c-a3d6-018af0b17725` e
+`6059c3f7-9268-46ec-b9f5-6b02c86c8e29`.
+
+---
+
+## 14. Fase 5 — status
+
+| Item | Status |
+|------|--------|
+| Tela `/cockpit/relatorios` com KPIs, série, heatmap e filtro de departamento | ✅ implementada |
+| UI `UI-BI-01`, `UI-FIN-01`, `UI-OMNI-DEPT`, `UI-BIFROST-01` e `UI-BIFROST-02` | ✅ implementadas |
+| Script `SCR-ANALYTICS-01` com fixture determinística e cleanup exato | ✅ implementado |
+| `test_runs.organization_id` e filtros tenant no runner/API/UI | ✅ migration aplicada em DEV |
+| Helpers analytics internos sem EXECUTE público/anon/authenticated | ✅ migration aplicada em DEV |
+| Filtros de departamento consistentes nas mensagens/KPIs/série/heatmap | ✅ |
+| Operador lê somente a própria associação `usuarios_departamentos` | ✅ migration aplicada em DEV |
+| RPCs analytics exigem `relatorios.view` na mesma matriz da UI | ✅ migration aplicada em DEV |
+| Smoke de produção separado, read-only e protegido por opt-ins | ✅ preparado; não executado |
+| Três execuções DEV verdes consecutivas | ✅ 43/43 em cada run |
+
+### Matriz de isolamento revisada
+
+- Toda operação em tabela que possui tenant usa `empresa_id`, `organization_id`
+  ou `org_id` explicitamente. `pipeline_stages` permanece isolada pelo `pipeline_id`
+  previamente validado no tenant, pois não possui coluna própria de empresa.
+- `TEST_TENANT_ID` é obrigatório em scripts e E2E; credenciais padrão foram removidas.
+- Tenants negativos são criados de forma efêmera; nenhum teste escolhe uma empresa real
+  arbitrária com `neq(...).limit(1)`.
+- Isolamento por departamento pertence somente ao Chat Omnichannel. Funis, leads,
+  cards, chat interno, RAG, dashboard, BI e Financeiro não receberam ACL departamental global.
+- Em Omni, `UI-OMNI-DEPT` comprova que admin do tenant vê as duas sessões e cada
+  operador vê apenas a sessão associada ao próprio departamento.
+
+O smoke de produção exige `TEST_TARGET_ENV=prod`, `TEST_PROD_SMOKE=1`,
+`TEST_PROD_SUPABASE_REF`, HTTPS e credencial canário. Ele aborta na presença de
+service role ou `TEST_ALLOW_MUTATIONS=1` e não executa qualquer escrita.
+
+Runs verdes finais: `276e926f-0ad8-47fb-a58f-68a9ecbdfc90`,
+`e8e0a19a-4339-44e9-83f3-57b0e0f61f66` e
+`fb69121e-6ae5-486c-9927-266a269f7a00`.

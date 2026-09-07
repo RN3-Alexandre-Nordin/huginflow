@@ -181,6 +181,8 @@ export default function BifrostSupportModal({ open, onClose, mode }: Props) {
     <div className="fixed inset-0 z-[220] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
       <div
         role="dialog"
+        data-testid="bifrost-support-modal"
+        data-mode={mode}
         aria-modal="true"
         aria-labelledby="bifrost-support-title"
         className="bg-[#0F0F0F] border border-[#ffffff12] rounded-2xl w-full max-w-3xl h-[min(88vh,720px)] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200"
@@ -199,6 +201,7 @@ export default function BifrostSupportModal({ open, onClose, mode }: Props) {
           </div>
           <button
             type="button"
+            data-testid="bifrost-modal-close"
             onClick={onClose}
             className="p-2 text-gray-500 hover:text-white rounded-lg hover:bg-[#ffffff08]"
             aria-label="Fechar"
@@ -219,7 +222,7 @@ export default function BifrostSupportModal({ open, onClose, mode }: Props) {
 
           {!loading && error && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-6 text-center z-10">
-              <p className="text-sm text-red-400 max-w-md">{error}</p>
+              <p data-testid="bifrost-embed-error" className="text-sm text-red-400 max-w-md">{error}</p>
               <button
                 type="button"
                 onClick={() => void loadEmbed()}
@@ -233,6 +236,7 @@ export default function BifrostSupportModal({ open, onClose, mode }: Props) {
           {!loading && embed?.embedUrl && !success && !error && (
             <iframe
               ref={iframeRef}
+              data-testid="bifrost-embed-frame"
               title={meta.title}
               src={embed.embedUrl}
               className="w-full h-full border-0"

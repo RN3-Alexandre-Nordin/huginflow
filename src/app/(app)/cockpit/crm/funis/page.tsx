@@ -14,7 +14,10 @@ export default async function FunisPage(props: {
 
   if (!hasPermission(me, 'funis', 'view')) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 text-center animate-in fade-in duration-700">
+      <div
+        data-testid="access-denied"
+        className="flex flex-col items-center justify-center py-20 text-center animate-in fade-in duration-700"
+      >
         <div className="w-20 h-20 rounded-full bg-red-500/10 flex items-center justify-center mb-6 border border-red-500/20">
           <Lock className="w-10 h-10 text-red-500" />
         </div>
@@ -124,7 +127,12 @@ export default async function FunisPage(props: {
                  const totalStages = Array.isArray(pipe.pipeline_stages) ? pipe.pipeline_stages.length : 0
 
                  return (
-                    <div key={pipe.id} className="p-6 flex items-center justify-between hover:bg-[#ffffff02] transition-all group border-l-2 border-transparent hover:border-[#2BAADF]">
+                    <div
+                      key={pipe.id}
+                      data-testid="funil-row"
+                      data-pipeline-id={pipe.id}
+                      className="p-6 flex items-center justify-between hover:bg-[#ffffff02] transition-all group border-l-2 border-transparent hover:border-[#2BAADF]"
+                    >
                        <div className="flex-1 min-w-0 pr-4">
                           <div className="flex items-center gap-3">
                              <h3 className="text-base font-bold text-white truncate group-hover:text-[#2BAADF] transition-colors">{pipe.nome}</h3>

@@ -279,12 +279,12 @@ export default function TestesClient({
               disabled={isLive}
               className="mt-1 bg-[#0A0A0A] border border-[#ffffff14] text-white text-sm font-bold rounded-lg px-3 py-2 outline-none focus:border-[#2BAADF]/50 disabled:opacity-50"
             >
-              <option value="agent-dev">Fase 1 — Agente (scripts + UI)</option>
+              <option value="agent-dev">Fases 1–5 — Agente (scripts + UI)</option>
               <option value="e2e-core">Só UI (e2e-core)</option>
             </select>
             <p className="text-xs text-gray-500 mt-1 max-w-sm">
               {suite === 'agent-dev'
-                ? 'SCR-INFRA/AUTH + login, menu, Omni, Funil, hub do card e chat.'
+                ? 'Inclui leads, canais, RBAC, isolamento tenant, menções, multi-sessão e drag de cards.'
                 : 'Apenas Playwright: login, menu, Omni, Funil, hub e chat.'}
             </p>
           </div>
@@ -321,7 +321,7 @@ export default function TestesClient({
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#2BAADF] text-white text-xs font-black uppercase tracking-widest disabled:opacity-40 hover:bg-[#1A8FBF] transition-colors"
             >
               {isLive ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-              Rodar {suite === 'agent-dev' ? 'Fase 1' : 'núcleo'}
+              Rodar {suite === 'agent-dev' ? 'Fases 1–5' : 'núcleo'}
             </button>
           </div>
         </div>

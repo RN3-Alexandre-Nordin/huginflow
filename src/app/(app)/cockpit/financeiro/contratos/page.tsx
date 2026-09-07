@@ -36,7 +36,7 @@ export default async function ContratosPage(props: {
   const statusLabel = Object.fromEntries(CONTRATO_STATUS.map((s) => [s.value, s.label]))
 
   return (
-    <div className="space-y-6 pb-20 font-sans">
+    <div data-testid="contracts-page" className="space-y-6 pb-20 font-sans">
       <div className="flex items-center justify-between flex-wrap gap-4">
         <p className="text-sm text-gray-400">{contratos.length} contrato(s)</p>
         {canCreate && (
@@ -86,7 +86,13 @@ export default async function ContratosPage(props: {
                 {contratos.map((c) => {
                   const badge = CONTRATO_STATUS_COLOR[c.status] ?? CONTRATO_STATUS_COLOR.rascunho
                   return (
-                    <tr key={c.id} className="hover:bg-[#ffffff03]">
+                    <tr
+                      key={c.id}
+                      data-testid="contract-row"
+                      data-contract-id={c.id}
+                      data-organization-id={c.empresa_id}
+                      className="hover:bg-[#ffffff03]"
+                    >
                       {isSuperAdmin && (
                         <td className="px-6 py-4 text-xs text-gray-400">{empresaMap.get(c.empresa_id) ?? "—"}</td>
                       )}

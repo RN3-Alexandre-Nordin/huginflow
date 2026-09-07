@@ -58,4 +58,25 @@ test.describe('Card hub', () => {
     const box = await actions.boundingBox()
     expect(box?.height ?? 999).toBeLessThan(90)
   })
+
+  test('[UI-CARD-06] Tela Anexos exibe área de upload', async ({ page }) => {
+    await openFirstCardHub(page)
+    await hideDevOverlays(page)
+    await page.getByTestId('hub-attachments-ver').click()
+
+    await expect(page.getByTestId('card-attachments-panel')).toBeVisible()
+    await expect(page.getByTestId('card-attachments-upload')).toBeVisible()
+    await expect(page.getByTestId('card-attachments-file-input')).toBeEnabled()
+  })
+
+  test('[UI-CARD-07] Encaminhar exibe Departamento destino', async ({ page }) => {
+    await openFirstCardHub(page)
+    await hideDevOverlays(page)
+    await page.getByTestId('hub-action-encaminhar').click()
+
+    await expect(page.getByTestId('card-redirect-panel')).toBeVisible()
+    await expect(page.getByTestId('card-redirect-mode-department')).toBeVisible()
+    await expect(page.getByTestId('card-redirect-department-select')).toBeVisible()
+    await expect(page.getByTestId('card-redirect-department-select')).toBeEnabled()
+  })
 })

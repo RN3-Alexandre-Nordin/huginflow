@@ -120,6 +120,7 @@ export default function CockpitHelpButton() {
           <button
             type="button"
             role="menuitem"
+            data-testid="help-tickets-menu"
             aria-expanded={chamadosOpen}
             onClick={() => setChamadosOpen((v) => !v)}
             className="flex w-full items-start gap-3 px-3 py-3 rounded-lg text-left hover:bg-[#ffffff08] transition-colors group"
@@ -145,6 +146,7 @@ export default function CockpitHelpButton() {
               <button
                 type="button"
                 role="menuitem"
+                data-testid="help-ticket-open"
                 onClick={() => openBifrost('abrir-chamado')}
                 className="flex w-full items-start gap-2.5 rounded-lg px-2.5 py-2.5 text-left hover:bg-[#ffffff08] transition-colors group"
               >
@@ -161,6 +163,7 @@ export default function CockpitHelpButton() {
               <button
                 type="button"
                 role="menuitem"
+                data-testid="help-ticket-list"
                 onClick={() => openBifrost('meus-chamados')}
                 className="flex w-full items-start gap-2.5 rounded-lg px-2.5 py-2.5 text-left hover:bg-[#ffffff08] transition-colors group"
               >
@@ -209,6 +212,7 @@ export default function CockpitHelpButton() {
     <>
       <button
         ref={buttonRef}
+        data-testid="cockpit-help-button"
         type="button"
         onClick={() => (open ? closeMenu() : openMenu())}
         title="Central de ajuda"

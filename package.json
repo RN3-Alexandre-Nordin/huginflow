@@ -23,7 +23,12 @@
     "test:e2e:core:ui": "playwright test e2e/core --ui",
     "test:e2e:report": "playwright show-report",
     "test:agent:dev": "node scripts/agent/run-agent-dev.mjs",
-    "test:agent:scripts": "node scripts/agent/phase1-scripts.mjs"
+    "test:agent:scripts": "node scripts/agent/run-agent-scripts.mjs",
+    "test:agent:scripts:phase2": "node scripts/agent/phase2-scripts.mjs",
+    "test:agent:scripts:phase3": "node scripts/agent/phase3-scripts.mjs",
+    "test:agent:scripts:phase4": "node scripts/agent/phase4-scripts.mjs",
+    "test:agent:scripts:phase5": "node scripts/agent/phase5-scripts.mjs",
+    "test:agent:prod-smoke": "node scripts/agent/run-agent-prod-smoke.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

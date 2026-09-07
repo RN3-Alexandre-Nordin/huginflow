@@ -1,5 +1,5 @@
 /**
- * Agente DEV Fase 1: scripts SCR-* + Playwright e2e-core → relatório unificado.
+ * Agente DEV Fases 1–5: scripts SCR-* + Playwright e2e-core → relatório unificado.
  *
  * Env: TEST_RUN_ID, TEST_RUN_DIR, TEST_RUN_EVENTS_PATH, TEST_BASE_URL, TEST_HEADED
  *
@@ -165,7 +165,7 @@ function buildHtml(payload) {
 </head>
 <body>
   <div class="wrap">
-    <h1>Relatório do agente de testes (Fase 1)</h1>
+    <h1>Relatório do agente de testes (Fases 1–5)</h1>
     <p class="meta">${escapeHtml(new Date().toLocaleString('pt-BR'))}<br/>
       Ambiente: DEV · Base: ${escapeHtml(payload.baseUrl || '')}<br/>
       Commit: ${escapeHtml(payload.commit || '')} · Duração: ${Math.floor(durationSec / 60)}m ${durationSec % 60}s
@@ -181,7 +181,7 @@ function buildHtml(payload) {
       <thead><tr><th>ID / Área</th><th>Status</th><th>Expectativa e passos</th><th>Tempo</th></tr></thead>
       <tbody>${caseRows}</tbody>
     </table>
-    ${failRows.length ? `<h2>O que quebrou</h2>${failBlocks}` : '<p class="meta">Núcleo Fase 1 verde.</p>'}
+    ${failRows.length ? `<h2>O que quebrou</h2>${failBlocks}` : '<p class="meta">Núcleo Fases 1–5 verde.</p>'}
   </div>
 </body>
 </html>`
@@ -230,12 +230,12 @@ const startedAt = Date.now()
 appendEvent({
   ts: new Date().toISOString(),
   type: 'run_start',
-  message: `Agente DEV Fase 1 · ${baseUrl}`,
+  message: `Agente DEV Fases 1–5 · ${baseUrl}`,
 })
 
 console.log(`\n🚀 Agente DEV · run ${runId}\n   Base: ${baseUrl}\n`)
 
-const scriptCode = await runNode('scripts/agent/phase1-scripts.mjs')
+const scriptCode = await runNode('scripts/agent/run-agent-scripts.mjs')
 appendEvent({
   ts: new Date().toISOString(),
   type: 'log',
@@ -253,8 +253,8 @@ appendEvent({
   skipped: payload.summary.skipped,
   message:
     payload.result === 'PASS'
-      ? 'Fase 1 concluída com sucesso'
-      : `Fase 1 falhou (${payload.summary.failed} caso(s))`,
+      ? 'Fases 1–5 concluídas com sucesso'
+      : `Fases 1–5 falharam (${payload.summary.failed} caso(s))`,
 })
 
 console.log(`\n📄 Relatório: ${resolve(runDir, 'report.html')}`)

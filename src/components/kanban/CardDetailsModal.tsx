@@ -441,12 +441,18 @@ export default function CardDetailsModal({
   }
 
   const renderAttachmentsPanel = () => (
-    <div className="flex-1 min-h-0 flex flex-col gap-3 animate-in fade-in duration-200">
+    <div
+      data-testid="card-attachments-panel"
+      className="flex-1 min-h-0 flex flex-col gap-3 animate-in fade-in duration-200"
+    >
       <p className="text-[11px] text-gray-500 leading-relaxed">
         Anexe boletos, comprovantes e documentos do processo (máx. 5 MB por arquivo).
       </p>
       {canAddAttachments && (
-        <label className="flex items-center justify-center h-20 border border-dashed border-[#ffffff12] rounded-xl cursor-pointer hover:border-violet-500/40 hover:bg-violet-500/5 transition-colors">
+        <label
+          data-testid="card-attachments-upload"
+          className="flex items-center justify-center h-20 border border-dashed border-[#ffffff12] rounded-xl cursor-pointer hover:border-violet-500/40 hover:bg-violet-500/5 transition-colors"
+        >
           {uploading ? (
             <Loader2 className="w-5 h-5 animate-spin text-violet-400" />
           ) : (
@@ -455,7 +461,13 @@ export default function CardDetailsModal({
               Clique para anexar arquivo
             </span>
           )}
-          <input type="file" className="hidden" onChange={handleFileUpload} disabled={uploading} />
+          <input
+            data-testid="card-attachments-file-input"
+            type="file"
+            className="hidden"
+            onChange={handleFileUpload}
+            disabled={uploading}
+          />
         </label>
       )}
       <div className="flex-1 min-h-0 overflow-y-auto space-y-1.5 custom-scrollbar-thin">

@@ -96,6 +96,16 @@ Na **lista**, o usuário navega no iframe (lista → detalhe); o modal **não** 
 
 Ao receber `postMessage` `{ source: "bifrost", type: "chamado-criado", protocolo, message }` (**só no Abrir chamado**) com `event.origin === BIFROST_ORIGIN`, o Hugin mostra confirmação com o protocolo e só fecha no botão **Fechar**.
 
+### Teste automatizado
+
+`UI-BIFROST-01` abre o formulário `/embed/chamados/novo` e a consulta
+`/embed/chamados` pelo iframe SSO HTTPS. O caso valida os dois fluxos sem enviar
+um novo chamado, evitando tickets residuais a cada execução da bateria.
+
+`UI-BIFROST-02` emite o mesmo SSO, mas navega diretamente para
+`https://bifrost.rn3.tec.br`. Assim, formulário e consulta também são validados
+fora do iframe, ainda com usuário, sistema e tenant assinados pelo Hugin.
+
 ## Segurança
 
 - Privada só no server; emissão apenas em `POST /api/bifrost/embed-token`.

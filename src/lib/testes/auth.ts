@@ -24,3 +24,10 @@ export async function requireTestesSuperAdmin() {
 export function isTestRunnerEnabled() {
   return process.env.TEST_RUNNER_ENABLED === 'true' || process.env.TEST_RUNNER_ENABLED === '1'
 }
+
+export function getTestTargetOrganizationId(): string | null {
+  const value = process.env.TEST_TENANT_ID?.trim()
+  return value && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+    ? value
+    : null
+}

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { requireTestesSuperAdmin } from '@/lib/testes/auth'
+import { getTestTargetOrganizationId, requireTestesSuperAdmin } from '@/lib/testes/auth'
 import { cancelPlaywrightRun } from '@/lib/testes/runner'
 
 export const runtime = 'nodejs'
@@ -13,9 +13,13 @@ export async function POST(
   if ('error' in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status })
   }
+  const organizationId = getTestTargetOrganizationId()
+  if (!organizationId) {
+    return NextResponse.json({ error: 'TEST_TENANT_ID ausente ou inválido' }, { status: 503 })
+  }
 
   const { id } = await ctx.params
-  const result = await cancelPlaywrightRun(id)
+  const result = await cancelPlaywrightRun(id, organizationId)
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: 404 })
   }

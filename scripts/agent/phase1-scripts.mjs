@@ -10,6 +10,7 @@ import { config as loadDotenv } from 'dotenv'
 import { existsSync, mkdirSync, writeFileSync } from 'fs'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
+import { assertDevTarget } from './test-env-guard.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const root = resolve(__dirname, '../..')
@@ -29,15 +30,9 @@ const APP_URL = (
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL
 const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-const EMAIL =
-  process.env.TEST_EMAIL ||
-  process.env.MANUAL_EMAIL ||
-  'admin@montesinaiatacado.com.br'
-
-const PASSWORD =
-  process.env.TEST_PASSWORD ||
-  process.env.MANUAL_PASSWORD ||
-  (EMAIL.includes('montesinai') ? 'hugin123@2026' : 'HuginDevTest1!')
+const EMAIL = process.env.TEST_EMAIL || process.env.MANUAL_EMAIL
+const PASSWORD = process.env.TEST_PASSWORD || process.env.MANUAL_PASSWORD
+const EXPECTED_TENANT = process.env.TEST_TENANT_ID
 
 const CATALOG = {
   'SCR-INFRA-01': {
@@ -154,6 +149,15 @@ async function scrAuth01() {
     if (error || !data.session) {
       record('SCR-AUTH-01', 'failed', error?.message || 'sem sessão')
     } else {
+      const { data: profile, error: profileError } = await sb
+        .from('usuarios')
+        .select('id, empresa_id')
+        .eq('auth_user_id', data.user.id)
+        .eq('empresa_id', EXPECTED_TENANT)
+        .single()
+      if (profileError || !profile) {
+        throw new Error(`Perfil fora de TEST_TENANT_ID: ${profileError?.message ?? 'ausente'}`)
+      }
       await sb.auth.signOut()
       record('SCR-AUTH-01', 'passed')
     }
@@ -188,6 +192,12 @@ async function scrAuth02() {
 }
 
 async function main() {
+  const missing = []
+  if (!EMAIL) missing.push('TEST_EMAIL')
+  if (!PASSWORD) missing.push('TEST_PASSWORD')
+  if (!EXPECTED_TENANT) missing.push('TEST_TENANT_ID')
+  if (missing.length) throw new Error(`Preflight Fase 1: ausente ${missing.join(', ')}`)
+  assertDevTarget()
   mkdirSync(runDir, { recursive: true })
   appendEvent({
     ts: new Date().toISOString(),

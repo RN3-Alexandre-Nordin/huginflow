@@ -933,6 +933,7 @@ function ChatOmnichannelInner() {
                 <div 
                   key={chat.sessao_id ?? chat.id}
                   data-testid="omni-conversa-item"
+                  data-session-id={chat.sessao_id ?? chat.id}
                   onClick={() => selectChatManually(chat)}
                   className={`p-3 border-b border-[#ffffff05] cursor-pointer transition-all hover:bg-[#ffffff03] group relative ${selectedChat && conversaMatchesSessao(chat, selectedChat.id) ? 'bg-[#2BAADF]/10' : ''}`}
                 >
@@ -1029,6 +1030,7 @@ function ChatOmnichannelInner() {
                     {canEditCards && selectedChat && (
                       <button
                         type="button"
+                        data-testid="omni-redirect-button"
                         onClick={() => void openRedirectModal()}
                         disabled={redirectLoading}
                         title={`Encaminhar card: ${encaminharCardTitulo}`}
@@ -1046,6 +1048,7 @@ function ChatOmnichannelInner() {
                     )}
                     <button
                       type="button"
+                      data-testid="omni-context-toggle"
                       onClick={() => setContextOpen((v) => !v)}
                       title="Contexto do cliente"
                       className={`p-2.5 rounded-xl transition-all border ${
@@ -1150,8 +1153,10 @@ function ChatOmnichannelInner() {
                   const isDeleted = isOmniMessageDeleted(msg.metadata)
                   const showDelete = canDeleteOmniMessage(msg, profile)
                   return (
-                  <div 
+                  <div
                     key={msg.id}
+                    data-testid="omni-message"
+                    data-message-id={msg.id}
                     id={`omni-msg-${msg.id}`}
                     className={`flex ${msg.role === 'user' ? 'justify-start' : 'justify-end'} animate-in fade-in slide-in-from-bottom-2 duration-300 ${
                       threadSearchOpen && threadSearchNeedle && !isMatch ? 'opacity-35' : ''

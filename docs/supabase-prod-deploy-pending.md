@@ -21,7 +21,10 @@ Comparativo entre projetos:
 
 **Última migration no prod (MCP 2026-09-06):** cutover CRM + Analytics BI + `empresa_webhooks` + `test_runs` + `crm_interacoes` UPDATE RLS (além de finance/AR e `revert_handover_structured`, já presentes).
 
-**Última migration no dev:** alinhada ao pacote acima.
+**Última migration no dev:** `202609072045_phase5_analytics_rbac`.
+
+**Pendente em prod:** Fases 3–5 (`202609071530`, `202609071900`, `202609072000`,
+`202609072030`, `202609072045`). Não aplicar sem backup e smoke read-only preparado.
 
 **Analytics BI (dev ✅, prod ✅ MCP 2026-09-06):** `202609021200` … `202609021204` — índices, colunas SLA, RPCs `fn_analytics_*`
 
@@ -35,6 +38,9 @@ Registrar aqui tudo homologado em **dev** e ainda **não** em produção (além 
 
 | Data | Pacote | Dev | Prod | Doc detalhado | Notas |
 |------|--------|-----|------|---------------|-------|
+| 2026-09-07 | **Fase 5: analytics/test_runs/ACL Omni** | ✅ SQL MCP + validação em andamento | ⏳ aplicar no próximo cutover | Agente testes Fase 5 | `202609072000`, `202609072030`, `202609072045`; tenant obrigatório no runner, helpers fechados, RBAC analytics e associação departamental self-read |
+| 2026-09-07 | **RAG RBAC + source/tenant integrity** | ✅ SQL MCP + 3 baterias verdes | ⏳ aplicar no próximo cutover | Agente testes Fase 4 | `202609071900_phase4_knowledge_rbac.sql` |
+| 2026-09-07 | **RBAC por ação em leads/canais/roteamento** | ✅ SQL MCP + 3 baterias verdes | ⏳ aplicar no próximo cutover | Agente testes Fase 3 | `202609071530_phase3_permission_rls.sql`; cria `check_permission`, remove policy aberta de roteamento e sincroniza RLS com a matriz |
 | 2026-09-03 | **Webhooks de saída** (`empresa_webhooks`) para alarme de canal desconectado | ✅ SQL | ✅ SQL MCP 2026-09-06 · ⏳ código no release | Canais | Migration `202609031700` + unique URL; POST JSON + HMAC `X-HuginFlow-Signature` |
 | 2026-09-03 | **Sessão omnichannel — caminho único** (`SessionPersistenceService`) + heal órfãos DEV | ✅ código + heal DEV | ⏳ código no release · heal opcional | § Sessão única | Sem migration; writers unificados; monitor `scripts/omnichannel/monitor-orphan-sessions.sql` |
 | 2026-09-02 | **Analytics BI — backend MVP** (índices + RPCs relatórios) | ✅ SQL | ✅ SQL MCP 2026-09-06 | § Analytics BI | Migrations `202609021200`–`202609021204`; sem triggers; app front ainda não consome |
@@ -73,7 +79,7 @@ Registrar aqui tudo homologado em **dev** e ainda **não** em produção (além 
 
 > Planejamento: [planejamento-modulo-relatorios-bi.md](./planejamento-modulo-relatorios-bi.md)
 
-**Status:** Dev ✅ · Prod ✅ (MCP 2026-09-06) · Front-end relatórios 📋 (próxima fase)
+**Status:** backend base Dev/Prod ✅ · hardening Fase 5 Dev ✅ / Prod ⏳ · front-end relatórios Dev ✅
 
 | Migration | Conteúdo |
 |-----------|----------|

@@ -14,6 +14,7 @@ import {
   Settings2,
   FolderOpen,
   FlaskConical,
+  BarChart3,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -42,6 +43,12 @@ export const cockpitTopLevelNav: CockpitNavItem[] = [
     href: '/cockpit/crm/chat',
     icon: MessageSquare,
     permissionModule: 'omni_chat',
+  },
+  {
+    name: 'Relatórios',
+    href: '/cockpit/relatorios',
+    icon: BarChart3,
+    permissionModule: 'relatorios',
   },
 ]
 

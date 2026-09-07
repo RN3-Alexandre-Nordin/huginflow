@@ -513,7 +513,10 @@ export default function ChatWindow({
 
       {/* Mention Autocomplete List */}
       {showMentionList && mentionResults.length > 0 && (
-        <div className="absolute bottom-[80px] left-4 right-4 bg-[#141414] border border-[#ffffff15] rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.5)] z-50 overflow-hidden animate-in slide-in-from-bottom-2 duration-200">
+        <div
+          data-testid="chat-mention-list"
+          className="absolute bottom-[80px] left-4 right-4 bg-[#141414] border border-[#ffffff15] rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.5)] z-50 overflow-hidden animate-in slide-in-from-bottom-2 duration-200"
+        >
            <div className="px-3 py-2 border-b border-[#ffffff0a] bg-[#ffffff02] flex items-center justify-between">
               <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest">
                 {mentionTrigger === '#' ? 'Mencionar Card' : 'Mencionar Contato'}
@@ -524,6 +527,9 @@ export default function ChatWindow({
               {mentionResults.map((item, index) => (
                 <button
                   key={`${item.type}-${item.id}`}
+                  data-testid="chat-mention-option"
+                  data-mention-id={item.id}
+                  data-mention-type={item.type}
                   onClick={() => handleSelectMention(item)}
                   onMouseEnter={() => setActiveIndex(index)}
                   className={`w-full px-4 py-3 text-left text-xs flex items-center gap-3 transition-colors group ${
@@ -551,6 +557,7 @@ export default function ChatWindow({
         <div className="relative flex items-center gap-3 bg-[#111] border border-[#ffffff0a] rounded-2xl px-4 py-1.5 focus-within:border-[#2BAADF]/40 focus-within:ring-4 focus-within:ring-[#2BAADF]/5 transition-all">
           <input
             ref={inputRef}
+            data-testid="chat-message-input"
             type="text"
             className="flex-1 bg-transparent border-none outline-none text-[13px] text-white py-3 placeholder:text-gray-600 font-medium"
             placeholder={contextType === 'global' ? "Digite para a equipe (use @ para contatos e # para cards)..." : "Digite uma nota interna sobre este card..."}

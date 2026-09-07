@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { requireTestesSuperAdmin } from '@/lib/testes/auth'
+import { getTestTargetOrganizationId, requireTestesSuperAdmin } from '@/lib/testes/auth'
 import { getActiveRunIds, readEvents, readSummary, reconcileStaleRuns } from '@/lib/testes/runner'
 import { isRunStale } from '@/lib/testes/stale'
 
@@ -14,17 +14,22 @@ export async function GET(
   if ('error' in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status })
   }
+  const organizationId = getTestTargetOrganizationId()
+  if (!organizationId) {
+    return NextResponse.json({ error: 'TEST_TENANT_ID ausente ou inválido' }, { status: 503 })
+  }
 
   const { id } = await ctx.params
   const url = new URL(req.url)
   const after = Number(url.searchParams.get('after') || '0') || 0
 
-  await reconcileStaleRuns()
+  await reconcileStaleRuns(organizationId)
 
   const { data: run, error } = await auth.supabase
     .from('test_runs')
     .select('*')
     .eq('id', id)
+    .eq('organization_id', organizationId)
     .maybeSingle()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

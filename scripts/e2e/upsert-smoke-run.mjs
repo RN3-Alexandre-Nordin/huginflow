@@ -10,8 +10,9 @@ for (const f of ['.env.local', '.env']) {
 const id = process.argv[2] || '1b138173-ee1a-430b-954d-4412c2ce91e1'
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY
-if (!url || !key) {
-  console.error('Missing Supabase URL or service role key')
+const organizationId = process.env.TEST_TENANT_ID
+if (!url || !key || !organizationId) {
+  console.error('Missing Supabase URL, service role key, or TEST_TENANT_ID')
   process.exit(1)
 }
 
@@ -23,10 +24,9 @@ const sb = createClient(url, key, {
   auth: { persistSession: false, autoRefreshToken: false },
 })
 
-const { data, error } = await sb
-  .from('test_runs')
-  .upsert({
+const payload = {
     id,
+    organization_id: organizationId,
     started_at: summary.startedAt,
     finished_at: new Date().toISOString(),
     status: 'passed',
@@ -40,8 +40,27 @@ const { data, error } = await sb
     report_path: resolve('docs/homologacao/execucoes', id, 'report.html'),
     events_path: resolve('docs/homologacao/execucoes', id, 'events.ndjson'),
     summary_json: summary,
-  })
-  .select('id, status, passed, failed')
+}
+
+const existing = await sb
+  .from('test_runs')
+  .select('id')
+  .eq('id', id)
+  .eq('organization_id', organizationId)
+  .maybeSingle()
+if (existing.error) {
+  console.error(existing.error.message)
+  process.exit(1)
+}
+
+const { data, error } = existing.data
+  ? await sb
+      .from('test_runs')
+      .update(payload)
+      .eq('id', id)
+      .eq('organization_id', organizationId)
+      .select('id, status, passed, failed')
+  : await sb.from('test_runs').insert(payload).select('id, status, passed, failed')
 
 console.log(JSON.stringify({ data, error }, null, 2))
 if (error) process.exit(1)
