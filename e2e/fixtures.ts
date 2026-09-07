@@ -1,4 +1,5 @@
 import { test as base, expect, type BrowserContext, type Page } from '@playwright/test'
+import { getBaseUrl } from './helpers/env'
 import { hideDevOverlays } from './helpers/overlays'
 
 type WorkerFixtures = {
@@ -14,6 +15,7 @@ export const test = base.extend<{ page: Page; context: BrowserContext }, WorkerF
   continuousContext: [
     async ({ browser }, use) => {
       const context = await browser.newContext({
+        baseURL: getBaseUrl(),
         locale: 'pt-BR',
         timezoneId: 'America/Sao_Paulo',
       })
@@ -54,7 +56,11 @@ export async function resetUi(page: Page) {
     }
     await modal.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {})
   }
-  if ((await page.getByTestId('chat-panel').getAttribute('data-open').catch(() => null)) === 'true') {
+  const chatPanel = page.getByTestId('chat-panel')
+  if (
+    (await chatPanel.count()) > 0 &&
+    (await chatPanel.getAttribute('data-open', { timeout: 1000 }).catch(() => null)) === 'true'
+  ) {
     await page.locator('.fixed.inset-0').first().click({ force: true }).catch(() => {})
     await page.keyboard.press('Escape').catch(() => {})
   }

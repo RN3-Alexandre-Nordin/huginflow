@@ -29,11 +29,12 @@ export function hasActiveRun() {
 }
 
 /** Runs órfãos no banco (running sem processo) ou muito antigos → error. */
-export async function reconcileStaleRuns() {
+export async function reconcileStaleRuns(organizationId: string) {
   const admin = createAdminClient()
   const { data: rows } = await admin
     .from('test_runs')
     .select('id, status, started_at')
+    .eq('organization_id', organizationId)
     .in('status', ['running', 'queued'])
 
   if (!rows?.length) return
@@ -56,6 +57,7 @@ export async function reconcileStaleRuns() {
           error_message: staleRunMessage(),
         })
         .eq('id', row.id)
+        .eq('organization_id', organizationId)
     }
   }
 }
@@ -80,6 +82,7 @@ export function readSummary(runId: string) {
 
 async function finalizeRun(
   runId: string,
+  organizationId: string,
   status: 'passed' | 'failed' | 'error' | 'cancelled',
   errorMessage?: string,
 ) {
@@ -98,10 +101,14 @@ async function finalizeRun(
     patch.skipped = summary.summary.skipped ?? 0
     patch.summary_json = summary
   }
-  await admin.from('test_runs').update(patch).eq('id', runId)
+  await admin
+    .from('test_runs')
+    .update(patch)
+    .eq('id', runId)
+    .eq('organization_id', organizationId)
 }
 
-export async function cancelPlaywrightRun(runId: string) {
+export async function cancelPlaywrightRun(runId: string, organizationId: string) {
   const active = activeMap().get(runId)
   if (active) {
     try {
@@ -131,6 +138,7 @@ export async function cancelPlaywrightRun(runId: string) {
     .from('test_runs')
     .select('id, status')
     .eq('id', runId)
+    .eq('organization_id', organizationId)
     .maybeSingle()
 
   if (!row) return { ok: false as const, error: 'Run não encontrado' }
@@ -138,7 +146,7 @@ export async function cancelPlaywrightRun(runId: string) {
     return { ok: true as const, alreadyDone: true as const, status: row.status }
   }
 
-  await finalizeRun(runId, 'cancelled', 'Cancelado pelo superadmin')
+  await finalizeRun(runId, organizationId, 'cancelled', 'Cancelado pelo superadmin')
   return { ok: true as const, alreadyDone: false as const, status: 'cancelled' as const }
 }
 
@@ -148,6 +156,7 @@ export async function startPlaywrightCoreRun(opts: {
   baseUrl: string
   commitSha?: string | null
   suite?: string
+  organizationId: string
 }) {
   const dir = runDir(opts.runId)
   mkdirSync(dir, { recursive: true })
@@ -166,8 +175,10 @@ export async function startPlaywrightCoreRun(opts: {
       commit_sha: opts.commitSha ?? null,
       headed: opts.headed,
       suite,
+      organization_id: opts.organizationId,
     })
     .eq('id', opts.runId)
+    .eq('organization_id', opts.organizationId)
 
   const isWin = process.platform === 'win32'
   const useAgent = suite === 'agent-dev'
@@ -210,7 +221,7 @@ export async function startPlaywrightCoreRun(opts: {
   })
 
   child.on('error', (err) => {
-    void finalizeRun(opts.runId, 'error', err.message)
+    void finalizeRun(opts.runId, opts.organizationId, 'error', err.message)
   })
 
   child.on('close', async (code) => {
@@ -221,6 +232,7 @@ export async function startPlaywrightCoreRun(opts: {
         .from('test_runs')
         .select('status')
         .eq('id', opts.runId)
+        .eq('organization_id', opts.organizationId)
         .maybeSingle()
       if (current && !['running', 'queued'].includes(current.status)) {
         return
@@ -231,18 +243,24 @@ export async function startPlaywrightCoreRun(opts: {
 
     const summary = readSummary(opts.runId)
     if (summary?.result === 'PASS') {
-      void finalizeRun(opts.runId, 'passed')
+      void finalizeRun(opts.runId, opts.organizationId, 'passed')
       return
     }
     if (summary?.result === 'FAIL' || code !== 0) {
       void finalizeRun(
         opts.runId,
+        opts.organizationId,
         'failed',
         code !== 0 && !summary ? `Playwright exit ${code}. ${stderrBuf.slice(-500)}` : undefined,
       )
       return
     }
-    void finalizeRun(opts.runId, code === 0 ? 'passed' : 'failed', stderrBuf.slice(-500) || undefined)
+    void finalizeRun(
+      opts.runId,
+      opts.organizationId,
+      code === 0 ? 'passed' : 'failed',
+      stderrBuf.slice(-500) || undefined,
+    )
   })
 
   // Timeout de segurança (20 min)
@@ -254,7 +272,12 @@ export async function startPlaywrightCoreRun(opts: {
     } catch {
       /* ignore */
     }
-    void finalizeRun(opts.runId, 'error', 'Timeout: execução excedeu 20 minutos')
+    void finalizeRun(
+      opts.runId,
+      opts.organizationId,
+      'error',
+      'Timeout: execução excedeu 20 minutos',
+    )
   }, 20 * 60 * 1000)
 
   return { pid: child.pid }

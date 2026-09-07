@@ -7,7 +7,9 @@
 | **Dev** | `vujqukqsfwmoezwyuoum` | [huginflow-dev](https://supabase.com/dashboard/project/vujqukqsfwmoezwyuoum) |
 | **Prod** | `zmypzexefjbovuknjlid` | [huginflow-prod](https://supabase.com/dashboard/project/zmypzexefjbovuknjlid) |
 
-**Última migration no prod:** `revert_handover_structured` (2026-09-02)
+**Última migration no prod:** pacote até `test_runs`/Analytics BI aplicado via MCP em 2026-09-06.
+
+**Última migration no dev:** `202609072045_phase5_analytics_rbac`.
 
 **Gerar bundle SQL consolidado:**
 
@@ -23,6 +25,11 @@ node scripts/supabase/prod-deploy/build-bundle.mjs
 
 | Data | Migration / alteração | Dev | Prod | Arquivo | Notas |
 |------|----------------------|-----|------|---------|-------|
+| 2026-09-07 | `phase5_analytics_rbac` | ✅ | ⏳ | `supabase/migrations/202609072045_phase5_analytics_rbac.sql` | RPCs Analytics exigem `relatorios.view` no backend |
+| 2026-09-07 | `phase5_omni_department_membership` | ✅ | ⏳ | `supabase/migrations/202609072030_phase5_omni_department_membership.sql` | Operador lê somente sua associação departamental same-tenant para ACL Omni |
+| 2026-09-07 | `phase5_isolation_analytics` | ✅ | ⏳ | `supabase/migrations/202609072000_phase5_isolation_analytics.sql` | `test_runs.organization_id`, hardening analytics/finance e filtros de departamento |
+| 2026-09-07 | `phase4_knowledge_rbac` | ✅ | ⏳ | `supabase/migrations/202609071900_phase4_knowledge_rbac.sql` | RAG RBAC, integridade source/tenant e grants |
+| 2026-09-07 | `phase3_permission_rls` | ✅ | ⏳ | `supabase/migrations/202609071530_phase3_permission_rls.sql` | RBAC/RLS leads, canais e roteamento |
 | 2026-09-02 | `revert_handover_structured` | ✅ | ✅ | `supabase/migrations/202609021000_revert_handover_structured.sql` | Remove `crm_handover_config`, `handover_ja_feito`, `handover_pendencias` — resumo IA em `observacao` |
 | 2026-09-01 | `crm_cards_handover_structured` | ↩️ revertido | ↩️ revertido | `supabase/migrations/202609011400_crm_cards_handover_structured.sql` | Substituído por resumo IA |
 | 2026-09-01 | `empresas_crm_handover_config` | ↩️ revertido | ↩️ revertido | `supabase/migrations/202609011200_empresas_crm_handover_config.sql` | Substituído por resumo IA |

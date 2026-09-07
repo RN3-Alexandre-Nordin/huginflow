@@ -374,7 +374,7 @@ async function runSimulatorExchange(
 
 export async function processChat(phone: string, name: string, message: string) {
   const me = await getMyProfile()
-  if (!canAccessSimulador(me)) {
+  if (!canAccessSimulador(me, 'use')) {
     return { error: 'Sem permissão para utilizar o simulador.' }
   }
 
@@ -401,7 +401,7 @@ export async function processChat(phone: string, name: string, message: string) 
 
 export async function processChatAudio(formData: FormData) {
   const me = await getMyProfile()
-  if (!canAccessSimulador(me)) {
+  if (!canAccessSimulador(me, 'use')) {
     return { error: 'Sem permissão para utilizar o simulador.' }
   }
 
@@ -488,7 +488,7 @@ export async function processChatAudio(formData: FormData) {
  */
 export async function processChatDocument(formData: FormData) {
   const me = await getMyProfile()
-  if (!canAccessSimulador(me)) {
+  if (!canAccessSimulador(me, 'use')) {
     return { error: 'Sem permissão para utilizar o simulador.' }
   }
 

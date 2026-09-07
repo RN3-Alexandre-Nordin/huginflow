@@ -139,6 +139,13 @@ export const PERMISSION_CATEGORIES: PermissionCategory[] = [
           { slug: 'delete', label: 'Excluir', icon: Trash2 },
         ]
       },
+      {
+        slug: 'relatorios',
+        label: 'Relatórios e Analytics',
+        actions: [
+          { slug: 'view', label: 'Ver', icon: Eye },
+        ]
+      },
     ]
   },
   {

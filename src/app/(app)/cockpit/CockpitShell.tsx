@@ -170,6 +170,7 @@ export default function CockpitShell({
                   aria-label={sidebarOpen ? 'Recolher menu' : 'Abrir menu'}
                   aria-expanded={sidebarOpen}
                   data-testid="cockpit-sidebar-toggle"
+                  data-sidebar-ready={ready}
                 >
                   {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
                 </button>

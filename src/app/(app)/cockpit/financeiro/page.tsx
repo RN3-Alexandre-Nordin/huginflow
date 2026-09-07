@@ -46,7 +46,7 @@ export default async function FinanceiroPage(props: {
     : "/cockpit/financeiro/contas"
 
   return (
-    <div className="space-y-8 pb-20 font-sans">
+    <div data-testid="finance-page" className="space-y-8 pb-20 font-sans">
       <div className="flex items-center justify-between flex-wrap gap-4">
         <p className="text-sm text-gray-400 font-medium">
           Visão consolidada de recebíveis, vencimentos e baixas.
@@ -101,9 +101,15 @@ export default async function FinanceiroPage(props: {
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        {cards.map((card) => (
+        {cards.map((card, index) => (
           <div
             key={card.label}
+            data-testid={[
+              "finance-kpi-total-open",
+              "finance-kpi-overdue",
+              "finance-kpi-due-seven-days",
+              "finance-kpi-received",
+            ][index]}
             className="bg-[#111111] border border-[#ffffff0a] rounded-2xl p-6 relative overflow-hidden group hover:border-[#ffffff15] transition-all"
           >
             <div

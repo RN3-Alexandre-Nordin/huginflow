@@ -5,16 +5,24 @@ import { getMyProfile } from '@/app/(app)/cockpit/actions'
 import { isRn3SuperAdmin } from '@/utils/permissions'
 import { createClient } from '@/utils/supabase/server'
 import { catalogEntry, humanExpectation, humanPassos } from '@/lib/testes/catalog'
+import { getTestTargetOrganizationId } from '@/lib/testes/auth'
 
 export const dynamic = 'force-dynamic'
 
 export default async function TesteRunPage(props: { params: Promise<{ runId: string }> }) {
   const me = await getMyProfile()
   if (!isRn3SuperAdmin(me)) redirect('/cockpit/acesso-negado')
+  const organizationId = getTestTargetOrganizationId()
+  if (!organizationId) throw new Error('TEST_TENANT_ID ausente ou inválido')
 
   const { runId } = await props.params
   const supabase = await createClient()
-  const { data: run } = await supabase.from('test_runs').select('*').eq('id', runId).maybeSingle()
+  const { data: run } = await supabase
+    .from('test_runs')
+    .select('*')
+    .eq('id', runId)
+    .eq('organization_id', organizationId)
+    .maybeSingle()
   if (!run) notFound()
 
   const cases = (run.summary_json as any)?.cases as

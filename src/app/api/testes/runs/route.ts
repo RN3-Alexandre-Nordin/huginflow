@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server'
 import { execSync } from 'node:child_process'
-import { isTestRunnerEnabled, requireTestesSuperAdmin } from '@/lib/testes/auth'
+import {
+  getTestTargetOrganizationId,
+  isTestRunnerEnabled,
+  requireTestesSuperAdmin,
+} from '@/lib/testes/auth'
 import { hasActiveRun, reconcileStaleRuns, startPlaywrightCoreRun } from '@/lib/testes/runner'
 
 export const runtime = 'nodejs'
@@ -19,14 +23,19 @@ export async function GET() {
   if ('error' in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status })
   }
+  const organizationId = getTestTargetOrganizationId()
+  if (!organizationId) {
+    return NextResponse.json({ error: 'TEST_TENANT_ID ausente ou inválido' }, { status: 503 })
+  }
 
-  await reconcileStaleRuns()
+  await reconcileStaleRuns(organizationId)
 
   const { data, error } = await auth.supabase
     .from('test_runs')
     .select(
       'id, started_at, finished_at, status, suite, headed, base_url, commit_sha, passed, failed, skipped, triggered_by, error_message, created_at',
     )
+    .eq('organization_id', organizationId)
     .order('started_at', { ascending: false })
     .limit(50)
 
@@ -46,6 +55,10 @@ export async function POST(req: Request) {
   if ('error' in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status })
   }
+  const organizationId = getTestTargetOrganizationId()
+  if (!organizationId) {
+    return NextResponse.json({ error: 'TEST_TENANT_ID ausente ou inválido' }, { status: 503 })
+  }
 
   if (!isTestRunnerEnabled()) {
     return NextResponse.json(
@@ -61,7 +74,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Já existe uma execução em andamento.' }, { status: 409 })
   }
 
-  await reconcileStaleRuns()
+  await reconcileStaleRuns(organizationId)
 
   const body = (await req.json().catch(() => ({}))) as { headed?: boolean; suite?: string }
   const headed = Boolean(body.headed)
@@ -85,6 +98,7 @@ export async function POST(req: Request) {
       base_url: baseUrl,
       commit_sha: tryGitSha(),
       triggered_by: auth.me.id,
+      organization_id: organizationId,
     })
     .select('id')
     .single()
@@ -100,6 +114,7 @@ export async function POST(req: Request) {
       baseUrl,
       commitSha: tryGitSha(),
       suite,
+      organizationId,
     })
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Falha ao iniciar Playwright'
@@ -107,6 +122,7 @@ export async function POST(req: Request) {
       .from('test_runs')
       .update({ status: 'error', finished_at: new Date().toISOString(), error_message: msg })
       .eq('id', row.id)
+      .eq('organization_id', organizationId)
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 

@@ -97,7 +97,10 @@ export default function ManagerDashboard({ userName, userId }: { userName: strin
   const variacaoPositiva = variacao == null || variacao >= 0
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
+    <div
+      data-testid="manager-dashboard"
+      className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20"
+    >
       <div className="flex flex-col gap-2">
         <h2 className="text-3xl font-black tracking-tight text-white drop-shadow-sm flex items-center gap-3 italic uppercase text-orange-500">
           Cockpit do Gestor
@@ -111,7 +114,7 @@ export default function ManagerDashboard({ userName, userId }: { userName: strin
       </div>
 
       <div className={`grid gap-4 md:grid-cols-2 lg:grid-cols-4 transition-all ${highlightStats ? 'scale-[1.01]' : ''}`}>
-        <div className="rounded-2xl border border-[#ffffff0a] bg-[#111111] p-5 shadow-sm relative overflow-hidden group hover:border-orange-500/30 transition-colors">
+        <div data-testid="manager-kpi-vendas" className="rounded-2xl border border-[#ffffff0a] bg-[#111111] p-5 shadow-sm relative overflow-hidden group hover:border-orange-500/30 transition-colors">
           <div className="flex items-center justify-between mb-4">
             <div className="w-10 h-10 rounded-xl bg-orange-500/10 flex items-center justify-center text-orange-500">
               <TrendingUp className="w-5 h-5" />
@@ -135,7 +138,7 @@ export default function ManagerDashboard({ userName, userId }: { userName: strin
           )}
         </div>
 
-        <div className="rounded-2xl border border-[#ffffff0a] bg-[#111111] p-5 shadow-sm relative overflow-hidden group hover:border-orange-500/30 transition-colors">
+        <div data-testid="manager-kpi-cards" className="rounded-2xl border border-[#ffffff0a] bg-[#111111] p-5 shadow-sm relative overflow-hidden group hover:border-orange-500/30 transition-colors">
           <div className="flex items-center justify-between mb-4">
             <div className="w-10 h-10 rounded-xl bg-orange-500/10 flex items-center justify-center text-orange-500">
               <Target className="w-5 h-5" />
@@ -150,7 +153,7 @@ export default function ManagerDashboard({ userName, userId }: { userName: strin
           <Link href="/cockpit/crm/funis" className="absolute inset-0 z-10" />
         </div>
 
-        <div className="rounded-2xl border border-[#ffffff0a] bg-[#111111] p-5 shadow-sm relative overflow-hidden group hover:border-orange-500/30 transition-colors">
+        <div data-testid="manager-kpi-chats" className="rounded-2xl border border-[#ffffff0a] bg-[#111111] p-5 shadow-sm relative overflow-hidden group hover:border-orange-500/30 transition-colors">
           <div className="flex items-center justify-between mb-4">
             <div className="w-10 h-10 rounded-xl bg-orange-500/10 flex items-center justify-center text-orange-500">
               <MessageSquare className="w-5 h-5" />
@@ -165,7 +168,7 @@ export default function ManagerDashboard({ userName, userId }: { userName: strin
           <Link href="/cockpit/crm/chat" className="absolute inset-0 z-10" />
         </div>
 
-        <div className="rounded-2xl border border-[#ffffff0a] bg-[#111111] p-5 shadow-sm relative overflow-hidden group hover:border-red-500/30 transition-colors">
+        <div data-testid="manager-kpi-gargalos" className="rounded-2xl border border-[#ffffff0a] bg-[#111111] p-5 shadow-sm relative overflow-hidden group hover:border-red-500/30 transition-colors">
           <div className="flex items-center justify-between mb-4">
             <div className="w-10 h-10 rounded-xl bg-red-500/10 flex items-center justify-center text-red-500">
               <AlertCircle className="w-5 h-5" />
@@ -197,6 +200,7 @@ export default function ManagerDashboard({ userName, userId }: { userName: strin
                 ] as const).map((option) => (
                   <button
                     key={option.id}
+                    data-testid={`manager-period-${option.id}`}
                     type="button"
                     onClick={() => setChartPeriodo(option.id)}
                     className={`px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider rounded-lg transition-all ${
@@ -212,6 +216,7 @@ export default function ManagerDashboard({ userName, userId }: { userName: strin
             </div>
 
             <select
+              data-testid="manager-chart-metric"
               value={chartMetrica}
               onChange={(e) => setChartMetrica(e.target.value as ManagerChartMetric)}
               className="w-full sm:w-auto bg-[#0A0A0A] border border-[#ffffff10] rounded-xl px-4 py-2.5 text-sm text-gray-200 font-semibold focus:outline-none focus:border-orange-500/50 transition-colors cursor-pointer"
@@ -249,6 +254,7 @@ export default function ManagerDashboard({ userName, userId }: { userName: strin
                   return (
                     <div
                       key={`${ponto.label}-${index}`}
+                      data-testid="manager-chart-bar"
                       title={formatChartTooltip(metrica, ponto)}
                       className="flex-1 min-w-[6px] bg-gradient-to-t from-orange-500/10 to-orange-500/40 rounded-t-md transition-all hover:to-orange-500 hover:scale-x-105"
                       style={{ height: `${height}%` }}

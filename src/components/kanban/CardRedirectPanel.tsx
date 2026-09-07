@@ -543,7 +543,10 @@ export default function CardRedirectPanel({
 
   return (
     <>
-      <div className="space-y-4 animate-in fade-in duration-200">
+      <div
+        data-testid="card-redirect-panel"
+        className="space-y-4 animate-in fade-in duration-200"
+      >
         <p className="text-[11px] text-gray-500 leading-relaxed">
           Encaminhe por <strong className="text-gray-400">departamento</strong> (sistema escolhe o
           operador com menor carga) ou por <strong className="text-gray-400">operador</strong>{' '}
@@ -553,6 +556,7 @@ export default function CardRedirectPanel({
         <div className="grid grid-cols-2 gap-2 p-1 rounded-xl bg-[#050505] border border-[#ffffff10]">
           <button
             type="button"
+            data-testid="card-redirect-mode-department"
             onClick={() => handleModeChange('departamento')}
             className={`flex items-center justify-center gap-2 py-2.5 rounded-lg text-xs font-black uppercase tracking-wide transition-colors ${
               mode === 'departamento'
@@ -583,6 +587,7 @@ export default function CardRedirectPanel({
               Departamento destino *
             </label>
             <select
+              data-testid="card-redirect-department-select"
               value={departamentoId}
               onChange={(e) => handleDepartamentoChange(e.target.value)}
               className="w-full bg-[#050505] border border-[#ffffff10] focus:border-orange-500/50 rounded-xl p-3 text-sm text-white outline-none"

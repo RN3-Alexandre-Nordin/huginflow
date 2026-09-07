@@ -39,10 +39,10 @@ export default function CrmHubPage() {
        name: 'Relatórios & Analytics',
        description: 'Monitore as taxas de conversão de estágios, os gargalos de vendas e a meta de faturamento.',
        icon: LineChart,
-       href: '/cockpit/crm/relatorios',
+       href: '/cockpit/relatorios',
        color: '#F97316',
        features: ['Taxa de Conversão', 'Previsão Fatura', 'Velocidade Média'],
-       active: false
+       active: true
     }
   ]
 

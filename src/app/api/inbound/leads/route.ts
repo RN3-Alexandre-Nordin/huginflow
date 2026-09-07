@@ -79,6 +79,7 @@ export async function POST(request: Request) {
     .from('crm_canais_roteamento')
     .select('org_id, pipeline_id, stage_id')
     .eq('canal_id', canal.id)
+    .eq('org_id', canal.empresa_id)
     .single();
 
   if (roteamentoError || !roteamento) {
@@ -94,12 +95,34 @@ export async function POST(request: Request) {
 
   const { org_id, pipeline_id, stage_id } = roteamento;
 
-  // Garantia extra de multi-tenancy: org_id jamais pode ser nulo
-  if (!org_id || !pipeline_id || !stage_id) {
+  // Garantia extra de multi-tenancy: canal, organização, funil e etapa precisam formar
+  // uma cadeia válida no mesmo tenant antes de qualquer escrita com service role.
+  if (!org_id || org_id !== canal.empresa_id || !pipeline_id || !stage_id) {
     console.error(`[inbound/leads] Roteamento incompleto para canal ${canal.id}:`, roteamento);
     return NextResponse.json(
       { error: 'Configuração de destino incompleta. Verifique o roteamento do canal.' },
-      { status: 500 }
+      { status: 404 }
+    );
+  }
+
+  const { data: pipeline } = await supabase
+    .from('pipelines')
+    .select('id')
+    .eq('id', pipeline_id)
+    .eq('empresa_id', canal.empresa_id)
+    .maybeSingle();
+  const { data: stage } = await supabase
+    .from('pipeline_stages')
+    .select('id')
+    .eq('id', stage_id)
+    .eq('pipeline_id', pipeline_id)
+    .maybeSingle();
+
+  if (!pipeline || !stage) {
+    console.error(`[inbound/leads] Destino inválido para canal ${canal.id}.`);
+    return NextResponse.json(
+      { error: 'Configuração de destino do canal inválida.' },
+      { status: 404 }
     );
   }
 
@@ -124,7 +147,7 @@ export async function POST(request: Request) {
   if (leadError || !lead) {
     console.error('[inbound/leads] Erro ao inserir lead:', leadError);
     return NextResponse.json(
-      { error: 'Falha ao registrar o lead.', detail: leadError?.message },
+      { error: 'Falha ao registrar o lead.' },
       { status: 500 }
     );
   }
@@ -154,19 +177,16 @@ export async function POST(request: Request) {
 
   if (cardError || !card) {
     console.error('[inbound/leads] Erro ao inserir card no CRM:', cardError);
-    // Nota: O lead foi criado, mas o card falhou. 
+    const { error: rollbackError } = await supabase
+      .from('crm_leads')
+      .delete()
+      .eq('id', lead.id)
+      .eq('empresa_id', canal.empresa_id);
+    if (rollbackError) {
+      console.error('[inbound/leads] Falha no rollback do lead:', rollbackError);
+    }
     return NextResponse.json(
-      { 
-        error: 'Lead criado, mas falha ao registrar o card no CRM.', 
-        detail: cardError?.message,
-        lead_id: lead.id,
-        debug: {
-          empresa_id: org_id,
-          pipeline_id,
-          stage_id,
-          titulo
-        }
-      },
+      { error: 'Falha ao registrar o lead no fluxo de destino.' },
       { status: 500 }
     );
   }

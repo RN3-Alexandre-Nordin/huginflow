@@ -34,6 +34,15 @@ export async function ensureAuthenticated(page: Page) {
     if (await shell.isVisible().catch(() => false)) return
   }
 
+  const cookies = await page.context().cookies()
+  const hasAuthCookie = cookies.some(
+    (cookie) => cookie.name.startsWith('sb-') && cookie.name.includes('auth-token'),
+  )
+  if (!hasAuthCookie) {
+    await loginAsTestUser(page)
+    return
+  }
+
   await page.goto('/cockpit', { waitUntil: 'domcontentloaded' })
   await hideDevOverlays(page)
 

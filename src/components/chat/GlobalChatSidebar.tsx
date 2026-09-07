@@ -199,6 +199,7 @@ export default function GlobalChatSidebar({ userId, userName, empresaId }: Globa
               <div className="relative group">
                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-600 group-focus-within:text-[#2BAADF] transition-colors" />
                  <input 
+                    data-testid="chat-search"
                     type="text"
                     placeholder="Buscar chats ou cards..."
                     value={searchQuery}
@@ -237,6 +238,9 @@ export default function GlobalChatSidebar({ userId, userName, empresaId }: Globa
                   return (
                     <button 
                       key={`${conv.type}-${conv.id}`}
+                      data-testid="chat-conversation-item"
+                      data-conversation-type={conv.type}
+                      data-conversation-id={conv.id}
                       onClick={() => setActiveChat({ type: conv.type, id: conv.id, name: conv.name })}
                       className={`w-full px-4 flex items-center gap-3 py-4 transition-all relative group border-y border-transparent ${
                         isActive ? 'bg-[#2BAADF]/10 border-[#2BAADF]/10' : 'hover:bg-[#ffffff05]'
@@ -307,7 +311,10 @@ export default function GlobalChatSidebar({ userId, userName, empresaId }: Globa
                         <h4 className="text-base font-black text-white tracking-tight">{activeChat.name}</h4>
                         <div className="flex items-center gap-2">
                            <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                           <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">
+                           <p
+                             data-testid={activeChat.type === 'card' ? 'chat-card-thread' : undefined}
+                             className="text-[10px] text-gray-500 font-bold uppercase tracking-widest"
+                           >
                              {activeChat.type === 'card' ? 'Thread do Card' : 'Ativo Agora'}
                            </p>
                         </div>
@@ -317,6 +324,7 @@ export default function GlobalChatSidebar({ userId, userName, empresaId }: Globa
                   <div className="flex items-center gap-2">
                      {activeChat.type === 'card' && (
                         <button 
+                           data-testid="chat-card-manage"
                            onClick={() => {
                               window.dispatchEvent(new CustomEvent('open-card-modal', { 
                                  detail: { cardId: activeChat.id, tab: 'resumo' } 

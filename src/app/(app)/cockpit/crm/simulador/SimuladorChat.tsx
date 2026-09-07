@@ -440,6 +440,7 @@ export default function SimuladorChat({ initialHistory = [] }: { initialHistory?
             <div className="relative">
               <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
               <input
+                data-testid="simulator-name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 className="w-full bg-[#0A0A0A] border border-[#ffffff10] rounded-xl pl-10 pr-4 py-2 text-sm text-white focus:outline-none focus:border-[#2BAADF] transition-all"
@@ -455,6 +456,7 @@ export default function SimuladorChat({ initialHistory = [] }: { initialHistory?
             <div className="relative">
               <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
               <input
+                data-testid="simulator-phone"
                 value={phone}
                 onChange={(e) => setPhone(formatPhone(e.target.value))}
                 className="w-full bg-[#0A0A0A] border border-[#ffffff10] rounded-xl pl-10 pr-4 py-2 text-sm text-white focus:outline-none focus:border-[#2BAADF] transition-all font-mono"
@@ -510,6 +512,7 @@ export default function SimuladorChat({ initialHistory = [] }: { initialHistory?
 
         <div
           ref={scrollRef}
+          data-testid="simulator-messages"
           className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar-thin bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] bg-fixed"
         >
           {messages.length === 0 && (
@@ -526,6 +529,8 @@ export default function SimuladorChat({ initialHistory = [] }: { initialHistory?
           {messages.map((msg, i) => (
             <div
               key={msg.id || i}
+              data-testid="simulator-message"
+              data-message-role={msg.role}
               className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2 duration-300`}
             >
               <div
@@ -590,7 +595,11 @@ export default function SimuladorChat({ initialHistory = [] }: { initialHistory?
             className="hidden"
             onChange={handleDocumentSelect}
           />
-          <form className="flex items-center gap-2 max-w-5xl mx-auto" onSubmit={handleSend}>
+          <form
+            data-testid="simulator-form"
+            className="flex items-center gap-2 max-w-5xl mx-auto"
+            onSubmit={handleSend}
+          >
             <button
               type="button"
               disabled={isPending || isRecording}
@@ -624,6 +633,7 @@ export default function SimuladorChat({ initialHistory = [] }: { initialHistory?
               </span>
             )}
             <input
+              data-testid="simulator-input"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               disabled={isPending || isRecording}
@@ -631,6 +641,7 @@ export default function SimuladorChat({ initialHistory = [] }: { initialHistory?
               className="flex-1 bg-[#0A0A0A] border border-[#ffffff10] rounded-xl px-6 py-3 text-sm text-white focus:outline-none focus:border-[#2BAADF] transition-all shadow-inner"
             />
             <button
+              data-testid="simulator-send"
               type="submit"
               disabled={!input.trim() || isPending || isRecording}
               className="w-12 h-12 rounded-xl bg-gradient-to-r from-[#2BAADF] to-[#1A8FBF] flex items-center justify-center text-white hover:shadow-[0_4px_20px_rgba(43,170,223,0.4)] transition-all disabled:opacity-50 disabled:grayscale"
