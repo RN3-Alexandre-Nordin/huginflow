@@ -1,13 +1,12 @@
 import { createClient } from "@/utils/supabase/server"
 import Link from "next/link"
-import { Search, Plus, Users, Edit, Trash2, Lock } from "lucide-react"
+import { Search, Plus, Users, MoreHorizontal, Edit, Trash2, Lock } from "lucide-react"
 import BackTextButton from '@/components/BackTextButton'
 import { deleteLead } from "./actions"
 import { getMyProfile } from "@/app/(app)/cockpit/actions"
 import { hasPermission } from "@/utils/permissions"
-import { labelPapel } from "@/lib/pessoas/constants"
 
-export const metadata = { title: "Pessoas | HuginFlow" }
+export const metadata = { title: "Gestão de Leads | HuginFlow CRM" }
 
 export default async function LeadsPage(props: { searchParams: Promise<{ q?: string }> }) {
   const me = await getMyProfile()
@@ -20,7 +19,7 @@ export default async function LeadsPage(props: { searchParams: Promise<{ q?: str
         </div>
         <h2 className="text-3xl font-extrabold text-white mb-2 tracking-tight">Acesso Interditado</h2>
         <p className="text-gray-400 max-w-md mx-auto mb-8 text-lg">
-          Seu grupo de acesso não possui permissão para acessar Pessoas.
+          Seu grupo de acesso não possui permissão para acessar a Base de Leads.
         </p>
         <BackTextButton className="px-6 py-3 bg-[#ffffff05] hover:bg-[#ffffff10] border border-[#ffffff10] rounded-xl text-white font-semibold transition-all">
           Voltar ao Início
@@ -55,10 +54,10 @@ export default async function LeadsPage(props: { searchParams: Promise<{ q?: str
   return (
     <div className="space-y-6 pb-20 font-sans">
       <div className="flex items-center justify-between gap-4">
-        <p className="text-sm text-gray-400 font-medium">Cadastro mestre com papéis (lead, cliente, fornecedor…).</p>
+        <p className="text-sm text-gray-400 font-medium">Gerencie, pesquise e enriqueça os contatos do funil.</p>
         {canCreate && (
           <Link href="/cockpit/crm/leads/novo" className="bg-gradient-to-r from-[#2BAADF] to-[#1A8FBF] hover:shadow-[0_4px_24px_rgba(43,170,223,0.35)] text-white px-5 py-2.5 rounded-lg text-sm font-semibold inline-flex items-center gap-2 transition-all shrink-0">
-            <Plus className="w-4 h-4" /> Nova pessoa
+            <Plus className="w-4 h-4" /> Novo Lead
           </Link>
         )}
       </div>
@@ -84,13 +83,13 @@ export default async function LeadsPage(props: { searchParams: Promise<{ q?: str
          {leads?.length === 0 ? (
             <div className="py-24 text-center">
                <Users className="w-16 h-16 text-gray-700 mx-auto mb-6 opacity-20" />
-               <p className="text-white font-bold text-xl">{q ? 'Nenhuma pessoa encontrada com esse termo.' : 'Nenhuma pessoa cadastrada ainda.'}</p>
+               <p className="text-white font-bold text-xl">{q ? 'Nenhum lead encontrado com esse termo.' : 'Sua base de Leads está vazia.'}</p>
                <p className="text-gray-500 text-sm mt-2 max-w-sm mx-auto font-medium">
-                 {q ? 'Tente utilizar termos mais genéricos para sua busca.' : 'Cadastre pessoas manualmente ou via integração.'}
+                 {q ? 'Tente utilizar termos mais genéricos para sua busca.' : 'Acrescente leads manualmente ou via integração para iniciar a gestão.'}
                </p>
                {canCreate && !q && (
                  <Link href="/cockpit/crm/leads/novo" className="mt-8 inline-flex items-center gap-2 text-[#2BAADF] hover:text-white font-semibold transition-colors">
-                   Cadastrar primeira pessoa <Plus className="w-4 h-4" />
+                   Crie seu primeiro lead agora <Plus className="w-4 h-4" />
                  </Link>
                )}
             </div>
@@ -99,38 +98,21 @@ export default async function LeadsPage(props: { searchParams: Promise<{ q?: str
                <table className="w-full text-left text-sm text-gray-300">
                   <thead className="bg-[#ffffff02] border-b border-[#ffffff0a] text-gray-500 uppercase text-[10px] tracking-widest font-bold">
                      <tr>
-                        <th className="px-6 py-5">Nome & Contato</th>
-                        <th className="px-6 py-5">Papéis</th>
+                        <th className="px-6 py-5">Nome & Contato Base</th>
                         <th className="px-6 py-5">Empresa / Cargo</th>
-                        <th className="px-6 py-5">Canal</th>
-                        <th className="px-6 py-5">Inclusão</th>
-                        <th className="px-6 py-5 text-right">Ações</th>
+                        <th className="px-6 py-5">Canal de Origem</th>
+                        <th className="px-6 py-5">Data Inclusão</th>
+                        <th className="px-6 py-5 text-right">Manutenção</th>
                      </tr>
                   </thead>
                   <tbody className="divide-y divide-[#ffffff0a]">
-                     {leads?.map((lead) => {
-                        const papeis: string[] = Array.isArray(lead.papeis) && lead.papeis.length
-                          ? lead.papeis
-                          : ['lead']
-                        return (
+                     {leads?.map((lead) => (
                         <tr key={lead.id} className="hover:bg-[#ffffff03] transition-all group border-l-2 border-transparent hover:border-[#2BAADF]">
                            <td className="px-6 py-5 whitespace-nowrap">
                               <div className="font-bold text-white text-[15px] group-hover:text-[#2BAADF] transition-colors">{lead.nome}</div>
                               <div className="text-[11px] text-gray-500 flex gap-3 mt-1 font-medium">
                                  {lead.whatsapp && <span className="flex items-center gap-1.5"><b className="text-[#2BAADF] opacity-70">WHATS:</b> {lead.whatsapp}</span>}
                                  {lead.email && <span className="flex items-center gap-1.5"><b className="text-gray-500 opacity-70">EMAIL:</b> {lead.email}</span>}
-                              </div>
-                           </td>
-                           <td className="px-6 py-5">
-                              <div className="flex flex-wrap gap-1.5 max-w-[220px]">
-                                {papeis.map((p) => (
-                                  <span
-                                    key={p}
-                                    className="px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wider rounded-md bg-[#80B828]/10 text-[#80B828] border border-[#80B828]/25"
-                                  >
-                                    {labelPapel(p)}
-                                  </span>
-                                ))}
                               </div>
                            </td>
                            <td className="px-6 py-5 whitespace-nowrap text-xs">
@@ -155,7 +137,7 @@ export default async function LeadsPage(props: { searchParams: Promise<{ q?: str
                                   <Link 
                                     href={`/cockpit/crm/leads/${lead.id}/editar`}
                                     className="p-2.5 text-gray-400 hover:text-white bg-[#ffffff05] hover:bg-[#ffffff10] rounded-xl transition-all border border-transparent hover:border-[#ffffff10]"
-                                    title="Editar pessoa"
+                                    title="Editar Lead"
                                   >
                                     <Edit className="w-4.5 h-4.5" />
                                   </Link>
@@ -165,7 +147,7 @@ export default async function LeadsPage(props: { searchParams: Promise<{ q?: str
                                     <input type="hidden" name="id" value={lead.id} />
                                     <button 
                                       type="submit"
-                                      title="Excluir pessoa"
+                                      title="Excluir Lead"
                                       className="p-2.5 text-red-500/60 hover:text-red-400 bg-red-400/5 hover:bg-red-400/10 rounded-xl transition-all border border-transparent hover:border-red-400/20"
                                     >
                                       <Trash2 className="w-4.5 h-4.5" />
@@ -175,7 +157,7 @@ export default async function LeadsPage(props: { searchParams: Promise<{ q?: str
                               </div>
                            </td>
                         </tr>
-                     )})}
+                     ))}
                   </tbody>
                </table>
             </div>

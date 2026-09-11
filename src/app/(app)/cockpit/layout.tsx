@@ -1,7 +1,6 @@
 import { getMyProfile } from "@/app/(app)/cockpit/actions";
 import Providers from "@/components/Providers";
 import { buildCockpitNavPermissions } from "@/utils/cockpit-nav-permissions";
-import { getEmpresaAddons } from "@/lib/addons/entitlements";
 import CockpitShell from "./CockpitShell";
 
 export default async function CockpitLayout({
@@ -21,11 +20,6 @@ export default async function CockpitLayout({
     .substring(0, 2)
     .toUpperCase();
 
-  const empresaAddons =
-    me?.empresa_id && me.role_global !== "superadmin"
-      ? await getEmpresaAddons(me.empresa_id)
-      : null;
-
   return (
     <Providers>
       <CockpitShell
@@ -39,7 +33,6 @@ export default async function CockpitLayout({
           me?.role_global === "superadmin" || me?.role_global === "admin"
         }
         navPermissions={buildCockpitNavPermissions(me)}
-        empresaAddons={empresaAddons}
         empresaId={me?.empresa_id ?? undefined}
       >
         {children}

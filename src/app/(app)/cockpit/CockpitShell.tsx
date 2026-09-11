@@ -29,7 +29,6 @@ type Props = {
   isSuperAdmin: boolean
   isAdminOrSuperAdmin: boolean
   navPermissions?: CockpitNavPermissions
-  empresaAddons?: Record<string, boolean> | null
   empresaId?: string
 }
 
@@ -47,7 +46,6 @@ export default function CockpitShell({
   isSuperAdmin,
   isAdminOrSuperAdmin,
   navPermissions = {},
-  empresaAddons = null,
   empresaId,
 }: Props) {
   const pathname = usePathname()
@@ -137,7 +135,6 @@ export default function CockpitShell({
                 isSuperAdmin={isSuperAdmin}
                 isAdminOrSuperAdmin={isAdminOrSuperAdmin}
                 navPermissions={navPermissions}
-                empresaAddons={empresaAddons}
                 disabled={mustChangePassword}
                 onNavigate={() => {
                   if (!isDesktopViewport()) closeSidebar()

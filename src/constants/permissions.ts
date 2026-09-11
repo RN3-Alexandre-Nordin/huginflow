@@ -83,27 +83,7 @@ export const PERMISSION_CATEGORIES: PermissionCategory[] = [
       },
       {
         slug: 'leads',
-        label: 'Pessoas',
-        actions: [
-          { slug: 'view', label: 'Ver', icon: Eye },
-          { slug: 'create', label: 'Criar', icon: Plus },
-          { slug: 'edit', label: 'Editar', icon: Pencil },
-          { slug: 'delete', label: 'Excluir', icon: Trash2 },
-        ]
-      },
-      {
-        slug: 'skus',
-        label: 'SKUs (produtos/serviços)',
-        actions: [
-          { slug: 'view', label: 'Ver', icon: Eye },
-          { slug: 'create', label: 'Criar', icon: Plus },
-          { slug: 'edit', label: 'Editar', icon: Pencil },
-          { slug: 'delete', label: 'Excluir', icon: Trash2 },
-        ]
-      },
-      {
-        slug: 'ativos',
-        label: 'Ativos (patrimônio)',
+        label: 'Base de Leads',
         actions: [
           { slug: 'view', label: 'Ver', icon: Eye },
           { slug: 'create', label: 'Criar', icon: Plus },

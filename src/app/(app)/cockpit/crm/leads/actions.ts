@@ -7,7 +7,6 @@ import { hasPermission } from '@/utils/permissions'
 import { getMyProfile } from '@/app/(app)/cockpit/actions'
 import { linkLeadToCard } from '@/lib/crm/resolveLead'
 import { buildKanbanCardUrl } from '@/lib/kanban/kanban-deep-link'
-import { pessoaPayloadFromForm } from '@/lib/pessoas/constants'
 
 export type QuickLeadOption = {
   id: string
@@ -54,8 +53,6 @@ export async function createQuickLead(input: {
       whatsapp,
       email,
       empresa_id: empresaId,
-      papeis: ['lead'],
-      natureza: 'pf',
     }])
     .select('id, nome, telefone, whatsapp')
     .single()
@@ -79,34 +76,35 @@ export async function createQuickLead(input: {
 export async function createLead(formData: FormData) {
   const me = await getMyProfile()
   if (!hasPermission(me, 'leads', 'create')) {
-    return { error: 'Sem permissão para criar pessoas.' }
+    return { error: 'Sem permissão para criar leads.' }
   }
 
-  const payload = pessoaPayloadFromForm(formData)
-  if (!payload.nome) return { error: 'Informe o nome.' }
-
+  const nome = formData.get('nome') as string
+  const telefone = formData.get('telefone') as string || null
+  const whatsapp = formData.get('whatsapp') as string || null
+  const email = formData.get('email') as string || null
+  const documento = formData.get('documento') as string || null
+  const cargo = formData.get('cargo') as string || null
+  const empresa_cliente = formData.get('empresa_cliente') as string || null
+  const canal_idInput = formData.get('canal_id') as string
+  const canal_id = canal_idInput ? canal_idInput : null
   const linkCardId = (formData.get('link_card_id') as string) || null
+  
   const supabase = await createClient()
-  const empresaId =
-    me?.role_global === 'superadmin'
-      ? ((formData.get('empresa_id') as string) || me?.empresa_id || '')
-      : me?.empresa_id ?? ''
+  const empresaId = me?.role_global === 'superadmin' ? formData.get('empresa_id') as string : me?.empresa_id ?? ''
 
-  if (!empresaId) return { error: 'Empresa não identificada.' }
-
-  if (linkCardId && !payload.telefone && !payload.whatsapp) {
+  if (linkCardId && !telefone?.trim() && !whatsapp?.trim()) {
     return { error: 'Informe WhatsApp ou telefone para contato via WhatsApp.' }
   }
 
-  const { data: newLead, error } = await supabase
-    .from('crm_leads')
-    .insert([{ ...payload, empresa_id: empresaId, updated_at: new Date().toISOString() }])
-    .select('id')
-    .single()
+  const { data: newLead, error } = await supabase.from('crm_leads').insert([{
+    nome, telefone, whatsapp, email, documento, cargo, empresa_cliente, canal_id, 
+    empresa_id: empresaId
+  }]).select('id').single()
 
   if (error) return { error: error.message }
 
-  if (linkCardId && newLead?.id) {
+  if (linkCardId && newLead?.id && empresaId) {
     await linkLeadToCard(supabase, linkCardId, empresaId, newLead.id)
     const { data: card } = await supabase
       .from('crm_cards')
@@ -121,7 +119,7 @@ export async function createLead(formData: FormData) {
     }
     redirect('/cockpit/crm/funis')
   }
-
+  
   revalidatePath('/cockpit/crm/leads')
   redirect('/cockpit/crm/leads')
 }
@@ -129,26 +127,33 @@ export async function createLead(formData: FormData) {
 export async function updateLead(id: string, formData: FormData) {
   const me = await getMyProfile()
   if (!hasPermission(me, 'leads', 'edit')) {
-    return { error: 'Sem permissão para editar pessoas.' }
+    return { error: 'Sem permissão para editar leads.' }
   }
 
-  const payload = pessoaPayloadFromForm(formData)
-  if (!payload.nome) return { error: 'Informe o nome.' }
-
+  const nome = formData.get('nome') as string
+  const telefone = formData.get('telefone') as string || null
+  const whatsapp = formData.get('whatsapp') as string || null
+  const email = formData.get('email') as string || null
+  const documento = formData.get('documento') as string || null
+  const cargo = formData.get('cargo') as string || null
+  const empresa_cliente = formData.get('empresa_cliente') as string || null
+  const canal_idInput = formData.get('canal_id') as string
+  const canal_id = canal_idInput ? canal_idInput : null
+  
   const supabase = await createClient()
 
-  let query = supabase
-    .from('crm_leads')
-    .update({ ...payload, updated_at: new Date().toISOString() })
-    .eq('id', id)
+  let query = supabase.from('crm_leads').update({
+    nome, telefone, whatsapp, email, documento, cargo, empresa_cliente, canal_id
+  }).eq('id', id)
 
   if (me?.role_global !== 'superadmin') {
     query = query.eq('empresa_id', me?.empresa_id ?? '')
   }
 
   const { error } = await query
-  if (error) return { error: error.message }
 
+  if (error) return { error: error.message }
+  
   revalidatePath('/cockpit/crm/leads')
   redirect('/cockpit/crm/leads')
 }
@@ -156,13 +161,13 @@ export async function updateLead(id: string, formData: FormData) {
 export async function deleteLead(formData: FormData) {
   const me = await getMyProfile()
   if (!hasPermission(me, 'leads', 'delete')) {
-    console.error('Ação negada: Sem permissão para excluir pessoas.')
-    return
+    console.error('Ação negada: Sem permissão para excluir leads.');
+    return;
   }
 
   const id = formData.get('id') as string
   const supabase = await createClient()
-
+  
   let query = supabase.from('crm_leads').delete().eq('id', id)
   if (me?.role_global !== 'superadmin') {
     query = query.eq('empresa_id', me?.empresa_id ?? '')
@@ -170,10 +175,11 @@ export async function deleteLead(formData: FormData) {
 
   const { error } = await query
   if (error) {
-    console.error('Erro ao excluir pessoa:', error.message)
-    return
+    console.error('Erro ao excluir lead:', error.message);
+    return;
   }
 
+  // Cleanup revalidations
   revalidatePath('/cockpit/crm/leads')
   redirect('/cockpit/crm/leads')
 }

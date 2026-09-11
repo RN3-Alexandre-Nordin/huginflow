@@ -1,16 +1,11 @@
 import { createClient } from "@/utils/supabase/server"
-import { createAdminClient } from "@/utils/supabase/admin"
 import { notFound } from "next/navigation"
-import { Building2 } from "lucide-react"
+import {
+  Building2, User, Phone, Mail, Globe, MapPin, Briefcase
+} from "lucide-react"
 import BackButton from '@/components/BackButton'
 import StatusToggle from "../StatusToggle"
 import EditForm from "./EditForm"
-import EmpresaAddonsSection from "./EmpresaAddonsSection"
-import { getMyProfile } from "@/lib/auth/getMyProfile"
-import {
-  ensureEmpresaAddonRows,
-  getEmpresaAddonLines,
-} from "@/lib/addons/entitlements"
 
 export default async function EditarEmpresaPage({
   params,
@@ -19,9 +14,6 @@ export default async function EditarEmpresaPage({
 }) {
   const { id } = await params
   const supabase = await createClient()
-  const me = await getMyProfile()
-  const canEditAddons = me?.role_global === 'superadmin'
-  const admin = canEditAddons ? createAdminClient() : null
 
   const { data: empresa, error } = await supabase
     .from("empresas")
@@ -30,13 +22,6 @@ export default async function EditarEmpresaPage({
     .single()
 
   if (error || !empresa) notFound()
-
-  // SKU novo no registry aparece na ficha sem deploy de React (ensure + list dinâmico)
-  if (admin) {
-    await ensureEmpresaAddonRows(id, admin, me?.id ?? null)
-  }
-
-  const addonLines = await getEmpresaAddonLines(id, admin ?? undefined)
 
   return (
     <div className="max-w-3xl mx-auto space-y-6 pb-10">
@@ -58,12 +43,6 @@ export default async function EditarEmpresaPage({
 
       {/* Toggle de status — sempre visível no topo */}
       <StatusToggle empresa={empresa} />
-
-      <EmpresaAddonsSection
-        empresaId={empresa.id}
-        lines={addonLines}
-        canEdit={canEditAddons}
-      />
 
       {/* Formulário de edição pré-preenchido */}
       <EditForm empresa={empresa} />

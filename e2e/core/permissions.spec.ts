@@ -14,7 +14,6 @@ test.describe('Permissões', () => {
         password: fixture.password,
       })
       await expect(page.getByTestId('nav-funis')).toHaveCount(0)
-      await expect(page.getByTestId('hub-card-funis')).toHaveCount(0)
 
       await page.goto('/cockpit/crm/funis', { waitUntil: 'domcontentloaded' })
       await expect(page.getByTestId('access-denied')).toBeVisible()

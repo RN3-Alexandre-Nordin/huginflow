@@ -33,6 +33,5 @@ Deploy prod preferido: `node scripts/supabase/prod-deploy/apply-bundle.mjs` com 
 ## Regras
 
 - `apply_migration` e DDL destrutivo → preferir **dev**
-- **Prod:** aplicar migration/DDL **somente** com pedido explícito do responsável (combinado 2026-09-11). Sem pedido: só documentar em `docs/MIGRACAO-SUPABASE.md` / `docs/supabase-prod-deploy-pending.md`
 - Não commitar PAT nem senha Postgres
 - Troubleshooting completo: `docs/mcp-supabase-cursor.md`
