@@ -18,7 +18,7 @@ export async function createEmpresa(formData: FormData) {
   }
 
   const supabaseAdmin = createAdminClient()
-  const { error } = await supabaseAdmin
+  const { data: created, error } = await supabaseAdmin
     .from('empresas')
     .insert([{
       nome: formData.get('nome') as string,
@@ -45,10 +45,20 @@ export async function createEmpresa(formData: FormData) {
       ativo: true,
       status: 'active',
     }])
+    .select('id')
+    .single()
 
-  if (error) {
+  if (error || !created?.id) {
     console.error("Erro ao criar empresa", error)
-    return { error: error.message }
+    return { error: error?.message ?? 'Falha ao criar empresa.' }
+  }
+
+  try {
+    const { ensureEmpresaAddonRows } = await import('@/lib/addons/entitlements')
+    await ensureEmpresaAddonRows(created.id, supabaseAdmin, me.id)
+  } catch (seedError) {
+    console.error('Erro ao seedar empresa_addons', seedError)
+    return { error: 'Empresa criada, mas falhou o seed de addons. Contate o suporte RN3.' }
   }
 
   revalidatePath('/cockpit/empresas')

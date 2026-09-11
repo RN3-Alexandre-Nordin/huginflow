@@ -2,6 +2,7 @@ import { notFound, redirect } from 'next/navigation'
 import CardConsultaView from '@/components/crm/CardConsultaView'
 import { getCardConsultaContext } from '@/app/(app)/cockpit/crm/card-consulta-actions'
 import { sanitizeReturnTo } from '@/lib/navigation/goBack'
+import { requireEmpresaAddons } from '@/lib/addons/require-addon'
 
 export const metadata = { title: 'Consulta de Card | HuginFlow CRM' }
 
@@ -9,6 +10,8 @@ export default async function CardConsultaPage(props: {
   params: Promise<{ id: string }>
   searchParams: Promise<{ returnTo?: string }>
 }) {
+  await requireEmpresaAddons({ any: ['workflow', 'omni'] })
+
   const params = await props.params
   const searchParams = await props.searchParams
   const returnTo = sanitizeReturnTo(searchParams.returnTo) ?? '/cockpit/crm/chat'

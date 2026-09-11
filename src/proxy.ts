@@ -25,6 +25,7 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith('/api/health') ||       // Diagnóstico omnichannel (sem auth)
     pathname.startsWith('/api/inbound') ||      // Inbound leads public API (sem auth)
     pathname.startsWith('/api/bifrost/jwks') || // JWKS público para Bifrost validar JWT
+    pathname.startsWith('/api/v1/') ||          // API interna addons (Bearer HUGIN_ADDONS_INTERNAL_SECRET)
     pathname.startsWith('/favicon') ||          // favicon
     /\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|woff|woff2|ttf|map)$/.test(pathname)
   ) {

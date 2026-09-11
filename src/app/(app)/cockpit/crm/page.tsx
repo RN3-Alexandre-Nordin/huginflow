@@ -1,8 +1,25 @@
 export const metadata = { title: "CRM Hub | HuginFlow CRM" }
 import Link from 'next/link'
 import { LayoutTemplate, Inbox, Share2, LineChart, MoveRight } from 'lucide-react'
+import { getMyProfile } from '@/lib/auth/getMyProfile'
+import { getEmpresaAddons } from '@/lib/addons/entitlements'
+import PlatformEmptyState from '../_components/PlatformEmptyState'
 
-export default function CrmHubPage() {
+export default async function CrmHubPage() {
+  const me = await getMyProfile()
+  const isSuperAdmin = me?.role_global === 'superadmin'
+  const addons =
+    me?.empresa_id && !isSuperAdmin
+      ? await getEmpresaAddons(me.empresa_id)
+      : null
+
+  const hasWorkflow = isSuperAdmin || Boolean(addons?.workflow)
+  const hasOmni = isSuperAdmin || Boolean(addons?.omni)
+
+  if (!isSuperAdmin && !hasWorkflow && !hasOmni) {
+    return <PlatformEmptyState />
+  }
+
   const modules = [
     {
        id: 'funis',
@@ -12,7 +29,7 @@ export default function CrmHubPage() {
        href: '/cockpit/crm/funis',
        color: '#2BAADF',
        features: ['Múltiplos Pipelines', 'Cards Kanbans', 'Controle Acesso'],
-       active: true
+       active: hasWorkflow,
     },
     {
        id: 'leads',
@@ -22,7 +39,7 @@ export default function CrmHubPage() {
        href: '/cockpit/crm/leads',
        color: '#80B828',
        features: ['Inbox Unificado', 'Histórico Vendas', 'WhatsApp'],
-       active: true
+       active: hasWorkflow || hasOmni,
     },
     {
        id: 'canais',
@@ -32,7 +49,7 @@ export default function CrmHubPage() {
        href: '/cockpit/configuracoes/canais',
        color: '#9333EA',
        features: ['Webhooks', 'Instagram', 'Indicações'],
-       active: true
+       active: hasOmni,
     },
     {
        id: 'relatorios',
@@ -42,7 +59,7 @@ export default function CrmHubPage() {
        href: '/cockpit/relatorios',
        color: '#F97316',
        features: ['Taxa de Conversão', 'Previsão Fatura', 'Velocidade Média'],
-       active: true
+       active: true,
     }
   ]
 
@@ -80,7 +97,9 @@ export default function CrmHubPage() {
                {/* Badge Em Construção */}
                {!mod.active && (
                   <div className="absolute top-6 right-6">
-                     <span className="text-[10px] font-bold uppercase tracking-wider text-orange-500 bg-orange-500/10 border border-orange-500/20 px-3 py-1 rounded-full">Em Breve</span>
+                     <span className="text-[10px] font-bold uppercase tracking-wider text-orange-500 bg-orange-500/10 border border-orange-500/20 px-3 py-1 rounded-full">
+                       {mod.id === 'relatorios' ? 'Em Breve' : 'Addon off'}
+                     </span>
                   </div>
                )}
 

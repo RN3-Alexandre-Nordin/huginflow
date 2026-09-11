@@ -7,9 +7,10 @@
 | **Dev** | `vujqukqsfwmoezwyuoum` | [huginflow-dev](https://supabase.com/dashboard/project/vujqukqsfwmoezwyuoum) |
 | **Prod** | `zmypzexefjbovuknjlid` | [huginflow-prod](https://supabase.com/dashboard/project/zmypzexefjbovuknjlid) |
 
-**Última migration no prod:** pacote até `test_runs`/Analytics BI aplicado via MCP em 2026-09-06.
+**Última migration no prod (intencional):** pacote até `test_runs`/Analytics BI via MCP em 2026-09-06.  
+**Gate prod (combinado 2026-09-11):** aplicar SQL/código em produção **somente** com pedido explícito do responsável. Até lá: documentar e homologar em DEV.
 
-**Última migration no dev:** `202609072045_phase5_analytics_rbac`.
+**Última migration no dev:** `202609111900_cad_ativos_departamento_cc`.
 
 **Gerar bundle SQL consolidado:**
 
@@ -25,6 +26,14 @@ node scripts/supabase/prod-deploy/build-bundle.mjs
 
 | Data | Migration / alteração | Dev | Prod | Arquivo | Notas |
 |------|----------------------|-----|------|---------|-------|
+| 2026-09-11 | Rollback SQL precoce Cadastros | — | ✅ desfeito | MCP `rollback_premature_cadastros_wave_parcial` | Removeu `addon_registry`/`empresa_addons` + colunas Pessoas; limpou `schema_migrations` das duas entries precoces |
+| 2026-09-11 | `cad_ativos_departamento_cc` | ✅ | ⏳ | `supabase/migrations/202609111900_cad_ativos_departamento_cc.sql` | CC = `departamento_id`; drop `centro_custo` texto. Locais estoque **fora** (addon `estoque`) |
+| 2026-09-11 | `cad_ativos_patrimonio` | ✅ | ⏳ | `supabase/migrations/202609111800_cad_ativos_patrimonio.sql` | `cad_ativos` + stub fórmulas; greenfield já com `departamento_id` |
+| 2026-09-11 | `cad_skus_reforma_fiscal` | ✅ | ⏳ | `supabase/migrations/202609111700_cad_skus_reforma_fiscal.sql` | IBS/CBS/IS + NBS |
+| 2026-09-11 | `cad_sku_conversao_generica` | ✅ | ⏳ | `supabase/migrations/202609111600_cad_sku_conversao_generica.sql` | `sku_id` nullable |
+| 2026-09-11 | `cad_skus_mestre_unidades_depara` | ✅ | ⏳ | `supabase/migrations/202609111500_cad_skus_mestre_unidades_depara.sql` | SKU + UM + de-para |
+| 2026-09-11 | `crm_leads_pessoas_campos` | ✅ | ⏳ | `supabase/migrations/202609111400_crm_leads_pessoas_campos.sql` | Homologar DEV; cutover só com pedido explícito |
+| 2026-09-11 | `plataforma_addon_entitlements` | ✅ | ⏳ | `supabase/migrations/202609111200_plataforma_addon_entitlements.sql` | Homologar DEV; cutover só com pedido explícito |
 | 2026-09-07 | `phase5_analytics_rbac` | ✅ | ⏳ | `supabase/migrations/202609072045_phase5_analytics_rbac.sql` | RPCs Analytics exigem `relatorios.view` no backend |
 | 2026-09-07 | `phase5_omni_department_membership` | ✅ | ⏳ | `supabase/migrations/202609072030_phase5_omni_department_membership.sql` | Operador lê somente sua associação departamental same-tenant para ACL Omni |
 | 2026-09-07 | `phase5_isolation_analytics` | ✅ | ⏳ | `supabase/migrations/202609072000_phase5_isolation_analytics.sql` | `test_runs.organization_id`, hardening analytics/finance e filtros de departamento |
@@ -92,6 +101,24 @@ Aplicar após o pacote finance (ou em cutover CRM dedicado). Detalhes: [supabase
 Código associado (sem SQL): documentos WhatsApp, ensurer, kanban data/hora, notify responsável — ver changelog em [supabase-prod-deploy-pending.md](./supabase-prod-deploy-pending.md).
 
 **Roteiro de homologação:** [homologacao/script-teste-pacote-crm-ago-2026.md](./homologacao/script-teste-pacote-crm-ago-2026.md)
+
+### Pacote Cadastros / entitlements (set/2026) — **NÃO aplicar até homologação DEV**
+
+Detalhes e decisões: [supabase-prod-deploy-pending.md](./supabase-prod-deploy-pending.md) § Pacote Cadastros · [plataforma-entitlements-decisoes.md](./plataforma-entitlements-decisoes.md) §9.
+
+| # | ID | Arquivo | Prod |
+|---|-----|---------|------|
+| C1 | `plataforma_addon_entitlements` | `supabase/migrations/202609111200_plataforma_addon_entitlements.sql` | ⏳ |
+| C2 | `crm_leads_pessoas_campos` | `supabase/migrations/202609111400_crm_leads_pessoas_campos.sql` | ⏳ |
+| C3 | `cad_skus_mestre_unidades_depara` | `supabase/migrations/202609111500_cad_skus_mestre_unidades_depara.sql` | ⏳ |
+| C4 | `cad_sku_conversao_generica` | `supabase/migrations/202609111600_cad_sku_conversao_generica.sql` | ⏳ |
+| C5 | `cad_skus_reforma_fiscal` | `supabase/migrations/202609111700_cad_skus_reforma_fiscal.sql` | ⏳ |
+| C6 | `cad_ativos_patrimonio` | `supabase/migrations/202609111800_cad_ativos_patrimonio.sql` | ⏳ |
+| C7 | `cad_ativos_departamento_cc` | `supabase/migrations/202609111900_cad_ativos_departamento_cc.sql` | ⏳ |
+
+**Gate:** bateria DEV verde + **pedido explícito** do responsável. **Fora deste pacote:** `cad_locais_estoque` / `local_padrao_id` (addon `estoque`).
+
+> Em 2026-09-11 houve apply precoce de C1/C2 em prod; foi **revertido** no mesmo dia (`rollback_premature_cadastros_wave_parcial`). Prod voltou ao baseline pré-onda Cadastros.
 
 ---
 

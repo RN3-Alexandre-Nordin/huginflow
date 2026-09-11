@@ -4,6 +4,8 @@ import { redirect } from "next/navigation"
 import ManagerDashboard from "./_components/ManagerDashboard"
 import OperatorDashboard from "./_components/OperatorDashboard"
 import SuperAdminDashboard from "./_components/SuperAdminDashboard"
+import PlatformEmptyState from "./_components/PlatformEmptyState"
+import { getEmpresaAddons } from "@/lib/addons/entitlements"
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -17,7 +19,7 @@ export default async function DashboardPage() {
   // 2. Fetch User Profile & Role from DB
   const { data: profile } = await supabase
     .from("usuarios")
-    .select("id, role_global, nome_completo")
+    .select("id, role_global, nome_completo, empresa_id, empresas(nome)")
     .eq("auth_user_id", user.id)
     .single()
 
@@ -34,6 +36,18 @@ export default async function DashboardPage() {
   const role = profile.role_global
   const firstName = profile.nome_completo?.split(" ")[0] || "Equipe"
   const userId = profile.id || ""
+
+  if (role !== "superadmin" && profile.empresa_id) {
+    const addons = await getEmpresaAddons(profile.empresa_id)
+    const hasOps = Boolean(addons.workflow || addons.omni)
+    if (!hasOps) {
+      const empresaRel = profile.empresas as { nome?: string } | { nome?: string }[] | null
+      const empresaNome = Array.isArray(empresaRel)
+        ? empresaRel[0]?.nome
+        : empresaRel?.nome
+      return <PlatformEmptyState empresaNome={empresaNome} />
+    }
+  }
 
   // 3. Server-Side Rendering Switcher Based on Role
   switch (role) {
