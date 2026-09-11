@@ -1,34 +1,23 @@
 {
   "ambiente": "DEV",
   "baseUrl": "https://huginflow-local.rn3.tec.br",
-  "commit": "7bac1e4",
-  "startedAt": "2026-09-07T21:02:57.782Z",
+  "commit": "6878d16",
+  "startedAt": "2026-09-08T18:07:18.645Z",
   "durationSec": 25,
   "result": "PASS",
   "summary": {
-    "passed": 2,
+    "passed": 1,
     "failed": 0,
     "skipped": 0,
-    "total": 2
+    "total": 1
   },
   "cases": [
     {
-      "id": "UI-BIFROST-01",
-      "title": "[UI-BIFROST-01] Abrir e consultar chamados pelo embed SSO",
-      "area": "Suporte / Bifrost",
-      "expectation": "[UI-BIFROST-01] O usuário abre o formulário e consulta seus chamados pelo embed SSO.",
-      "passos": "Abre Central de ajuda → Chamados, valida formulário de novo chamado, fecha e valida a lista Meus chamados no iframe HTTPS.",
+      "id": "UI-OMNI-DEPT-SEND",
+      "title": "[UI-OMNI-DEPT-SEND] Operador envia no próprio departamento sem acessar credenciais do canal",
+      "expectation": "[UI-OMNI-DEPT-SEND] Operador envia no próprio departamento sem acessar credenciais do canal",
       "status": "passed",
-      "durationMs": 15217
-    },
-    {
-      "id": "UI-BIFROST-02",
-      "title": "[UI-BIFROST-02] Acesso direto abre formulário e consulta no domínio Bifrost",
-      "area": "Suporte / Bifrost",
-      "expectation": "[UI-BIFROST-02] O SSO permite acessar diretamente o formulário e a consulta no domínio Bifrost.",
-      "passos": "Emite um JWT curto para cada destino, navega diretamente em bifrost.rn3.tec.br e valida o formulário e a tela Meus chamados.",
-      "status": "passed",
-      "durationMs": 7781
+      "durationMs": 23028
     }
   ]
 }

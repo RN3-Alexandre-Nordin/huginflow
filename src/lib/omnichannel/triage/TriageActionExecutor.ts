@@ -326,6 +326,7 @@ export class TriageActionExecutor {
       console.error('[TriageAction] Falha ao atualizar sessão para human:', error)
       await ConversaHistoricoService.updateLatestSessaoStatus(
         input.sessaoId,
+        input.empresaId,
         {
           status: 'human',
           atribuido_a_id: responsavelId,

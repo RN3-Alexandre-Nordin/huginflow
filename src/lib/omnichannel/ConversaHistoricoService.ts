@@ -154,6 +154,7 @@ export class ConversaHistoricoService {
 
   static async updateLatestSessaoStatus(
     sessaoId: string,
+    empresaId: string,
     patch: Record<string, unknown>,
     supabase: SupabaseClient,
   ): Promise<void> {
@@ -161,6 +162,7 @@ export class ConversaHistoricoService {
       .from('crm_conversas')
       .select('id')
       .eq('sessao_id', sessaoId)
+      .eq('empresa_id', empresaId)
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle()
@@ -174,6 +176,7 @@ export class ConversaHistoricoService {
       .from('crm_conversas')
       .update({ ...patch, updated_at: new Date().toISOString() })
       .eq('id', latest.id)
+      .eq('empresa_id', empresaId)
 
     if (error) {
       console.error('[ConversaHistorico] Erro ao atualizar status da sessão:', error)

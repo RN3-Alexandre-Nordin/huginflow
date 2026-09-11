@@ -70,29 +70,31 @@ export class SessionPersistenceService {
   static async persistMessage(
     supabase: SupabaseClient,
     input: PersistMessageInput,
+    options?: { validationClient?: SupabaseClient },
   ): Promise<PersistMessageResult> {
     const empresaId = input.empresaId
     const canalId = input.canalId
     const externalId = normalizeWhatsAppPhone(input.externalId) || input.externalId
+    const validationClient = options?.validationClient ?? supabase
 
     if (!empresaId || !canalId || !externalId) {
       return { success: false, error: 'empresaId, canalId e externalId são obrigatórios.' }
     }
 
-    const canalOk = await this.assertCanalEmpresa(supabase, canalId, empresaId)
+    const canalOk = await this.assertCanalEmpresa(validationClient, canalId, empresaId)
     if (!canalOk) return { success: false, error: 'Canal não pertence à empresa.' }
 
     if (input.leadId) {
-      const leadOk = await this.assertLeadEmpresa(supabase, input.leadId, empresaId)
+      const leadOk = await this.assertLeadEmpresa(validationClient, input.leadId, empresaId)
       if (!leadOk) return { success: false, error: 'Lead não pertence à empresa.' }
     }
 
     if (input.cardId) {
-      const cardOk = await this.assertCardEmpresa(supabase, input.cardId, empresaId)
+      const cardOk = await this.assertCardEmpresa(validationClient, input.cardId, empresaId)
       if (!cardOk) return { success: false, error: 'Card não pertence à empresa.' }
     }
 
-    const departamentoId = await this.resolveDepartamentoId(supabase, {
+    const departamentoId = await this.resolveDepartamentoId(validationClient, {
       empresaId,
       canalId,
       externalId,
@@ -104,11 +106,11 @@ export class SessionPersistenceService {
 
     let pipelineId = input.pipelineId ?? null
     if (!pipelineId && input.cardId) {
-      pipelineId = await this.pipelineIdFromCard(supabase, input.cardId, empresaId)
+      pipelineId = await this.pipelineIdFromCard(validationClient, input.cardId, empresaId)
     }
 
     if (input.sessaoId) {
-      const owned = await this.assertSessaoEmpresa(supabase, input.sessaoId, empresaId)
+      const owned = await this.assertSessaoEmpresa(validationClient, input.sessaoId, empresaId)
       if (!owned) {
         return { success: false, error: 'Sessão não pertence à empresa.' }
       }
@@ -123,7 +125,11 @@ export class SessionPersistenceService {
         supabase,
       )
       if (latest?.sessao_id && latest.status !== 'closed') {
-        const owned = await this.assertSessaoEmpresa(supabase, latest.sessao_id, empresaId)
+        const owned = await this.assertSessaoEmpresa(
+          validationClient,
+          latest.sessao_id,
+          empresaId,
+        )
         if (owned) provisionalSessao = latest.sessao_id
       }
     }

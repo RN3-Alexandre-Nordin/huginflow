@@ -14,7 +14,9 @@ Subir para o GitHub (necessário para produção):
 
 - HTML: `docs/treinamento-operadores.html`
 - Servido no app: `/api/ajuda/treinamento-operadores` (menu **?** → Treinamento do operador)
-- Rev. **set/2026** — alinhado ao changelog em `docs/supabase-prod-deploy-pending.md`
+- Rev. **set/2026** — inclui Chat Omnichannel atualizado (isolamento por
+  departamento, contexto, card, encaminhamento, pesquisa, arquivos/emojis e
+  exclusão permitida) e chamados Bifrost pelo menu de ajuda.
 
 ## Prints automáticos (recomendado)
 

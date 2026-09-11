@@ -10,6 +10,7 @@ import { isOmniMessageDeleted, markOmniMetadataDeleted } from '@/lib/omnichannel
 import { ActiveSpeakerService } from '@/lib/omnichannel/ChatThreadService'
 import { canConsultCard, isTenantAdmin } from '@/lib/crm/cardConsultaAccess'
 import { getUserDepartamentoIds } from '@/lib/crm/userDepartamentos'
+import { canAccessOmniSession } from '@/lib/omnichannel/OmniSessionAccess'
 
 /** Uma entrada por thread (última mensagem de cada sessao_id). */
 function dedupeSessoes<T extends { sessao_id: string; created_at?: string; updated_at?: string }>(
@@ -55,122 +56,7 @@ async function operadorPodeAcessarSessao(
   sessaoId: string,
   conversa?: { atribuido_a_id?: string | null; status?: string | null } | null,
 ): Promise<boolean> {
-  if (me.role_global !== 'operador') return true
-  if (!me.empresa_id) return false
-
-  if (conversa?.atribuido_a_id === me.id) return true
-
-  const userDeptIds = await getUserDepartamentoIds(supabase, me.id, me.grupo_id)
-
-  const { data: thread } = await supabase
-    .from('crm_chat_threads')
-    .select('card_id, departamento_id, pipeline_id, empresa_id')
-    .eq('id', sessaoId)
-    .eq('empresa_id', me.empresa_id)
-    .maybeSingle()
-
-  if (thread && thread.empresa_id !== me.empresa_id) return false
-
-  // Com isolamento por depto: dono da thread = departamento/funil da thread (não o card atual).
-  if (isDeptSessionsEnabled() && thread) {
-    if (thread.departamento_id) {
-      return userDeptIds.includes(thread.departamento_id)
-    }
-
-    if (thread.pipeline_id) {
-      if (!me.grupo_id) return false
-      const { data: threadPipeAccess } = await supabase
-        .from('pipeline_grupo_acesso')
-        .select('pipeline_id')
-        .eq('grupo_id', me.grupo_id)
-        .eq('pipeline_id', thread.pipeline_id)
-        .maybeSingle()
-      return Boolean(threadPipeAccess)
-    }
-    // Thread sem depto/funil → cai no fallback de card (legado)
-  } else {
-    if (thread?.departamento_id && userDeptIds.includes(thread.departamento_id)) {
-      return true
-    }
-
-    if (thread?.pipeline_id && me.grupo_id) {
-      const { data: threadPipeAccess } = await supabase
-        .from('pipeline_grupo_acesso')
-        .select('pipeline_id')
-        .eq('grupo_id', me.grupo_id)
-        .eq('pipeline_id', thread.pipeline_id)
-        .maybeSingle()
-      if (threadPipeAccess) return true
-    }
-  }
-
-  const cardIds = new Set<string>()
-
-  const { data: cardsByConversa } = await supabase
-    .from('crm_cards')
-    .select('id, responsavel_id, pipeline_id, pipelines(departamento_id), empresa_id')
-    .eq('conversa_id', sessaoId)
-    .eq('empresa_id', me.empresa_id)
-
-  for (const c of cardsByConversa ?? []) {
-    if (c.empresa_id === me.empresa_id) cardIds.add(c.id)
-  }
-
-  // Fallback legado: só chega aqui se a thread não tem departamento/funil
-  // (com dept sessions + depto/funil na thread já retornamos acima).
-  if (thread?.card_id) {
-    cardIds.add(thread.card_id)
-  }
-
-  if (cardIds.size === 0) return false
-
-  let cards = (cardsByConversa ?? []).filter((c) => c.empresa_id === me.empresa_id)
-  const missingIds = [...cardIds].filter((id) => !cards.some((c) => c.id === id))
-  if (missingIds.length > 0) {
-    const { data: extra } = await supabase
-      .from('crm_cards')
-      .select('id, responsavel_id, pipeline_id, pipelines(departamento_id), empresa_id')
-      .in('id', missingIds)
-      .eq('empresa_id', me.empresa_id)
-    cards = [...cards, ...((extra ?? []).filter((c) => c.empresa_id === me.empresa_id))]
-  }
-
-  const pipelineIds = [...new Set(cards.map((c) => c.pipeline_id).filter(Boolean))]
-
-  let grupoPipelineIds = new Set<string>()
-  if (me.grupo_id && pipelineIds.length > 0) {
-    const { data: pga } = await supabase
-      .from('pipeline_grupo_acesso')
-      .select('pipeline_id')
-      .eq('grupo_id', me.grupo_id)
-      .in('pipeline_id', pipelineIds)
-    grupoPipelineIds = new Set((pga ?? []).map((r) => r.pipeline_id))
-  }
-
-  for (const card of cards) {
-    if (card.empresa_id !== me.empresa_id) continue
-
-    const deptId =
-      firstRelation(
-        (card as { pipelines?: { departamento_id?: string | null } | { departamento_id?: string | null }[] | null })
-          .pipelines,
-      )?.departamento_id ?? null
-
-    if (
-      canConsultCard(me, userDeptIds, {
-        responsavel_id: card.responsavel_id,
-        departamento_id: deptId,
-      })
-    ) {
-      return true
-    }
-
-    if (card.pipeline_id && grupoPipelineIds.has(card.pipeline_id)) {
-      return true
-    }
-  }
-
-  return false
+  return canAccessOmniSession(supabase, me, sessaoId, conversa)
 }
 
 export async function getOmniConversas() {
@@ -1175,10 +1061,6 @@ function normalizeContextCard(
   const stage = firstRelation(row.pipeline_stages)
   const departamento = firstRelation(pipeline?.departamentos ?? null)
   const departamentoId = pipeline?.departamento_id ?? departamento?.id ?? null
-  const accessOpts = {
-    responsavel_id: row.responsavel_id,
-    departamento_id: departamentoId,
-  }
 
   return {
     id: row.id,
@@ -1327,7 +1209,7 @@ export async function getOmniCustomerContext(sessaoId: string, cardIdHint?: stri
     }).crm_leads,
   )
 
-  let leadId = conversa.lead_id ?? sessionCardRow?.lead_id ?? leadFromConversa?.id ?? null
+  const leadId = conversa.lead_id ?? sessionCardRow?.lead_id ?? leadFromConversa?.id ?? null
 
   let leadRecord: OmniCustomerContextLead | null = null
 

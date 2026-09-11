@@ -222,7 +222,20 @@ export async function createMultiSessionFixture() {
   }
 
   const cleanup: Cleanup = async () => {
-    await removeExact(admin, 'crm_conversas', 'empresa_id', me.empresa_id, ids.conversations)
+    const interactions = await admin
+      .from('crm_interacoes')
+      .delete()
+      .eq('empresa_id', me.empresa_id)
+      .in('conversa_id', ids.sessions)
+    if (interactions.error) throw new Error(`cleanup crm_interacoes: ${interactions.error.message}`)
+    const conversations = await admin
+      .from('crm_conversas')
+      .delete()
+      .eq('empresa_id', me.empresa_id)
+      .in('sessao_id', ids.sessions)
+    if (conversations.error) {
+      throw new Error(`cleanup crm_conversas: ${conversations.error.message}`)
+    }
     await removeExact(admin, 'crm_chat_threads', 'empresa_id', me.empresa_id, ids.sessions)
     await removeExact(admin, 'crm_cards', 'empresa_id', me.empresa_id, ids.cards)
     await removeExact(admin, 'pipelines', 'empresa_id', me.empresa_id, ids.pipelines)
@@ -362,9 +375,22 @@ export async function createMultiSessionFixture() {
 
     return {
       leadName,
+      channelId: ids.channel,
       sessionIds: ids.sessions,
       departmentIds: ids.departments,
       messages,
+      configureMockProvider: async (apiUrl: string) => {
+        const { error } = await admin
+          .from('crm_canais')
+          .update({
+            provider: 'evolution',
+            provider_token: `phase3-mock-${suffix}`,
+            settings: { apiUrl, instanceName: `phase3-${suffix}` },
+          })
+          .eq('id', ids.channel)
+          .eq('empresa_id', me.empresa_id)
+        if (error) throw error
+      },
       cleanup,
     }
   } catch (error) {
@@ -462,6 +488,32 @@ export async function createOmniDepartmentIsolationFixture() {
       leadName: multi.leadName,
       sessionIds: multi.sessionIds,
       messages: multi.messages,
+      departmentIds: multi.departmentIds,
+      configureMockProvider: multi.configureMockProvider,
+      reassignSessionDepartment: async (sessionId: string, departmentId: string) => {
+        const thread = await admin
+          .from('crm_chat_threads')
+          .update({ departamento_id: departmentId, updated_at: new Date().toISOString() })
+          .eq('id', sessionId)
+          .eq('empresa_id', me.empresa_id)
+        if (thread.error) throw thread.error
+        const conversation = await admin
+          .from('crm_conversas')
+          .update({ atribuido_a_id: null, updated_at: new Date().toISOString() })
+          .eq('sessao_id', sessionId)
+          .eq('empresa_id', me.empresa_id)
+        if (conversation.error) throw conversation.error
+      },
+      countOutboundMessages: async (sessionId: string, content: string) => {
+        const { count, error } = await admin
+          .from('crm_interacoes')
+          .select('id', { count: 'exact', head: true })
+          .eq('empresa_id', me.empresa_id)
+          .eq('conversa_id', sessionId)
+          .eq('content', content)
+        if (error) throw error
+        return count ?? 0
+      },
       operators: users.map(({ email, password }) => ({ email, password })),
       cleanup,
     }

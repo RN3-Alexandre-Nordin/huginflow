@@ -94,13 +94,15 @@
         <a href="#senha">Alterar senha</a>
         <a href="#navegacao">Navegação no Cockpit</a>
         <a href="#navegacao-menu">6.1 Menu hambúrguer</a>
+        <a href="#navegacao-chamados">6.2 Abrir e acompanhar chamados</a>
         <div class="section-label">Canal de entrada</div>
         <a href="#whatsapp">Chat Omnichannel (WhatsApp)</a>
         <a href="#whatsapp-assumir">Assumir conversa da IA</a>
         <a href="#whatsapp-contexto">7.3 Painel contexto do cliente</a>
         <a href="#whatsapp-multi-sessao">7.4 Várias conversas do mesmo lead</a>
         <a href="#whatsapp-encaminhar">7.5 Encaminhar pelo chat</a>
-        <a href="#whatsapp-documentos">7.6 Documentos no WhatsApp</a>
+        <a href="#whatsapp-documentos">7.6 Arquivos no WhatsApp</a>
+        <a href="#whatsapp-pesquisa">7.7 Pesquisar na conversa</a>
         <a href="#whatsapp-boas-praticas">Boas práticas no WhatsApp</a>
         <div class="section-label">Equipe</div>
         <a href="#interno">Chat interno — visão geral</a>
@@ -127,7 +129,7 @@
         <div class="section-label">Treinamento ao vivo</div>
         <a href="#aula-90">Roteiro da aula (1h30)</a>
         <a href="#checklist">Checklist do operador</a>
-        <div class="section-label">Exercícios (27)</div>
+        <div class="section-label">Exercícios (28)</div>
         <a href="#sobre">Ex. 1 — Orientação</a>
         <a href="#login">Ex. 4–5 — Login e senha</a>
         <a href="#whatsapp">Ex. 7–9 — WhatsApp</a>
@@ -162,7 +164,7 @@
         <li><strong>Chat interno</strong> — coordenação entre colegas sobre o processo, <em>sem</em> expor nada ao cliente</li>
       </ul>
       <p>Este guia <strong>não substitui</strong> o manual completo da plataforma (ícone <strong>?</strong> → <em>Manual do sistema</em>), mas foca no que você precisa para <strong>operar workflows</strong> no dia a dia.</p>
-      <p>Atualização <strong>set/2026</strong> — pacote CRM: contexto no chat, sessões por departamento, modal do card com observações editáveis, <strong>anexos no hub</strong> (clipe + lista), ações em uma linha (Encaminhar · WhatsApp · Editar · Chat), encaminhamento com resumo IA, documentos WhatsApp e alertas de canal. Referência técnica: <code>docs/supabase-prod-deploy-pending.md</code> e roteiro de homologação em <code>docs/homologacao/script-teste-pacote-crm-ago-2026.md</code>.</p>
+      <p>Atualização <strong>set/2026</strong> — pacote CRM: contexto no chat, sessões isoladas por departamento, pesquisa dentro da conversa, acesso direto ao card, envio de arquivos e emojis, exclusão de mensagem enviada quando permitida, modal do card com anexos, encaminhamento com resumo IA e <strong>abertura/consulta de chamados no Bifrost</strong>. Referência técnica: <code>docs/supabase-prod-deploy-pending.md</code>.</p>
 
       <div class="exercise">
         <p class="exercise-title">Exercício 1 — Orientação inicial</p>
@@ -363,7 +365,7 @@
 
       <div class="card-grid">
         <div class="card"><strong>Botão flutuante (canto inferior direito)</strong>Abre o painel de <strong>chat interno</strong> da equipe, em qualquer tela.</div>
-        <div class="card"><strong>Ícone ? (topo)</strong>Abre o menu de ajuda: <strong>Manual do sistema</strong> ou <strong>Treinamento do operador</strong>.</div>
+        <div class="card"><strong>Ícone ? (topo)</strong>Abre o manual, o treinamento e a área <strong>Chamados</strong> integrada ao Bifrost.</div>
         <div class="card"><strong>Encerrar Sessão (topo)</strong>Sai da conta com segurança. Use ao fim do expediente.</div>
         <div class="card"><strong>Seu nome (rodapé do menu)</strong>Acesso a <strong>Alterar senha</strong>.</div>
       </div>
@@ -390,16 +392,50 @@
         <ol>
           <li>Clique em <strong>Cockpit</strong>, depois em <strong>Chat Omnichannel</strong>, depois em <strong>Funis</strong> — observe o item ativo ficar destacado em azul.</li>
           <li>Teste o <strong>menu hambúrguer</strong>: recolha o menu, abra o chat e expanda de novo.</li>
-          <li>No topo, clique no ícone <strong>?</strong> e confirme que aparecem as opções <em>Manual do sistema</em> e <em>Treinamento do operador</em>.</li>
+          <li>No topo, clique no ícone <strong>?</strong> e confirme que aparecem <em>Chamados</em>, <em>Manual do sistema</em> e <em>Treinamento do operador</em>.</li>
           <li>Abra o botão flutuante azul (canto inferior direito) e feche sem enviar mensagem — só para memorizar onde fica.</li>
           <li>Clique no seu nome no rodapé do menu e localize <strong>Alterar senha</strong>.</li>
         </ol>
         <p class="exercise-done"><strong>Concluiu quando:</strong> localizar em menos de 10 segundos: menu WhatsApp, funil, ajuda (?) e chat interno.</p>
       </div>
 
+      <h3 id="navegacao-chamados">6.2 Abrir e acompanhar chamados de suporte</h3>
+      <p>Use a integração com o <strong>Bifrost</strong> para registrar erro, dúvida ou melhoria para a equipe de suporte. O formulário e a consulta abrem dentro do Hugin Flow, já identificando seu usuário, empresa e sistema.</p>
+      <div class="procedure">
+        <p class="procedure-title"><span>?</span> Abrir um novo chamado</p>
+        <ol class="steps">
+          <li>No topo do Cockpit, clique no ícone <strong>?</strong>.</li>
+          <li>Abra <strong>Chamados</strong> e escolha <strong>Abrir chamado</strong>.</li>
+          <li>Informe um <strong>título objetivo</strong>, descreva o ocorrido e selecione categoria e prioridade.</li>
+          <li>Quando possível, anexe print ou documento que ajude a reproduzir o problema.</li>
+          <li>Clique em <strong>Abrir chamado</strong> e guarde o <strong>protocolo</strong> exibido na confirmação.</li>
+        </ol>
+      </div>
+      <div class="procedure">
+        <p class="procedure-title"><span>✓</span> Consultar andamento</p>
+        <ol class="steps">
+          <li>Ícone <strong>?</strong> → <strong>Chamados</strong> → <strong>Meus chamados</strong>.</li>
+          <li>Consulte protocolo, assunto e status; abra uma linha para ver detalhes e comentários.</li>
+          <li>Feche a janela pelo <strong>X</strong> para voltar ao ponto em que estava no Cockpit.</li>
+        </ol>
+      </div>
+      <div class="alert info">
+        <strong>Segurança:</strong> não copie o endereço temporário do iframe. A sessão SSO expira rapidamente; entre sempre pelo menu <strong>?</strong>. Você consulta somente chamados vinculados ao seu acesso.
+      </div>
+      <div class="exercise">
+        <p class="exercise-title">Exercício 6b — Abrir e consultar chamados</p>
+        <p class="exercise-meta">⏱ ~5 min · Não envie chamado real sem orientação</p>
+        <ol>
+          <li>Abra o formulário e identifique título, descrição, categoria, prioridade e anexos.</li>
+          <li>Feche sem enviar; depois abra <strong>Meus chamados</strong>.</li>
+          <li>Se houver chamado de treinamento, abra os detalhes e localize o status.</li>
+        </ol>
+        <p class="exercise-done"><strong>Concluiu quando:</strong> souber abrir o formulário e localizar a consulta sem sair do Cockpit.</p>
+      </div>
+
       <!-- WHATSAPP -->
       <h2 id="whatsapp">7. Chat Omnichannel (WhatsApp — canal de entrada)</h2>
-      <p>Ponto de entrada das mensagens: conversas iniciadas pelo WhatsApp (e outros canais configurados) aparecem aqui em tempo real. Cada conversa pode estar ligada a um <strong>card de processo</strong> — use o chat para falar com quem entrou em contato; use o funil para registrar e avançar o workflow.</p>
+      <p>Ponto de entrada das mensagens: conversas iniciadas pelo WhatsApp (e outros canais configurados) aparecem aqui em tempo real. Cada conversa pode estar ligada a um <strong>card de processo</strong> — use o chat para falar com quem entrou em contato; use o funil para registrar e avançar o workflow. Operadores veem as sessões dos seus departamentos ou atribuídas diretamente a eles.</p>
 
       <div class="procedure">
         <p class="procedure-title"><span>3</span> Abrir o Chat Omnichannel</p>
@@ -413,6 +449,16 @@
           <li>No cabeçalho da conversa, use o ícone de <strong>painel lateral</strong> (direita) para abrir ou fechar o <strong>Contexto do cliente</strong>.</li>
         </ol>
       </div>
+
+      <table>
+        <thead><tr><th>Controle no cabeçalho</th><th>Função</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Lupa</strong></td><td>Pesquisa texto somente no histórico da conversa aberta.</td></tr>
+          <tr><td><strong>Card</strong></td><td>Abre a Gestão do Card vinculado, conforme sua permissão.</td></tr>
+          <tr><td><strong>Encaminhar</strong></td><td>Repassa o card para responsável, departamento ou outro funil.</td></tr>
+          <tr><td><strong>Painel lateral</strong></td><td>Mostra ou oculta o Contexto do cliente.</td></tr>
+        </tbody>
+      </table>
 
       <figure class="screenshot">
         <img src="manual/img/05-chat-omni.png" alt="Chat omnichannel" onerror="this.src='manual/img/05-chat.png'" />
@@ -609,8 +655,14 @@
         <p class="exercise-done"><strong>Concluiu quando:</strong> encaminhamento visível no histórico.</p>
       </div>
 
-      <h3 id="whatsapp-documentos">7.6 Documentos enviados pelo cliente</h3>
-      <p>Boletos, comprovantes, PDFs e fotos: o sistema processa, exibe na conversa e pode vincular <strong>anexo</strong> ao card. Confira no modal do card → painel <strong>Anexos</strong> (topo do hub) ou botão <strong>Ver</strong>. Documento ilegível → peça reenvio ou registre observação manual.</p>
+      <h3 id="whatsapp-documentos">7.6 Enviar e receber arquivos no WhatsApp</h3>
+      <p>Boletos, comprovantes, PDFs e fotos recebidos são processados e exibidos na conversa e podem virar <strong>anexo</strong> do card. O operador também pode enviar PDF ou imagem pelo <strong>clipe</strong> ao lado do campo de resposta (máx. 5 MB). Use o botão de <strong>emoji</strong> para complementar a mensagem sem substituir uma resposta clara.</p>
+      <ul>
+        <li>Confira o arquivo selecionado e o destinatário antes de enviar.</li>
+        <li>Documento ilegível: peça reenvio e registre a pendência no card.</li>
+        <li>Para localizar arquivos vinculados, abra <strong>Card</strong> → painel <strong>Anexos</strong>.</li>
+        <li>Uma mensagem enviada pode mostrar a lixeira ao passar o mouse, se você tiver permissão e o canal aceitar exclusão. Confirme antes: a ação tenta apagar também no WhatsApp do cliente.</li>
+      </ul>
 
       <figure class="screenshot">
         <img src="manual/img/treinamento/card-anexos.png" alt="Anexos no card após documento WhatsApp" onerror="this.src='manual/img/treinamento/card-modal-hub.png'" />
@@ -621,20 +673,33 @@
         <p class="exercise-title">Exercício 9e — Documento no WhatsApp</p>
         <p class="exercise-meta">⏱ ~5 min</p>
         <ol>
-          <li>Receba/simule PDF ou imagem.</li>
+          <li>Receba/simule PDF ou imagem e, se autorizado, selecione outro arquivo pelo clipe.</li>
           <li>Aguarde processamento na bolha.</li>
           <li>Verifique anexo ou observação no card.</li>
         </ol>
         <p class="exercise-done"><strong>Concluiu quando:</strong> achar documento na conversa e no card.</p>
       </div>
 
+      <h3 id="whatsapp-pesquisa">7.7 Pesquisar dentro da conversa</h3>
+      <div class="procedure">
+        <ol class="steps">
+          <li>Abra a conversa e clique na <strong>lupa</strong> do cabeçalho.</li>
+          <li>Digite uma palavra, protocolo, valor ou nome no campo <strong>Pesquisar nesta conversa…</strong>.</li>
+          <li>Use as setas para navegar pelos resultados. O contador mostra a posição, como <strong>2/5</strong>.</li>
+          <li><strong>Enter</strong> avança; <strong>Shift+Enter</strong> volta; <strong>Esc</strong> fecha a pesquisa.</li>
+        </ol>
+      </div>
+      <div class="alert info">
+        A busca do topo da lista encontra <strong>conversas/leads</strong>. A lupa no cabeçalho encontra <strong>mensagens dentro da conversa aberta</strong>.
+      </div>
+
       <h3>Fila do operador</h3>
       <p>Como operador, você vê conversas:</p>
       <ul>
-        <li><strong>Atribuídas a você</strong> (<code>atribuido_a_id</code> = seu usuário), ou</li>
-        <li><strong>Sem responsável</strong> (ainda não pegas por ninguém)</li>
+        <li><strong>Atribuídas diretamente a você</strong>, ou</li>
+        <li>Ligadas aos <strong>departamentos dos quais você participa</strong>.</li>
       </ul>
-      <p>Se não encontrar uma conversa que deveria ver, ela pode estar com outro colega — fale com o gestor.</p>
+      <p>O isolamento por departamento se aplica ao <strong>Chat Omnichannel</strong>. Se não encontrar uma conversa que deveria ver, confirme a sessão/departamento e peça ao gestor para revisar sua associação.</p>
 
       <!-- CHAT INTERNO -->
       <h2 id="interno">8. Chat interno da equipe</h2>
@@ -1231,7 +1296,8 @@ Finaliza card quando o processo concluir</div>
         <thead><tr><th>Problema</th><th>Solução</th></tr></thead>
         <tbody>
           <tr><td>Esqueci minha senha</td><td>Peça ao gestor ou RN3 redefinir em Usuários → Editar. Não há link “esqueci senha” no login.</td></tr>
-          <tr><td>Não acho uma conversa no WhatsApp</td><td>Busque por telefone/nome. Pode estar atribuída a outro operador — fale com o gestor.</td></tr>
+          <tr><td>Não acho uma conversa no WhatsApp</td><td>Busque por telefone/nome. Pode pertencer a outro departamento ou estar atribuída a outro operador — fale com o gestor.</td></tr>
+          <tr><td>O Bifrost não abre no menu Chamados</td><td>Feche a janela e tente novamente pelo ícone <strong>?</strong>. Se persistir, informe ao gestor; não reutilize URL temporária antiga.</td></tr>
           <tr><td>IA ainda responde depois que assumi</td><td>Confirme se o status é <strong>Gestão Humana</strong>. Se persistir, avise o gestor/RN3.</td></tr>
           <tr><td>Cliente não recebeu minha mensagem</td><td>Verifique conexão do canal (gestor). Veja se aparece “Enviando…” ou erro na thread.</td></tr>
           <tr><td>Não consigo mover card</td><td>Seu grupo pode não ter permissão <code>cards.move</code>. Peça ao gestor.</td></tr>
@@ -1279,19 +1345,21 @@ Finaliza card quando o processo concluir</div>
           <tr><td>Contexto do cliente</td><td>Painel lateral no chat com cadastro, cards e avisos</td></tr>
           <tr><td>Consulta de card</td><td>Drawer read-only para ler card sem sair do chat</td></tr>
           <tr><td>Encaminhar</td><td>Repasse de card — operador, funil ou pipeline, com resumo IA quando cross-funil</td></tr>
+          <tr><td>Bifrost</td><td>Central de suporte integrada para abrir e acompanhar chamados pelo menu <strong>?</strong></td></tr>
+          <tr><td>Protocolo</td><td>Número de identificação usado para acompanhar um chamado de suporte</td></tr>
           <tr><td>Grupo de acesso</td><td>Conjunto de permissões do seu usuário</td></tr>
         </tbody>
       </table>
 
       <!-- AULA 90 -->
       <h2 id="aula-90">Apêndice A — Roteiro da aula online (2h)</h2>
-      <p>Roteiro atualizado para o pacote CRM set/2026 (contexto no chat, multi-departamento, modal do card, encaminhamento IA).</p>
+      <p>Roteiro atualizado para o pacote CRM set/2026 (contexto no chat, multi-departamento, pesquisa na conversa, modal do card, encaminhamento IA e chamados Bifrost).</p>
       <table>
         <thead><tr><th>Horário</th><th>Tópico</th><th>Seção / exercício</th></tr></thead>
         <tbody>
-          <tr><td>0:00 – 0:15</td><td>Login, senha, tour Cockpit + menu hambúrguer</td><td>§4–6 · Ex. 4–6</td></tr>
-          <tr><td>0:15 – 0:40</td><td>Chat: assumir, contexto, multi-sessão</td><td>§7 · Ex. 7–9c</td></tr>
-          <tr><td>0:40 – 0:55</td><td>Encaminhar pelo chat, documentos</td><td>§7.5–7.6 · Ex. 9d–9e</td></tr>
+          <tr><td>0:00 – 0:15</td><td>Login, senha, tour Cockpit, menu e chamados</td><td>§4–6.2 · Ex. 4–6b</td></tr>
+          <tr><td>0:15 – 0:40</td><td>Chat: assumir, contexto, multi-sessão e pesquisa</td><td>§7 · Ex. 7–9c</td></tr>
+          <tr><td>0:40 – 0:55</td><td>Encaminhar pelo chat, arquivos e emojis</td><td>§7.5–7.7 · Ex. 9d–9e</td></tr>
           <tr><td>0:55 – 1:15</td><td>Chat interno, menções, avisos ao responsável</td><td>§8 · Ex. 10–13</td></tr>
           <tr><td>1:15 – 1:45</td><td>Funil, modal hub, observações, encaminhar IA</td><td>§9 · Ex. 14–21</td></tr>
           <tr><td>1:45 – 2:00</td><td>Desafio integrado (cenários A–E)</td><td>§10–11 · Ex. 22–23</td></tr>
@@ -1299,16 +1367,18 @@ Finaliza card quando o processo concluir</div>
       </table>
 
       <h2 id="checklist">Apêndice B — Checklist do operador</h2>
-      <p>Imprima ou salve este checklist. Marque a cada execução de processo. Se completou os <strong>27 exercícios</strong> (incl. 9b–9e e 14b), você está pronto para operar com supervisão mínima.</p>
+      <p>Imprima ou salve este checklist. Marque a cada execução de processo. Se completou os <strong>28 exercícios</strong> (incl. 6b, 9b–9e e 14b), você está pronto para operar com supervisão mínima.</p>
       <ul class="checklist">
         <li>Senha pessoal definida (não uso mais a padrão)</li>
         <li>Li o histórico completo da conversa</li>
+        <li>Sei pesquisar uma informação dentro do histórico da conversa</li>
         <li>Status Gestão Humana quando estou atendendo</li>
           <li>Escolhi a conversa correta quando havia mais de uma linha do mesmo lead</li>
           <li>Salvei observações no hub do card</li>
         <li>Chat interno usado para dúvidas com a equipe</li>
         <li>Anexos salvos no card quando relevante</li>
         <li>Card na etapa correta ou finalizado</li>
+        <li>Sei abrir e acompanhar um chamado pelo menu ? → Chamados</li>
         <li>Logout ao sair (<strong>Encerrar Sessão</strong>)</li>
       </ul>
 

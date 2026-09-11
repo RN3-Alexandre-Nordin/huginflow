@@ -45,6 +45,7 @@ export class AiResponseService {
     try {
       await ConversaHistoricoService.updateLatestSessaoStatus(
         sessaoId,
+        empresaId,
         { status: 'processing' },
         supabase,
       )
@@ -112,7 +113,8 @@ export class AiResponseService {
         return
       }
 
-      let { response, responseForWhatsApp, crmStatus, tags, facts } = aiResult
+      const { response, tags, facts } = aiResult
+      let { responseForWhatsApp, crmStatus } = aiResult
 
       if (tags.actions.includes('OUT_OF_SCOPE')) {
         const cleaned = stripOutboundTags(responseForWhatsApp || response)
@@ -223,6 +225,7 @@ export class AiResponseService {
             },
           })
           .eq('id', insertedMsgId)
+          .eq('empresa_id', empresaId)
       } else if (!sendResult.success) {
         console.error('[AiResponse] Falha ao enviar WhatsApp:', sendResult.error)
         if (insertedMsgId) {
@@ -236,6 +239,7 @@ export class AiResponseService {
               },
             })
             .eq('id', insertedMsgId)
+            .eq('empresa_id', empresaId)
         }
       }
 
@@ -257,7 +261,12 @@ export class AiResponseService {
       )
     } catch (error) {
       console.error('[AiResponse] Erro inesperado:', error)
-      await ConversaHistoricoService.updateLatestSessaoStatus(sessaoId, { status: 'ai' }, supabase)
+      await ConversaHistoricoService.updateLatestSessaoStatus(
+        sessaoId,
+        empresaId,
+        { status: 'ai' },
+        supabase,
+      )
     }
   }
 
@@ -282,6 +291,8 @@ export class AiResponseService {
       role: 'system',
       content: '(Escopo IA)',
       direcao: 'outbound',
+      status: 'ai',
+      isAi: true,
       contactPhone: message.sender_id,
       contactName: message.sender_name || 'Usuário WhatsApp',
       logSistema: `OUT_OF_SCOPE (gate): ${reason}`,
@@ -333,9 +344,15 @@ export class AiResponseService {
           },
         })
         .eq('id', persist.interacaoId)
+        .eq('empresa_id', empresaId)
     }
 
-    await ConversaHistoricoService.updateLatestSessaoStatus(sessaoId, { status: 'ai' }, supabase)
+    await ConversaHistoricoService.updateLatestSessaoStatus(
+      sessaoId,
+      empresaId,
+      { status: 'ai' },
+      supabase,
+    )
 
     console.log(
       `[AiResponse] OUT_OF_SCOPE (gate) lead=${leadId} whatsapp=${sendResult.success} reason=${reason}`,
@@ -352,7 +369,12 @@ export class AiResponseService {
   ) {
     console.error(`[AiResponse] FALHA: ${reason}`)
 
-    await ConversaHistoricoService.updateLatestSessaoStatus(sessaoId, { status: 'ai' }, supabase)
+    await ConversaHistoricoService.updateLatestSessaoStatus(
+      sessaoId,
+      message.empresa_id,
+      { status: 'ai' },
+      supabase,
+    )
 
     const errorLog = `Falha na IA (Gemini) para lead [${leadId}], WhatsApp ${message.sender_id}: ${reason}`
 

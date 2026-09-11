@@ -16,9 +16,18 @@ export function buildEvolutionProviderConfig(canal: CanalEvolutionFields): Provi
   const envCreds = getEvolutionCredentials()
   const isDev = getPlatformEnvironment() === 'development'
   const canalSettings = (canal.settings ?? {}) as { apiUrl?: string }
+  const localTestProvider =
+    isDev &&
+    process.env.TEST_ALLOW_MUTATIONS === '1' &&
+    /^http:\/\/(?:127\.0\.0\.1|localhost)(?::\d+)?$/i.test(canalSettings.apiUrl ?? '')
 
-  const apiUrl = isDev ? envCreds.apiUrl : canalSettings.apiUrl || envCreds.apiUrl
-  const apiKey = isDev ? envCreds.apiKey : canal.provider_token || envCreds.apiKey
+  const useEnvironmentCredentials = isDev && !localTestProvider
+  const apiUrl = useEnvironmentCredentials
+    ? envCreds.apiUrl
+    : canalSettings.apiUrl || envCreds.apiUrl
+  const apiKey = useEnvironmentCredentials
+    ? envCreds.apiKey
+    : canal.provider_token || envCreds.apiKey
 
   return {
     provider: 'evolution',

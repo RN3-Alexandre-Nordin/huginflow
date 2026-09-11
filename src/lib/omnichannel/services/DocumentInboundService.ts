@@ -72,6 +72,7 @@ export class DocumentInboundService {
     try {
       await ConversaHistoricoService.updateLatestSessaoStatus(
         sessaoId,
+        empresaId,
         { status: 'processing' },
         supabase,
       )
@@ -377,6 +378,7 @@ export class DocumentInboundService {
         console.error('[DocumentInbound] Fallback de exceção falhou:', inner)
         await ConversaHistoricoService.updateLatestSessaoStatus(
           sessaoId,
+          empresaId,
           { status: skipAutoReply ? 'human' : 'ai' },
           supabase,
         )
@@ -395,7 +397,7 @@ export class DocumentInboundService {
     supabase: SupabaseClient,
     ctx: { empresaId: string; leadId: string; sessaoId: string },
   ): Promise<boolean> {
-    const { empresaId, leadId, sessaoId } = ctx
+    const { empresaId, sessaoId } = ctx
     const reasons: string[] = []
 
     try {
@@ -411,7 +413,7 @@ export class DocumentInboundService {
       reasons.push(downloaded.reasoning)
 
       const sessionCard = await this.findOpenCardOnSession(supabase, empresaId, sessaoId)
-      let cardId: string | null = sessionCard?.id ?? null
+      const cardId: string | null = sessionCard?.id ?? null
       const responsavelId = sessionCard?.responsavel_id ?? null
 
       if (sessionCard) {
@@ -650,12 +652,18 @@ export class DocumentInboundService {
           },
         })
         .eq('id', insertedMsgId)
+        .eq('empresa_id', empresaId)
     }
 
     if (handover) {
       await this.applyHandover(supabase, empresaId, sessaoId, responsavelId)
     } else {
-      await ConversaHistoricoService.updateLatestSessaoStatus(sessaoId, { status: 'ai' }, supabase)
+      await ConversaHistoricoService.updateLatestSessaoStatus(
+        sessaoId,
+        empresaId,
+        { status: 'ai' },
+        supabase,
+      )
     }
   }
 }

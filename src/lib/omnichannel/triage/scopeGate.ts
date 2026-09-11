@@ -6,6 +6,12 @@ import {
   resolveEmpresaAiConfig,
   type EmpresaAiConfig,
 } from '@/lib/ai/empresa-ai'
+import {
+  isLikelyGreetingOrAck,
+  normalizeConversationalText,
+} from '@/lib/omnichannel/triage/greeting'
+
+export { isLikelyGreetingOrAck } from '@/lib/omnichannel/triage/greeting'
 
 /** Resposta curta e genérica — sem menção a empresa específica. */
 export const DEFAULT_OUT_OF_SCOPE_REPLY =
@@ -24,48 +30,12 @@ export type ScopeGateDecision =
       reply: string
     }
 
-function normalize(text: string): string {
-  return text
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .trim()
-}
-
-/** Cumprimentos / ack — não bloquear; a triagem completa decide. */
-export function isLikelyGreetingOrAck(message: string): boolean {
-  const t = normalize(message).replace(/[!?.…]+$/g, '').trim()
-  if (!t || t.length > 40) return false
-  const greetings = [
-    'oi',
-    'ola',
-    'bom dia',
-    'boa tarde',
-    'boa noite',
-    'hey',
-    'eai',
-    'e ai',
-    'tudo bem',
-    'td bem',
-    'obrigado',
-    'obrigada',
-    'valeu',
-    'ok',
-    'certo',
-    'beleza',
-    'blz',
-    'sim',
-    'nao',
-  ]
-  return greetings.some((g) => t === g || t.startsWith(`${g} `))
-}
-
 /**
  * Off-topic óbvio e universal (clima, jogos, receitas, etc.).
  * Não lista produtos/serviços de nenhuma empresa — só abuso genérico do canal.
  */
 export function isObviousOffTopic(message: string): boolean {
-  const t = normalize(message)
+  const t = normalizeConversationalText(message)
   if (t.length < 8) return false
 
   const patterns: RegExp[] = [
@@ -83,10 +53,13 @@ export function isObviousOffTopic(message: string): boolean {
   return patterns.some((re) => re.test(t))
 }
 
-function buildScopeHintReply(labels: string[]): string {
+function buildScopeHintReply(empresaNome: string, labels: string[]): string {
   const unique = [...new Set(labels.map((l) => l.trim()).filter(Boolean))].slice(0, 8)
-  if (unique.length === 0) return DEFAULT_OUT_OF_SCOPE_REPLY
-  return `Posso ajudar apenas com assuntos do atendimento desta empresa (ex.: ${unique.join(', ')}). Como posso ajudar nesse sentido?`
+  const company = empresaNome.trim() || 'esta empresa'
+  if (unique.length === 0) {
+    return `Posso ajudar com assuntos relacionados ao atendimento de ${company}. Como posso ajudar com os produtos ou serviços da empresa?`
+  }
+  return `Posso ajudar com o atendimento de ${company}, incluindo ${unique.join(', ')}. Como posso ajudar com os produtos ou serviços da empresa?`
 }
 
 async function loadEmpresaScopeLabels(
@@ -150,7 +123,9 @@ async function classifyWithMicroPrompt(
 Escopo válido = mensagens sobre atendimento, produtos/serviços, processos, departamentos ou funis desta empresa.
 Departamentos/funis conhecidos: ${scopeList}
 
-Fora de escopo = curiosidades gerais, clima, esportes, loteria, receitas, piadas, dever de casa, programação genérica, ou qualquer tema sem relação com o negócio.
+Fora de escopo = apenas quando houver assunto claramente alheio, como clima, esportes, loteria, receitas, piadas, dever de casa ou programação genérica.
+Cumprimentos, cordialidades, agradecimentos, mensagens curtas, pedidos vagos e dúvidas sem contexto são AMBIGUOUS, nunca OUT_OF_SCOPE.
+Na dúvida entre OUT_OF_SCOPE e AMBIGUOUS, escolha AMBIGUOUS.
 
 Mensagem do cliente:
 """${message.trim().slice(0, 500)}"""
@@ -225,7 +200,7 @@ export async function evaluateMessageScope(
   }
 
   const { empresaNome, labels } = await loadEmpresaScopeLabels(supabase, input.empresaId)
-  const reply = buildScopeHintReply(labels)
+  const reply = buildScopeHintReply(empresaNome, labels)
 
   if (isObviousOffTopic(message)) {
     return {

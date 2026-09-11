@@ -10,14 +10,16 @@ import {
 import { getMyProfile } from '@/app/(app)/cockpit/actions'
 import { EvolutionProvider } from '@/lib/omnichannel/providers/EvolutionProvider'
 import { buildEvolutionProviderConfig } from '@/lib/omnichannel/evolution-config'
-import { ConversaHistoricoService } from '@/lib/omnichannel/ConversaHistoricoService'
 import { SessionPersistenceService } from '@/lib/omnichannel/SessionPersistenceService'
 import { normalizeWhatsAppPhone } from '@/lib/omnichannel/phone'
 import { WHATSAPP_SENDER_LABELS } from '@/lib/omnichannel/whatsapp-outbound'
 import { isDeptSessionsEnabled } from '@/lib/omnichannel/dept-sessions-constants'
 import { DOCUMENT_MAX_BYTES } from '@/lib/omnichannel/document-constants'
 import { CardAttachmentService } from '@/lib/omnichannel/services/CardAttachmentService'
+import { canAccessOmniSession } from '@/lib/omnichannel/OmniSessionAccess'
 import { linkLeadToCard } from '@/lib/crm/resolveLead'
+import { canConsultCard } from '@/lib/crm/cardConsultaAccess'
+import { getUserDepartamentoIds } from '@/lib/crm/userDepartamentos'
 import {
   ActiveSpeakerService,
   ChatThreadService,
@@ -29,8 +31,56 @@ function firstRelation<T>(value: T | T[] | null | undefined): T | null {
   return value ?? null
 }
 
+async function loadAuthorizedSessionContext(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  me: NonNullable<Awaited<ReturnType<typeof getMyProfile>>>,
+  sessaoId: string,
+) {
+  const empresaId = me.empresa_id
+  if (!empresaId) throw new Error('Empresa do usuário não identificada')
+
+  const { data: conversa, error } = await supabase
+    .from('crm_conversas')
+    .select('id, empresa_id, canal_id, lead_id, external_id, atribuido_a_id, status')
+    .eq('sessao_id', sessaoId)
+    .eq('empresa_id', empresaId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (error || !conversa) throw new Error('Sessão não encontrada')
+  if (!(await canAccessOmniSession(supabase, me, sessaoId, conversa))) {
+    throw new Error('Sem permissão para esta conversa')
+  }
+  if (!conversa.canal_id) throw new Error('Canal de comunicação não configurado')
+  if (!conversa.lead_id) throw new Error('Lead não identificado na conversa')
+
+  // Credenciais do provedor ficam apenas no servidor. A autorização acima usa
+  // a sessão do usuário; o admin é usado somente após tenant + departamento.
+  const admin = createAdminClient()
+  const [{ data: canal }, { data: lead }] = await Promise.all([
+    admin
+      .from('crm_canais')
+      .select('id, empresa_id, provider_id, provider_token, settings')
+      .eq('id', conversa.canal_id)
+      .eq('empresa_id', empresaId)
+      .maybeSingle(),
+    admin
+      .from('crm_leads')
+      .select('id, empresa_id, nome, telefone, whatsapp')
+      .eq('id', conversa.lead_id)
+      .eq('empresa_id', empresaId)
+      .maybeSingle(),
+  ])
+
+  if (!canal) throw new Error('Canal de comunicação não configurado')
+  if (!lead) throw new Error('Lead não identificado na conversa')
+  return { empresaId, conversa, canal, lead, validationClient: admin }
+}
+
 async function persistWhatsAppId(input: {
   supabase: Awaited<ReturnType<typeof createClient>>
+  empresaId: string
   sessaoId: string
   interacaoId: string
   prevMeta: Record<string, unknown>
@@ -52,6 +102,7 @@ async function persistWhatsAppId(input: {
     .from('crm_interacoes')
     .update({ metadata: nextMeta })
     .eq('id', input.interacaoId)
+    .eq('empresa_id', input.empresaId)
   if (interacaoErr) {
     console.error('[Omni] falha ao gravar provider_message_id em crm_interacoes', interacaoErr)
   }
@@ -60,6 +111,7 @@ async function persistWhatsAppId(input: {
     .from('crm_conversas')
     .select('id, metadata')
     .eq('sessao_id', input.sessaoId)
+    .eq('empresa_id', input.empresaId)
     .eq('content', input.content)
     .order('created_at', { ascending: false })
     .limit(1)
@@ -76,6 +128,7 @@ async function persistWhatsAppId(input: {
         },
       })
       .eq('id', hist.id)
+      .eq('empresa_id', input.empresaId)
     if (histErr) {
       console.error('[Omni] falha ao gravar provider_message_id em crm_conversas', histErr)
     }
@@ -89,27 +142,8 @@ export async function sendOmniMessage(sessaoId: string, content: string) {
     if (!me) throw new Error('Usuário não autenticado')
 
     const supabase = await createClient()
-
-    const { data: conversa, error: convError } = await supabase
-      .from('crm_conversas')
-      .select(
-        `
-        *,
-        crm_canais (*),
-        crm_leads (*)
-      `,
-      )
-      .eq('sessao_id', sessaoId)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single()
-
-    if (convError || !conversa) throw new Error('Sessão não encontrada')
-    if (!conversa.crm_canais) throw new Error('Canal de comunicação não configurado')
-    if (!conversa.crm_leads) throw new Error('Lead não identificado na conversa')
-
-    const canal = conversa.crm_canais
-    const lead = conversa.crm_leads
+    const { empresaId, conversa, canal, lead, validationClient } =
+      await loadAuthorizedSessionContext(supabase, me, sessaoId)
     const provider = new EvolutionProvider()
 
     const config = buildEvolutionProviderConfig({
@@ -121,29 +155,33 @@ export async function sendOmniMessage(sessaoId: string, content: string) {
     const externalId =
       normalizeWhatsAppPhone(conversa.external_id || lead.telefone || lead.whatsapp || '') || ''
 
-    const persist = await SessionPersistenceService.persistMessage(supabase, {
-      empresaId: me.empresa_id!,
-      canalId: conversa.canal_id,
-      externalId: externalId || lead.telefone || 'unknown',
-      leadId: lead.id,
-      sessaoId,
-      role: 'assistant',
-      content,
-      direcao: 'outbound',
-      status: 'human',
-      lastHumanInteraction: new Date().toISOString(),
-      atribuidoAId: me.id,
-      userId: me.id,
-      contactPhone: lead.telefone,
-      contactName: lead.nome || 'Cliente WhatsApp',
-      metadata: {
-        sent_by: me.id,
-        status: 'sent_manual',
+    const persist = await SessionPersistenceService.persistMessage(
+      supabase,
+      {
+        empresaId,
+        canalId: conversa.canal_id,
+        externalId: externalId || lead.telefone || 'unknown',
+        leadId: lead.id,
+        sessaoId,
+        role: 'assistant',
+        content,
+        direcao: 'outbound',
+        status: 'human',
+        lastHumanInteraction: new Date().toISOString(),
+        atribuidoAId: me.id,
+        userId: me.id,
+        contactPhone: lead.telefone,
+        contactName: lead.nome || 'Cliente WhatsApp',
+        metadata: {
+          sent_by: me.id,
+          status: 'sent_manual',
+        },
+        activateSpeaker: isDeptSessionsEnabled() && Boolean(externalId),
+        activatedBy: me.id,
+        speakerReason: 'outbound',
       },
-      activateSpeaker: isDeptSessionsEnabled() && Boolean(externalId),
-      activatedBy: me.id,
-      speakerReason: 'outbound',
-    })
+      { validationClient },
+    )
 
     if (!persist.success || !persist.interacaoId) {
       console.error('[Omni] ERRO NO INSERT:', persist.error)
@@ -178,6 +216,7 @@ export async function sendOmniMessage(sessaoId: string, content: string) {
     if (result.success && waMessageId) {
       await persistWhatsAppId({
         supabase,
+        empresaId: me.empresa_id!,
         sessaoId,
         interacaoId: insertedMsg.id,
         prevMeta: asOmniMeta(insertedMsg.metadata),
@@ -202,6 +241,7 @@ export async function sendOmniMessage(sessaoId: string, content: string) {
         metadata: { ...insertedMsg.metadata, status: 'error', provider_error: result.error },
       })
       .eq('id', insertedMsg.id)
+      .eq('empresa_id', empresaId)
 
     return {
       success: false,
@@ -225,6 +265,7 @@ function asMeta(value: unknown): InteracaoMeta {
 
 async function persistDeletedMetadata(input: {
   userClient: Awaited<ReturnType<typeof createClient>>
+  empresaId: string
   sessaoId: string
   interacaoId?: string | null
   conversaRowId?: string | null
@@ -248,6 +289,7 @@ async function persistDeletedMetadata(input: {
         .from('crm_interacoes')
         .update({ metadata: input.nextMeta })
         .eq('id', input.interacaoId)
+        .eq('empresa_id', input.empresaId)
         .select('id, metadata')
         .maybeSingle()
       if (error) {
@@ -272,12 +314,14 @@ async function persistDeletedMetadata(input: {
       .from('crm_conversas')
       .update({ metadata: input.nextMeta })
       .eq('id', input.conversaRowId)
+      .eq('empresa_id', input.empresaId)
     if (error) console.error('[Omni] falha ao marcar deleted em crm_conversas', error)
   } else {
     let histQuery = historicoClient
       .from('crm_conversas')
       .update({ metadata: input.nextMeta })
       .eq('sessao_id', input.sessaoId)
+      .eq('empresa_id', input.empresaId)
       .eq('content', input.originalContent)
     if (input.providerMessageId) {
       histQuery = histQuery.contains('metadata', {
@@ -301,65 +345,19 @@ export async function deleteOmniMessage(sessaoId: string, messageId: string) {
     if (!me) return { success: false, error: 'Não autenticado' }
 
     const supabase = await createClient()
-
-    const { data: conversa, error: convError } = await supabase
-      .from('crm_conversas')
-      .select(
-        `
-        *,
-        crm_canais (*),
-        crm_leads (*)
-      `,
-      )
-      .eq('sessao_id', sessaoId)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-
-    if (convError) return { success: false, error: convError.message }
-
-    let canal = conversa?.crm_canais ?? null
-    let lead = conversa?.crm_leads ?? null
-    let externalId = conversa?.external_id ?? null
-    let empresaId = conversa?.empresa_id ?? me.empresa_id
-
-    if (!conversa) {
-      const { data: thread } = await supabase
-        .from('crm_chat_threads')
-        .select('id, empresa_id, canal_id, external_id, lead_id')
-        .eq('id', sessaoId)
-        .maybeSingle()
-      if (!thread) return { success: false, error: 'Sessão não encontrada' }
-      empresaId = thread.empresa_id
-      externalId = thread.external_id
-      if (thread.canal_id) {
-        const { data: canalRow } = await supabase
-          .from('crm_canais')
-          .select('*')
-          .eq('id', thread.canal_id)
-          .maybeSingle()
-        canal = canalRow
-      }
-      if (thread.lead_id) {
-        const { data: leadRow } = await supabase
-          .from('crm_leads')
-          .select('*')
-          .eq('id', thread.lead_id)
-          .maybeSingle()
-        lead = leadRow
-      }
-    }
-
-    if (me.role_global !== 'superadmin' && empresaId && empresaId !== me.empresa_id) {
-      return { success: false, error: 'Sem permissão para esta conversa' }
-    }
-    if (!canal) return { success: false, error: 'Canal de comunicação não configurado' }
+    const { empresaId, conversa, canal, lead } = await loadAuthorizedSessionContext(
+      supabase,
+      me,
+      sessaoId,
+    )
+    const externalId = conversa.external_id
 
     const { data: interacao } = await supabase
       .from('crm_interacoes')
       .select('id, role, content, user_id, metadata, conversa_id, created_at')
       .eq('id', messageId)
       .eq('conversa_id', sessaoId)
+      .eq('empresa_id', empresaId)
       .maybeSingle()
 
     const { data: conversaRow } = !interacao
@@ -368,6 +366,7 @@ export async function deleteOmniMessage(sessaoId: string, messageId: string) {
           .select('id, role, content, atribuido_a_id, metadata, sessao_id, created_at')
           .eq('id', messageId)
           .eq('sessao_id', sessaoId)
+          .eq('empresa_id', empresaId)
           .maybeSingle()
       : { data: null }
 
@@ -421,6 +420,7 @@ export async function deleteOmniMessage(sessaoId: string, messageId: string) {
       if (providerMessageId && interacao) {
         await persistWhatsAppId({
           supabase,
+          empresaId: empresaId!,
           sessaoId,
           interacaoId: interacao.id,
           prevMeta: meta,
@@ -460,6 +460,7 @@ export async function deleteOmniMessage(sessaoId: string, messageId: string) {
 
     const marked = await persistDeletedMetadata({
       userClient: supabase,
+      empresaId,
       sessaoId,
       interacaoId: interacao?.id ?? null,
       conversaRowId: conversaRow?.id ?? null,
@@ -515,21 +516,8 @@ export async function sendOmniAttachment(formData: FormData) {
     }
 
     const supabase = await createClient()
-
-    const { data: conversa, error: convError } = await supabase
-      .from('crm_conversas')
-      .select(`*, crm_canais (*), crm_leads (*)`)
-      .eq('sessao_id', sessaoId)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single()
-
-    if (convError || !conversa) throw new Error('Sessão não encontrada')
-    if (!conversa.crm_canais) throw new Error('Canal de comunicação não configurado')
-    if (!conversa.crm_leads) throw new Error('Lead não identificado na conversa')
-
-    const canal = conversa.crm_canais
-    const lead = conversa.crm_leads
+    const { empresaId, conversa, canal, lead, validationClient } =
+      await loadAuthorizedSessionContext(supabase, me, sessaoId)
     const provider = new EvolutionProvider()
     const config = buildEvolutionProviderConfig({
       provider_id: canal.provider_id,
@@ -548,11 +536,6 @@ export async function sendOmniAttachment(formData: FormData) {
     const base64 = fileBuffer.toString('base64')
     const mediatype = resolveMediaType(mimeType)
     const displayContent = caption || `📎 ${file.name}`
-
-    if (!me.empresa_id) {
-      return { success: false, error: 'Empresa do usuário não identificada.' }
-    }
-    const empresaId = me.empresa_id
 
     // Card aberto desta sessão (isolamento por conversa + tenant)
     let cardId: string | null = null
@@ -586,33 +569,37 @@ export async function sendOmniAttachment(formData: FormData) {
       }
     }
 
-    const persistMedia = await SessionPersistenceService.persistMessage(supabase, {
-      empresaId,
-      canalId: conversa.canal_id,
-      externalId,
-      leadId: lead.id,
-      sessaoId,
-      cardId: cardId ?? undefined,
-      role: 'assistant',
-      content: displayContent,
-      direcao: 'outbound',
-      status: 'human',
-      lastHumanInteraction: new Date().toISOString(),
-      atribuidoAId: me.id,
-      userId: me.id,
-      contactPhone: lead.telefone,
-      contactName: lead.nome || 'Cliente WhatsApp',
-      metadata: {
-        sent_by: me.id,
-        status: 'pending_send',
-        media_type: mediatype,
-        file_name: file.name,
-        mimetype: mimeType,
+    const persistMedia = await SessionPersistenceService.persistMessage(
+      supabase,
+      {
+        empresaId,
+        canalId: conversa.canal_id,
+        externalId,
+        leadId: lead.id,
+        sessaoId,
+        cardId: cardId ?? undefined,
+        role: 'assistant',
+        content: displayContent,
+        direcao: 'outbound',
+        status: 'human',
+        lastHumanInteraction: new Date().toISOString(),
+        atribuidoAId: me.id,
+        userId: me.id,
+        contactPhone: lead.telefone,
+        contactName: lead.nome || 'Cliente WhatsApp',
+        metadata: {
+          sent_by: me.id,
+          status: 'pending_send',
+          media_type: mediatype,
+          file_name: file.name,
+          mimetype: mimeType,
+        },
+        activateSpeaker: isDeptSessionsEnabled(),
+        activatedBy: me.id,
+        speakerReason: 'outbound',
       },
-      activateSpeaker: isDeptSessionsEnabled(),
-      activatedBy: me.id,
-      speakerReason: 'outbound',
-    })
+      { validationClient },
+    )
 
     if (!persistMedia.success || !persistMedia.interacaoId) {
       return { success: false, error: `Erro no banco: ${persistMedia.error}` }
@@ -658,6 +645,7 @@ export async function sendOmniAttachment(formData: FormData) {
       if (waMessageId) {
         await persistWhatsAppId({
           supabase,
+          empresaId,
           sessaoId,
           interacaoId: insertedMsg.id,
           prevMeta: asMeta(insertedMsg.metadata),
@@ -812,9 +800,30 @@ export async function startOmniConversation(
       return { success: false, error: 'Lead sem telefone/WhatsApp válido.' }
     }
 
-    const { data: canal } = await supabase
+    const pipeline = firstRelation(card.pipelines)
+    const departamentoId = pipeline?.departamento_id ?? null
+    if (me.role_global === 'operador') {
+      const userDeptIds = await getUserDepartamentoIds(supabase, me.id, me.grupo_id)
+      let allowed = canConsultCard(me, userDeptIds, {
+        responsavel_id: card.responsavel_id,
+        departamento_id: departamentoId,
+      })
+      if (!allowed && me.grupo_id && card.pipeline_id) {
+        const { data: pipelineAccess } = await supabase
+          .from('pipeline_grupo_acesso')
+          .select('pipeline_id')
+          .eq('grupo_id', me.grupo_id)
+          .eq('pipeline_id', card.pipeline_id)
+          .maybeSingle()
+        allowed = Boolean(pipelineAccess)
+      }
+      if (!allowed) return { success: false, error: 'Sem permissão para este card' }
+    }
+
+    const validationClient = createAdminClient()
+    const { data: canal } = await validationClient
       .from('crm_canais')
-      .select('*')
+      .select('id, empresa_id, provider_id, provider_token, settings')
       .eq('empresa_id', me.empresa_id)
       .eq('tipo', 'whatsapp')
       .order('created_at', { ascending: true })
@@ -825,14 +834,13 @@ export async function startOmniConversation(
       return { success: false, error: 'Nenhum canal WhatsApp configurado para a empresa.' }
     }
 
-    const pipeline = firstRelation(card.pipelines)
-    const departamentoId = pipeline?.departamento_id ?? null
     let departamentoNome: string | null = pipeline?.nome ?? null
     if (departamentoId) {
       const { data: dep } = await supabase
         .from('departamentos')
         .select('nome')
         .eq('id', departamentoId)
+        .eq('empresa_id', me.empresa_id)
         .maybeSingle()
       if (dep?.nome) departamentoNome = dep.nome
     }
@@ -857,6 +865,7 @@ export async function startOmniConversation(
               .from('departamentos')
               .select('nome')
               .eq('id', speaker.active_departamento_id)
+              .eq('empresa_id', me.empresa_id)
               .maybeSingle()
             activeDepartamentoNome = dep?.nome ?? null
           }
@@ -870,6 +879,7 @@ export async function startOmniConversation(
                 .from('pipelines')
                 .select('nome')
                 .eq('id', activeThread.pipeline_id)
+                .eq('empresa_id', me.empresa_id)
                 .maybeSingle()
               activeDepartamentoNome = p?.nome ?? null
             }
@@ -915,35 +925,39 @@ export async function startOmniConversation(
     })
 
     // Grava histórico + interação + thread via caminho único
-    const startPersist = await SessionPersistenceService.persistMessage(supabase, {
-      empresaId: me.empresa_id!,
-      canalId: canal.id,
-      externalId,
-      leadId: lead.id,
-      sessaoId: sessaoId ?? undefined,
-      cardId: card.id,
-      pipelineId: card.pipeline_id,
-      departamentoId,
-      role: 'assistant',
-      content: text,
-      direcao: 'outbound',
-      status: 'human',
-      lastHumanInteraction: new Date().toISOString(),
-      atribuidoAId: me.id,
-      userId: me.id,
-      contactPhone: externalId,
-      contactName: lead.nome || 'Cliente WhatsApp',
-      metadata: {
-        sent_by: me.id,
-        status: 'pending_send',
-        started_from_card: true,
-        departamento: departamentoNome,
-        departamento_id: departamentoId,
+    const startPersist = await SessionPersistenceService.persistMessage(
+      supabase,
+      {
+        empresaId: me.empresa_id!,
+        canalId: canal.id,
+        externalId,
+        leadId: lead.id,
+        sessaoId: sessaoId ?? undefined,
+        cardId: card.id,
+        pipelineId: card.pipeline_id,
+        departamentoId,
+        role: 'assistant',
+        content: text,
+        direcao: 'outbound',
+        status: 'human',
+        lastHumanInteraction: new Date().toISOString(),
+        atribuidoAId: me.id,
+        userId: me.id,
+        contactPhone: externalId,
+        contactName: lead.nome || 'Cliente WhatsApp',
+        metadata: {
+          sent_by: me.id,
+          status: 'pending_send',
+          started_from_card: true,
+          departamento: departamentoNome,
+          departamento_id: departamentoId,
+        },
+        activateSpeaker: isDeptSessionsEnabled(),
+        activatedBy: me.id,
+        speakerReason: forceAssume ? 'transfer' : 'outbound',
       },
-      activateSpeaker: isDeptSessionsEnabled(),
-      activatedBy: me.id,
-      speakerReason: forceAssume ? 'transfer' : 'outbound',
-    })
+      { validationClient },
+    )
 
     if (!startPersist.success || !startPersist.sessaoId) {
       return { success: false, error: startPersist.error || 'Falha ao gravar sessão de conversa.' }
@@ -975,6 +989,7 @@ export async function startOmniConversation(
     if (startPersist.interacaoId && result.messageId) {
       await persistWhatsAppId({
         supabase,
+        empresaId: me.empresa_id!,
         sessaoId,
         interacaoId: startPersist.interacaoId,
         prevMeta: {
