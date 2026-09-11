@@ -130,7 +130,7 @@ Detalhe: [roadmap-plataforma-entitlements.md](./roadmap-plataforma-entitlements.
 | **F4.1** | Fundação: locais, saldos/movimentos (tabelas), RLS, RBAC, hub operacional, CRUD locais | F1 SKUs |
 | **F4.2** | Entrada: lote tela + planilha + XML NFe (motor de validações) | F4.1 + Pessoas/De-para/UM |
 | **F4.3** | Requisição (manual + planilha) · param. saldo · prep. workflow aprovação | F4.1 + Pessoas |
-| **F4.4** | Retirada + transferência + ajuste (lotes manuais) + atendimento req. (**fim MVP funcional**) | F4.2 + F4.3 |
+| **F4.4** | Retirada + transferência + ajuste + **remessa (poder de terceiros)** + atendimento req. (**fim MVP funcional**) | F4.2 + F4.3 |
 | **F4.5** | Consultas + export + KPIs (**fora do MVP — depois**) | F4.4 |
 
 **Escopo piloto (proposta):** 1 CNPJ · 2 admins · ~20 usuários departamentais.

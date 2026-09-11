@@ -5,7 +5,7 @@ Documento de **implementação** do módulo Estoque (MVP Atlas / materiais de us
 | | |
 |--|--|
 | **Status** | Pronto para iniciar em **DEV** (F4.1) |
-| **Atualizado** | 2026-09-11 |
+| **Atualizado** | 2026-09-11 (remessa / poder de terceiros) |
 | **Fases no mapa geral** | F4 / F5 em [plano-desenvolvimento-fases.md](./plano-desenvolvimento-fases.md) |
 | **Proposta comercial** | *Controle de Estoques para Materiais de Uso e Consumo* (RN3 / Atlas) |
 | **Prod** | Só com **pedido explícito** |
@@ -19,7 +19,7 @@ Documento de **implementação** do módulo Estoque (MVP Atlas / materiais de us
 > - Um único `BEGIN` … `COMMIT` (preferir **RPC Postgres** atômica).  
 > - Qualquer falha → **ROLLBACK** total.  
 > - **Proibido:** dois commits, dois round-trips sem transação, ou deixar um lado gravado e o outro não.  
-> - Detalhe: §2 (Integridade) · §4.0 · §4.10 · §4.13 (batch também atômico).
+> - Detalhe: §2 (Integridade) · §4.0 · §4.10 · §4.14 (batch também atômico).
 >
 > *Se uma mudança de código violar esta regra, a mudança está errada — corrija antes de merge.*
 
@@ -41,7 +41,8 @@ Entregar no Hugin um módulo **nativo** de **operações** de estoque de consum�
 | 6 | Ajuste de estoque | Lote em tela (tabela) — **somente manual** · positivo / negativo |
 | 7 | Requisição de materiais | Manual + planilha · requisitante em Pessoas · param. saldo + workflow opcional |
 | 8 | Atendimento de requisição | Gera baixa (`saida` / origem `requisicao`) — distinto da tela de Retiradas |
-| 9 | Cardex + Saldo + batch | Toda movimentação grava cardex e atualiza saldo; rotina reconstrói saldos |
+| 9 | **Remessa / envio para fora** | Estoque **próprio em poder de terceiros** · envio + retorno · justificativas pré-prontas |
+| 10 | Cardex + Saldo + batch | Toda movimentação grava cardex e atualiza saldo; rotina reconstrói saldos |
 
 **Fora do MVP — consultas e relatórios (depois):**
 
@@ -71,7 +72,7 @@ Entregar no Hugin um módulo **nativo** de **operações** de estoque de consum�
 
 ### REGRA DE OURO — Integridade transacional
 
-Operações envolvidas: entrada, retirada, transferência, ajuste, atendimento de requisição (e qualquer outra que altere posição).
+Operações envolvidas: entrada, retirada, transferência, ajuste, atendimento de requisição, **remessa (envio/retorno)**, e qualquer outra que altere posição.
 
 **Enunciado:** gravar Cardex **e** atualizar Saldo no **mesmo** commit atômico — **sempre**.
 
@@ -82,7 +83,7 @@ Operações envolvidas: entrada, retirada, transferência, ajuste, atendimento d
 | Preferir **RPC/SQL** (`SECURITY DEFINER` + checagens) ou transaction no server action com cliente que suporte multi-statement atômico | “Best effort” no client / dois `await supabase.from` sem transação |
 | Lote com N itens: cada item OK na mesma transação do item **ou** lote inteiro atômico conforme política do canal — **nunca** item pela metade (cardex sim / saldo não) | Atualizar só um lado e “corrigir depois” no happy path |
 
-A rotina batch (§4.13) também é atômica **por empresa**: reescrita de saldos em uma transação. Ela é a **única** exceção autorizada a recalcular Saldo **lendo** o Cardex sem criar movimento novo.
+A rotina batch (§4.14) também é atômica **por empresa**: reescrita de saldos em uma transação. Ela é a **única** exceção autorizada a recalcular Saldo **lendo** o Cardex sem criar movimento novo.
 
 ### O que **não** entra neste módulo (fica em Cadastros)
 
@@ -126,6 +127,7 @@ A VPS **não** monta nem varre pastas da LAN do cliente.
 | Retirada de estoque (lote tabular, manual) | **F4.4** | `/cockpit/estoque/retiradas` |
 | Transferência entre locais | **F4.4** | `/cockpit/estoque/transferencias` |
 | Ajuste de estoque (lote tabular, manual) | **F4.4** | `/cockpit/estoque/ajustes` |
+| Remessa / envio para fora (+ retorno) | **F4.4** | `/cockpit/estoque/remessas` |
 | Ledger / **Cardex** + **Saldo** + batch reconstruir | **F4.1** | tabelas + RPC; botão em Configuração |
 
 ### Depois — consultas e relatórios (F4.5+)
@@ -147,10 +149,10 @@ Prefixos: `cad_locais_estoque` (cadastro do módulo) · `est_*` (operacional).
 
 > **REGRA DE OURO:** Cardex + Saldo na **mesma transação** · falha → **ROLLBACK** · ver box no topo do documento.
 
-Duas tabelas centrais. **Toda** operação de estoque (entrada, retirada, transferência, ajuste, atendimento de requisição) deve, **na mesma transação de banco**:
+Duas tabelas centrais (+ projeção de **poder de terceiros**). **Toda** operação de estoque (entrada, retirada, transferência, ajuste, atendimento de requisição, **remessa envio/retorno**) deve, **na mesma transação de banco**:
 
 1. **Gravar** uma (ou mais) linha(s) no **Cardex** (`est_movimentos`)  
-2. **Atualizar** o **Saldo** (`est_saldos`)  
+2. **Atualizar** o **Saldo** (`est_saldos`) — e, em remessa, também `est_saldos_poder_terceiros`  
 
 **Integridade:** se qualquer um dos passos falhar → **ROLLBACK** de tudo. Não existe estado válido com Cardex e Saldo divergentes após um commit de operação online.
 
@@ -158,7 +160,7 @@ Duas tabelas centrais. **Toda** operação de estoque (entrada, retirada, transf
 |----------|-------------|
 | Dois commits (Cardex depois Saldo, ou o inverso) | Uma transação única |
 | Retry só de um lado | Retry da operação completa |
-| Patch manual de saldo “para bater” no happy path | Usar batch §4.13 só para reconciliação / ops |
+| Patch manual de saldo “para bater” no happy path | Usar batch §4.14 só para reconciliação / ops |
 
 Nunca atualizar saldo sem cardex · nunca gravar cardex sem refletir no saldo (exceto a rotina batch de reconciliação, que **recalcula** saldos a partir do cardex, também em transação).
 
@@ -209,7 +211,7 @@ Fonte da verdade para auditoria: **Cardex**. Saldo é projeção materializada p
 
 ### 4.3 `est_saldos` (Saldo de estoque)
 
-Posição **atual** por empresa × SKU × local. Atualizada a cada movimento e reconstruível pelo batch (§4.13).
+Posição **atual** por empresa × SKU × local. Atualizada a cada movimento e reconstruível pelo batch (§4.14).
 
 | Coluna | Tipo | Notas |
 |--------|------|--------|
@@ -340,25 +342,28 @@ Histórico de **todas** as movimentações. Append-only no fluxo normal (correç
 |--------|------|--------|
 | id | uuid PK | |
 | empresa_id | uuid NOT NULL | |
-| tipo | text | `entrada` \| `saida` \| `transferencia` \| `ajuste` |
+| tipo | text | `entrada` \| `saida` \| `transferencia` \| `ajuste` \| `remessa_saida` \| `remessa_retorno` |
 | sku_id | uuid NOT NULL | |
-| local_id | uuid NOT NULL | destino (entrada/ajuste+) · origem (saída/retirada/ajuste− / transferência) |
+| local_id | uuid NOT NULL | destino (entrada/ajuste+/retorno) · origem (saída/retirada/ajuste− / transferência / remessa_saida) |
 | local_destino_id | uuid NULL | obrigatório em `transferencia` |
 | quantidade | numeric(18,4) NOT NULL | sempre > 0 e em **UM de estoque** |
 | documento | text NULL | NF / OS / ref. |
-| pessoa_id | uuid NULL | fornecedor (entrada) — FK `crm_leads` |
+| pessoa_id | uuid NULL | fornecedor (entrada) · **terceiro destinatário** (remessa) — FK `crm_leads` |
 | lote_entrada_id | uuid NULL | FK `est_entrada_lotes` |
 | lote_retirada_id | uuid NULL | FK `est_retirada_lotes` — rastreio do lote de retirada |
 | lote_ajuste_id | uuid NULL | FK `est_ajuste_lotes` — rastreio do lote de ajuste |
+| lote_remessa_id | uuid NULL | FK `est_remessa_lotes` — rastreio da remessa |
+| remessa_item_id | uuid NULL | FK `est_remessa_itens` — linha da remessa (envio/retorno) |
 | requisicao_id | uuid NULL | quando saída veio de atendimento de requisição |
-| origem | text NULL | `lote_tela` \| `planilha` \| `nfe_xml` \| `retirada` \| `requisicao` \| `ajuste` |
+| origem | text NULL | `lote_tela` \| `planilha` \| `nfe_xml` \| `retirada` \| `requisicao` \| `ajuste` \| `remessa` |
 | ajuste_sinal | text NULL | `positivo` \| `negativo` quando `tipo = ajuste` |
-| motivo | text NULL | justificativa / texto cardex (entrada manual, retirada, ajuste) |
+| motivo_codigo | text NULL | código da justificativa pré-pronta (remessa) — ver §11 |
+| motivo | text NULL | justificativa / texto cardex (entrada manual, retirada, ajuste, remessa) |
 | usuario_id | uuid NULL | quem lançou |
 | movimento_em | timestamptz | default now() |
 | created_at | timestamptz | |
 
-**REGRA DE OURO (gravação online):** em **uma única transação de banco** — INSERT no Cardex **e** UPDATE/UPSERT em `est_saldos`. Qualquer erro → `ROLLBACK` (sem integridade parcial). Implementação preferencial: **RPC Postgres** atômica por movimento (ou por lote, se a política do canal for all-or-nothing).
+**REGRA DE OURO (gravação online):** em **uma única transação de banco** — INSERT no Cardex **e** UPDATE/UPSERT em `est_saldos` (e `est_saldos_poder_terceiros` quando remessa). Qualquer erro → `ROLLBACK` (sem integridade parcial). Implementação preferencial: **RPC Postgres** atômica por movimento (ou por lote, se a política do canal for all-or-nothing).
 
 | `tipo` | Efeito no saldo |
 |--------|-----------------|
@@ -367,8 +372,10 @@ Histórico de **todas** as movimentações. Append-only no fluxo normal (correç
 | `ajuste` + | `local_id` += qtd |
 | `ajuste` − | `local_id` -= qtd |
 | `transferencia` | `local_id` -= qtd **e** `local_destino_id` += qtd |
+| `remessa_saida` | `local_id` -= qtd **e** `est_saldos_poder_terceiros` (pessoa+sku) += qtd |
+| `remessa_retorno` | `est_saldos_poder_terceiros` (pessoa+sku) -= qtd **e** `local_id` += qtd |
 
-**Transferência / retirada / ajuste:** ver §§7–9.
+**Transferência / retirada / ajuste:** ver §§7–9. **Remessa:** ver §11.
 
 ### 4.11 `est_requisicoes` / `est_requisicao_itens`
 
@@ -396,24 +403,74 @@ Histórico de **todas** as movimentações. Append-only no fluxo normal (correç
 | local_id | uuid NULL | local de baixa no atendimento (default `BRANCO`) |
 | status_item | text | `pendente` \| `atendido` \| `parcial` \| `nao_atendido` \| `pulado` |
 
-### 4.12 RLS
+### 4.12 `est_remessa_lotes` / `est_remessa_itens` / `est_saldos_poder_terceiros`
+
+Controle de **estoque próprio em poder de terceiros**: material sai do local da empresa, mas **continua nosso** até o retorno (baixa definitiva / perda em poder de terceiros = fora do MVP).
+
+#### `est_remessa_lotes`
+
+| Coluna | Tipo | Notas |
+|--------|------|--------|
+| id | uuid PK | |
+| empresa_id | uuid NOT NULL | |
+| numero | text NOT NULL | sequencial / legível por empresa |
+| destinatario_pessoa_id | uuid NOT NULL | FK `crm_leads` — **terceiro** (oficina, locatário, industrializador…) |
+| motivo_codigo | text NOT NULL | catálogo §11.3 (mesmo motivo no lote; itens herdam) |
+| motivo_texto | text NULL | **obrigatório** se `motivo_codigo = outro` · opcional complemento nos demais |
+| local_origem_id | uuid NOT NULL | local de saída (default `BRANCO`) |
+| documento | text NULL | OS / NF remessa / contrato |
+| previsao_retorno_em | date NULL | opcional |
+| status | text | `aberta` \| `parcial` \| `fechada` \| `cancelada` |
+| usuario_id | uuid NULL | quem lançou o envio |
+| enviado_em | timestamptz | default now() |
+| created_at / updated_at | timestamptz | |
+
+#### `est_remessa_itens`
+
+| Coluna | Tipo | Notas |
+|--------|------|--------|
+| id / empresa_id / remessa_id | … | |
+| sku_id | uuid NOT NULL | |
+| quantidade_enviada | numeric(18,4) NOT NULL | > 0 · UM de estoque |
+| quantidade_retornada | numeric(18,4) NOT NULL | default 0 · ≤ enviada |
+| quantidade_em_poder | numeric(18,4) | gerada: enviada − retornada |
+| status_item | text | `em_poder` \| `parcial` \| `retornado` |
+| movimento_saida_id | uuid NULL | FK `est_movimentos` do envio |
+| observacao | text NULL | |
+
+#### `est_saldos_poder_terceiros`
+
+Projeção materializada (espelha o papel de `est_saldos`, mas por **terceiro + SKU**).
+
+| Coluna | Tipo | Notas |
+|--------|------|--------|
+| empresa_id | uuid NOT NULL | |
+| pessoa_id | uuid NOT NULL | terceiro (FK `crm_leads`) |
+| sku_id | uuid NOT NULL | |
+| quantidade | numeric(18,4) NOT NULL | ≥ 0 · UM de estoque |
+| updated_at | timestamptz | |
+| PK / unique | `(empresa_id, pessoa_id, sku_id)` | |
+
+**REGRA DE OURO:** envio e retorno atualizam Cardex + `est_saldos` + `est_saldos_poder_terceiros` na **mesma transação**.
+
+### 4.13 RLS
 
 - `ENABLE ROW LEVEL SECURITY` em todas.  
 - Policies: `check_permission('estoque', …)` + `empresa_id` do usuário (superadmin bypass).  
 - Grants para `authenticated` alinhados às demais tabelas `cad_*`.
 
-### 4.13 Rotina batch — reconstruir saldos a partir do Cardex
+### 4.14 Rotina batch — reconstruir saldos a partir do Cardex
 
 > Mesmo sob a **REGRA DE OURO**: a reconstrução dos saldos de uma empresa ocorre em **uma transação** (não metade recalculada).
 
-Objetivo: **recontar o cardex inteiro** (por empresa ou global admin) e **reescrever** `est_saldos`, corrigindo drift (falha parcial, bug, intervenção manual indevida).
+Objetivo: **recontar o cardex inteiro** (por empresa ou global admin) e **reescrever** `est_saldos` **e** `est_saldos_poder_terceiros`, corrigindo drift.
 
 | Item | Decisão |
 |------|---------|
 | Nome | `est_reconstruir_saldos_from_cardex` (RPC/SQL) + job agendável |
-| Escopo | Por `empresa_id` (obrigatório no tenant) · opcional filtro `sku_id` / `local_id` |
-| Algoritmo | 1) Zerar ou deletar saldos do escopo · 2) Agregar cardex · 3) Upsert saldos |
-| Agregação | `entrada`/`ajuste+` somam em `local_id`; `saida`/`ajuste-` subtraem de `local_id`; `transferencia` subtrai origem e soma destino |
+| Escopo | Por `empresa_id` (obrigatório no tenant) · opcional filtro `sku_id` / `local_id` / `pessoa_id` (terceiros) |
+| Algoritmo | 1) Zerar ou deletar saldos do escopo · 2) Agregar cardex · 3) Upsert saldos locais **e** poder de terceiros |
+| Agregação | `entrada`/`ajuste+`/`remessa_retorno` somam em `local_id`; `saida`/`ajuste-`/`remessa_saida` subtraem de `local_id`; `transferencia` subtrai origem e soma destino; `remessa_saida` soma em poder de terceiros; `remessa_retorno` subtrai de poder de terceiros |
 | Transação | Tudo atômico por empresa (BEGIN…COMMIT; rollback se falhar) |
 | Quem dispara | Cron (ex. noturno) · botão admin em Configuração (“Recalcular saldos”) · CLI/ops |
 | Log | Registrar início/fim, `empresa_id`, qtd linhas cardex, divergências detectadas (saldo antigo × novo) |
@@ -424,9 +481,11 @@ Pseudológica:
 ```
 para cada (empresa_id [, sku_id] [, local_id]):
   saldo_calc = map vazio
+  saldo_terceiros_calc = map vazio
   para cada movimento no cardex (ordem movimento_em, id):
-    aplicar delta conforme tipo
+    aplicar delta conforme tipo (inclui remessa_saida / remessa_retorno)
   substituir est_saldos do escopo por saldo_calc
+  substituir est_saldos_poder_terceiros do escopo por saldo_terceiros_calc
   (linhas com quantidade 0 podem ser removidas ou mantidas em 0)
 ```
 
@@ -937,13 +996,125 @@ Atendimento gera `saida` com `origem = requisicao` + `requisicao_id` (ver §8 di
 
 ### 10.10 Relação com outras operações
 
-- **Retirada** = lote tabular **somente manual** (§8) — sem requisição.  
+- **Retirada** = lote tabular **somente manual** (§8) — sem requisição · **consumo** (não fica em poder de terceiros).  
 - **Atendimento de requisição** = baixa vinculada (`origem = requisicao`).  
-- **Ajuste** = lote tabular **somente manual** (§9).
+- **Ajuste** = lote tabular **somente manual** (§9).  
+- **Remessa** = envio para fora (§11) — **não** é consumo; estoque próprio em poder de terceiros + retorno.
 
 ---
 
-## 11. UI — hub e rotas
+## 11. Regras de negócio — Remessa (estoque próprio em poder de terceiros)
+
+### 11.1 Objetivo
+
+Controlar material **nosso** que sai fisicamente para um **terceiro** (oficina, locatário, industrializador, depósito, etc.) **sem** baixar como consumo.
+
+| Rotina | O que é | O que **não** é |
+|--------|---------|-----------------|
+| **Remessa / envio para fora** | Sai do local → fica em `est_saldos_poder_terceiros` | Retirada (consumo) · transferência entre locais próprios |
+| **Retorno de remessa** | Volta do terceiro → entra de novo no local | Entrada de compra / NFe |
+
+### 11.2 Somente manual (MVP)
+
+- Envio e retorno **somente** pela tela (lote tabular).  
+- Sem planilha / XML nesta rotina no MVP.
+
+### 11.3 Justificativas pré-prontas (`motivo_codigo`)
+
+Catálogo fixo no código (constante / enum). UI: select obrigatório.
+
+| Código | Rótulo na UI | Quando usar |
+|--------|--------------|-------------|
+| `remessa_conserto` | Remessa para conserto | Envio à oficina / assistência para reparo |
+| `remessa_locacao` | Locação / comodato | Bem ou material cedido em locação ou comodato |
+| `remessa_industrializacao` | Industrialização | Envio para beneficiamento / industrialização em terceiro |
+| `remessa_demonstracao` | Demonstração / amostra | Material em demonstração ou amostra com cliente/parceiro |
+| `remessa_garantia` | Garantia / assistência técnica | Troca / análise em garantia |
+| `remessa_feira_evento` | Feira / evento | Material em feira, stand ou evento temporário |
+| `remessa_deposito_terceiros` | Depósito em poder de terceiros | Armazém geral / depósito de terceiro (ainda nosso) |
+| `remessa_emprestimo` | Empréstimo | Empréstimo temporário a terceiro |
+| `outro` | Outro | Motivo livre — exige `motivo_texto` |
+
+Complementos opcionais no futuro (fora do MVP): catálogo editável por empresa via Configuração.
+
+### 11.4 Campos mandatórios — envio
+
+| Campo | Obrigatório | Notas |
+|-------|-------------|--------|
+| Destinatário (Pessoas) | **sim** | `crm_leads` do tenant — cadastrar se não existir |
+| Motivo (`motivo_codigo`) | **sim** | tabela §11.3 |
+| Motivo texto | se `outro` | texto livre ≥ 3 caracteres |
+| Local de origem | default `BRANCO` | se vazio → principal |
+| Itens: SKU + quantidade | **sim** | UM de estoque · **sem** conversão |
+| Documento / OS | não | recomendado |
+| Previsão de retorno | não | data opcional |
+
+### 11.5 UI — envio (lote)
+
+1. Cabeçalho: destinatário · motivo · local · documento · previsão.  
+2. Tabela de itens: SKU · qtd · obs.  
+3. Confirmar → valida saldo → grava lote + itens + cardex + saldos (REGRA DE OURO).  
+4. Listagem operacional: remessas `aberta` / `parcial` / `fechada`.
+
+### 11.6 Validações — envio
+
+| Regra | Erro |
+|-------|------|
+| Destinatário inexistente | `DESTINATARIO_NAO_CADASTRADO` → cadastrar em Pessoas |
+| Motivo vazio / inválido | `MOTIVO_OBRIGATORIO` |
+| `outro` sem texto | `MOTIVO_TEXTO_OBRIGATORIO` |
+| SKU/qtd inválidos | `CAMPOS_OBRIGATORIOS` / `SKU_INVALIDO` |
+| Saldo no local `< qtd` | `SALDO_INSUFICIENTE` (não gera negativo) |
+
+### 11.7 Efeito no cardex / saldo — envio
+
+Na **mesma transação**, por item:
+
+1. Insert/atualiza `est_remessa_lotes` / `est_remessa_itens`.  
+2. Insert `est_movimentos`: `tipo = remessa_saida`, `origem = remessa`, `pessoa_id` = destinatário, `lote_remessa_id`, `remessa_item_id`, `motivo_codigo`, `motivo` = `{rótulo}`.  
+3. `est_saldos` no `local_origem_id` -= qtd.  
+4. `est_saldos_poder_terceiros` (destinatário + SKU) += qtd.  
+5. Status lote/item: `aberta` / `em_poder`.
+
+### 11.8 Retorno de remessa
+
+| Campo | Obrigatório |
+|-------|-------------|
+| Remessa / item de origem | **sim** |
+| Quantidade a retornar | **sim** · > 0 · ≤ `quantidade_em_poder` |
+| Local de retorno | default = local de origem da remessa (ou `BRANCO`) |
+
+Regras:
+
+1. Retorno **parcial** permitido (vários retornos até zerar).  
+2. Ao zerar todos os itens → lote `fechada`.  
+3. Item: `quantidade_retornada` += qtd; status `parcial` ou `retornado`.  
+4. Cardex: `tipo = remessa_retorno` · mesma REGRA DE OURO (terceiros -= · local +=).  
+5. **Não** misturar retorno com entrada de compra.
+
+### 11.9 Códigos de erro
+
+| Código | Significado | O que fazer |
+|--------|-------------|-------------|
+| `DESTINATARIO_NAO_CADASTRADO` | Pessoa ausente | Cadastrar em Pessoas |
+| `MOTIVO_OBRIGATORIO` | Sem motivo do catálogo | Escolher justificativa |
+| `MOTIVO_TEXTO_OBRIGATORIO` | `outro` sem texto | Descrever o motivo |
+| `CAMPOS_OBRIGATORIOS` | Falta SKU/qtd | Completar linha |
+| `SALDO_INSUFICIENTE` | Sem saldo no local | Reduzir qtd / outro local |
+| `QTD_RETORNO_INVALIDA` | Retorno > em poder | Ajustar quantidade |
+| `REMESSA_FECHADA` | Tentou movimentar lote fechado | Abrir nova remessa |
+
+### 11.10 O que a remessa **não** faz (MVP)
+
+- Não emite NF-e / CFOP fiscal (só controle operacional; fiscal depois).  
+- Não baixa como consumo (isso é **Retirada**).  
+- Não cria local “fantasma” por terceiro (usa `est_saldos_poder_terceiros`).  
+- Sem perda / baixa definitiva em poder de terceiros (depois, se precisar).  
+- Sem planilha/XML de remessa.
+
+---
+
+## 12. UI — hub e rotas
 
 ### Sidebar
 
@@ -961,6 +1132,7 @@ Atendimento gera `saida` com `origem = requisicao` + `requisicao_id` (ver §8 di
 | Retiradas | `/cockpit/estoque/retiradas` |
 | Transferências | `/cockpit/estoque/transferencias` |
 | Ajustes | `/cockpit/estoque/ajustes` |
+| Remessas (poder de terceiros) | `/cockpit/estoque/remessas` |
 | Requisições | `/cockpit/estoque/requisicoes` |
 
 ### Hub cards — depois (consultas / relatórios)
@@ -973,7 +1145,7 @@ Atendimento gera `saida` com `origem = requisicao` + `requisicao_id` (ver §8 di
 
 ---
 
-## 12. RBAC
+## 13. RBAC
 
 Incluir em `PERMISSION_CATEGORIES` (nova categoria **Estoque**):
 
@@ -986,6 +1158,7 @@ Incluir em `PERMISSION_CATEGORIES` (nova categoria **Estoque**):
 | `estoque_retiradas` | lotes de retirada (tabela, manual) |
 | `estoque_transferencias` | transferir entre locais |
 | `estoque_ajustes` | lotes de ajuste (tabela, manual) |
+| `estoque_remessas` | envio para fora + retorno (poder de terceiros) |
 | `estoque_requisicoes` | criar/ver requisições |
 | `estoque_aprovacao` | aprovar / cancelar |
 | `estoque_atendimento` | atender requisição (baixa por req.) |
@@ -997,18 +1170,18 @@ Incluir em `PERMISSION_CATEGORIES` (nova categoria **Estoque**):
 
 ---
 
-## 13. Import — export (depois)
+## 14. Import — export (depois)
 
 > Planilha de **requisição** está especificada em §10.8 (não duplicar aqui).
 
-### 13.1 Export consumido (F4.5 — depois)
+### 14.1 Export consumido (F4.5 — depois)
 
 Filtros: período, departamento, SKU, local.  
 Colunas: data, sku, nome, qtd, local, depto, requisicao, usuario.
 
 ---
 
-## 14. Plano de sprints (DEV)
+## 15. Plano de sprints (DEV)
 
 ### F4.0 — Workshop (antes ou em paralelo ao F4.1)
 
@@ -1026,7 +1199,7 @@ Colunas: data, sku, nome, qtd, local, depto, requisicao, usuario.
 - [ ] Proibido: dois commits / dois round-trips sem transação envolvendo Cardex e Saldo  
 - [ ] `est_config`: NFe path + `req_saldo_insuficiente_modo` + flags/IDs de workflow de aprovação  
 - [ ] Seed permissão `estoque` na matriz  
-- [ ] Nav: módulo Estoque + hub (cards da §11)  
+- [ ] Nav: módulo Estoque + hub (cards da §12)  
 - [ ] CRUD Locais (regras §5 — local principal `BRANCO`)  
 - [ ] Tela Configuração (NFe, modo saldo req., funil/estágio aprovação)  
 - [ ] Ligar `estoque` no tenant piloto (DEV)  
@@ -1053,7 +1226,7 @@ Colunas: data, sku, nome, qtd, local, depto, requisicao, usuario.
 - [ ] Atendimento respeitando `req_saldo_insuficiente_modo` (§10.4)  
 - [ ] Filtro / listagem  
 
-### F4.4 — Retiradas + Transferências + Ajustes + atendimento
+### F4.4 — Retiradas + Transferências + Ajustes + Remessas + atendimento
 
 - [ ] Retirada (regras §8): tela **tabela**, lote, **somente manual**  
 - [ ] Campos mandatórios: SKU, qtd, justificativa, local (default `BRANCO`)  
@@ -1066,6 +1239,8 @@ Colunas: data, sku, nome, qtd, local, depto, requisicao, usuario.
 - [ ] Ajuste (regras §9): tela **tabela**, lote, **somente manual**  
 - [ ] Campos mandatórios ajuste: SKU, qtd, justificativa, local (default `BRANCO`)  
 - [ ] Cardex `tipo = ajuste` + observação positivo/negativo + `lote_ajuste_id`  
+- [ ] Remessa (regras §11): envio + retorno · destinatário Pessoas · motivos pré-prontos  
+- [ ] Cardex `remessa_saida` / `remessa_retorno` + `est_saldos_poder_terceiros` (mesma transação)  
 - [ ] Listagens operacionais  
 
 ### F4.5 — Consultas e relatórios (**depois**)
@@ -1089,7 +1264,7 @@ Colunas: data, sku, nome, qtd, local, depto, requisicao, usuario.
 
 ---
 
-## 15. Critérios de aceite (piloto — só funcionalidades)
+## 16. Critérios de aceite (piloto — só funcionalidades)
 
 1. Sem addon `estoque` → sem menu e URL bloqueada.  
 2. É possível criar local principal **`BRANCO`** (`eh_principal`) para empresa sem multi-local.  
@@ -1113,12 +1288,14 @@ Colunas: data, sku, nome, qtd, local, depto, requisicao, usuario.
 20. Dados de empresa A invisíveis para empresa B.  
 21. **REGRA DE OURO:** toda movimentação grava **Cardex** + atualiza **Saldo** na **mesma transação**; falha → rollback (sem divergência).  
 22. Rotina batch reconstrói saldos a partir do cardex completo (por empresa), também de forma atômica.  
+23. Remessa exige destinatário em Pessoas + motivo do catálogo; baixa local e sobe poder de terceiros na mesma transação.  
+24. Retorno parcial/total de remessa devolve ao local e reduz poder de terceiros; não mistura com entrada de compra.  
 
 *(Saldos UI, export, KPIs e **contagem cíclica** = fora deste ciclo / depois.)*
 
 ---
 
-## 16. Fora do MVP
+## 17. Fora do MVP
 
 - Consultas / saldos UI / export / dashboard *(fase depois)*  
 - **Contagem cíclica / inventário físico** (não neste ciclo)  
@@ -1130,20 +1307,22 @@ Colunas: data, sku, nome, qtd, local, depto, requisicao, usuario.
 - Locais no hub Cadastros  
 - Embed de outro sistema  
 - Leitura direta de pasta UNC pela VPS  
+- NF-e / CFOP fiscal de remessa  
+- Perda / baixa definitiva em poder de terceiros  
 
 ---
 
-## 17. Ordem de execução sugerida
+## 18. Ordem de execução sugerida
 
 1. Fechar F4.0 (workshop operacional + agente NFe) **ou** começar F4.1 com defaults deste doc.  
 2. Implementar **F4.1→F4.4 só em DEV**.  
-3. Homologar operações (entrada, retirada, transferência, ajuste, requisição).  
+3. Homologar operações (entrada, retirada, transferência, ajuste, remessa, requisição).  
 4. Cutover prod **somente com pedido explícito**.  
 5. Depois: F4.5 consultas/relatórios.  
 
 ---
 
-## 18. Referências
+## 19. Referências
 
 - **REGRA DE OURO** (topo deste doc): Cardex + Saldo na mesma transação  
 - Mapa geral: [plano-desenvolvimento-fases.md](./plano-desenvolvimento-fases.md)  
