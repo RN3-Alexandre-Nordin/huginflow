@@ -1,0 +1,91 @@
+---
+description: Padrão de Design System — Proibição de tripas de campos e adoção obrigatória de abas temáticas
+alwaysApply: true
+---
+
+# Design System: Proibição de "Tripas de Campos" e Uso Obrigatório de Abas (LEI DE UI/UX)
+
+## 1. Princípio Fundamental
+**NUNCA crie telas com tripas verticais intermináveis de campos.**
+Telas de parâmetros, configurações de módulos, cadastros ou formulários com múltiplos grupos de dados **jamais** devem ser empilhados em uma rolagem contínua monótona ("tripa").
+
+Campos e parâmetros devem ser **agrupados logicamente** por domínio de responsabilidade e organizados no **padrão de abas canônico** do Hugin Flow.
+
+---
+
+## 2. Estrutura Canônica de Formulários com Abas
+
+Todo formulário denso, tela de configuração de módulo ou cadastro (ex.: `EmpresaForm`, `SkuForm`, `PessoaForm`, `ConfigForm`) deve implementar a seguinte arquitetura:
+
+```tsx
+<div className="overflow-hidden rounded-2xl border border-[#ffffff0a] bg-[#111111] shadow-2xl">
+  {/* 1. Barra Superior de Abas */}
+  <div className="border-b border-[#ffffff0a] bg-[#0A0A0A]/80 px-3 pt-3 pb-2 sm:px-4">
+    <p className="mb-2 px-1 text-[10px] font-black uppercase tracking-widest text-gray-600">
+      Seções
+    </p>
+    <nav className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-N" role="tablist">
+      {SECTIONS.map((item) => {
+        const active = item.id === currentSection
+        return (
+          <button
+            key={item.id}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            onClick={() => setCurrentSection(item.id)}
+            className={`rounded-xl px-2.5 py-2.5 text-left transition-all ${
+              active
+                ? 'bg-gradient-to-r from-[#2BAADF]/20 to-[#2BAADF]/5 text-[#2BAADF] border border-[#2BAADF]/25'
+                : 'text-gray-400 hover:bg-[#ffffff08] hover:text-white border border-transparent'
+            }`}
+          >
+            <span className="block text-sm font-semibold tracking-tight leading-tight">
+              {item.label}
+            </span>
+            <span className="mt-0.5 block text-[10px] leading-snug text-gray-500 line-clamp-2">
+              {item.hint}
+            </span>
+          </button>
+        )
+      })}
+    </nav>
+  </div>
+
+  {/* 2. Cabeçalho da Seção Ativa */}
+  <div className="border-b border-[#ffffff08] px-5 py-3.5 sm:px-6 flex items-center justify-between gap-4">
+    <div>
+      <h3 className="text-base font-semibold text-white">{activeMeta.label}</h3>
+      <p className="text-xs text-gray-500">{activeMeta.hint}</p>
+    </div>
+  </div>
+
+  {/* 3. Painéis de Conteúdo por Aba */}
+  <div className="min-h-[20rem] p-5 sm:p-6">
+    <div className={currentSection === 'secao_1' ? 'space-y-5' : 'hidden'} role="tabpanel">
+      {/* Campos da Seção 1 */}
+    </div>
+    <div className={currentSection === 'secao_2' ? 'space-y-5' : 'hidden'} role="tabpanel">
+      {/* Campos da Seção 2 */}
+    </div>
+  </div>
+
+  {/* 4. Rodapé Fixo de Ações */}
+  <div className="border-t border-[#ffffff08] bg-[#0A0A0A]/90 px-6 py-4 flex items-center justify-end">
+    <button
+      type="submit"
+      className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#2BAADF] to-[#1A8FBF] px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-[#2BAADF]/20 hover:opacity-95 transition"
+    >
+      Salvar
+    </button>
+  </div>
+</div>
+```
+
+---
+
+## 3. Checklist Obrigatório Antes de Criar Qualquer Nova Tela
+1. **Identificar Grupos Lógicos:** Quantos contextos existem nesta tela? (ex.: Geral, Fiscal, Estoque, Workflow, Permissões).
+2. **Definir Metadados das Abas:** Cada aba deve ter `id`, `label` e `hint` curto de 1 linha.
+3. **Persistência Global:** O formulário (`<form>`) deve envolver todo o container para que salvar envie o estado de todas as abas de uma só vez, independentemente de qual aba está selecionada no momento.
+4. **Visibilidade Dinâmica de Abas:** Abas dependentes de addons ou permissões (`hasWorkflowAddon`, `canManage`, etc.) devem ser filtradas da lista de seções e não renderizadas caso desabilitadas.

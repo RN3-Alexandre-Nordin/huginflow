@@ -36,6 +36,8 @@ Sistemas Especialistas: O sistema deve estar pronto para consultar sistemas exte
 6. [ADICIONAL] Agnosticismo de Interface (UI/UX)
 Componentização Extrema: Use componentes atômicos. Se mudarmos o design system amanhã, o motor de workflow não deve quebrar.
 
+Proibição de Tripas de Campos & Adoção Obrigatória de Abas: NUNCA crie formulários, telas de parâmetros ou configurações em "tripas verticais compridas" de campos empilhados. Sempre agrupe campos por domínio temático e utilize o padrão de abas canônico do Hugin Flow (container `bg-[#111111]`, barra de abas `role="tablist"` com label + hint, cabeçalho da aba ativa e rodapé com botões de ação). Consulte `.cursor/rules/ui-design-system-abas.mdc` antes de criar ou refatorar telas.
+
 Feedback ao Usuário: Toda ação de IA ou integração pesada deve exibir estados de "Loading" ou "Processing" para evitar a sensação de travamento.
 
 7. [ADICIONAL] Auditabilidade e Logs
@@ -58,3 +60,8 @@ Traceability: Toda ação automatizada pela IA deve deixar um log de "Por que is
 - Push de `develop` também exige OK explícito (“pode dar push na develop”).
 - SQL/MCP **prod**: só com pedido explícito.
 - Regra alwaysApply: `.cursor/rules/git-main-e-producao.mdc` — consultar **antes** de qualquer git commit/push.
+
+### 10. [NOVO] Performance SaaS — consultar antes de listagens/agregações
+O Hugin Flow é multi-tenant SaaS. **Antes** de criar ou alterar telas de lista, dashboards ou agregações:
+- Consultar `.cursor/rules/saas-performance.mdc` (alwaysApply).
+- Em estoque: também `docs/desenvolvimento-modulo-estoque.md` §2.1 (paginar; `GROUP BY`/VIEW no Postgres; ler `est_saldos`; não agregar milhares de linhas no JS).

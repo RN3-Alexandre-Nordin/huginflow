@@ -3,7 +3,7 @@
 import { useActionState, useState } from 'react'
 import Link from 'next/link'
 import { AlertCircle, Save } from 'lucide-react'
-import { SKU_UNIDADES } from '@/lib/skus/constants'
+import UmCombobox from '@/components/skus/UmCombobox'
 
 const inputCls =
   'w-full bg-[#0A0A0A] border border-[#ffffff12] focus:border-[#2BAADF] rounded-xl px-4 py-2.5 text-sm text-white outline-none transition-all placeholder-gray-600 focus:ring-1 focus:ring-[#2BAADF]/30'
@@ -13,6 +13,8 @@ type SkuOpt = { id: string; codigo: string; nome: string }
 type Props = {
   mode: 'create' | 'edit'
   skus: SkuOpt[]
+  /** UMs já usadas na empresa (SKUs + conversões) — sugestões internas. */
+  knownUnits?: string[]
   initial?: {
     sku_id?: string | null
     unidade_origem?: string
@@ -27,6 +29,7 @@ type Props = {
 export default function ConversaoUmForm({
   mode,
   skus,
+  knownUnits = [],
   initial,
   action,
   cancelHref,
@@ -112,40 +115,35 @@ export default function ConversaoUmForm({
         )}
         {escopo === 'generica' && <input type="hidden" name="sku_id" value="" />}
 
+        <p className="rounded-xl border border-[#2BAADF]/15 bg-[#2BAADF]/5 px-3 py-2 text-xs text-gray-400">
+          Digite ou escolha a UM. Códigos novos (ex.: FARDO) são salvos nesta conversão — sem
+          cadastro separado de unidades.
+        </p>
+
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-semibold uppercase tracking-wide text-gray-400">
               Origem <span className="text-[#2BAADF]">*</span>
             </label>
-            <select
+            <UmCombobox
               name="unidade_origem"
               required
-              defaultValue={initial?.unidade_origem || 'ML'}
-              className={`${inputCls} appearance-none`}
-            >
-              {SKU_UNIDADES.map((u) => (
-                <option key={u} value={u}>
-                  {u}
-                </option>
-              ))}
-            </select>
+              defaultValue={initial?.unidade_origem || 'CX'}
+              extraOptions={[initial?.unidade_origem || '', ...knownUnits]}
+              placeholder="Ex.: CX, FARDO…"
+            />
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-semibold uppercase tracking-wide text-gray-400">
               Destino <span className="text-[#2BAADF]">*</span>
             </label>
-            <select
+            <UmCombobox
               name="unidade_destino"
               required
-              defaultValue={initial?.unidade_destino || 'L'}
-              className={`${inputCls} appearance-none`}
-            >
-              {SKU_UNIDADES.map((u) => (
-                <option key={u} value={u}>
-                  {u}
-                </option>
-              ))}
-            </select>
+              defaultValue={initial?.unidade_destino || 'UN'}
+              extraOptions={[initial?.unidade_destino || '', ...knownUnits]}
+              placeholder="Ex.: UN, L…"
+            />
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-semibold uppercase tracking-wide text-gray-400">
@@ -155,10 +153,10 @@ export default function ConversaoUmForm({
               name="fator_conversao"
               required
               defaultValue={
-                initial?.fator_conversao != null ? String(initial.fator_conversao) : '1000'
+                initial?.fator_conversao != null ? String(initial.fator_conversao) : '6'
               }
               className={inputCls}
-              placeholder="1000"
+              placeholder="6"
             />
           </div>
         </div>

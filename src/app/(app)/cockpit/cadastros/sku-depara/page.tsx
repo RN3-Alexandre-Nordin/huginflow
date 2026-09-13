@@ -2,6 +2,7 @@ import { createClient } from '@/utils/supabase/server'
 import Link from 'next/link'
 import { Plus, Link2, Edit, Trash2, Lock } from 'lucide-react'
 import BackTextButton from '@/components/BackTextButton'
+import DebouncedSearchBox from '@/components/DebouncedSearchBox'
 import SkuAreaNav from '@/components/skus/SkuAreaNav'
 import { deleteSkuDepara } from './actions'
 import { getMyProfile } from '@/app/(app)/cockpit/actions'
@@ -9,7 +10,13 @@ import { hasPermission } from '@/utils/permissions'
 
 export const metadata = { title: 'De-para SKU | HuginFlow' }
 
-export default async function SkuDeparaPage() {
+function sanitizeSearchTerm(raw: string) {
+  return raw.replace(/[%_,.()]/g, ' ').trim().slice(0, 80)
+}
+
+export default async function SkuDeparaPage(props: {
+  searchParams: Promise<{ q?: string }>
+}) {
   const me = await getMyProfile()
   if (!hasPermission(me, 'skus', 'view')) {
     return (
@@ -25,6 +32,10 @@ export default async function SkuDeparaPage() {
   const canEdit = hasPermission(me, 'skus', 'edit')
   const canDelete = hasPermission(me, 'skus', 'delete') || canEdit
 
+  const searchParams = await props.searchParams
+  const q = typeof searchParams.q === 'string' ? searchParams.q : ''
+  const term = sanitizeSearchTerm(q).toLowerCase()
+
   const supabase = await createClient()
   let query = supabase
     .from('cad_sku_depara')
@@ -37,7 +48,25 @@ export default async function SkuDeparaPage() {
     query = query.eq('empresa_id', me?.empresa_id ?? '')
   }
 
-  const { data: rows } = await query
+  const { data: allRows } = await query
+  const rows =
+    term && allRows
+      ? allRows.filter((row) => {
+          const sku = row.cad_skus as { codigo?: string; nome?: string } | null
+          const pessoa = row.crm_leads as { nome?: string } | null
+          const hay = [
+            sku?.codigo,
+            sku?.nome,
+            pessoa?.nome,
+            row.codigo_parceiro,
+            row.observacao,
+          ]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase()
+          return hay.includes(term)
+        })
+      : allRows
 
   return (
     <div className="space-y-6 pb-20">
@@ -56,12 +85,29 @@ export default async function SkuDeparaPage() {
         )}
       </div>
 
+      <div className="flex items-center gap-4 rounded-xl border border-[#ffffff0a] bg-[#111111] p-4 shadow-lg">
+        <DebouncedSearchBox
+          initialQuery={q}
+          placeholder="Buscar por SKU, pessoa ou cód. parceiro..."
+        />
+        {q && (
+          <Link
+            href="/cockpit/cadastros/sku-depara"
+            className="text-xs font-bold uppercase tracking-wider text-[#2BAADF] transition-colors hover:text-white"
+          >
+            Limpar
+          </Link>
+        )}
+      </div>
+
       <div className="overflow-hidden rounded-2xl border border-[#ffffff0a] bg-[#111111] shadow-2xl">
         {!rows?.length ? (
           <div className="py-20 text-center">
             <Link2 className="mx-auto mb-4 h-12 w-12 text-gray-700 opacity-30" />
-            <p className="text-white font-bold">Nenhum de-para cadastrado.</p>
-            {canCreate && (
+            <p className="text-white font-bold">
+              {q ? 'Nenhum de-para encontrado.' : 'Nenhum de-para cadastrado.'}
+            </p>
+            {canCreate && !q && (
               <Link
                 href="/cockpit/cadastros/sku-depara/novo"
                 className="mt-6 inline-flex items-center gap-2 text-[#2BAADF] hover:text-white font-semibold"

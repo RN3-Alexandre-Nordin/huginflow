@@ -1,0 +1,30 @@
+---
+description: Performance SaaS — consultar antes de listagens, agregações e queries no Hugin Flow
+alwaysApply: true
+---
+
+# Performance SaaS (Hugin Flow)
+
+O Hugin Flow é **multi-tenant SaaS**. Antes de implementar listagens, dashboards, relatórios ou agregações, aplicar estas regras.
+
+## Princípios
+
+1. **Não trazer o banco inteiro para o Node/JS.** Agregar (`SUM`/`COUNT`/`GROUP BY`) e filtrar no **Postgres**.
+2. **Paginar** listagens operacionais (default 50; nunca “ilimitado” em produção).
+3. **Índices** alinhados a filtros reais: sempre incluir `empresa_id` (tenant) nos índices compostos.
+4. **Posição materializada > recalcular histórico.** Em estoque, ler `est_saldos` / cardex append-only — não somar `est_movimentos` a cada tela de saldo.
+5. **VIEW comum ≠ cache.** Use VIEW/RPC para encapsular `GROUP BY` e reduzir payload; **não** use MATERIALIZED VIEW para saldo operacional (risco de stale vs Regra de Ouro).
+6. **Evitar N+1:** preferir embed PostgREST com FK desambiguada, ou um join na view/RPC.
+7. **Filtros no servidor** (query string → `.eq` / `.or` / RPC), não carregar tudo e filtrar no cliente.
+
+## Checklist antes de merge de tela de lista
+
+- [ ] Há `limit` / `range` (paginação) com `count` quando fizer sentido?
+- [ ] Agregação no banco (view/RPC/`GROUP BY`), não `Map`/`reduce` sobre milhares de linhas?
+- [ ] Query isolada por `empresa_id` (+ RLS)?
+- [ ] Índices cobrem os `WHERE`/`ORDER BY` usados?
+
+## Referências
+
+- Estoque: `docs/desenvolvimento-modulo-estoque.md` (§ Performance SaaS + Regra de Ouro)
+- Git/prod: `.cursor/rules/git-main-e-producao.mdc`

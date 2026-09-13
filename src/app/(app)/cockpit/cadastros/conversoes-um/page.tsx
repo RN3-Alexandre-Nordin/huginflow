@@ -2,6 +2,7 @@ import { createClient } from '@/utils/supabase/server'
 import Link from 'next/link'
 import { Plus, ArrowLeftRight, Edit, Trash2, Lock } from 'lucide-react'
 import BackTextButton from '@/components/BackTextButton'
+import DebouncedSearchBox from '@/components/DebouncedSearchBox'
 import SkuAreaNav from '@/components/skus/SkuAreaNav'
 import { deleteConversaoUm } from './actions'
 import { getMyProfile } from '@/app/(app)/cockpit/actions'
@@ -9,7 +10,13 @@ import { hasPermission } from '@/utils/permissions'
 
 export const metadata = { title: 'Conversões UM | HuginFlow' }
 
-export default async function ConversoesUmPage() {
+function sanitizeSearchTerm(raw: string) {
+  return raw.replace(/[%_,.()]/g, ' ').trim().slice(0, 80)
+}
+
+export default async function ConversoesUmPage(props: {
+  searchParams: Promise<{ q?: string }>
+}) {
   const me = await getMyProfile()
   if (!hasPermission(me, 'skus', 'view')) {
     return (
@@ -25,6 +32,10 @@ export default async function ConversoesUmPage() {
   const canEdit = hasPermission(me, 'skus', 'edit')
   const canDelete = hasPermission(me, 'skus', 'delete') || canEdit
 
+  const searchParams = await props.searchParams
+  const q = typeof searchParams.q === 'string' ? searchParams.q : ''
+  const term = sanitizeSearchTerm(q).toLowerCase()
+
   const supabase = await createClient()
   let query = supabase
     .from('cad_sku_unidade_conversao')
@@ -37,7 +48,25 @@ export default async function ConversoesUmPage() {
     query = query.eq('empresa_id', me?.empresa_id ?? '')
   }
 
-  const { data: rows } = await query
+  const { data: allRows } = await query
+  const rows =
+    term && allRows
+      ? allRows.filter((row) => {
+          const sku = row.cad_skus as { codigo?: string; nome?: string } | null
+          const hay = [
+            row.unidade_origem,
+            row.unidade_destino,
+            String(row.fator_conversao ?? ''),
+            sku?.codigo,
+            sku?.nome,
+            row.sku_id ? 'especifica' : 'generica',
+          ]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase()
+          return hay.includes(term)
+        })
+      : allRows
 
   return (
     <div className="space-y-6 pb-20">
@@ -56,12 +85,31 @@ export default async function ConversoesUmPage() {
         )}
       </div>
 
+      <div className="flex items-center gap-4 rounded-xl border border-[#ffffff0a] bg-[#111111] p-4 shadow-lg">
+        <DebouncedSearchBox
+          initialQuery={q}
+          placeholder="Buscar por UM, SKU ou fator..."
+        />
+        {q && (
+          <Link
+            href="/cockpit/cadastros/conversoes-um"
+            className="text-xs font-bold uppercase tracking-wider text-[#2BAADF] transition-colors hover:text-white"
+          >
+            Limpar
+          </Link>
+        )}
+      </div>
+
       <div className="overflow-hidden rounded-2xl border border-[#ffffff0a] bg-[#111111] shadow-2xl">
         {!rows?.length ? (
           <div className="py-20 text-center">
             <ArrowLeftRight className="mx-auto mb-4 h-12 w-12 text-gray-700 opacity-30" />
-            <p className="text-white font-bold">Nenhuma conversão cadastrada.</p>
-            <p className="mt-2 text-sm text-gray-500">Ex.: ML → L com fator 1000 (genérica).</p>
+            <p className="text-white font-bold">
+              {q ? 'Nenhuma conversão encontrada.' : 'Nenhuma conversão cadastrada.'}
+            </p>
+            {!q && (
+              <p className="mt-2 text-sm text-gray-500">Ex.: ML → L com fator 1000 (genérica).</p>
+            )}
           </div>
         ) : (
           <table className="w-full text-left text-sm text-gray-300">

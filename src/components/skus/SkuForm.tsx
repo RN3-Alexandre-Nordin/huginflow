@@ -7,10 +7,10 @@ import {
   SKU_FORM_SECTIONS,
   SKU_NATUREZAS,
   SKU_TIPOS,
-  SKU_UNIDADES,
   type SkuFormSectionId,
   type SkuRecord,
 } from '@/lib/skus/constants'
+import UmCombobox from '@/components/skus/UmCombobox'
 
 const inputCls =
   'w-full bg-[#0A0A0A] border border-[#ffffff12] focus:border-[#2BAADF] rounded-xl px-4 py-2.5 text-sm text-white outline-none transition-all placeholder-gray-600 focus:ring-1 focus:ring-[#2BAADF]/30'
@@ -21,6 +21,8 @@ type Props = {
   mode: 'create' | 'edit'
   sku?: SkuRecord | null
   pessoas: PessoaOpt[]
+  /** UMs já usadas na empresa (sugestões internas). */
+  knownUnits?: string[]
   action: (formData: FormData) => Promise<{ error?: string } | void>
   cancelHref: string
   submitLabel: string
@@ -47,19 +49,21 @@ function Field({
   )
 }
 
-function UmSelect({ name, defaultValue }: { name: string; defaultValue: string }) {
-  const val = defaultValue || 'UN'
-  const options = SKU_UNIDADES.includes(val as (typeof SKU_UNIDADES)[number])
-    ? SKU_UNIDADES
-    : ([val, ...SKU_UNIDADES] as string[])
+function UmSelect({
+  name,
+  defaultValue,
+  knownUnits = [],
+}: {
+  name: string
+  defaultValue: string
+  knownUnits?: string[]
+}) {
   return (
-    <select name={name} defaultValue={val} className={`${inputCls} appearance-none`}>
-      {options.map((u) => (
-        <option key={u} value={u}>
-          {u}
-        </option>
-      ))}
-    </select>
+    <UmCombobox
+      name={name}
+      defaultValue={defaultValue || 'UN'}
+      extraOptions={[defaultValue || '', ...knownUnits]}
+    />
   )
 }
 
@@ -67,6 +71,7 @@ export default function SkuForm({
   mode,
   sku,
   pessoas,
+  knownUnits = [],
   action,
   cancelHref,
   submitLabel,
@@ -235,11 +240,12 @@ export default function SkuForm({
 
             <div className={section === 'unidades' ? 'space-y-5' : 'hidden'} role="tabpanel">
               <p className="rounded-xl border border-[#2BAADF]/15 bg-[#2BAADF]/5 px-3 py-2 text-xs text-gray-400">
-                Conversões de unidade (genéricas ou por SKU) ficam em{' '}
+                Digite ou escolha uma UM. Códigos novos (ex.: FARDO) são salvos neste SKU — sem
+                cadastro separado. Conversões ficam em{' '}
                 <Link href="/cockpit/cadastros/conversoes-um" className="text-[#2BAADF] hover:underline">
-                  SKUs → Conversões UM
+                  Conversões UM
                 </Link>
-                . De-para com cliente/fornecedor em{' '}
+                ; de-para com parceiro em{' '}
                 <Link href="/cockpit/cadastros/sku-depara" className="text-[#2BAADF] hover:underline">
                   De-para SKU
                 </Link>
@@ -247,13 +253,25 @@ export default function SkuForm({
               </p>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                 <Field label="UM venda" required>
-                  <UmSelect name="unidade_venda" defaultValue={v('unidade_venda', 'UN')} />
+                  <UmSelect
+                    name="unidade_venda"
+                    defaultValue={v('unidade_venda', 'UN')}
+                    knownUnits={knownUnits}
+                  />
                 </Field>
                 <Field label="UM compra" required>
-                  <UmSelect name="unidade_compra" defaultValue={v('unidade_compra', 'UN')} />
+                  <UmSelect
+                    name="unidade_compra"
+                    defaultValue={v('unidade_compra', 'UN')}
+                    knownUnits={knownUnits}
+                  />
                 </Field>
                 <Field label="UM estoque" required>
-                  <UmSelect name="unidade_estoque" defaultValue={v('unidade_estoque', 'UN')} />
+                  <UmSelect
+                    name="unidade_estoque"
+                    defaultValue={v('unidade_estoque', 'UN')}
+                    knownUnits={knownUnits}
+                  />
                 </Field>
               </div>
             </div>

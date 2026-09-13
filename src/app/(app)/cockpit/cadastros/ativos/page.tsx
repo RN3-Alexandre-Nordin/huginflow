@@ -2,12 +2,17 @@ import { createClient } from '@/utils/supabase/server'
 import Link from 'next/link'
 import { Plus, Landmark, Edit, Trash2, Lock } from 'lucide-react'
 import BackTextButton from '@/components/BackTextButton'
+import DebouncedSearchBox from '@/components/DebouncedSearchBox'
 import { deleteAtivo } from './actions'
 import { getMyProfile } from '@/app/(app)/cockpit/actions'
 import { hasPermission } from '@/utils/permissions'
 import { ATIVO_STATUS } from '@/lib/ativos/constants'
 
 export const metadata = { title: 'Ativos | HuginFlow' }
+
+function sanitizeSearchTerm(raw: string) {
+  return raw.replace(/[%_,.()]/g, ' ').trim().slice(0, 80)
+}
 
 export default async function AtivosPage(props: { searchParams: Promise<{ q?: string }> }) {
   const me = await getMyProfile()
@@ -24,7 +29,9 @@ export default async function AtivosPage(props: { searchParams: Promise<{ q?: st
   const canCreate = hasPermission(me, 'ativos', 'create')
   const canEdit = hasPermission(me, 'ativos', 'edit')
   const canDelete = hasPermission(me, 'ativos', 'delete')
-  const q = (await props.searchParams).q || ''
+  const searchParams = await props.searchParams
+  const q = typeof searchParams.q === 'string' ? searchParams.q : ''
+  const term = sanitizeSearchTerm(q)
 
   const supabase = await createClient()
   let query = supabase
@@ -35,9 +42,9 @@ export default async function AtivosPage(props: { searchParams: Promise<{ q?: st
   if (me?.role_global !== 'superadmin') {
     query = query.eq('empresa_id', me?.empresa_id ?? '')
   }
-  if (q) {
+  if (term) {
     query = query.or(
-      `codigo.ilike.%${q}%,nome.ilike.%${q}%,numero_patrimonio.ilike.%${q}%`,
+      `codigo.ilike.%${term}%,nome.ilike.%${term}%,numero_patrimonio.ilike.%${term}%`,
     )
   }
 
@@ -59,11 +66,28 @@ export default async function AtivosPage(props: { searchParams: Promise<{ q?: st
         )}
       </div>
 
+      <div className="flex items-center gap-4 rounded-xl border border-[#ffffff0a] bg-[#111111] p-4 shadow-lg">
+        <DebouncedSearchBox
+          initialQuery={q}
+          placeholder="Buscar por código, nome ou patrimônio..."
+        />
+        {q && (
+          <Link
+            href="/cockpit/cadastros/ativos"
+            className="text-xs font-bold uppercase tracking-wider text-[#2BAADF] transition-colors hover:text-white"
+          >
+            Limpar
+          </Link>
+        )}
+      </div>
+
       <div className="overflow-hidden rounded-2xl border border-[#ffffff0a] bg-[#111111] shadow-2xl">
         {!rows?.length ? (
           <div className="py-20 text-center">
             <Landmark className="mx-auto mb-4 h-12 w-12 text-gray-700 opacity-30" />
-            <p className="font-bold text-white">Nenhum ativo cadastrado.</p>
+            <p className="font-bold text-white">
+              {q ? 'Nenhum ativo encontrado.' : 'Nenhum ativo cadastrado.'}
+            </p>
           </div>
         ) : (
           <table className="w-full text-left text-sm text-gray-300">

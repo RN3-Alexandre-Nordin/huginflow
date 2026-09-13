@@ -1,13 +1,18 @@
 import { createClient } from '@/utils/supabase/server'
 import Link from 'next/link'
-import { Search, Plus, Package, Edit, Trash2, Lock } from 'lucide-react'
+import { Plus, Package, Edit, Trash2, Lock } from 'lucide-react'
 import BackTextButton from '@/components/BackTextButton'
 import SkuAreaNav from '@/components/skus/SkuAreaNav'
+import DebouncedSearchBox from '@/components/DebouncedSearchBox'
 import { deleteSku } from './actions'
 import { getMyProfile } from '@/app/(app)/cockpit/actions'
 import { hasPermission } from '@/utils/permissions'
 
 export const metadata = { title: 'SKUs | HuginFlow' }
+
+function sanitizeSearchTerm(raw: string) {
+  return raw.replace(/[%_,.()]/g, ' ').trim().slice(0, 80)
+}
 
 export default async function SkusPage(props: { searchParams: Promise<{ q?: string }> }) {
   const me = await getMyProfile()
@@ -34,20 +39,25 @@ export default async function SkusPage(props: { searchParams: Promise<{ q?: stri
   const canDelete = hasPermission(me, 'skus', 'delete')
 
   const searchParams = await props.searchParams
-  const q = searchParams.q || ''
+  const q = typeof searchParams.q === 'string' ? searchParams.q : ''
+  const term = sanitizeSearchTerm(q)
   const supabase = await createClient()
 
   let query = supabase
     .from('cad_skus')
-    .select('id, codigo, nome, tipo, unidade_venda, unidade_compra, unidade_estoque, controla_estoque, ponto_reposicao, ativo, created_at')
+    .select(
+      'id, codigo, nome, tipo, unidade_venda, unidade_compra, unidade_estoque, controla_estoque, ponto_reposicao, ativo, created_at',
+    )
     .order('codigo', { ascending: true })
 
   if (me?.role_global !== 'superadmin') {
     query = query.eq('empresa_id', me?.empresa_id ?? '')
   }
 
-  if (q) {
-    query = query.or(`codigo.ilike.%${q}%,nome.ilike.%${q}%,codigo_barras.ilike.%${q}%`)
+  if (term) {
+    query = query.or(
+      `codigo.ilike.%${term}%,nome.ilike.%${term}%,codigo_barras.ilike.%${term}%`,
+    )
   }
 
   const { data: skus } = await query
@@ -70,16 +80,7 @@ export default async function SkusPage(props: { searchParams: Promise<{ q?: stri
       </div>
 
       <div className="bg-[#111111] border border-[#ffffff0a] rounded-xl p-4 flex gap-4 items-center shadow-lg">
-        <form className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-          <input
-            type="text"
-            name="q"
-            defaultValue={q}
-            placeholder="Buscar por código ou nome..."
-            className="w-full bg-[#0A0A0A] border border-[#ffffff10] text-sm text-white rounded-lg pl-10 pr-4 py-2 focus:outline-none focus:border-[#2BAADF] transition-colors"
-          />
-        </form>
+        <DebouncedSearchBox initialQuery={q} />
         {q && (
           <Link
             href="/cockpit/cadastros/skus"

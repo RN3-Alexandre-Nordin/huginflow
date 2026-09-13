@@ -53,7 +53,21 @@ export default function CockpitShell({
   const pathname = usePathname()
   const { item: navItem, isExact: isMenuEntry } = resolveCockpitNav(pathname)
   const PageIcon = navItem.icon
-  const showPageBack = isMenuEntry && pathname !== '/cockpit'
+  // Seta de back fica SEMPRE no panel superior do shell (nunca no corpo da página).
+  // - Listagem/hub (rota exata de card): volta ao Cockpit
+  // - Formulário deepLink exato (/novo, /import, /xml): volta à listagem pai
+  // - Detalhe/edição sob um card: volta à listagem resolvida pelo nav
+  const showPageBack = pathname !== '/cockpit'
+  const pageBackHref = (() => {
+    if (!isMenuEntry) return navItem.href
+    if (/\/(novo|import|xml)$/.test(pathname)) {
+      return pathname.replace(/\/(novo|import|xml)$/, '') || '/cockpit'
+    }
+    if (/\/[^/]+\/editar$/.test(pathname)) {
+      return pathname.replace(/\/[^/]+\/editar$/, '') || '/cockpit'
+    }
+    return '/cockpit'
+  })()
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [ready, setReady] = useState(false)
 
@@ -179,16 +193,27 @@ export default function CockpitShell({
                 </button>
                 {showPageBack && (
                   <BackButton
-                    fallbackHref="/cockpit"
-                    className="shrink-0 rounded-xl border border-[#ffffff10] bg-[#ffffff05] p-2.5 text-gray-400 transition-colors hover:bg-[#ffffff10] hover:text-white"
-                    iconClassName="h-5 w-5"
+                    fallbackHref={pageBackHref}
                   />
                 )}
                 <h1
                   className="flex min-w-0 items-center gap-2 truncate text-base font-bold tracking-tight text-white/90 sm:text-xl"
                   data-testid="cockpit-page-title"
                 >
-                  <PageIcon className="h-5 w-5 shrink-0 text-[#2BAADF]" aria-hidden />
+                  <PageIcon
+                    className={`h-5 w-5 shrink-0 ${
+                      pathname.startsWith('/cockpit/estoque/retiradas')
+                        ? 'text-red-400'
+                        : pathname.startsWith('/cockpit/estoque/entradas')
+                          ? 'text-emerald-400'
+                          : pathname.startsWith('/cockpit/estoque/cardex')
+                            ? 'text-amber-400'
+                            : pathname.startsWith('/cockpit/estoque/remessas')
+                              ? 'text-purple-400'
+                              : 'text-[#2BAADF]'
+                    }`}
+                    aria-hidden
+                  />
                   <span className="truncate">{navItem.name}</span>
                 </h1>
               </div>

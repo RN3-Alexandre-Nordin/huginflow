@@ -1,5 +1,7 @@
 # Deploy pendente: Supabase dev → produção
 
+> 🚀 **Documento Consolidado de Cutover:** Consulte o roteiro completo de subida para produção em [CUTOVER-PROD-SET-2026.md](./CUTOVER-PROD-SET-2026.md), contendo o passo a passo, ordem sequencial das migrations (Cadastros + Estoque + Empresas), dependências e testes pós-deploy.
+
 > **Documento canônico (atualizar a cada mudança):** [MIGRACAO-SUPABASE.md](./MIGRACAO-SUPABASE.md)
 >
 > **Plano de fases (plataforma + cadastros + estoque):** [plano-desenvolvimento-fases.md](./plano-desenvolvimento-fases.md)
@@ -23,7 +25,7 @@ Comparativo entre projetos:
 
 **Última migration no prod (intencional, MCP 2026-09-06):** cutover CRM + Analytics BI + `empresa_webhooks` + `test_runs` + `crm_interacoes` UPDATE RLS (além de finance/AR e `revert_handover_structured`, já presentes).
 
-**Última migration no dev:** `202609111900_cad_ativos_departamento_cc` (além de ativos / reforma / SKUs / Pessoas / entitlements).
+**Última migration no dev:** `202609131800_est_remessa_baixa_e_retorno_sku` (além de `202609131700_est_remessa_item_local_obs_lote`, `202609131600_est_transferencia_lotes`, `202609131500_fix_rpc_saldo_decremento_check`, tabelas/RLS do estoque, ativos, reforma, SKUs, Pessoas e entitlements).
 
 **Gate prod (combinado 2026-09-11):** **não aplicar** migrations/DDL em produção sem **pedido explícito**. Até lá: só DEV + documentação do pacote.
 
@@ -48,6 +50,7 @@ Comparativo entre projetos:
 | 5 | `202609111700_cad_skus_reforma_fiscal.sql` | ✅ | ⏳ | IBS/CBS/IS + NBS |
 | 6 | `202609111800_cad_ativos_patrimonio.sql` | ✅ | ⏳ | `cad_ativos` + stub fórmulas; greenfield com `departamento_id` |
 | 7 | `202609111900_cad_ativos_departamento_cc.sql` | ✅ | ⏳ | CC = `departamento_id`; drop `centro_custo` texto (idempotente se 1800 já veio sem texto) |
+| 8 | `202609121200_empresas_contato_financeiro.sql` | ✅ | ⏳ | Contato financeiro em empresas: `financeiro_nome`, `financeiro_email`, `financeiro_telefone`, `financeiro_chave_pix` |
 
 ### Incidente / rollback (2026-09-11)
 
@@ -72,12 +75,44 @@ Apply precoce de C1+C2 em prod → **revertido** no mesmo dia (`rollback_prematu
 
 ---
 
+## Pacote Estoque — Fase 4.1: Fundação, Tabelas e RLS (set/2026) — aguardando homologação DEV + pedido explícito
+
+> **Status:** DEV ✅ SQL (aplicado via MCP dev) + catálogo RBAC (`src/constants/permissions.ts`) · **PROD ⏳** (nada deste pacote em prod).  
+> Especificação detalhada: [desenvolvimento-modulo-estoque.md](./desenvolvimento-modulo-estoque.md).
+
+### Migrations do Módulo de Estoque (quando o responsável pedir)
+
+| # | Arquivo | Dev | Prod | Notas |
+|---|---------|-----|------|-------|
+| E1 | `202609121000_estoque_modulo_tabelas_rls.sql` | ✅ | ⏳ | 15 tabelas (`cad_locais_estoque`, `est_config`, `est_saldos`, `est_saldos_poder_terceiros`, `est_movimentos`, lotes/itens de entrada, retirada, ajuste, remessa a terceiros, requisições) + 60 policies RLS isoladas por tenant (`empresa_id`) e RBAC granular (`check_permission`). |
+| E2 | `202609121100_estoque_rpcs_movimento_e_batch.sql` | ✅ | ⏳ | RPC atômica `est_registrar_movimento_atomico` (REGRA DE OURO: Cardex + Saldo no mesmo commit) + batch de reconciliação `est_reconstruir_saldos_from_cardex`. |
+| E3 | `202609131500_fix_rpc_saldo_decremento_check.sql` | ✅ | ⏳ | Fix: decremento de saldo via `UPDATE` (não `INSERT` negativo) — evita violação de `est_saldos_quantidade_check` em transferência/saída/ajuste−/remessa. |
+| E4 | `202609131600_est_transferencia_lotes.sql` | ✅ | ⏳ | Lotes multi-SKU de transferência (`est_transferencia_lotes`/`itens` + `lote_transferencia_id` no Cardex) + backfill. |
+| E5 | `202609131700_est_remessa_item_local_obs_lote.sql` | ✅ | ⏳ | Remessa: `local_origem_id` por item + `observacao` no lote. |
+| E6 | `202609131800_est_remessa_baixa_e_retorno_sku.sql` | ✅ | ⏳ | Remessa: `quantidade_baixada`, tipo `remessa_baixa`, retorno com SKU diferente (`sku_poder_id`). |
+
+### Checklist pré-prod do Módulo Estoque
+1. [ ] Bateria / smoke DEV (CRUD Locais com local BRANCO, Configuração do Estoque, Entradas, Baixas, Ajustes, Remessas Terceiros, Requisições e Cardex).
+2. [ ] Validação da Regra de Ouro (RPC atômica Cardex + Saldo).
+3. [ ] Pedido explícito do responsável para cutover prod.
+4. [ ] Backup prod.
+5. [ ] Aplicar migrations E1 e E2 no prod (MCP ou bundle).
+6. [ ] Deploy código front-end + smoke prod.
+
+---
+
 ## Changelog app / cutovers (2026-08-31 → 2026-09-01) — pendente prod
 
 Registrar aqui tudo homologado em **dev** e ainda **não** em produção (além do bundle finance abaixo).
 
 | Data | Pacote | Dev | Prod | Doc detalhado | Notas |
 |------|--------|-----|------|---------------|-------|
+| 2026-09-13 | **Estoque: remessa baixa + retorno SKU** | ✅ SQL MCP + UI | ⏳ pedido explícito | § Pacote Estoque | `202609131800_est_remessa_baixa_e_retorno_sku.sql`; liquidação retorno/baixa; industrialização |
+| 2026-09-13 | **Estoque: remessa multi-local + obs lote** | ✅ SQL MCP + UI | ⏳ pedido explícito | § Pacote Estoque | `202609131700_est_remessa_item_local_obs_lote.sql`; local de saída por linha; observação no lote; nº `REM-…` |
+| 2026-09-13 | **Estoque: fix RPC decremento saldo (CHECK)** | ✅ SQL MCP | ⏳ pedido explícito | § Pacote Estoque | `202609131500_fix_rpc_saldo_decremento_check.sql`; transferência/saída não quebram mais em `est_saldos_quantidade_check` |
+| 2026-09-12 | **Empresas: Contato do Setor Financeiro** | ✅ SQL MCP + UI | ⏳ pedido explícito | `supabase/migrations/202609121200_empresas_contato_financeiro.sql` | `financeiro_nome`, `financeiro_email`, `financeiro_telefone`, `financeiro_chave_pix` em `public.empresas` |
+| 2026-09-12 | **Estoque Fase 4.1: RPCs Movimento e Batch** | ✅ SQL MCP | ⏳ pedido explícito | § Pacote Estoque | `202609121100_estoque_rpcs_movimento_e_batch.sql`; REGRA DE OURO atômica Cardex+Saldo |
+| 2026-09-12 | **Estoque Fase 4.1: Tabelas e RLS** (15 tabelas + 60 policies RLS) | ✅ SQL MCP + catálogo RBAC | ⏳ pedido explícito | § Pacote Estoque | `202609121000_estoque_modulo_tabelas_rls.sql`; Fundação do addon `estoque` |
 | 2026-09-11 | **Ativos CC = departamento** | ✅ SQL MCP + UI | ⏳ pedido explícito | § Pacote Cadastros | `202609111900`; drop `centro_custo` texto |
 | 2026-09-11 | **Ativos / patrimônio** + stub fórmulas | ✅ SQL MCP + UI | ⏳ pedido explícito | § Pacote Cadastros | `202609111800`; RBAC `ativos` |
 | 2026-09-11 | **SKUs reforma fiscal** (IBS/CBS/IS) | ✅ SQL MCP + UI | ⏳ pedido explícito | § Pacote Cadastros | `202609111700` |

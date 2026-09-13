@@ -1,5 +1,3 @@
-import { Link2 } from 'lucide-react'
-import BackButton from '@/components/BackButton'
 import { createClient } from '@/utils/supabase/server'
 import { getMyProfile } from '@/app/(app)/cockpit/actions'
 import SkuDeparaBulkForm from '@/components/skus/SkuDeparaBulkForm'
@@ -23,17 +21,11 @@ export default async function NovoSkuDeparaPage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 pb-20">
-      <div className="flex items-center gap-4">
-        <BackButton fallbackHref="/cockpit/cadastros/sku-depara" />
-        <div>
-          <h2 className="flex items-center gap-3 text-2xl font-bold text-white">
-            <Link2 className="h-6 w-6 text-[#2BAADF]" />
-            Cadastro em lista
-          </h2>
-          <p className="mt-1 text-sm text-gray-400">
-            Lance vários de-paras de uma vez (SKU Hugin ↔ pessoa ↔ código do parceiro).
-          </p>
-        </div>
+      <div>
+        <h2 className="text-2xl font-bold text-white">Cadastro em lista</h2>
+        <p className="mt-1 text-sm text-gray-400">
+          Lance vários de-paras de uma vez (SKU Hugin ↔ pessoa ↔ código do parceiro).
+        </p>
       </div>
       <SkuDeparaBulkForm
         skus={skus || []}

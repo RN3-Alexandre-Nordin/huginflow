@@ -1,11 +1,9 @@
-import { Package } from 'lucide-react'
-import BackButton from '@/components/BackButton'
 import { createClient } from '@/utils/supabase/server'
 import { getMyProfile } from '@/app/(app)/cockpit/actions'
 import { notFound } from 'next/navigation'
 import SkuForm from '@/components/skus/SkuForm'
 import { updateSku } from '../../actions'
-import type { SkuRecord } from '@/lib/skus/constants'
+import { collectUnidadesFromSkus, type SkuRecord } from '@/lib/skus/constants'
 
 export const metadata = { title: 'Editar SKU | HuginFlow' }
 
@@ -25,30 +23,34 @@ export default async function EditarSkuPage(props: { params: Promise<{ id: strin
   if (me?.role_global !== 'superadmin') {
     pessoasQ = pessoasQ.eq('empresa_id', me?.empresa_id ?? '')
   }
-  const { data: pessoas } = await pessoasQ
+
+  let unitsQuery = supabase
+    .from('cad_skus')
+    .select('unidade_venda, unidade_compra, unidade_estoque')
+    .limit(2000)
+  if (me?.role_global !== 'superadmin') {
+    unitsQuery = unitsQuery.eq('empresa_id', me?.empresa_id ?? '')
+  }
+
+  const [{ data: pessoas }, { data: skuUnits }] = await Promise.all([pessoasQ, unitsQuery])
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-20 animate-in fade-in duration-500">
-      <div className="flex items-center gap-4">
-        <BackButton fallbackHref="/cockpit/cadastros/skus" />
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight text-white flex items-center gap-3">
-            <Package className="w-6 h-6 text-[#2BAADF]" />
-            Editar SKU
-          </h2>
-          <p className="text-sm text-gray-400 mt-1 font-medium">
-            {sku.codigo} · {sku.nome}
-          </p>
-        </div>
+      <div>
+        <h2 className="text-2xl font-bold tracking-tight text-white">Editar SKU</h2>
+        <p className="text-sm text-gray-400 mt-1 font-medium">
+          {sku.codigo} · {sku.nome}
+        </p>
       </div>
 
       <SkuForm
         mode="edit"
         sku={sku as SkuRecord}
         pessoas={pessoas || []}
+        knownUnits={collectUnidadesFromSkus(skuUnits || [])}
         cancelHref="/cockpit/cadastros/skus"
         submitLabel="Salvar alterações"
-        action={(formData) => updateSku(params.id, formData)}
+        action={updateSku.bind(null, params.id)}
       />
     </div>
   )

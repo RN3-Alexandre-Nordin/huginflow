@@ -12,18 +12,23 @@ export async function resolveFatorConversao(params: {
 }): Promise<number | null> {
   const origem = params.origem.trim().toUpperCase()
   const destino = params.destino.trim().toUpperCase()
-  if (!origem || !destino || origem === destino) return origem === destino ? 1 : null
-
-  const base = params.client
-    .from('cad_sku_unidade_conversao')
-    .select('fator_conversao, sku_id')
-    .eq('empresa_id', params.empresaId)
-    .ilike('unidade_origem', origem)
-    .ilike('unidade_destino', destino)
+  if (!origem || !destino) return null
+  if (origem === destino) return 1
 
   if (params.skuId) {
-    const { data: especifica } = await base.eq('sku_id', params.skuId).maybeSingle()
-    if (especifica?.fator_conversao != null) return Number(especifica.fator_conversao)
+    const { data: especifica } = await params.client
+      .from('cad_sku_unidade_conversao')
+      .select('fator_conversao')
+      .eq('empresa_id', params.empresaId)
+      .eq('sku_id', params.skuId)
+      .ilike('unidade_origem', origem)
+      .ilike('unidade_destino', destino)
+      .maybeSingle()
+
+    if (especifica?.fator_conversao != null) {
+      const n = Number(especifica.fator_conversao)
+      if (Number.isFinite(n) && n > 0) return n
+    }
   }
 
   const { data: generica } = await params.client
@@ -35,5 +40,10 @@ export async function resolveFatorConversao(params: {
     .ilike('unidade_destino', destino)
     .maybeSingle()
 
-  return generica?.fator_conversao != null ? Number(generica.fator_conversao) : null
+  if (generica?.fator_conversao != null) {
+    const n = Number(generica.fator_conversao)
+    if (Number.isFinite(n) && n > 0) return n
+  }
+
+  return null
 }

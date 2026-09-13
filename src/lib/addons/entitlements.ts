@@ -399,6 +399,50 @@ export type EmpresaAddonUpdateInput = {
   ends_at: string | null
 }
 
+export const COMMERCIAL_STATUSES = new Set<CommercialStatus>([
+  'active',
+  'trial',
+  'courtesy',
+  'suspended',
+  'ended',
+])
+
+export function parseCommercialStatus(value: unknown): CommercialStatus {
+  const raw = String(value ?? 'active')
+  return COMMERCIAL_STATUSES.has(raw as CommercialStatus)
+    ? (raw as CommercialStatus)
+    : 'active'
+}
+
+export function parseNullableCents(value: unknown): number | null {
+  if (value == null || value === '') return null
+  const n = Number(value)
+  if (!Number.isFinite(n)) return null
+  return Math.max(0, Math.round(n))
+}
+
+export function parseNullableDate(value: unknown): string | null {
+  const raw = String(value ?? '').trim()
+  if (!raw) return null
+  const d = new Date(raw)
+  if (Number.isNaN(d.getTime())) return null
+  return d.toISOString()
+}
+
+export function normalizeAddonUpdates(updates: unknown[]): EmpresaAddonUpdateInput[] {
+  if (!Array.isArray(updates)) return []
+  return updates.map((item: any) => ({
+    addon_codigo: String(item?.addon_codigo ?? '').trim(),
+    enabled: Boolean(item?.enabled),
+    plano: item?.plano == null || item?.plano === '' ? null : String(item.plano),
+    commercial_status: parseCommercialStatus(item?.commercial_status),
+    quantity: Math.max(0, Math.floor(Number(item?.quantity) || 0)),
+    price_override_cents: parseNullableCents(item?.price_override_cents),
+    starts_at: parseNullableDate(item?.starts_at),
+    ends_at: parseNullableDate(item?.ends_at),
+  }))
+}
+
 /**
  * Upsert técnico + comercial. Caller deve garantir superadmin + service_role client.
  * Foundation: `enabled` forçado true.

@@ -10,3 +10,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - **`main` = produção** (deploy VPS). Só com ordem explícita do responsável.
 - Antes de qualquer `git commit` / `git push`: `.cursor/rules/git-main-e-producao.mdc` + `.cursorrules` §9.
 
+## Performance SaaS
+
+Antes de listagens/agregações: `.cursor/rules/saas-performance.mdc`. Estoque: `docs/desenvolvimento-modulo-estoque.md` §2.1.
+

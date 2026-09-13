@@ -1,5 +1,7 @@
 # Migração Supabase — registro vivo (dev → produção)
 
+> 🚀 **Documento Consolidado de Cutover:** Consulte o roteiro completo de subida para produção em [CUTOVER-PROD-SET-2026.md](./CUTOVER-PROD-SET-2026.md), contendo passo a passo, ordem das migrations, dependências e validações pós-deploy.
+
 > **Atualize este documento a cada alteração de schema**, migration aplicada no dev, ou item incluído no bundle de produção.
 
 | Ambiente | Project ref | Dashboard |
@@ -10,7 +12,7 @@
 **Última migration no prod (intencional):** pacote até `test_runs`/Analytics BI via MCP em 2026-09-06.  
 **Gate prod (combinado 2026-09-11):** aplicar SQL/código em produção **somente** com pedido explícito do responsável. Até lá: documentar e homologar em DEV.
 
-**Última migration no dev:** `202609111900_cad_ativos_departamento_cc`.
+**Última migration no dev:** `202609131800_est_remessa_baixa_e_retorno_sku` (além de `202609131700_est_remessa_item_local_obs_lote`, transferência lotes, fix RPC saldo).
 
 **Gerar bundle SQL consolidado:**
 
@@ -26,6 +28,13 @@ node scripts/supabase/prod-deploy/build-bundle.mjs
 
 | Data | Migration / alteração | Dev | Prod | Arquivo | Notas |
 |------|----------------------|-----|------|---------|-------|
+| 2026-09-13 | `est_remessa_baixa_e_retorno_sku` | ✅ | ⏳ | `supabase/migrations/202609131800_est_remessa_baixa_e_retorno_sku.sql` | `quantidade_baixada`; tipo `remessa_baixa`; retorno com `sku_poder_id` / `quantidade_poder` |
+| 2026-09-13 | `est_remessa_item_local_obs_lote` | ✅ | ⏳ | `supabase/migrations/202609131700_est_remessa_item_local_obs_lote.sql` | Local de saída por item + `observacao` no lote de remessa |
+| 2026-09-12 | `empresas_contato_financeiro` | ✅ | ⏳ | `supabase/migrations/202609121200_empresas_contato_financeiro.sql` | Adiciona colunas `financeiro_nome`, `financeiro_email`, `financeiro_telefone`, `financeiro_chave_pix` na tabela `public.empresas` |
+| 2026-09-13 | `est_transferencia_lotes` | ✅ | ⏳ | `supabase/migrations/202609131600_est_transferencia_lotes.sql` | Lotes multi-SKU de transferência + FK Cardex |
+| 2026-09-13 | `fix_rpc_saldo_decremento_check` | ✅ | ⏳ | `supabase/migrations/202609131500_fix_rpc_saldo_decremento_check.sql` | Fix RPC: decremento via UPDATE (evita `est_saldos_quantidade_check` em transferência/saída) |
+| 2026-09-12 | `estoque_rpcs_movimento_e_batch` | ✅ | ⏳ | `supabase/migrations/202609121100_estoque_rpcs_movimento_e_batch.sql` | RPC atômica `est_registrar_movimento_atomico` (REGRA DE OURO Cardex+Saldo) + batch de reconciliação `est_reconstruir_saldos_from_cardex` |
+| 2026-09-12 | `estoque_modulo_tabelas_rls` | ✅ | ⏳ | `supabase/migrations/202609121000_estoque_modulo_tabelas_rls.sql` | Módulo Estoque Fase 4.1: 15 tabelas (`cad_locais_estoque`, `est_config`, `est_saldos`, `est_saldos_poder_terceiros`, `est_movimentos`, lotes/itens de entrada, retirada, ajuste, remessa terceiros, requisições) + 60 policies RLS por tenant/RBAC |
 | 2026-09-11 | Rollback SQL precoce Cadastros | — | ✅ desfeito | MCP `rollback_premature_cadastros_wave_parcial` | Removeu `addon_registry`/`empresa_addons` + colunas Pessoas; limpou `schema_migrations` das duas entries precoces |
 | 2026-09-11 | `cad_ativos_departamento_cc` | ✅ | ⏳ | `supabase/migrations/202609111900_cad_ativos_departamento_cc.sql` | CC = `departamento_id`; drop `centro_custo` texto. Locais estoque **fora** (addon `estoque`) |
 | 2026-09-11 | `cad_ativos_patrimonio` | ✅ | ⏳ | `supabase/migrations/202609111800_cad_ativos_patrimonio.sql` | `cad_ativos` + stub fórmulas; greenfield já com `departamento_id` |
@@ -115,10 +124,26 @@ Detalhes e decisões: [supabase-prod-deploy-pending.md](./supabase-prod-deploy-p
 | C5 | `cad_skus_reforma_fiscal` | `supabase/migrations/202609111700_cad_skus_reforma_fiscal.sql` | ⏳ |
 | C6 | `cad_ativos_patrimonio` | `supabase/migrations/202609111800_cad_ativos_patrimonio.sql` | ⏳ |
 | C7 | `cad_ativos_departamento_cc` | `supabase/migrations/202609111900_cad_ativos_departamento_cc.sql` | ⏳ |
+| C8 | `empresas_contato_financeiro` | `supabase/migrations/202609121200_empresas_contato_financeiro.sql` | ⏳ |
 
 **Gate:** bateria DEV verde + **pedido explícito** do responsável. **Fora deste pacote:** `cad_locais_estoque` / `local_padrao_id` (addon `estoque`).
 
 > Em 2026-09-11 houve apply precoce de C1/C2 em prod; foi **revertido** no mesmo dia (`rollback_premature_cadastros_wave_parcial`). Prod voltou ao baseline pré-onda Cadastros.
+
+### Pacote Estoque (set/2026) — **NÃO aplicar até homologação DEV**
+
+Detalhes e decisões: [supabase-prod-deploy-pending.md](./supabase-prod-deploy-pending.md) § Pacote Estoque · [desenvolvimento-modulo-estoque.md](./desenvolvimento-modulo-estoque.md).
+
+| # | ID | Arquivo | Prod |
+|---|-----|---------|------|
+| E1 | `estoque_modulo_tabelas_rls` | `supabase/migrations/202609121000_estoque_modulo_tabelas_rls.sql` | ⏳ |
+| E2 | `estoque_rpcs_movimento_e_batch` | `supabase/migrations/202609121100_estoque_rpcs_movimento_e_batch.sql` | ⏳ |
+| E3 | `fix_rpc_saldo_decremento_check` | `supabase/migrations/202609131500_fix_rpc_saldo_decremento_check.sql` | ⏳ |
+| E4 | `est_transferencia_lotes` | `supabase/migrations/202609131600_est_transferencia_lotes.sql` | ⏳ |
+| E5 | `est_remessa_item_local_obs_lote` | `supabase/migrations/202609131700_est_remessa_item_local_obs_lote.sql` | ⏳ |
+| E6 | `est_remessa_baixa_e_retorno_sku` | `supabase/migrations/202609131800_est_remessa_baixa_e_retorno_sku.sql` | ⏳ |
+
+**Gate:** homologação completa em DEV + **pedido explícito** do responsável. **Nada em produção.**
 
 ---
 

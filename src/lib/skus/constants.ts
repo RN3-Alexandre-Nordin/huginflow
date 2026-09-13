@@ -11,10 +11,16 @@ export const SKU_NATUREZAS = [
   { value: 'servico', label: 'Serviço' },
 ] as const
 
+/** Sugestões comuns — a UI permite digitar qualquer código novo (ex.: FARDO, FD, SC). */
 export const SKU_UNIDADES = [
   'UN',
   'PC',
   'CX',
+  'FARDO',
+  'FD',
+  'PCT',
+  'SC',
+  'BDJ',
   'KG',
   'G',
   'L',
@@ -132,9 +138,9 @@ export function skuPayloadFromForm(formData: FormData) {
     tipo,
     natureza: str(formData, 'natureza'),
     codigo_barras: str(formData, 'codigo_barras'),
-    unidade_venda: (str(formData, 'unidade_venda') || 'UN').toUpperCase(),
-    unidade_compra: (str(formData, 'unidade_compra') || 'UN').toUpperCase(),
-    unidade_estoque: (str(formData, 'unidade_estoque') || 'UN').toUpperCase(),
+    unidade_venda: normalizeUnidadeCodigo(str(formData, 'unidade_venda')) || 'UN',
+    unidade_compra: normalizeUnidadeCodigo(str(formData, 'unidade_compra')) || 'UN',
+    unidade_estoque: normalizeUnidadeCodigo(str(formData, 'unidade_estoque')) || 'UN',
     preco_venda: num(formData, 'preco_venda'),
     preco_custo: num(formData, 'preco_custo'),
     moeda: str(formData, 'moeda') || 'BRL',
@@ -182,9 +188,65 @@ export function skuPayloadFromForm(formData: FormData) {
   }
 }
 
+/** Normaliza código de UM: maiúsculas, sem espaços, máx. 12 chars. */
+export function normalizeUnidadeCodigo(raw: string | null | undefined): string {
+  return (raw || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '')
+    .slice(0, 12)
+}
+
+/** UMs já usadas em SKUs da empresa — sugestões internas, sem tabela de cadastro. */
+export function collectUnidadesFromSkus(
+  rows: Array<{
+    unidade_venda?: string | null
+    unidade_compra?: string | null
+    unidade_estoque?: string | null
+  }>,
+): string[] {
+  const set = new Set<string>()
+  for (const row of rows) {
+    for (const raw of [row.unidade_venda, row.unidade_compra, row.unidade_estoque]) {
+      const u = normalizeUnidadeCodigo(raw)
+      if (u) set.add(u)
+    }
+  }
+  return Array.from(set).sort()
+}
+
+/** UMs já usadas em conversões — complementa o catálogo interno de sugestões. */
+export function collectUnidadesFromConversoes(
+  rows: Array<{
+    unidade_origem?: string | null
+    unidade_destino?: string | null
+  }>,
+): string[] {
+  const set = new Set<string>()
+  for (const row of rows) {
+    for (const raw of [row.unidade_origem, row.unidade_destino]) {
+      const u = normalizeUnidadeCodigo(raw)
+      if (u) set.add(u)
+    }
+  }
+  return Array.from(set).sort()
+}
+
+/** Junta listas de UMs conhecidas (SKU + conversões + extras). */
+export function mergeKnownUnidades(...lists: Array<string[] | undefined>): string[] {
+  const set = new Set<string>()
+  for (const list of lists) {
+    for (const raw of list || []) {
+      const u = normalizeUnidadeCodigo(raw)
+      if (u) set.add(u)
+    }
+  }
+  return Array.from(set).sort()
+}
+
 export function conversaoPayloadFromForm(formData: FormData) {
-  const origem = (str(formData, 'unidade_origem') || '').toUpperCase()
-  const destino = (str(formData, 'unidade_destino') || '').toUpperCase()
+  const origem = normalizeUnidadeCodigo(str(formData, 'unidade_origem'))
+  const destino = normalizeUnidadeCodigo(str(formData, 'unidade_destino'))
   const fator = num(formData, 'fator_conversao')
   const skuRaw = str(formData, 'sku_id')
   return {

@@ -1,7 +1,8 @@
 'use client'
 
 import { useTransition, useState, useEffect } from "react"
-import { updatePipeline, deletePipeline } from "../../../actions"
+import { useRouter } from "next/navigation"
+import { updatePipeline, deletePipelineAction } from "../../../actions"
 import Link from "next/link"
 import { LayoutTemplate, Building2, Info, Lock, Trash2 } from "lucide-react"
 import { BackButton } from '@/components/BackButton'
@@ -21,6 +22,7 @@ function Field({ label, required, children }: { label: string; required?: boolea
 const inputCls = "w-full bg-[#0A0A0A] border border-[#ffffff12] focus:border-[#2BAADF] rounded-xl px-4 py-2.5 text-sm text-white outline-none transition-all placeholder-gray-600 focus:ring-1 focus:ring-[#2BAADF]/30"
 
 export default function EditPipelineForm({ pipeline, initialGroups }: { pipeline: any, initialGroups: string[] }) {
+  const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [isDeleting, setIsDeleting] = useState(false)
   const [grupos, setGrupos] = useState<any[]>([])
@@ -51,14 +53,25 @@ export default function EditPipelineForm({ pipeline, initialGroups }: { pipeline
     })
   }
 
-  const handleDelete = () => {
-    if (confirm("Tem certeza que deseja excluir este Funil? Todos os estágios e cards contidos nele serão PERDIDOS e INACESSIVEIS. Esta ação não pode ser desfeita.")) {
-       setIsDeleting(true)
-       const formData = new FormData()
-       formData.append('id', pipeline.id)
-       startTransition(() => {
-          deletePipeline(formData)
-       })
+  const handleDelete = async () => {
+    const confirmMsg =
+      "Deseja realmente excluir este Funil?\n\n- Se o funil possuir cards, ele será inativado para preservar o histórico operacional.\n- Caso não possua cards, o funil e todas as suas etapas serão excluídos definitivamente."
+    if (!confirm(confirmMsg)) return
+
+    setIsDeleting(true)
+    try {
+      const res = await deletePipelineAction(pipeline.id)
+      if (res?.error) {
+        alert(`Erro ao processar: ${res.error}`)
+        setIsDeleting(false)
+      } else {
+        if (res?.message) alert(res.message)
+        router.push('/cockpit/crm/funis')
+        router.refresh()
+      }
+    } catch {
+      alert("Erro inesperado ao excluir/inativar o funil.")
+      setIsDeleting(false)
     }
   }
 

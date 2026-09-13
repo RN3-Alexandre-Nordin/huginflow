@@ -192,6 +192,108 @@ export const PERMISSION_CATEGORIES: PermissionCategory[] = [
         ]
       },
     ]
+  },
+  {
+    label: 'Estoque',
+    color: '#10B981',
+    modules: [
+      {
+        slug: 'estoque',
+        label: 'Estoque Geral / Hub',
+        actions: [
+          { slug: 'view', label: 'Ver', icon: Eye },
+          { slug: 'create', label: 'Criar', icon: Plus },
+          { slug: 'edit', label: 'Editar', icon: Pencil },
+          { slug: 'delete', label: 'Excluir', icon: Trash2 },
+        ]
+      },
+      {
+        slug: 'estoque_locais',
+        label: 'Locais de Estoque',
+        actions: [
+          { slug: 'view', label: 'Ver', icon: Eye },
+          { slug: 'create', label: 'Criar', icon: Plus },
+          { slug: 'edit', label: 'Editar', icon: Pencil },
+          { slug: 'delete', label: 'Excluir', icon: Trash2 },
+        ]
+      },
+      {
+        slug: 'estoque_config',
+        label: 'Configurações de Estoque',
+        actions: [
+          { slug: 'view', label: 'Ver', icon: Eye },
+          { slug: 'edit', label: 'Editar', icon: Pencil },
+        ]
+      },
+      {
+        slug: 'estoque_entradas',
+        label: 'Entradas de Mercadoria',
+        actions: [
+          { slug: 'view', label: 'Ver', icon: Eye },
+          { slug: 'create', label: 'Criar', icon: Plus },
+          { slug: 'edit', label: 'Editar', icon: Pencil },
+        ]
+      },
+      {
+        slug: 'estoque_retiradas',
+        label: 'Retiradas Manuais',
+        actions: [
+          { slug: 'view', label: 'Ver', icon: Eye },
+          { slug: 'create', label: 'Criar', icon: Plus },
+          { slug: 'edit', label: 'Editar', icon: Pencil },
+        ]
+      },
+      {
+        slug: 'estoque_transferencias',
+        label: 'Transferências entre Locais',
+        actions: [
+          { slug: 'view', label: 'Ver', icon: Eye },
+          { slug: 'create', label: 'Criar', icon: Plus },
+        ]
+      },
+      {
+        slug: 'estoque_ajustes',
+        label: 'Ajustes de Estoque',
+        actions: [
+          { slug: 'view', label: 'Ver', icon: Eye },
+          { slug: 'create', label: 'Criar', icon: Plus },
+          { slug: 'edit', label: 'Editar', icon: Pencil },
+        ]
+      },
+      {
+        slug: 'estoque_remessas',
+        label: 'Remessas (Poder de Terceiros)',
+        actions: [
+          { slug: 'view', label: 'Ver', icon: Eye },
+          { slug: 'create', label: 'Criar', icon: Plus },
+          { slug: 'edit', label: 'Editar / Retorno', icon: Pencil },
+        ]
+      },
+      {
+        slug: 'estoque_requisicoes',
+        label: 'Requisições de Materiais',
+        actions: [
+          { slug: 'view', label: 'Ver', icon: Eye },
+          { slug: 'create', label: 'Criar', icon: Plus },
+          { slug: 'edit', label: 'Editar', icon: Pencil },
+          { slug: 'delete', label: 'Excluir', icon: Trash2 },
+        ]
+      },
+      {
+        slug: 'estoque_aprovacao',
+        label: 'Aprovação de Requisições',
+        actions: [
+          { slug: 'edit', label: 'Aprovar / Rejeitar', icon: Pencil },
+        ]
+      },
+      {
+        slug: 'estoque_atendimento',
+        label: 'Atendimento de Requisições',
+        actions: [
+          { slug: 'edit', label: 'Atender / Baixar', icon: Pencil },
+        ]
+      },
+    ]
   }
 ]
 

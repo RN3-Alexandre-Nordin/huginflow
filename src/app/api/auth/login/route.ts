@@ -7,23 +7,46 @@ import { getAppPublicUrl } from '@/lib/config/environment'
 import { getServerSupabaseAnonKey, getServerSupabaseUrl } from '@/lib/supabase/env'
 
 function requestOrigin(request: Request): string {
+  // 1. Se estiver atrás de proxy reverso / túnel (Cloudflare Tunnel, Nginx, Traefik na VPS),
+  // respeita o hostname e protocolo encaminhados pelo cliente original.
+  const forwardedHost = request.headers.get('x-forwarded-host')
+  const forwardedProto = request.headers.get('x-forwarded-proto')
+  if (forwardedHost) {
+    const proto = forwardedProto?.split(',')[0].trim() || 'https'
+    const host = forwardedHost.split(',')[0].trim()
+    return `${proto}://${host}`
+  }
+
+  // 2. Se houver header 'host' direto da requisição (ex: localhost:3000, 192.168.0.209:3000, etc.)
+  const host = request.headers.get('host')
+  if (host && !host.includes('0.0.0.0')) {
+    const isLocal =
+      host.startsWith('localhost') ||
+      host.startsWith('127.0.0.1') ||
+      host.startsWith('192.168.') ||
+      host.startsWith('10.') ||
+      host.startsWith('172.')
+    const proto = forwardedProto?.split(',')[0].trim() || (isLocal ? 'http' : 'https')
+    return `${proto}://${host}`
+  }
+
+  // 3. Fallback pela URL da requisição que o servidor recebeu
+  try {
+    const url = new URL(request.url)
+    if (url.origin && !url.origin.includes('0.0.0.0')) {
+      return url.origin
+    }
+  } catch {
+    // segue para o fallback estático
+  }
+
+  // 4. Último recurso: fallback configurado nas variáveis de ambiente
   const configured = getAppPublicUrl()
   if (configured && !configured.includes('0.0.0.0')) {
     return configured.replace(/\/$/, '')
   }
 
-  const forwardedHost = request.headers.get('x-forwarded-host')
-  const forwardedProto = request.headers.get('x-forwarded-proto') ?? 'https'
-  if (forwardedHost) {
-    return `${forwardedProto}://${forwardedHost.split(',')[0].trim()}`
-  }
-
-  const host = request.headers.get('host')
-  if (host && !host.includes('0.0.0.0')) {
-    return `${forwardedProto}://${host}`
-  }
-
-  return new URL(request.url).origin
+  return 'http://localhost:3000'
 }
 
 function redirectWithCookies(path: string, cookiePairs: Array<{ name: string; value: string; options?: Parameters<NextResponse['cookies']['set']>[2] }>) {
