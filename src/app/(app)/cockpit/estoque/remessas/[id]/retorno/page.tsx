@@ -170,6 +170,7 @@ export default async function EstoqueRemessaRetornoPage({ params }: PageProps) {
     .select('id, codigo, nome, eh_principal')
     .eq('empresa_id', empresaId)
     .eq('ativo', true)
+    .eq('eh_terceiros', false)
     .order('eh_principal', { ascending: false })
     .order('codigo')
 
@@ -187,31 +188,25 @@ export default async function EstoqueRemessaRetornoPage({ params }: PageProps) {
     <div className="space-y-4 pb-20 font-sans">
       <EstoqueAreaNav />
 
-      <div>
-        <div className="flex items-center gap-2 mb-1 text-xs">
-          <Link
-            href="/cockpit/estoque/remessas"
-            className="text-gray-400 hover:text-white transition-colors"
-          >
-            Remessas
-          </Link>
-          <span className="text-gray-600">/</span>
-          <Link
-            href={`/cockpit/estoque/remessas/${id}`}
-            className="text-gray-400 hover:text-white transition-colors font-mono"
-          >
-            {remessa.numero}
-          </Link>
-          <span className="text-gray-600">/</span>
-          <span className="text-emerald-400">Retorno</span>
-        </div>
-        <h1 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-          <ArrowDownLeft className="h-5 w-5 text-emerald-400" />
-          Retorno — {remessa.numero}
-        </h1>
-        <p className="text-xs text-gray-400 mt-0.5">
-          Devolve material ao estoque e/ou baixa definitivamente o que não retorna.
-        </p>
+      <div className="flex items-center gap-2 text-xs">
+        <Link
+          href="/cockpit/estoque/remessas"
+          className="text-gray-400 hover:text-white transition-colors"
+        >
+          Remessas
+        </Link>
+        <span className="text-gray-600">/</span>
+        <Link
+          href={`/cockpit/estoque/remessas/${id}`}
+          className="text-gray-400 hover:text-white transition-colors font-mono"
+        >
+          {remessa.numero}
+        </Link>
+        <span className="text-gray-600">/</span>
+        <span className="text-emerald-400 inline-flex items-center gap-1 font-medium">
+          <ArrowDownLeft className="h-3.5 w-3.5" />
+          Liquidação
+        </span>
       </div>
 
       <RetornoForm

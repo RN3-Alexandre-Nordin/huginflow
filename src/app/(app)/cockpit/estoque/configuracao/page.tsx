@@ -95,6 +95,21 @@ export default async function EstoqueConfigPage() {
     stages = sData || []
   }
 
+  // 5. Usuários ativos da empresa (aprovador)
+  let usuariosQuery = supabase
+    .from('usuarios')
+    .select('id, nome_completo, email')
+    .eq('ativo', true)
+    .order('nome_completo')
+    .limit(300)
+
+  if (!isSuperAdmin) {
+    usuariosQuery = usuariosQuery.eq('empresa_id', empresaId)
+  } else if (empresaId) {
+    usuariosQuery = usuariosQuery.eq('empresa_id', empresaId)
+  }
+  const { data: usuarios } = await usuariosQuery
+
   return (
     <div className="space-y-6 pb-20 font-sans">
       <EstoqueAreaNav />
@@ -115,6 +130,7 @@ export default async function EstoqueConfigPage() {
         locais={locais || []}
         pipelines={pipelines}
         stages={stages}
+        usuarios={usuarios || []}
         hasWorkflowAddon={hasWorkflowAddon}
         canManage={canManage}
       />

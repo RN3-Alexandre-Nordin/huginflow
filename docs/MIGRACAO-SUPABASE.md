@@ -12,7 +12,7 @@
 **Última migration no prod (intencional):** pacote até `test_runs`/Analytics BI via MCP em 2026-09-06.  
 **Gate prod (combinado 2026-09-11):** aplicar SQL/código em produção **somente** com pedido explícito do responsável. Até lá: documentar e homologar em DEV.
 
-**Última migration no dev:** `202609131800_est_remessa_baixa_e_retorno_sku` (além de `202609131700_est_remessa_item_local_obs_lote`, transferência lotes, fix RPC saldo).
+**Última migration no dev:** `202609161700_cad_sku_familias` (além de planilha req 161400–161600, cockpit_template, aprovação req. e anteriores de estoque).
 
 **Gerar bundle SQL consolidado:**
 
@@ -28,6 +28,17 @@ node scripts/supabase/prod-deploy/build-bundle.mjs
 
 | Data | Migration / alteração | Dev | Prod | Arquivo | Notas |
 |------|----------------------|-----|------|---------|-------|
+| 2026-09-16 | `crm_thread_sla_writers` | ✅ | ⏳ | `supabase/migrations/202609161910_crm_thread_sla_writers.sql` | Triggers FRT/handover/closed_at + message_count; cutover **27** |
+| 2026-09-16 | `crm_rpc_relatorio` | ✅ | ⏳ | `supabase/migrations/202609161900_crm_rpc_relatorio.sql` | BI omni+workflow RPC (14 slugs); cutover **26** |
+| 2026-09-16 | `est_rpc_relatorios` | ✅ | ⏳ | `supabase/migrations/202609161800_est_rpc_relatorios.sql` | RPC `est_rpc_relatorio` (11 slugs, agregação+paginação); cutover **25** |
+| 2026-09-16 | `cad_sku_familias` | ✅ | ⏳ | `supabase/migrations/202609161700_cad_sku_familias.sql` | Famílias SKU + `familia_id`; cutover **24**; seed Monte Sinai DEV |
+| 2026-09-16 | `est_config_req_planilha_auto_atender` | ✅ | ⏳ | `supabase/migrations/202609161600_est_config_req_planilha_auto_atender.sql` | Import planilha: receber+baixar vs só receber; cutover **23** |
+| 2026-09-16 | `est_requisicoes_rastreio_origem` | ✅ | ⏳ | `supabase/migrations/202609161500_est_requisicoes_rastreio_origem.sql` | `codigo_origem`/`sistema_origem`/`requisitante_nome_origem` + unique; cutover **22** |
+| 2026-09-16 | `crm_leads_codigo_externo_req_adapter_atc` | ✅ | ⏳ | `supabase/migrations/202609161400_crm_leads_codigo_externo_req_adapter_atc.sql` | `codigo_externo` + addon `estoque_req_adapter_atc`; cutover **21** |
+| 2026-09-16 | `grupos_acesso_cockpit_template` | ✅ | ⏳ | `supabase/migrations/202609161200_grupos_acesso_cockpit_template.sql` | Home pronta: `cockpit_template` (`auto` \| `atendente_omni` \| `operador_estoque`); cutover **20** |
+| 2026-09-15 | `est_req_aprovacao_parametros` | ✅ | ⏳ | `supabase/migrations/202609152000_est_req_aprovacao_parametros.sql` | Aprovação interna req.; `req_aprovacao_*` + auditoria; cutover **19** |
+| 2026-09-15 | `est_remessa_cardex_dual_terceiros` | ✅ | ⏳ | `supabase/migrations/202609151910_est_remessa_cardex_dual_terceiros.sql` | Dual Cardex próprio↔TERCEIROS; tipos `remessa_entrada_terceiros` / `remessa_saida_terceiros`; poder por `remessa_id`; rebuild + backfill |
+| 2026-09-15 | `est_locais_padrao_branco_terceiros` | ✅ | ⏳ | `supabase/migrations/202609151900_est_locais_padrao_branco_terceiros.sql` | `eh_terceiros`; RPC `est_garantir_locais_padrao`; trigger ao criar empresa + backfill BRANCO/TERCEIROS |
 | 2026-09-13 | `est_remessa_baixa_e_retorno_sku` | ✅ | ⏳ | `supabase/migrations/202609131800_est_remessa_baixa_e_retorno_sku.sql` | `quantidade_baixada`; tipo `remessa_baixa`; retorno com `sku_poder_id` / `quantidade_poder` |
 | 2026-09-13 | `est_remessa_item_local_obs_lote` | ✅ | ⏳ | `supabase/migrations/202609131700_est_remessa_item_local_obs_lote.sql` | Local de saída por item + `observacao` no lote de remessa |
 | 2026-09-12 | `empresas_contato_financeiro` | ✅ | ⏳ | `supabase/migrations/202609121200_empresas_contato_financeiro.sql` | Adiciona colunas `financeiro_nome`, `financeiro_email`, `financeiro_telefone`, `financeiro_chave_pix` na tabela `public.empresas` |
@@ -142,8 +153,21 @@ Detalhes e decisões: [supabase-prod-deploy-pending.md](./supabase-prod-deploy-p
 | E4 | `est_transferencia_lotes` | `supabase/migrations/202609131600_est_transferencia_lotes.sql` | ⏳ |
 | E5 | `est_remessa_item_local_obs_lote` | `supabase/migrations/202609131700_est_remessa_item_local_obs_lote.sql` | ⏳ |
 | E6 | `est_remessa_baixa_e_retorno_sku` | `supabase/migrations/202609131800_est_remessa_baixa_e_retorno_sku.sql` | ⏳ |
+| E7 | `est_locais_padrao_branco_terceiros` | `supabase/migrations/202609151900_est_locais_padrao_branco_terceiros.sql` | ⏳ |
+| E8 | `est_remessa_cardex_dual_terceiros` | `supabase/migrations/202609151910_est_remessa_cardex_dual_terceiros.sql` | ⏳ |
+| E9 | `est_req_aprovacao_parametros` | `supabase/migrations/202609152000_est_req_aprovacao_parametros.sql` | ⏳ |
+| E10 | `grupos_acesso_cockpit_template` | `supabase/migrations/202609161200_grupos_acesso_cockpit_template.sql` | ⏳ |
+| E11 | `crm_leads_codigo_externo_req_adapter_atc` | `supabase/migrations/202609161400_crm_leads_codigo_externo_req_adapter_atc.sql` | ⏳ |
+| E12 | `est_requisicoes_rastreio_origem` | `supabase/migrations/202609161500_est_requisicoes_rastreio_origem.sql` | ⏳ |
+| E13 | `est_config_req_planilha_auto_atender` | `supabase/migrations/202609161600_est_config_req_planilha_auto_atender.sql` | ⏳ |
+| E14 | `cad_sku_familias` | `supabase/migrations/202609161700_cad_sku_familias.sql` | ⏳ |
+| E15 | `est_rpc_relatorios` | `supabase/migrations/202609161800_est_rpc_relatorios.sql` | ⏳ |
+| E16 | `crm_rpc_relatorio` | `supabase/migrations/202609161900_crm_rpc_relatorio.sql` | ⏳ |
+| E17 | `crm_thread_sla_writers` | `supabase/migrations/202609161910_crm_thread_sla_writers.sql` | ⏳ |
 
 **Gate:** homologação completa em DEV + **pedido explícito** do responsável. **Nada em produção.**
+
+> Ordem no cutover canônico: [CUTOVER-PROD-SET-2026.md](./CUTOVER-PROD-SET-2026.md) Seção 4 — itens **17–27** (após remessa 16; **25**=relatórios estoque · **26–27**=BI workflow/omni).
 
 ---
 

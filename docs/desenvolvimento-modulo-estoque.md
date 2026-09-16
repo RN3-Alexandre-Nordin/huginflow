@@ -95,9 +95,11 @@ Entregar no Hugin um módulo **nativo** de **operações** de estoque de consum�
 |--------|--------|
 | Saldo por local | Tabela `est_saldos` (já materializada pela Regra de Ouro) + índices `(empresa_id, sku_id)` / `(empresa_id, local_id)` |
 | Saldo total por SKU | VIEW `est_vw_saldos_consolidados` (`SUM`/`COUNT` no Postgres) — **não** somar no JS |
+| Relatórios KPI (hub) | RPC `est_rpc_relatorio(empresa_id, slug, filtros)` — `GROUP BY`/filtros/`LIMIT`/`OFFSET` no Postgres; resumo (`total_count`, `total_valor`, …) sobre o conjunto filtrado completo; página default **50** (máx. 200) |
 | Cardex / lotes | Sempre `ORDER BY` + **paginação** (`range`/`limit`); filtros no servidor |
 | Busca em lotes por SKU | Resolver IDs no banco e filtrar `id.in.(...)` — não carregar todos os lotes |
 | Reconciliação | Job/RPC batch; nunca na request síncrona da listagem do operador |
+| Export Excel/PDF | Página atual (payload pequeno). Export massivo async = depois |
 
 **Proibido em telas de lista:** carregar “tudo da empresa” e filtrar/agregar só no React/Node.
 
@@ -165,9 +167,10 @@ A VPS **não** monta nem varre pastas da LAN do cliente.
 
 | Entregável | Fase | Rotas |
 |------------|------|-------|
-| Consulta de saldos | **depois** | `/cockpit/estoque/saldos` |
+| Consulta de saldos | **depois** → **parcial** | `/cockpit/estoque/saldos` |
 | Export consumido | **depois** | `/cockpit/estoque/export` |
-| Dashboard KPIs | **depois** | `/cockpit/estoque/relatorios` |
+| Dashboard KPIs / Relatórios | **F4.5** | `/cockpit/estoque/relatorios` — 11 KPIs via `est_rpc_relatorio` + Excel/PDF página |
+| Família de SKU | **cadastro** | `/cockpit/cadastros/sku-familias` · `cad_skus.familia_id` |
 | SAP / legado | **F6** | API / webhooks |
 
 ---
@@ -226,6 +229,10 @@ Fonte da verdade para auditoria: **Cardex**. Saldo é projeção materializada p
 | nfe_xml_diretorio | text NULL | Path UNC/local na **rede do cliente** (não VPS) |
 | nfe_xml_local_padrao_id | uuid NULL | Local default NFe · se null, usa local `eh_principal` / `BRANCO` |
 | req_saldo_insuficiente_modo | text NOT NULL | ver §10.4 · default `atende_parcial_pendente` |
+| req_planilha_auto_atender | boolean NOT NULL | default false · ver §10.8.3 |
+| req_aprovacao_ativa | boolean NOT NULL | default false · exige aprovação interna no envio |
+| req_aprovador_usuario_id | uuid NULL | FK `usuarios` — aprovador padrão (+ admin/superadmin) |
+| req_aprovacao_valor_minimo | numeric(18,2) NOT NULL | default 0 · Σ qtd × `preco_custo`; 0 = limiar off (toda req com flag ligada vai à fila) |
 | aprovacao_via_workflow | boolean | default false · se true, cria card no funil/estágio abaixo |
 | aprovacao_funil_id | uuid NULL | FK funil Workflow (mesmo tenant) |
 | aprovacao_estagio_id | uuid NULL | FK estágio/etapa inicial do card de aprovação |
@@ -415,12 +422,19 @@ Histórico de **todas** as movimentações. Append-only no fluxo normal (correç
 |---------------|------|--------|
 | id | uuid PK | |
 | empresa_id | uuid NOT NULL | |
-| numero | text NOT NULL | sequencial / legível por empresa |
+| numero | text NOT NULL | = `codigo_origem` se informado, senão `REQ-YYYYMMDD-####` |
 | requisitante_pessoa_id | uuid NOT NULL | FK `crm_leads` — **obrigatório** · deve existir em Pessoas |
 | solicitante_usuario_id | uuid NULL | usuário logado que abriu a req. (auditoria) |
 | departamento_id | uuid NULL | opcional / derivado do requisitante |
 | status | text | ver §10 |
 | origem | text | `manual` \| `planilha` |
+| codigo_origem | text NULL | ID/número no sistema externo · 1:1 com req Hugin |
+| sistema_origem | text NULL | ex.: `planilha`, `atc_suprimentos`, `sap` |
+| requisitante_nome_origem | text NULL | nome como veio na origem (rastreio) |
+| valor_estimado | numeric(18,2) NOT NULL | Σ qtd × `cad_skus.preco_custo` no envio/criação · default 0 |
+| aprovador_usuario_id | uuid NULL | quem aprovou/rejeitou (auditoria) |
+| aprovado_em | timestamptz NULL | quando decidiu |
+| aprovacao_resultado | text NULL | `aprovada` \| `rejeitada` |
 | workflow_card_id | uuid NULL | card criado se `aprovacao_via_workflow` |
 | observacao | text NULL | |
 | created_at / updated_at | timestamptz | |
@@ -596,16 +610,18 @@ Ordem sugerida de checagem por item/lote:
 
 - Identificar o fornecedor (CNPJ/CPF da NFe, documento/código na planilha, seleção na tela).  
 - Buscar em `crm_leads` do `empresa_id` (papel fornecedor quando aplicável).  
-- **Se não existir:** bloquear entrada do lote/item.  
-- **Mensagem (exemplo):**  
+- **Canal C (XML):** se o CNPJ/CPF do `emit` não existir, o operador **confirma** a criação no próprio fluxo de `/entradas/xml` (nome, fantasia, IE, endereço do XML). Gate: `estoque_entradas` — **não** abre Cadastros → Pessoas.  
+- **Canais A/B:** se não existir → bloquear entrada do lote/item.  
+- **Mensagem (exemplo A/B):**  
   > Fornecedor CNPJ **12.345.678/0001-99** não está cadastrado em **Cadastros → Pessoas**. Cadastre a pessoa com papel fornecedor e tente novamente.
 
 #### V2 — SKU no de-para do fornecedor
 
 - Com `pessoa_id` do fornecedor + `codigo_parceiro` do item (código do produto no fornecedor / `cProd` NFe / coluna da planilha).  
 - Buscar em `cad_sku_depara` (`empresa_id`, `pessoa_id`, `codigo_parceiro`).  
-- **Se não existir:** bloquear esse item.  
-- **Mensagem (exemplo):**  
+- **Canal C (XML):** se não houver de-para, resolver **na tela** `/entradas/xml`: (1) apontar SKU existente → grava de-para; ou (2) cadastrar SKU novo pré-preenchido (xProd, NCM, EAN, custo) **confirmando UMs** (+ fator se diferirem) → SKU + de-para. Gate: `estoque_entradas`.  
+- **Canais A/B:** se não existir → bloquear esse item.  
+- **Mensagem (exemplo A/B):**  
   > O código do fornecedor **ABC-99** não possui de-para para este fornecedor. Cadastre em **Cadastros → De-para SKU** (pessoa + código parceiro → SKU Hugin) e tente novamente.
 
 #### V3 — Conversão de unidade de medida
@@ -967,9 +983,32 @@ Em **Estoque → Configuração** (`est_config.req_saldo_insuficiente_modo`):
 - Mensagens na tela devem citar o modo ativo e o que ficou pendente / pulado / bloqueado.  
 - Default sugerido: `atende_parcial_pendente`.
 
-### 10.5 Aprovação via Workflow (preparado)
+### 10.5 Aprovação interna (parâmetros + tela) e Workflow
 
-Parâmetros em Configuração:
+#### 10.5.1 Aprovação interna (operacional)
+
+Parâmetros em **Estoque → Configuração → Requisições**:
+
+| Campo | Uso |
+|-------|-----|
+| `req_aprovacao_ativa` | Liga a fila de aprovação interna |
+| `req_aprovador_usuario_id` | Usuário aprovador (obrigatório se flag ligada) |
+| `req_aprovacao_valor_minimo` | Limiar em R$ (preço de **custo**). `0` = limiar não se aplica |
+
+**Valor da requisição:** `valor_estimado = Σ (quantidade_pedida × cad_skus.preco_custo)`. SKU sem custo conta como 0.
+
+**Regra no envio** (`enviar_imediatamente` ou transição de rascunho):
+
+1. Flag **off** → status `aprovada` (auto).
+2. Flag **on** e `valor_minimo > 0` e `valor_estimado < mínimo` → `aprovada` (auto).
+3. Flag **on** caso contrário → `pendente_aprovacao`.
+
+**Quem aprova:** usuário em `req_aprovador_usuario_id` **ou** `role_global` `admin` da empresa **ou** `superadmin`.  
+Tela: `/cockpit/estoque/requisicoes/aprovacao`. Ao decidir, grava `aprovador_usuario_id`, `aprovado_em`, `aprovacao_resultado`.
+
+#### 10.5.2 Aprovação via Workflow (opcional / paralelo)
+
+Parâmetros em Configuração (aba Workflow):
 
 | Campo | Uso |
 |-------|-----|
@@ -979,31 +1018,31 @@ Parâmetros em Configuração:
 
 Comportamento:
 
-1. Se `aprovacao_via_workflow = false` → fluxo interno de status (§10.6) sem card (aprovação operacional no próprio módulo, se houver papel `estoque_aprovacao`).  
-2. Se `true` → ao **enviar** a requisição, criar card no funil/estágio configurados; guardar `workflow_card_id`.  
-3. Funil e estágio **obrigatórios** quando a flag está ligada; senão mensagem: “Configure funil e estágio em Estoque → Configuração”.  
-4. Transições do card ↔ status da requisição: implementação alinhada ao Workflow existente (hook/evento); detalhe de mapeamento de estágios fica no F4.3 / workshop.  
-5. MVP: **estruturar parâmetros + criação do card**; refinamento fino do funil fica nos parâmetros do módulo (não hardcode).
+1. Independente da aprovação interna (§10.5.1): se `aprovacao_via_workflow = true` e o status for `pendente_aprovacao`, cria card no funil/estágio e guarda `workflow_card_id`.
+2. Funil e estágio **obrigatórios** quando a flag está ligada.
+3. MVP: parâmetros + criação do card; mapeamento fino de estágios ↔ status fica no Workshop / F4.3.
 
 ### 10.6 Status da requisição
 
 ```
-rascunho → enviada → aprovada → atendida
-                ↘ cancelada          ↘ parcialmente_atendida (se houver pendência)
-         aprovada → cancelada (se ainda não atendida)
+rascunho → pendente_aprovacao → aprovada → atendida_parcial / atendida_total
+                ↘ rejeitada / cancelada
+         (envio com auto-aprovação) → aprovada
 ```
 
 | Status | Quem | Efeito |
 |--------|------|--------|
 | rascunho | solicitante | editável |
-| enviada | solicitante | aguarda aprovação (interna ou workflow) |
-| aprovada | aprovador / workflow | liberada para atendimento |
-| parcialmente_atendida | estoquista | houve baixa parcial; itens com pendência |
-| atendida | estoquista | todos os itens sem pendência relevante |
+| pendente_aprovacao | solicitante (envio) | aguarda aprovador / admin / superadmin |
+| aprovada | aprovador ou auto | liberada para atendimento |
+| atendida_parcial | estoquista | houve baixa parcial; itens com pendência |
+| atendida_total | estoquista | todos os itens sem pendência relevante |
+| rejeitada | aprovador | decisão registrada; sem atendimento |
 | cancelada | admin / regras ok | sem movimento (ou só o já baixado permanece) |
 
 Atendimento gera `saida` com `origem = requisicao` + `requisicao_id` (ver §8 distinção vs retirada manual).
 
+> Status legado `enviada` é tratado na UI como equivalente a `pendente_aprovacao`.
 ### 10.7 Manual (tela)
 
 - Cabeçalho: requisitante (lookup Pessoas), observação.  
@@ -1012,22 +1051,58 @@ Atendimento gera `saida` com `origem = requisicao` + `requisicao_id` (ver §8 di
 
 ### 10.8 Planilha
 
+#### 10.8.1 Formato canônico (padrão Hugin — incluso)
+
 | Coluna | Exemplo | Obrigatório |
 |--------|---------|-------------|
-| requisitante_documento | 12345678901 | sim (CPF/CNPJ da pessoa) |
-| sku_codigo | LUVA-M | sim |
-| quantidade | 10 | sim |
-| observacao | | não |
+| codigo_origem | REQ-EXT-1001 | não* (sim se integração / 1:1 com origem) |
+| sistema_origem | planilha | não* (default `planilha` se houver `codigo_origem`) |
+| requisitante_documento | 10008710961 | sim (CPF/CNPJ; match em Pessoas) |
+| requisitante_nome | Ricardo Mendes Oliveira | não (texto da origem — rastreio/auditoria) |
+| sku_codigo | AGUA-044 | sim |
+| quantidade | 24 | sim |
+| observacao | Reposição semanal | não |
 
-- Uma planilha pode agrupar várias linhas no **mesmo** requisitante em **uma** requisição (ou 1 req. por grupo de documento — default: agrupar por requisitante).  
-- Formatos: CSV e XLSX · template baixável.  
-- Linhas rejeitadas com motivo claro.
+\* Com `codigo_origem`: **1 requisição Hugin = 1 requisição de origem** (agrupa todas as linhas com o mesmo `sistema_origem` + `codigo_origem`). O `numero` Hugin recebe o `codigo_origem`. Reimport do mesmo par é bloqueado (`REQUISICAO_ORIGEM_DUPLICADA`). Sem `codigo_origem`: agrupa por `requisitante_documento` e gera `REQ-YYYYMMDD-####`.
+
+- Formatos: **CSV** e **XLSX** (também .xls) · template baixável em `/cockpit/estoque/requisicoes/import`.
+- `origem = planilha`. Campos persistidos: `codigo_origem`, `sistema_origem`, `requisitante_nome_origem`.
+- Arquivos de teste: `docs/testes/modelo-requisicao-huginflow.csv` e `.xlsx`.
+
+#### 10.8.2 Adaptadores cobráveis (custom por cliente)
+
+O **core** só importa o formato canônico. Clientes com export próprio usam um **adapter** que transforma o arquivo → linhas canônicas.
+
+| Adapter | Addon | Uso |
+|---------|-------|-----|
+| `hugin_padrao` | (incluso) | Lê colunas §10.8.1 |
+| `cliente_atc_legado` | `estoque_req_adapter_atc` | Export BSC/suprimentos (`CODIGO :: NOME`); match por `crm_leads.codigo_externo` (matrícula) |
+
+- Entitlement via `empresa_addons`. Sem addon → só o padrão aparece na UI.
+- Novo cliente = novo adapter + addon no registry (projeto cobrável), sem alterar o importer canônico.
+- Pessoas: campo `codigo_externo` para matrícula/código externo (único por empresa).
+
+Validações pós-adapter: mesmas de §10.3 (requisitante funcionário, SKU com `controla_estoque`, qtd > 0).
+
+#### 10.8.3 Comportamento na efetivação (`req_planilha_auto_atender`)
+
+Parametrizado em **Estoque → Configuração → Importação por planilha**:
+
+| Valor | Comportamento |
+|-------|----------------|
+| `false` (default) | **Apenas recebe** — cria a(s) requisição(ões) e segue o fluxo normal (rascunho / envio / aprovação / atendimento manual). |
+| `true` | **Recebe e baixa** — cria a requisição, força status `aprovada` (bypassa fila de aprovação nesta importação) e chama o atendimento no local padrão. |
+
+No modo auto-baixa:
+- Usa sempre `atende_parcial_pendente` neste ciclo: baixa o saldo disponível; o restante do item fica pendente e a req fica `atendida_parcial` (ou permanece `aprovada` se nada pôde ser baixado).
+- Local de baixa: `est_config.padrao_local_id` ou local `eh_principal`.
 
 ### 10.9 Códigos de erro
 
 | Código | Significado | O que fazer |
 |--------|-------------|-------------|
 | `REQUISITANTE_NAO_CADASTRADO` | Pessoa ausente | Cadastrar em Pessoas |
+| `REQUISICAO_ORIGEM_DUPLICADA` | Já existe `sistema_origem`+`codigo_origem` | Não reimportar; usar a req existente |
 | `ITENS_OBRIGATORIOS` | Sem SKU/qtd | Incluir ao menos um item |
 | `SKU_INVALIDO` | SKU inválido | Corrigir cadastro / planilha |
 | `SALDO_INSUFICIENTE_BLOQUEIO` | Modo `nao_atende_requisicao` | Aguardar reposição ou mudar modo |
@@ -1108,37 +1183,52 @@ Complementos opcionais no futuro (fora do MVP): catálogo editável por empresa 
 
 ### 11.7 Efeito no cardex / saldo — envio
 
-Na **mesma transação**, por item:
+Na **mesma transação**, por item (modelo dual — 2 linhas no Cardex):
 
 1. Insert/atualiza `est_remessa_lotes` / `est_remessa_itens`.  
-2. Insert `est_movimentos`: `tipo = remessa_saida`, `origem = remessa`, `pessoa_id` = destinatário, `lote_remessa_id`, `remessa_item_id`, `motivo_codigo`, `motivo` = `{rótulo}`.  
-3. `est_saldos` no `local_origem_id` -= qtd.  
-4. `est_saldos_poder_terceiros` (destinatário + SKU) += qtd.  
+2. Insert `est_movimentos` `tipo = remessa_saida` no **local próprio** (origem) — debita `est_saldos`.  
+3. Insert `est_movimentos` `tipo = remessa_entrada_terceiros` no local sistema **TERCEIROS** — credita `est_saldos` em TERCEIROS.  
+4. `est_saldos_poder_terceiros` (destinatário + SKU + **`remessa_id`**) += qtd (analítico por pessoa/lote).  
 5. Status lote/item: `aberta` / `em_poder`.
+
+> UI do Cardex: cada linha mostra **um** impacto (+/−) no local da linha — não há “próprio + poder” sintético na mesma linha.
 
 ### 11.8 Retorno / liquidação de remessa
 
-Rota: **`/cockpit/estoque/remessas/[id]/retorno`** (lote tabular).
+Rota: **`/cockpit/estoque/remessas/[id]/retorno`**.
 
 `em_poder = enviada − retornada − baixada`
 
-| Campo | Obrigatório |
-|-------|-------------|
+**Modelo operacional (padrão de mercado):** fechar poder de terceiros e classificar o destino — **sem** “devolver ao próprio e baixar depois” quando o material não volta.
+
+| Ordem | Operação | Efeito |
+|-------|----------|--------|
+| 1 | Fechar poder (total/parcial) | Sempre no **SKU enviado** |
+| 2 | **Baixa definitiva** | Poder ↓ · **não** entra no local (`remessa_baixa`) — venda, extravio, insumo consumido |
+| 3 | **Entrada / retorno físico** | Poder ↓ (SKU enviado) · local ↑ (SKU que entra, pode ser outro) (`remessa_retorno`) |
+
+**UI:** padrão de abas canônico (`bg-[#111111]`): **Em poder** (resumo + atalhos) · **Baixas** · **Entradas**; rodapé único com observação + Confirmar (estado de todas as abas). Linhas adicionáveis/excluíveis; abas começam vazias (exceto resumo).
+
+**Em poder (resumo):** colunas Enviado · Retornada · Baixada · Em poder · Nesta liquidação · Restante (evita confundir histórico com rascunho da tela).
+
+Cardex (dual): envio = `remessa_saida` (próprio −) + `remessa_entrada_terceiros` (TERCEIROS +); baixa = `remessa_baixa` (TERCEIROS − + analítico); retorno = `remessa_saida_terceiros` (TERCEIROS −) + `remessa_retorno` (próprio +).
+
+| Campo (por linha) | Obrigatório |
+|-------------------|-------------|
 | Remessa / itens ainda em poder | **sim** |
-| Qtd retorno (por linha) | opcional · 0 = sem retorno físico |
-| SKU que volta | default = SKU enviado · pode ser **outro** (industrialização) |
-| Fecha poder (SKU enviado) | se SKU diferente: independente da qtd que entra; se mesmo SKU = qtd retorno |
-| Local de destino | **sim** se qtd retorno > 0 |
-| Qtd baixa definitiva | opcional · sai do poder **sem** entrar no local |
-| Motivo da baixa | **sim** se qtd baixa > 0 · catálogo `MOTIVOS_BAIXA_REMESSA` |
+| Baixa: qtd + motivo | se linha de baixa |
+| Entrada: qtd entra + SKU + local | se linha de entrada |
+| Fecha poder (SKU enviado) | entrada manual com SKU ≠ enviado; industrialização = **total** (travado); mesmo SKU manual = qtd entra |
 
 Regras:
 
-1. Retorno parcial + baixa na mesma linha permitidos (ex.: consignação).  
-2. Ao liquidar todos (`retornada + baixada >= enviada`) → item `retornado` · lote `fechada`.  
-3. Cardex: `remessa_retorno` (local += SKU volta; poder −= SKU enviado) e/ou `remessa_baixa` (só poder −=).  
-4. Retorno transformado grava `sku_poder_id` / `quantidade_poder` no movimento quando SKU/qtd diferem.  
-5. **Não** misturar retorno com entrada de compra.
+1. Várias baixas e/ou entradas por item (motivos/SKUs distintos).  
+2. Por item: `soma(qtd baixas) + soma(fecha_poder das entradas) ≤ em_poder`.  
+3. Lote pode fechar **só com baixas** (0 entrada).  
+4. Industrialização: `quantidade_fecha_poder = em_poder` (fixado); qtd que entra pode ser diferente (conversão).  
+5. Ao liquidar todos (`retornada + baixada >= enviada`) → item `retornado` · lote `fechada`.  
+6. Cardex: `remessa_retorno` e/ou `remessa_baixa`; transformado grava `sku_poder_id` / `quantidade_poder`.  
+7. **Não** misturar com entrada de compra; **não** simular baixa via retorno + retirada.
 
 ### 11.9 Códigos de erro
 
@@ -1155,9 +1245,9 @@ Regras:
 ### 11.10 O que a remessa **não** faz (MVP)
 
 - Não emite NF-e / CFOP fiscal (só controle operacional; fiscal depois).  
-- Não cria local “fantasma” por terceiro (usa `est_saldos_poder_terceiros`).  
+- Local **TERCEIROS** é sistema (agregado); o detalhe por terceiro fica em `est_saldos_poder_terceiros` (pessoa + lote).  
 - Sem planilha/XML de remessa.  
-- Baixa definitiva **não** gera retirada de consumo separada — usa `remessa_baixa` no Cardex.
+- Baixa definitiva **não** gera retirada de consumo separada — usa `remessa_baixa` no Cardex (local TERCEIROS).
 
 ---
 
@@ -1182,6 +1272,7 @@ Regras:
 | Remessas (poder de terceiros) | `/cockpit/estoque/remessas` |
 | Retorno de remessa | `/cockpit/estoque/remessas/[id]/retorno` |
 | Requisições | `/cockpit/estoque/requisicoes` |
+| Aprovação de requisições | `/cockpit/estoque/requisicoes/aprovacao` |
 
 ### Hub cards — depois (consultas / relatórios)
 
@@ -1208,9 +1299,14 @@ Incluir em `PERMISSION_CATEGORIES` (nova categoria **Estoque**):
 | `estoque_ajustes` | lotes de ajuste (tabela, manual) |
 | `estoque_remessas` | envio para fora + retorno (poder de terceiros) |
 | `estoque_requisicoes` | criar/ver requisições |
-| `estoque_aprovacao` | aprovar / cancelar |
-| `estoque_atendimento` | atender requisição (baixa por req.) |
-| `estoque_relatorios` | export + dashboard (**depois**) |
+| `estoque_atendimento` | atender / baixar (`create` + `edit`) |
+| `estoque_relatorios` | consultas Saldos / Cardex / export |
+
+**Aprovação de requisições:** **não** é toggle de grupo. Quem aprova = usuário em `est_config.req_aprovador_usuario_id` **ou** `admin` / `superadmin` (tela Estoque → Configuração).
+
+**Matriz de Grupos (UI):** abas por módulo ativo nos addons da empresa (sem Financeiro RN3). Estoque tem sub-abas Hub · Movimentações · Requisições · Consultas.
+
+**Home do Cockpit:** grupo pode ter `cockpit_template = operador_estoque` (ou `auto` quando só addon estoque / perms de estoque). Template pronto: **4 KPIs do user no dia** (meus movimentos, baixas de req, mov. remessa, aprovações) + **2 listas de pendência** (fila aprovação/atendimento do almox + remessas abertas). Sem configuração fina de widgets.
 
 **MVP enxuto (aceito):** um slug `estoque` com ações view/create/edit/delete + checagens de papel (admin vs departamental) no código; granularizar depois se o piloto pedir.
 
@@ -1269,7 +1365,8 @@ Colunas: data, sku, nome, qtd, local, depto, requisicao, usuario.
 - [x] Tabelas `est_requisicoes` / `est_requisicao_itens` (requisitante = pessoa)  
 - [x] Entrada **manual** (requisitante + lista SKU/qtd)  
 - [x] Entrada por **planilha** (§10.8)  
-- [x] Máquina de status §10.6  
+- [x] Máquina de status §10.6 (`pendente_aprovacao` / auto-aprovação)  
+- [x] Aprovação interna: `req_aprovacao_*` + `valor_estimado` + auditoria + tela `/aprovacao`  
 - [x] Hook preparado: se `aprovacao_via_workflow`, criar card no funil/estágio  
 - [x] Atendimento respeitando `req_saldo_insuficiente_modo` (§10.4)  
 - [x] Filtro / listagem  

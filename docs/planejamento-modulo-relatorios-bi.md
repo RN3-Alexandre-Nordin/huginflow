@@ -1,7 +1,7 @@
 # Planejamento: Módulo de Relatórios & Indicadores (BI)
 
-> **Status:** 📋 Planejamento produto · **Backend Dev ✅** (2026-09-02) · Front ⏳  
-> **Criado em:** 2026-09-02  
+> **Status:** ✅ Hub BI live (`/cockpit/relatorios` — 14 KPIs omni+workflow via `crm_rpc_relatorio`) · Backend analytics `fn_analytics_*` + writers SLA · **PROD SQL ⏳**  
+> **Criado em:** 2026-09-02 · **Atualizado:** 2026-09-16  
 > **Contexto:** Levantamento para gerência da empresa — dashboard operacional + módulo BI com filtros e indicadores auxiliares.  
 > **Referência visual:** telas estilo Chatwoot Analytics (Visão Geral + Conversas com KPIs, tendência e heatmap).
 
@@ -11,12 +11,14 @@
 
 Oferecer à gerência da empresa uma visão consolidada de **atendimento, vendas, operação e IA**, em dois níveis complementares:
 
-| Camada | Rota proposta | Público | Pergunta que responde |
-|--------|---------------|---------|------------------------|
+| Camada | Rota | Público | Pergunta que responde |
+|--------|------|---------|------------------------|
 | **Cockpit operacional** | `/cockpit` | Operador, Gestor | “O que preciso fazer agora?” |
 | **Centro de Inteligência (BI)** | `/cockpit/relatorios` | Gestor, Admin, Diretoria | “Como estamos performando? Onde investir?” |
 
 **Princípio de produto:** o Dashboard principal mantém **4–6 KPIs vivos** e atalhos operacionais. O módulo BI concentra **histórico, comparação, drill-down, filtros e exportação**.
+
+**Implementação (16/09):** hub de cards (padrão estoque) + `[slug]` com filtros server-side, paginação 50, export Excel/PDF da página. RPC `crm_rpc_relatorio` agrega no Postgres (Onda 1 omni + Onda 2 workflow).
 
 ---
 
@@ -26,13 +28,16 @@ Levantamento do código em set/2026 — o que **já existe** vs. o que **falta**
 
 ### 2.1 Dashboard por perfil (`/cockpit`)
 
-Roteamento por `usuarios.role_global` em `src/app/(app)/cockpit/page.tsx`:
+Roteamento por `usuarios.role_global` + `grupos_acesso.cockpit_template` em `src/app/(app)/cockpit/page.tsx`:
 
 | Perfil | Componente | Dados reais? |
 |--------|------------|--------------|
 | **superadmin** | `SuperAdminDashboard` | ❌ Mock (números estáticos) |
 | **admin (gestor)** | `ManagerDashboard` | ✅ CRM + conversas |
-| **operador / visualizador** | `OperatorDashboard` | ✅ Produtividade + fila WhatsApp |
+| **operador / visualizador** + `atendente_omni` / `auto`→omni | `OperatorDashboard` | ✅ Produtividade + fila WhatsApp |
+| **operador / visualizador** + `operador_estoque` / `auto`→estoque | `EstoqueOperatorDashboard` | ✅ Aprovar / atender / mov. hoje / remessas |
+
+Campo `grupos_acesso.cockpit_template` (`auto` \| `atendente_omni` \| `operador_estoque`). Presets RN3 para PME — **sem** builder de KPI.
 
 ### 2.2 KPIs já implementados — Gestor
 
@@ -64,26 +69,19 @@ Visualização: barras CSS (sem biblioteca de gráficos).
 
 Rota `/cockpit/financeiro` — RN3 superadmin. RPC `fn_finance_dashboard`, view `vw_finance_contas_receber_relatorio`. **Não integrado ao cockpit do tenant.**
 
-### 2.5 CRM Hub — placeholder
+### 2.5 CRM Hub — Relatórios
 
-Em `src/app/(app)/cockpit/crm/page.tsx`, card **“Relatórios & Analytics”** aponta para `/cockpit/crm/relatorios` com `active: false` (“Em Breve”). **Rota/página não existe.**
+Card **Relatórios & Analytics** em `crm/page.tsx` aponta para `/cockpit/relatorios` (ativo com addon `workflow`). Hub lista 6 KPIs omnichannel + 8 workflow.
 
-Features anunciadas no card: Taxa de Conversão, Previsão Fatura, Velocidade Média.
+### 2.6 Entrega 16/09 — BI SaaS
 
-### 2.6 Lacunas vs. módulo BI completo
-
-| Lacuna | Detalhe |
-|--------|---------|
-| Sem módulo de relatórios | Apenas placeholder no CRM Hub |
-| Sem RBAC para relatórios | Nenhum slug `relatorios` / `analytics` em `permissions.ts` |
-| Superadmin cockpit mock | KPIs de plataforma não vêm do banco |
-| Gráficos limitados | Barras CSS; sem heatmap, funil, export |
-| Agregação em server actions | JS bucketing; sem RPCs/views materializadas |
-| Sem SLAs omnichannel | TMA, 1ª resposta, tempo de espera, resolução |
-| Sem BI por operador/time | Produtividade individual existe; ranking/export não |
-| Sem dimensão departamento | Mencionado em docs; não implementado em relatórios |
-| Sem CSAT | Seção prevista na referência; sem tabela/pesquisa |
-| Dado morto | `getCockpitMetrics` retorna `chats: 12` hardcoded (não usado na UI) |
+| Item | Status |
+|------|--------|
+| Landing + `[slug]` + filtros/export/paginação | ✅ |
+| RPC `crm_rpc_relatorio` (14 slugs) | ✅ DEV |
+| Triggers SLA thread (`202609161910`) | ✅ DEV |
+| RBAC `relatorios.view` | ✅ |
+| CSAT / export async / drill-down | ⏳ Onda 3 |
 
 ---
 

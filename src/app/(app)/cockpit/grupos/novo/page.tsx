@@ -1,15 +1,30 @@
 'use client'
 
-import { useTransition, useEffect, useState } from "react"
-import { createGrupoAcesso } from "@/app/(app)/cockpit/actions"
-import Link from "next/link"
-import { ShieldCheck, Building2, AlignLeft, Info } from "lucide-react"
+import { useTransition, useEffect, useState } from 'react'
+import { createGrupoAcesso } from '@/app/(app)/cockpit/actions'
+import Link from 'next/link'
+import { ShieldCheck, Building2, AlignLeft, Info, LayoutDashboard } from 'lucide-react'
 import { BackButton } from '@/components/BackButton'
-import { createClient } from "@/utils/supabase/client"
-import SearchableSelect from "@/components/SearchableSelect"
-import PermissionsMatrix from "../PermissionsMatrix"
+import { createClient } from '@/utils/supabase/client'
+import SearchableSelect from '@/components/SearchableSelect'
+import PermissionsMatrix from '../PermissionsMatrix'
+import { fetchEmpresaAddonsMap } from '../fetchEmpresaAddonsMap'
+import { buildGroupsMatrixFullPermissions } from '@/constants/permissions'
+import {
+  COCKPIT_TEMPLATES,
+  parseCockpitTemplate,
+  type CockpitTemplateId,
+} from '@/lib/cockpit/templates'
 
-function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
+function Field({
+  label,
+  required,
+  children,
+}: {
+  label: string
+  required?: boolean
+  children: React.ReactNode
+}) {
   return (
     <div className="flex flex-col gap-1.5">
       <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
@@ -20,47 +35,86 @@ function Field({ label, required, children }: { label: string; required?: boolea
   )
 }
 
-const inputCls = "w-full bg-[#0A0A0A] border border-[#ffffff12] focus:border-[#2BAADF] rounded-xl px-4 py-2.5 text-sm text-white outline-none transition-all placeholder-gray-600 focus:ring-1 focus:ring-[#2BAADF]/30"
+const inputCls =
+  'w-full bg-[#0A0A0A] border border-[#ffffff12] focus:border-[#2BAADF] rounded-xl px-4 py-2.5 text-sm text-white outline-none transition-all placeholder-gray-600 focus:ring-1 focus:ring-[#2BAADF]/30'
 
 export default function NovoGrupoAcessoPage() {
   const [isPending, startTransition] = useTransition()
-  const [empresas, setEmpresas] = useState<any[]>([])
-  const [selectedEmpresa, setSelectedEmpresa] = useState("")
+  const [empresas, setEmpresas] = useState<{ id: string; nome: string }[]>([])
+  const [selectedEmpresa, setSelectedEmpresa] = useState('')
   const [loading, setLoading] = useState(true)
   const [permissoes, setPermissoes] = useState<Record<string, string[]>>({})
   const [isSuperAdmin, setIsSuperAdmin] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [cockpitTemplate, setCockpitTemplate] = useState<CockpitTemplateId>('auto')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [empresaAddons, setEmpresaAddons] = useState<Record<string, boolean> | null>(null)
+  const [tenantEmpresaId, setTenantEmpresaId] = useState('')
 
   useEffect(() => {
     async function loadInitialData() {
       const supabase = createClient()
-      
-      const { data: { user: authUser } } = await supabase.auth.getUser()
+
+      const {
+        data: { user: authUser },
+      } = await supabase.auth.getUser()
       const { data: userData } = await supabase
         .from('usuarios')
-        .select('role_global')
+        .select('role_global, empresa_id')
         .eq('auth_user_id', authUser?.id ?? '')
         .single()
       const superAdmin = userData?.role_global === 'superadmin'
       setIsSuperAdmin(superAdmin)
 
       if (superAdmin) {
-        const { data } = await supabase.from('empresas').select('id, nome').eq('ativo', true).order('nome')
+        const { data } = await supabase
+          .from('empresas')
+          .select('id, nome')
+          .eq('ativo', true)
+          .order('nome')
         if (data) setEmpresas(data)
+      } else if (userData?.empresa_id) {
+        setTenantEmpresaId(userData.empresa_id)
+        setSelectedEmpresa(userData.empresa_id)
       }
-      
+
       setLoading(false)
     }
-    loadInitialData()
+    void loadInitialData()
   }, [])
+
+  useEffect(() => {
+    const empresaId = selectedEmpresa || tenantEmpresaId
+    if (!empresaId) {
+      setEmpresaAddons(null)
+      return
+    }
+    let cancelled = false
+    void fetchEmpresaAddonsMap(empresaId).then((map) => {
+      if (!cancelled) setEmpresaAddons(map)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [selectedEmpresa, tenantEmpresaId])
+
+  useEffect(() => {
+    if (!isAdmin || !empresaAddons) return
+    setPermissoes(buildGroupsMatrixFullPermissions(empresaAddons))
+  }, [isAdmin, empresaAddons])
+
+  function handleAdminToggle(checked: boolean) {
+    setIsAdmin(checked)
+    if (checked && empresaAddons) {
+      setPermissoes(buildGroupsMatrixFullPermissions(empresaAddons))
+    }
+  }
 
   const handleSubmit = (formData: FormData) => {
     setErrorMsg(null)
-    // Append JSONB permissions and isAdmin flag
     formData.append('permissoes', JSON.stringify(permissoes))
     formData.append('is_admin', isAdmin ? 'true' : 'false')
-    
+
     startTransition(async () => {
       const result = await createGrupoAcesso(formData)
       if (result?.error) {
@@ -70,8 +124,7 @@ export default function NovoGrupoAcessoPage() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6 pb-20">
-      {/* Header */}
+    <div className="max-w-5xl mx-auto space-y-6 pb-20">
       <div className="flex items-center gap-4">
         <BackButton fallbackHref="/cockpit/grupos" />
         <div>
@@ -86,11 +139,15 @@ export default function NovoGrupoAcessoPage() {
       </div>
 
       <form action={handleSubmit} className="space-y-8">
-        {/* Dados Básicos */}
         <div className="bg-[#111111] border border-[#ffffff0a] rounded-2xl p-6 space-y-6 relative overflow-hidden">
-          <div className="absolute -top-20 -right-20 w-48 h-48 rounded-full opacity-[0.04] pointer-events-none"
-               style={{ background: 'radial-gradient(circle, #2BAADF 0%, transparent 70%)', filter: 'blur(30px)' }} />
-          
+          <div
+            className="absolute -top-20 -right-20 w-48 h-48 rounded-full opacity-[0.04] pointer-events-none"
+            style={{
+              background: 'radial-gradient(circle, #2BAADF 0%, transparent 70%)',
+              filter: 'blur(30px)',
+            }}
+          />
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {isSuperAdmin && (
               <Field label="Vincular à Empresa" required>
@@ -107,14 +164,14 @@ export default function NovoGrupoAcessoPage() {
               </Field>
             )}
 
-            <div className={!isSuperAdmin ? "md:col-span-2" : ""}>
+            <div className={!isSuperAdmin ? 'md:col-span-2' : ''}>
               <Field label="Nome do Grupo" required>
-                <input 
-                  type="text" 
-                  name="nome" 
-                  required 
-                  placeholder="Ex: Comercial, Financeiro, Admin Empresa..." 
-                  className={inputCls} 
+                <input
+                  type="text"
+                  name="nome"
+                  required
+                  placeholder="Ex: Comercial, Almoxarifado, Admin Empresa..."
+                  className={inputCls}
                 />
               </Field>
             </div>
@@ -123,13 +180,38 @@ export default function NovoGrupoAcessoPage() {
               <Field label="Descrição Interna">
                 <div className="relative">
                   <AlignLeft className="absolute left-3 top-3 w-4 h-4 text-gray-500" />
-                  <textarea 
-                    name="descricao" 
-                    placeholder="Para que serve este grupo? Quais usuários ele abrange?" 
+                  <textarea
+                    name="descricao"
+                    placeholder="Para que serve este grupo? Quais usuários ele abrange?"
                     rows={3}
-                    className={`${inputCls} pl-10 resize-none`} 
+                    className={`${inputCls} pl-10 resize-none`}
                   />
                 </div>
+              </Field>
+            </div>
+
+            <div className="md:col-span-2">
+              <Field label="Home do Cockpit">
+                <div className="relative">
+                  <LayoutDashboard className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
+                  <select
+                    name="cockpit_template"
+                    value={cockpitTemplate}
+                    onChange={(e) =>
+                      setCockpitTemplate(parseCockpitTemplate(e.target.value))
+                    }
+                    className={`${inputCls} pl-10 appearance-none`}
+                  >
+                    {COCKPIT_TEMPLATES.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.label} — {t.hint}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <p className="mt-1.5 text-[10px] text-gray-500 leading-snug">
+                  Templates prontos da RN3. Em dúvida, deixe Automático.
+                </p>
               </Field>
             </div>
 
@@ -140,29 +222,35 @@ export default function NovoGrupoAcessoPage() {
                     type="checkbox"
                     className="sr-only peer"
                     checked={isAdmin}
-                    onChange={(e) => setIsAdmin(e.target.checked)}
+                    onChange={(e) => handleAdminToggle(e.target.checked)}
                   />
-                  <div className="w-11 h-6 bg-[#ffffff05] peer-focus:outline-none rounded-full peer border border-[#ffffff12] peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-gray-500 peer-checked:after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#2BAADF] transition-all"></div>
+                  <div className="w-11 h-6 bg-[#ffffff05] peer-focus:outline-none rounded-full peer border border-[#ffffff12] peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-gray-500 peer-checked:after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#2BAADF] transition-all" />
                 </div>
                 <div className="flex flex-col">
-                  <span className="text-sm font-semibold text-white group-hover:text-[#2BAADF] transition-colors">Grupo de Administradores?</span>
-                  <span className="text-[10px] text-gray-500 uppercase tracking-tight">Ative se os usuários deste grupo tiverem poderes administrativos na empresa</span>
+                  <span className="text-sm font-semibold text-white group-hover:text-[#2BAADF] transition-colors">
+                    Grupo de Administradores?
+                  </span>
+                  <span className="text-[10px] text-gray-500 uppercase tracking-tight">
+                    Marca automaticamente todas as permissões dos módulos ativos da empresa
+                  </span>
                 </div>
               </label>
             </div>
           </div>
         </div>
 
-        {/* Matriz de Permissões */}
-        <div className="bg-[#111111] border border-[#ffffff0a] rounded-2xl p-6">
-          <PermissionsMatrix value={permissoes} onChange={setPermissoes} disabled={isAdmin} />
-        </div>
+        <PermissionsMatrix
+          value={permissoes}
+          onChange={setPermissoes}
+          disabled={isAdmin}
+          empresaAddons={empresaAddons}
+        />
 
-        {/* Tip/Info Box */}
         <div className="bg-[#2BAADF]/5 border border-[#2BAADF]/10 rounded-xl p-4 flex gap-3">
           <Info className="w-4 h-4 text-[#2BAADF] mt-0.5 flex-shrink-0" />
           <p className="text-xs text-gray-500 leading-relaxed">
-            <strong className="text-gray-300">Dica de Segurança:</strong> Recomendamos o princípio do acesso mínimo. Garanta apenas o que for estritamente necessário para a função de cada usuário.
+            <strong className="text-gray-300">Dica:</strong> só aparecem abas dos módulos ativos nos
+            addons da empresa. Aprovação de requisições fica em Estoque → Configuração.
           </p>
         </div>
 
@@ -173,7 +261,6 @@ export default function NovoGrupoAcessoPage() {
           </div>
         )}
 
-        {/* Footer Actions */}
         <div className="flex items-center justify-between pt-4 border-t border-[#ffffff0a]">
           <p className="text-xs text-gray-600">
             <span className="text-[#2BAADF]">*</span> Campos obrigatórios
@@ -196,7 +283,7 @@ export default function NovoGrupoAcessoPage() {
                   Salvando Grupo...
                 </>
               ) : (
-                "Criar Grupo de Acesso"
+                'Criar Grupo de Acesso'
               )}
             </button>
           </div>

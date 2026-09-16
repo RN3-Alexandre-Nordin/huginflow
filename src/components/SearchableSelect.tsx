@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronDown, Search, X } from 'lucide-react'
+import { ChevronDown, Search, X, type LucideIcon } from 'lucide-react'
 
 export type SearchableOption = {
   value: string
@@ -11,10 +11,16 @@ export type SearchableOption = {
   searchText?: string
 }
 
+/** Formato legado usado em formulários de admin (`empresas` / `grupos`). */
+export type SearchableLegacyOption = {
+  id: string
+  nome: string
+}
+
 type Props = {
   value: string
   onChange: (value: string) => void
-  options: SearchableOption[]
+  options: Array<SearchableOption | SearchableLegacyOption>
   placeholder?: string
   emptyLabel?: string
   disabled?: boolean
@@ -22,23 +28,39 @@ type Props = {
   inputClassName?: string
   /** Máximo de itens renderizados na lista (filtro continua em todos). */
   maxVisible?: number
+  /** Nome do campo no form (input hidden). */
+  name?: string
+  required?: boolean
+  icon?: LucideIcon
 }
 
-function normalize(s: string) {
-  return s
+function normalize(s: string | null | undefined) {
+  return String(s ?? '')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
     .trim()
 }
 
+function toOption(o: SearchableOption | SearchableLegacyOption): SearchableOption {
+  if ('value' in o && 'label' in o) {
+    return {
+      value: String(o.value ?? ''),
+      label: String(o.label ?? ''),
+      searchText: o.searchText != null ? String(o.searchText) : undefined,
+    }
+  }
+  return {
+    value: String(o.id ?? ''),
+    label: String(o.nome ?? ''),
+  }
+}
+
 const DEFAULT_MAX_VISIBLE = 80
 
 /**
  * Combobox com filtro por contém (monta a lista a cada tecla).
- * Portal fixo evita corte por overflow de tabelas.
- * Performance: filtro em memória é barato até milhares de opções;
- * a UI limita quantos itens desenha (maxVisible).
+ * Aceita `{ value, label }` ou legado `{ id, nome }`.
  */
 export default function SearchableSelect({
   value,
@@ -50,6 +72,9 @@ export default function SearchableSelect({
   className = '',
   inputClassName = 'w-full bg-[#0d1218] border border-[#ffffff10] rounded-lg pl-8 pr-8 py-1.5 text-xs text-white focus:outline-none focus:border-[#2BAADF]/50',
   maxVisible = DEFAULT_MAX_VISIBLE,
+  name,
+  required,
+  icon: Icon,
 }: Props) {
   const listboxId = useId()
   const rootRef = useRef<HTMLDivElement>(null)
@@ -64,16 +89,17 @@ export default function SearchableSelect({
     setMounted(true)
   }, [])
 
-  const selected = options.find((o) => o.value === value)
+  const normalizedOptions = useMemo(() => (options || []).map(toOption), [options])
 
-  // Pré-normaliza uma vez — digitar só faz includes em string pronta
+  const selected = normalizedOptions.find((o) => o.value === value)
+
   const indexed = useMemo(
     () =>
-      options.map((o) => ({
+      normalizedOptions.map((o) => ({
         ...o,
         needle: normalize(o.searchText || o.label),
       })),
-    [options],
+    [normalizedOptions],
   )
 
   const filtered = useMemo(() => {
@@ -84,6 +110,8 @@ export default function SearchableSelect({
 
   const visible = filtered.slice(0, maxVisible)
   const hiddenCount = filtered.length - visible.length
+
+  const LeftIcon = Icon || Search
 
   function updateCoords() {
     const el = rootRef.current
@@ -101,7 +129,6 @@ export default function SearchableSelect({
     updateCoords()
     const onScrollOrResize = () => updateCoords()
     window.addEventListener('resize', onScrollOrResize)
-    // capture: tabelas/containers com scroll também reposicionam
     window.addEventListener('scroll', onScrollOrResize, true)
     return () => {
       window.removeEventListener('resize', onScrollOrResize)
@@ -230,6 +257,7 @@ export default function SearchableSelect({
 
   return (
     <div ref={rootRef} className={`relative ${className}`}>
+      {name ? <input type="hidden" name={name} value={value} required={required} /> : null}
       {!open ? (
         <button
           type="button"
@@ -237,7 +265,7 @@ export default function SearchableSelect({
           onClick={openPanel}
           className={`relative ${inputClassName} flex items-center gap-1 text-left disabled:opacity-50`}
         >
-          <Search className="pointer-events-none absolute left-2.5 h-3.5 w-3.5 text-gray-500" />
+          <LeftIcon className="pointer-events-none absolute left-2.5 h-3.5 w-3.5 text-gray-500" />
           <span className={`flex-1 truncate pl-5 pr-5 ${selected ? 'text-white' : 'text-gray-500'}`}>
             {selected?.label || placeholder}
           </span>
@@ -245,7 +273,7 @@ export default function SearchableSelect({
         </button>
       ) : (
         <>
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 z-10 h-3.5 w-3.5 -translate-y-1/2 text-gray-500" />
+          <LeftIcon className="pointer-events-none absolute left-2.5 top-1/2 z-10 h-3.5 w-3.5 -translate-y-1/2 text-gray-500" />
           <input
             ref={inputRef}
             role="combobox"

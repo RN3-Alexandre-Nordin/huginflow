@@ -1,5 +1,6 @@
 import { createClient } from "@/utils/supabase/server"
-import { redirect, notFound } from "next/navigation"
+import { notFound } from "next/navigation"
+import { getEmpresaAddons } from "@/lib/addons/entitlements"
 import EditForm from "./EditForm"
 
 export default async function EditarGrupoPage(props: { params: Promise<{ id: string }> }) {
@@ -32,9 +33,18 @@ export default async function EditarGrupoPage(props: { params: Promise<{ id: str
     .eq('ativo', true)
     .order('nome')
 
+  const empresaAddons = group.empresa_id
+    ? await getEmpresaAddons(group.empresa_id, supabase)
+    : null
+
   return (
     <div className="space-y-6">
-      <EditForm group={group} companies={companies || []} isSuperAdmin={isSuperAdmin} />
+      <EditForm
+        group={group}
+        companies={companies || []}
+        isSuperAdmin={isSuperAdmin}
+        initialEmpresaAddons={empresaAddons}
+      />
     </div>
   )
 }

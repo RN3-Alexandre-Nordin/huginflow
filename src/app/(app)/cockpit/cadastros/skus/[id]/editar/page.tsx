@@ -32,7 +32,21 @@ export default async function EditarSkuPage(props: { params: Promise<{ id: strin
     unitsQuery = unitsQuery.eq('empresa_id', me?.empresa_id ?? '')
   }
 
-  const [{ data: pessoas }, { data: skuUnits }] = await Promise.all([pessoasQ, unitsQuery])
+  let familiasQuery = supabase
+    .from('cad_sku_familias')
+    .select('id, codigo, nome')
+    .eq('ativo', true)
+    .order('ordem')
+    .order('nome')
+  if (me?.role_global !== 'superadmin') {
+    familiasQuery = familiasQuery.eq('empresa_id', me?.empresa_id ?? '')
+  }
+
+  const [{ data: pessoas }, { data: skuUnits }, { data: familias }] = await Promise.all([
+    pessoasQ,
+    unitsQuery,
+    familiasQuery,
+  ])
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-20 animate-in fade-in duration-500">
@@ -47,6 +61,7 @@ export default async function EditarSkuPage(props: { params: Promise<{ id: strin
         mode="edit"
         sku={sku as SkuRecord}
         pessoas={pessoas || []}
+        familias={familias || []}
         knownUnits={collectUnidadesFromSkus(skuUnits || [])}
         cancelHref="/cockpit/cadastros/skus"
         submitLabel="Salvar alterações"

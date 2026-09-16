@@ -53,6 +53,7 @@ export default async function NovaRetiradaPage() {
     .from('cad_locais_estoque')
     .select('id, codigo, nome, eh_principal')
     .eq('ativo', true)
+    .eq('eh_terceiros', false)
     .order('eh_principal', { ascending: false })
     .order('codigo')
 

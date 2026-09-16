@@ -37,11 +37,14 @@ export default async function NovaRequisicaoPage() {
   const empresaId = me?.empresa_id ?? ''
   const supabase = await createClient()
 
-  // 1. Carrega Requisitantes (crm_leads)
+  // 1. Carrega Requisitantes — apenas Pessoas com papel funcionário
   let pessoasQuery = supabase
     .from('crm_leads')
-    .select('id, nome, cnpj, cpf')
+    .select('id, nome, documento, papeis')
+    .eq('ativo', true)
+    .contains('papeis', ['funcionario'])
     .order('nome')
+    .limit(500)
 
   if (!isSuperAdmin) {
     pessoasQuery = pessoasQuery.eq('empresa_id', empresaId)
@@ -61,11 +64,12 @@ export default async function NovaRequisicaoPage() {
   }
   const { data: skus } = await skusQuery
 
-  // 3. Carrega Locais de Estoque
+  // 3. Carrega Locais de Estoque (sem TERCEIROS — só operação própria)
   let locaisQuery = supabase
     .from('cad_locais_estoque')
     .select('id, codigo, nome')
     .eq('ativo', true)
+    .eq('eh_terceiros', false)
     .order('eh_principal', { ascending: false })
     .order('codigo')
 
@@ -73,6 +77,12 @@ export default async function NovaRequisicaoPage() {
     locaisQuery = locaisQuery.eq('empresa_id', empresaId)
   }
   const { data: locais } = await locaisQuery
+
+  const { data: config } = await supabase
+    .from('est_config')
+    .select('req_aprovacao_ativa, req_aprovacao_valor_minimo')
+    .eq('empresa_id', empresaId)
+    .maybeSingle()
 
   return (
     <div className="space-y-6 pb-20 font-sans">
@@ -93,6 +103,8 @@ export default async function NovaRequisicaoPage() {
         pessoas={pessoas || []}
         skus={skus || []}
         locais={locais || []}
+        aprovacaoAtiva={Boolean(config?.req_aprovacao_ativa)}
+        valorMinimo={Number(config?.req_aprovacao_valor_minimo || 0)}
       />
     </div>
   )

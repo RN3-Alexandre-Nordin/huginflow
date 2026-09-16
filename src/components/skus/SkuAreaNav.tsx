@@ -2,10 +2,16 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { ArrowLeftRight, Link2, Package } from 'lucide-react'
+import { ArrowLeftRight, Link2, Package, Tags } from 'lucide-react'
 
 const TABS = [
   { href: '/cockpit/cadastros/skus', label: 'Catálogo', icon: Package, match: (p: string) => p.startsWith('/cockpit/cadastros/skus') },
+  {
+    href: '/cockpit/cadastros/sku-familias',
+    label: 'Famílias',
+    icon: Tags,
+    match: (p: string) => p.startsWith('/cockpit/cadastros/sku-familias'),
+  },
   {
     href: '/cockpit/cadastros/conversoes-um',
     label: 'Conversões UM',

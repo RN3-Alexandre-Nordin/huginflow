@@ -682,7 +682,7 @@ export async function processarLoteRemessa(
       .maybeSingle(),
     client
       .from('cad_locais_estoque')
-      .select('id, codigo, ativo')
+      .select('id, codigo, ativo, eh_terceiros')
       .eq('empresa_id', params.empresa_id)
       .in('id', localIds),
     client
@@ -708,7 +708,7 @@ export async function processarLoteRemessa(
 
   for (const it of params.itens) {
     const local = localMap.get(it.local_origem_id) as
-      | { codigo: string; ativo: boolean }
+      | { codigo: string; ativo: boolean; eh_terceiros?: boolean }
       | undefined
     const sku = skuMap.get(it.sku_id) as
       | { codigo: string; ativo: boolean; controla_estoque: boolean }
@@ -718,6 +718,13 @@ export async function processarLoteRemessa(
         sucesso: false,
         codigo: 'LOCAL_INVALIDO',
         mensagem: `Linha ${it.linha}: local de saída inválido ou inativo.`,
+      }
+    }
+    if (local.eh_terceiros || local.codigo === 'TERCEIROS') {
+      return {
+        sucesso: false,
+        codigo: 'LOCAL_SISTEMA',
+        mensagem: `Linha ${it.linha}: o local TERCEIROS é reservado ao sistema e não pode ser origem de remessa.`,
       }
     }
     if (!sku?.ativo) {
@@ -990,7 +997,13 @@ export async function processarLiquidacaoRemessa(
   let qtdFechaPoder = Number(
     params.quantidade_fecha_poder ?? (qtdRetorno > 0 ? qtdRetorno : 0)
   )
-  if (qtdRetorno > 0 && mesmoSku) {
+  // Mesmo SKU: só iguala automaticamente se a qtd de fechamento não foi informada
+  // (industrialização pode fechar poder total com qtd de entrada diferente).
+  if (
+    qtdRetorno > 0 &&
+    mesmoSku &&
+    (params.quantidade_fecha_poder === undefined || params.quantidade_fecha_poder === null)
+  ) {
     qtdFechaPoder = qtdRetorno
   }
   if (qtdRetorno > 0 && !mesmoSku && qtdFechaPoder <= 0) {
@@ -1021,12 +1034,18 @@ export async function processarLiquidacaoRemessa(
     }
     const { data: localDest } = await client
       .from('cad_locais_estoque')
-      .select('id, codigo, ativo')
+      .select('id, codigo, ativo, eh_terceiros')
       .eq('id', params.local_destino_id)
       .eq('empresa_id', empresa_id)
       .maybeSingle()
     if (!localDest?.ativo) {
       return { sucesso: false, mensagem: 'Local de destino inválido ou inativo.' }
+    }
+    if (localDest.eh_terceiros || localDest.codigo === 'TERCEIROS') {
+      return {
+        sucesso: false,
+        mensagem: 'O local TERCEIROS é reservado ao sistema; escolha um local próprio para o retorno.',
+      }
     }
   }
 
@@ -1062,6 +1081,7 @@ export async function processarLiquidacaoRemessa(
     .eq('empresa_id', empresa_id)
     .eq('pessoa_id', remessa.destinatario_pessoa_id)
     .eq('sku_id', skuEnviado)
+    .eq('remessa_id', remessa.id)
     .maybeSingle()
 
   const saldoTercQtd = Number(saldoTerc?.quantidade || 0)

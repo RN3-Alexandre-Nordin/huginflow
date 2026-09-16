@@ -1,0 +1,272 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  NF-e de TESTE — Hugin Flow / Monte Sinai Atacado (DEV)
+  Objetivo: validar (1) criação de fornecedor novo e (2) de-para de SKU.
+
+  Emitente (NÃO cadastrado): DISTRIBUIDORA BETA TESTE LTDA — CNPJ 99.888.777/0001-66
+  Destinatário: Monte Sinai Atacado — CNPJ 82.838.204/0001-60
+
+  Itens (cProd do parceiro ≠ código interno → exige de-para):
+    1) BT-AGUA500SG  → mapear para AGUA-044  (Água Mineral sem Gás 500ml)
+    2) BT-HEIN330    → mapear para CERV-001  (Cerveja Heineken Long Neck 330ml)
+    3) BT-REDLBL1L   → mapear para DEST-011  (Whisky Red Label 1L)
+
+  Upload: Cockpit → Estoque → Entradas → Importar XML
+-->
+<nfeProc versao="4.00" xmlns="http://www.portalfiscal.inf.br/nfe">
+  <NFe xmlns="http://www.portalfiscal.inf.br/nfe">
+    <infNFe Id="NFe35260999888777000166550010000001231123456789" versao="4.00">
+      <ide>
+        <cUF>35</cUF>
+        <cNF>12345678</cNF>
+        <natOp>Venda de mercadoria</natOp>
+        <mod>55</mod>
+        <serie>1</serie>
+        <nNF>123</nNF>
+        <dhEmi>2026-09-16T10:30:00-03:00</dhEmi>
+        <tpNF>1</tpNF>
+        <idDest>1</idDest>
+        <cMunFG>3550308</cMunFG>
+        <tpImp>1</tpImp>
+        <tpEmis>1</tpEmis>
+        <cDV>9</cDV>
+        <tpAmb>2</tpAmb>
+        <finNFe>1</finNFe>
+        <indFinal>0</indFinal>
+        <indPres>1</indPres>
+        <procEmi>0</procEmi>
+        <verProc>HuginFlow-TESTE-1.0</verProc>
+      </ide>
+      <emit>
+        <CNPJ>99888777000166</CNPJ>
+        <xNome>DISTRIBUIDORA BETA TESTE LTDA</xNome>
+        <xFant>Beta Teste Distribuidora</xFant>
+        <enderEmit>
+          <xLgr>Rua dos Testes</xLgr>
+          <nro>1000</nro>
+          <xCpl>Galpao 3</xCpl>
+          <xBairro>Centro</xBairro>
+          <cMun>3550308</cMun>
+          <xMun>Sao Paulo</xMun>
+          <UF>SP</UF>
+          <CEP>01001000</CEP>
+          <cPais>1058</cPais>
+          <xPais>Brasil</xPais>
+          <fone>1133334444</fone>
+        </enderEmit>
+        <IE>123456789012</IE>
+        <CRT>3</CRT>
+      </emit>
+      <dest>
+        <CNPJ>82838204000160</CNPJ>
+        <xNome>Monte Sinai Atacado</xNome>
+        <enderDest>
+          <xLgr>Avenida das Nacoes Unidas</xLgr>
+          <nro>14221</nro>
+          <xCpl>Edificio Tower A 12 Andar</xCpl>
+          <xBairro>Vila Gertrudes</xBairro>
+          <cMun>3550308</cMun>
+          <xMun>Sao Paulo</xMun>
+          <UF>SP</UF>
+          <CEP>04794000</CEP>
+          <cPais>1058</cPais>
+          <xPais>Brasil</xPais>
+        </enderDest>
+        <indIEDest>1</indIEDest>
+        <IE>112223334445</IE>
+      </dest>
+
+      <!-- Item 1: de-para → AGUA-044 -->
+      <det nItem="1">
+        <prod>
+          <cProd>BT-AGUA500SG</cProd>
+          <cEAN>SEM GTIN</cEAN>
+          <xProd>Agua Mineral sem Gas 500ml</xProd>
+          <NCM>22011000</NCM>
+          <CFOP>5102</CFOP>
+          <uCom>UN</uCom>
+          <qCom>24.0000</qCom>
+          <vUnCom>1.8500000000</vUnCom>
+          <vProd>44.40</vProd>
+          <cEANTrib>SEM GTIN</cEANTrib>
+          <uTrib>UN</uTrib>
+          <qTrib>24.0000</qTrib>
+          <vUnTrib>1.8500000000</vUnTrib>
+          <indTot>1</indTot>
+        </prod>
+        <imposto>
+          <ICMS>
+            <ICMS00>
+              <orig>0</orig>
+              <CST>00</CST>
+              <modBC>3</modBC>
+              <vBC>44.40</vBC>
+              <pICMS>18.00</pICMS>
+              <vICMS>7.99</vICMS>
+            </ICMS00>
+          </ICMS>
+          <PIS>
+            <PISAliq>
+              <CST>01</CST>
+              <vBC>44.40</vBC>
+              <pPIS>1.65</pPIS>
+              <vPIS>0.73</vPIS>
+            </PISAliq>
+          </PIS>
+          <COFINS>
+            <COFINSAliq>
+              <CST>01</CST>
+              <vBC>44.40</vBC>
+              <pCOFINS>7.60</pCOFINS>
+              <vCOFINS>3.37</vCOFINS>
+            </COFINSAliq>
+          </COFINS>
+        </imposto>
+      </det>
+
+      <!-- Item 2: de-para → CERV-001 -->
+      <det nItem="2">
+        <prod>
+          <cProd>BT-HEIN330</cProd>
+          <cEAN>SEM GTIN</cEAN>
+          <xProd>Cerveja Heineken Long Neck 330ml</xProd>
+          <NCM>22030000</NCM>
+          <CFOP>5102</CFOP>
+          <uCom>UN</uCom>
+          <qCom>48.0000</qCom>
+          <vUnCom>4.9000000000</vUnCom>
+          <vProd>235.20</vProd>
+          <cEANTrib>SEM GTIN</cEANTrib>
+          <uTrib>UN</uTrib>
+          <qTrib>48.0000</qTrib>
+          <vUnTrib>4.9000000000</vUnTrib>
+          <indTot>1</indTot>
+        </prod>
+        <imposto>
+          <ICMS>
+            <ICMS00>
+              <orig>0</orig>
+              <CST>00</CST>
+              <modBC>3</modBC>
+              <vBC>235.20</vBC>
+              <pICMS>18.00</pICMS>
+              <vICMS>42.34</vICMS>
+            </ICMS00>
+          </ICMS>
+          <PIS>
+            <PISAliq>
+              <CST>01</CST>
+              <vBC>235.20</vBC>
+              <pPIS>1.65</pPIS>
+              <vPIS>3.88</vPIS>
+            </PISAliq>
+          </PIS>
+          <COFINS>
+            <COFINSAliq>
+              <CST>01</CST>
+              <vBC>235.20</vBC>
+              <pCOFINS>7.60</pCOFINS>
+              <vCOFINS>17.88</vCOFINS>
+            </COFINSAliq>
+          </COFINS>
+        </imposto>
+      </det>
+
+      <!-- Item 3: de-para → DEST-011 -->
+      <det nItem="3">
+        <prod>
+          <cProd>BT-REDLBL1L</cProd>
+          <cEAN>SEM GTIN</cEAN>
+          <xProd>Whisky Red Label 1L</xProd>
+          <NCM>22083020</NCM>
+          <CFOP>5102</CFOP>
+          <uCom>UN</uCom>
+          <qCom>6.0000</qCom>
+          <vUnCom>89.9000000000</vUnCom>
+          <vProd>539.40</vProd>
+          <cEANTrib>SEM GTIN</cEANTrib>
+          <uTrib>UN</uTrib>
+          <qTrib>6.0000</qTrib>
+          <vUnTrib>89.9000000000</vUnTrib>
+          <indTot>1</indTot>
+        </prod>
+        <imposto>
+          <ICMS>
+            <ICMS00>
+              <orig>0</orig>
+              <CST>00</CST>
+              <modBC>3</modBC>
+              <vBC>539.40</vBC>
+              <pICMS>18.00</pICMS>
+              <vICMS>97.09</vICMS>
+            </ICMS00>
+          </ICMS>
+          <PIS>
+            <PISAliq>
+              <CST>01</CST>
+              <vBC>539.40</vBC>
+              <pPIS>1.65</pPIS>
+              <vPIS>8.90</vPIS>
+            </PISAliq>
+          </PIS>
+          <COFINS>
+            <COFINSAliq>
+              <CST>01</CST>
+              <vBC>539.40</vBC>
+              <pCOFINS>7.60</pCOFINS>
+              <vCOFINS>40.99</vCOFINS>
+            </COFINSAliq>
+          </COFINS>
+        </imposto>
+      </det>
+
+      <total>
+        <ICMSTot>
+          <vBC>819.00</vBC>
+          <vICMS>147.42</vICMS>
+          <vICMSDeson>0.00</vICMSDeson>
+          <vFCP>0.00</vFCP>
+          <vBCST>0.00</vBCST>
+          <vST>0.00</vST>
+          <vFCPST>0.00</vFCPST>
+          <vFCPSTRet>0.00</vFCPSTRet>
+          <vProd>819.00</vProd>
+          <vFrete>0.00</vFrete>
+          <vSeg>0.00</vSeg>
+          <vDesc>0.00</vDesc>
+          <vII>0.00</vII>
+          <vIPI>0.00</vIPI>
+          <vIPIDevol>0.00</vIPIDevol>
+          <vPIS>13.51</vPIS>
+          <vCOFINS>62.24</vCOFINS>
+          <vOutro>0.00</vOutro>
+          <vNF>819.00</vNF>
+        </ICMSTot>
+      </total>
+      <transp>
+        <modFrete>9</modFrete>
+      </transp>
+      <pag>
+        <detPag>
+          <tPag>01</tPag>
+          <vPag>819.00</vPag>
+        </detPag>
+      </pag>
+      <infAdic>
+        <infCpl>NF-e sintetica de teste Hugin Flow. Fornecedor novo + de-para SKU.</infCpl>
+      </infAdic>
+    </infNFe>
+  </NFe>
+  <protNFe versao="4.00">
+    <infProt>
+      <tpAmb>2</tpAmb>
+      <verAplic>SP_NFE_PL_008i2</verAplic>
+      <chNFe>35260999888777000166550010000001231123456789</chNFe>
+      <dhRecbto>2026-09-16T10:31:00-03:00</dhRecbto>
+      <nProt>135260000012345</nProt>
+      <digVal>abcdefghijklmnopqrstuvwxyz012=</digVal>
+      <cStat>100</cStat>
+      <xMotivo>Autorizado o uso da NF-e</xMotivo>
+    </infProt>
+  </protNFe>
+</nfeProc>

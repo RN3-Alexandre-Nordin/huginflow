@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, type ComponentType, type ReactNode } from 'react'
 import { usePathname } from 'next/navigation'
 import { logout } from '@/app/actions'
 import LanguageSwitcher from '@/components/LanguageSwitcher'
@@ -15,12 +15,16 @@ import { BackButton } from '@/components/BackButton'
 import { resolveCockpitNav } from './cockpit-nav'
 import { Menu, X } from 'lucide-react'
 import styles from './CockpitShell.module.css'
+import {
+  CockpitPageTitleProvider,
+  useCockpitPageChrome,
+} from './_components/CockpitPageTitleContext'
 
 const SIDEBAR_STORAGE_KEY = 'cockpit-sidebar-open'
 const DESKTOP_BREAKPOINT = 1024
 
 type Props = {
-  children: React.ReactNode
+  children: ReactNode
   userId: string
   userName: string
   userEmail: string
@@ -115,6 +119,7 @@ export default function CockpitShell({
         empresaId={empresaId}
         isAdminOrSuperAdmin={isAdminOrSuperAdmin}
       >
+      <CockpitPageTitleProvider>
       <div className="h-screen w-full overflow-hidden bg-[#0A0A0A] font-sans font-medium text-gray-100">
         <div
           role="presentation"
@@ -178,6 +183,73 @@ export default function CockpitShell({
               }}
             />
 
+            <CockpitShellHeader
+              sidebarOpen={sidebarOpen}
+              ready={ready}
+              toggleSidebar={toggleSidebar}
+              showPageBack={showPageBack}
+              pageBackHref={pageBackHref}
+              PageIcon={PageIcon}
+              pathname={pathname}
+              navName={navItem.name}
+              mustChangePassword={mustChangePassword}
+            />
+
+            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4 sm:p-8">{children}</div>
+
+            <ChannelDisconnectBannerSlot />
+
+            {!mustChangePassword && (
+              <GlobalChatSidebar userId={userId} userName={userName} empresaId={empresaId ?? ''} />
+            )}
+          </main>
+        </div>
+      </div>
+      </CockpitPageTitleProvider>
+      </ChannelConnectionAlertProvider>
+    </CockpitRealtimeProvider>
+  )
+}
+
+function CockpitShellHeader({
+  sidebarOpen,
+  ready,
+  toggleSidebar,
+  showPageBack,
+  pageBackHref,
+  PageIcon,
+  pathname,
+  navName,
+  mustChangePassword,
+}: {
+  sidebarOpen: boolean
+  ready: boolean
+  toggleSidebar: () => void
+  showPageBack: boolean
+  pageBackHref: string
+  PageIcon: ComponentType<{ className?: string; 'aria-hidden'?: boolean }>
+  pathname: string
+  navName: string
+  mustChangePassword: boolean
+}) {
+  const chrome = useCockpitPageChrome()
+  const title = chrome.title || navName
+  const Icon = chrome.icon || PageIcon
+  const iconClassName =
+    chrome.iconClassName ||
+    (pathname.startsWith('/cockpit/estoque/retiradas')
+      ? 'text-red-400'
+      : pathname.startsWith('/cockpit/estoque/entradas')
+        ? 'text-emerald-400'
+        : pathname.startsWith('/cockpit/estoque/cardex')
+          ? 'text-amber-400'
+          : pathname.startsWith('/cockpit/estoque/remessas')
+            ? 'text-purple-400'
+            : pathname.startsWith('/cockpit/estoque')
+              ? 'text-[#2BAADF]'
+              : 'text-[#2BAADF]')
+
+  return (
             <header className="sticky top-0 z-30 flex h-20 shrink-0 items-center justify-between overflow-visible border-b border-[#ffffff0a] bg-[#0A0A0A]/50 px-4 backdrop-blur-md sm:px-8">
               <div className="flex min-w-0 items-center gap-3">
                 <button
@@ -200,21 +272,11 @@ export default function CockpitShell({
                   className="flex min-w-0 items-center gap-2 truncate text-base font-bold tracking-tight text-white/90 sm:text-xl"
                   data-testid="cockpit-page-title"
                 >
-                  <PageIcon
-                    className={`h-5 w-5 shrink-0 ${
-                      pathname.startsWith('/cockpit/estoque/retiradas')
-                        ? 'text-red-400'
-                        : pathname.startsWith('/cockpit/estoque/entradas')
-                          ? 'text-emerald-400'
-                          : pathname.startsWith('/cockpit/estoque/cardex')
-                            ? 'text-amber-400'
-                            : pathname.startsWith('/cockpit/estoque/remessas')
-                              ? 'text-purple-400'
-                              : 'text-[#2BAADF]'
-                    }`}
+                  <Icon
+                    className={`h-5 w-5 shrink-0 ${iconClassName}`}
                     aria-hidden
                   />
-                  <span className="truncate">{navItem.name}</span>
+                  <span className="truncate">{title}</span>
                 </h1>
               </div>
               <div className="flex shrink-0 items-center gap-4">
@@ -231,18 +293,5 @@ export default function CockpitShell({
                 </form>
               </div>
             </header>
-
-            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4 sm:p-8">{children}</div>
-
-            <ChannelDisconnectBannerSlot />
-
-            {!mustChangePassword && (
-              <GlobalChatSidebar userId={userId} userName={userName} empresaId={empresaId ?? ''} />
-            )}
-          </main>
-        </div>
-      </div>
-      </ChannelConnectionAlertProvider>
-    </CockpitRealtimeProvider>
   )
 }

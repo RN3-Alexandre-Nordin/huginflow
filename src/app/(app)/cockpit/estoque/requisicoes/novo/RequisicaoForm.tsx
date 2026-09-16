@@ -27,8 +27,8 @@ interface SkuOption {
 interface PessoaOption {
   id: string
   nome: string
-  cnpj?: string | null
-  cpf?: string | null
+  documento?: string | null
+  papeis?: string[] | null
 }
 
 interface LocalOption {
@@ -41,6 +41,8 @@ interface Props {
   pessoas: PessoaOption[]
   skus: SkuOption[]
   locais: LocalOption[]
+  aprovacaoAtiva?: boolean
+  valorMinimo?: number
 }
 
 interface RowItem {
@@ -50,7 +52,13 @@ interface RowItem {
   local_id: string
 }
 
-export default function RequisicaoForm({ pessoas, skus, locais }: Props) {
+export default function RequisicaoForm({
+  pessoas,
+  skus,
+  locais,
+  aprovacaoAtiva = false,
+  valorMinimo = 0,
+}: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
 
@@ -131,6 +139,9 @@ export default function RequisicaoForm({ pessoas, skus, locais }: Props) {
       }
 
       if (res.sucesso && res.requisicaoId) {
+        if (res.mensagem) {
+          setFeedback({ tipo: 'sucesso', texto: res.mensagem })
+        }
         router.push(`/cockpit/estoque/requisicoes/${res.requisicaoId}`)
       } else {
         setFeedback({ tipo: 'erro', texto: res.mensagem || 'Falha ao salvar requisição.' })
@@ -164,6 +175,27 @@ export default function RequisicaoForm({ pessoas, skus, locais }: Props) {
           Dados da Solicitação
         </h2>
 
+        {aprovacaoAtiva && (
+          <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2.5 text-[11px] text-amber-200/90 flex items-start gap-2">
+            <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5 text-amber-400" />
+            <div>
+              A aprovação interna está ativa nesta empresa.
+              {valorMinimo > 0 ? (
+                <>
+                  {' '}
+                  Requisições com valor estimado (Σ qtd × preço de custo) a partir de{' '}
+                  <strong className="text-amber-100">
+                    {valorMinimo.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  </strong>{' '}
+                  vão para a fila de aprovação; abaixo disso são liberadas automaticamente.
+                </>
+              ) : (
+                <> Todo envio vai para a fila de aprovação.</>
+              )}
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-xs font-medium text-gray-300 mb-1 flex items-center gap-1">
@@ -178,12 +210,14 @@ export default function RequisicaoForm({ pessoas, skus, locais }: Props) {
               <option value="">Selecione o Requisitante...</option>
               {pessoas.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.nome} {p.cpf ? `(${p.cpf})` : p.cnpj ? `(${p.cnpj})` : ''}
+                  {p.nome}
+                  {p.documento ? ` (${p.documento})` : ''}
                 </option>
               ))}
             </select>
             <p className="text-[10px] text-gray-500 mt-1">
-              Colaborador ou terceiro registrado em Cadastros → Pessoas.
+              Somente pessoas com papel <span className="text-gray-400">Funcionário</span> em
+              Cadastros → Pessoas.
             </p>
           </div>
 

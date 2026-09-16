@@ -53,6 +53,7 @@ export type SkuRecord = {
   descricao?: string | null
   tipo?: SkuTipo | null
   natureza?: string | null
+  familia_id?: string | null
   codigo_barras?: string | null
   unidade_venda?: string | null
   unidade_compra?: string | null
@@ -137,6 +138,7 @@ export function skuPayloadFromForm(formData: FormData) {
     descricao: str(formData, 'descricao'),
     tipo,
     natureza: str(formData, 'natureza'),
+    familia_id: str(formData, 'familia_id'),
     codigo_barras: str(formData, 'codigo_barras'),
     unidade_venda: normalizeUnidadeCodigo(str(formData, 'unidade_venda')) || 'UN',
     unidade_compra: normalizeUnidadeCodigo(str(formData, 'unidade_compra')) || 'UN',

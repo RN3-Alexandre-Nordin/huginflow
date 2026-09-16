@@ -8,6 +8,29 @@ export interface NfeXmlItem {
   quantidade_origem: number
   valor_unitario: number
   valor_total: number
+  ncm?: string
+  cest?: string
+  codigo_barras?: string
+  unidade_tributavel?: string
+  quantidade_tributavel?: number
+}
+
+export interface NfeXmlEmitente {
+  cnpj?: string
+  cpf?: string
+  nome?: string
+  nome_fantasia?: string
+  ie?: string
+  im?: string
+  telefone?: string
+  cep?: string
+  logradouro?: string
+  numero?: string
+  complemento?: string
+  bairro?: string
+  cidade?: string
+  uf?: string
+  pais?: string
 }
 
 export interface NfeXmlParsed {
@@ -17,9 +40,26 @@ export interface NfeXmlParsed {
   numeroNfe?: string
   serie?: string
   emissaoEm?: string
+  /** @deprecated use emitente.cnpj || emitente.cpf */
   fornecedorCnpj?: string
+  /** @deprecated use emitente.nome */
   fornecedorNome?: string
+  emitente?: NfeXmlEmitente
   itens: NfeXmlItem[]
+}
+
+function str(v: unknown): string {
+  if (v == null) return ''
+  return String(v).trim()
+}
+
+function digits(v: unknown): string {
+  return str(v).replace(/\D/g, '')
+}
+
+function num(v: unknown): number {
+  const n = parseFloat(str(v).replace(',', '.'))
+  return Number.isFinite(n) ? n : 0
 }
 
 /**
@@ -39,12 +79,11 @@ export function parseNfeXml(xmlString: string): NfeXmlParsed {
       ignoreAttributes: false,
       attributeNamePrefix: '@_',
       trimValues: true,
-      parseTagValue: false, // Mantém strings para evitar perda de zeros à esquerda em CNPJ/chaves
+      parseTagValue: false,
     })
 
     const parsedObj = parser.parse(xmlString)
 
-    // Localiza nó NFe (pode estar na raiz ou dentro de nfeProc)
     const nfeProc = parsedObj.nfeProc || parsedObj['soapenv:Envelope']?.['soapenv:Body']?.nfeProc
     const nfe = nfeProc?.NFe || parsedObj.NFe || parsedObj
 
@@ -57,7 +96,6 @@ export function parseNfeXml(xmlString: string): NfeXmlParsed {
       }
     }
 
-    // 1. Chave da NF-e (44 dígitos)
     let chaveNfe = ''
     if (infNFe['@_Id']) {
       chaveNfe = String(infNFe['@_Id']).replace(/^NFe/i, '').trim()
@@ -65,32 +103,44 @@ export function parseNfeXml(xmlString: string): NfeXmlParsed {
       chaveNfe = String(nfeProc.protNFe.infProt.chNFe).trim()
     }
 
-    // 2. Identificação da Nota (<ide>)
     const ide = infNFe.ide || {}
-    const numeroNfe = ide.nNF ? String(ide.nNF).trim() : undefined
-    const serie = ide.serie ? String(ide.serie).trim() : undefined
+    const numeroNfe = ide.nNF ? str(ide.nNF) : undefined
+    const serie = ide.serie ? str(ide.serie) : undefined
     const emissaoEmRaw = ide.dhEmi || ide.dEmi
     let emissaoEm: string | undefined
     if (emissaoEmRaw) {
-      const dataIso = new Date(emissaoEmRaw)
+      const dataIso = new Date(String(emissaoEmRaw))
       if (!isNaN(dataIso.getTime())) {
         emissaoEm = dataIso.toISOString()
       }
     }
 
-    // 3. Emitente / Fornecedor (<emit>)
     const emit = infNFe.emit || {}
-    let fornecedorCnpj = ''
-    if (emit.CNPJ) {
-      fornecedorCnpj = String(emit.CNPJ).replace(/\D/g, '')
-    } else if (emit.CPF) {
-      fornecedorCnpj = String(emit.CPF).replace(/\D/g, '')
-    }
-    const fornecedorNome = emit.xNome ? String(emit.xNome).trim() : emit.xFant ? String(emit.xFant).trim() : undefined
+    const ender = emit.enderEmit || {}
+    const cnpj = digits(emit.CNPJ) || undefined
+    const cpf = digits(emit.CPF) || undefined
+    const fornecedorDocumento = cnpj || cpf
 
-    // 4. Itens da Nota (<det>)
+    const emitente: NfeXmlEmitente = {
+      cnpj,
+      cpf,
+      nome: str(emit.xNome) || undefined,
+      nome_fantasia: str(emit.xFant) || undefined,
+      ie: str(emit.IE) || undefined,
+      im: str(emit.IM) || undefined,
+      telefone: digits(ender.fone) || undefined,
+      cep: digits(ender.CEP) || undefined,
+      logradouro: str(ender.xLgr) || undefined,
+      numero: str(ender.nro) || undefined,
+      complemento: str(ender.xCpl) || undefined,
+      bairro: str(ender.xBairro) || undefined,
+      cidade: str(ender.xMun) || undefined,
+      uf: str(ender.UF) || undefined,
+      pais: str(ender.xPais) || 'Brasil',
+    }
+
     const rawDet = infNFe.det
-    const detList: any[] = Array.isArray(rawDet) ? rawDet : rawDet ? [rawDet] : []
+    const detList: unknown[] = Array.isArray(rawDet) ? rawDet : rawDet ? [rawDet] : []
 
     if (detList.length === 0) {
       return {
@@ -103,25 +153,28 @@ export function parseNfeXml(xmlString: string): NfeXmlParsed {
     const itens: NfeXmlItem[] = []
 
     for (let index = 0; index < detList.length; index++) {
-      const d = detList[index]
-      const prod = d.prod || {}
+      const d = detList[index] as Record<string, unknown>
+      const prod = (d.prod || {}) as Record<string, unknown>
       const linha = d['@_nItem'] ? Number(d['@_nItem']) : index + 1
 
-      const codigoParceiro = prod.cProd ? String(prod.cProd).trim() : `ITEM-${linha}`
-      const descricaoParceiro = prod.xProd ? String(prod.xProd).trim() : ''
-      const unidadeOrigem = prod.uCom ? String(prod.uCom).trim().toUpperCase() : 'UN'
-      const quantidadeOrigem = prod.qCom ? parseFloat(String(prod.qCom)) : 0
-      const valorUnitario = prod.vUnCom ? parseFloat(String(prod.vUnCom)) : 0
-      const valorTotal = prod.vProd ? parseFloat(String(prod.vProd)) : 0
+      const ean = str(prod.cEAN)
+      const eanTrib = str(prod.cEANTrib)
+      const codigoBarras =
+        ean && ean !== 'SEM GTIN' ? ean : eanTrib && eanTrib !== 'SEM GTIN' ? eanTrib : undefined
 
       itens.push({
         linha,
-        codigo_parceiro: codigoParceiro,
-        descricao_parceiro: descricaoParceiro,
-        unidade_origem: unidadeOrigem,
-        quantidade_origem: isNaN(quantidadeOrigem) ? 0 : quantidadeOrigem,
-        valor_unitario: isNaN(valorUnitario) ? 0 : valorUnitario,
-        valor_total: isNaN(valorTotal) ? 0 : valorTotal,
+        codigo_parceiro: str(prod.cProd) || `ITEM-${linha}`,
+        descricao_parceiro: str(prod.xProd),
+        unidade_origem: str(prod.uCom).toUpperCase() || 'UN',
+        quantidade_origem: num(prod.qCom),
+        valor_unitario: num(prod.vUnCom),
+        valor_total: num(prod.vProd),
+        ncm: str(prod.NCM) || undefined,
+        cest: str(prod.CEST) || undefined,
+        codigo_barras: codigoBarras,
+        unidade_tributavel: str(prod.uTrib).toUpperCase() || undefined,
+        quantidade_tributavel: prod.qTrib != null ? num(prod.qTrib) : undefined,
       })
     }
 
@@ -131,14 +184,16 @@ export function parseNfeXml(xmlString: string): NfeXmlParsed {
       numeroNfe,
       serie,
       emissaoEm,
-      fornecedorCnpj: fornecedorCnpj || undefined,
-      fornecedorNome,
+      fornecedorCnpj: fornecedorDocumento || undefined,
+      fornecedorNome: emitente.nome || emitente.nome_fantasia,
+      emitente,
       itens,
     }
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Arquivo corrompido ou formato não suportado.'
     return {
       sucesso: false,
-      erro: `Erro ao interpretar XML da NF-e: ${err?.message || 'Arquivo corrompido ou formato não suportado.'}`,
+      erro: `Erro ao interpretar XML da NF-e: ${message}`,
       itens: [],
     }
   }

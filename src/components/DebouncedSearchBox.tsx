@@ -16,6 +16,9 @@ type Props = {
 /**
  * Busca com debounce na URL (?q=).
  * Parte dos searchParams atuais — não apaga visao/filtros ao digitar.
+ *
+ * Não espelha `initialQuery` enquanto o input está focado: isso evitava
+ * apagar caracteres quando o soft-nav da URL “atrasava” em relação à digitação.
  */
 export default function DebouncedSearchBox({
   initialQuery = '',
@@ -30,11 +33,15 @@ export default function DebouncedSearchBox({
   const paramsKey = searchParams.toString()
   const preserveRef = useRef(preserveParams)
   preserveRef.current = preserveParams
+  const inputRef = useRef<HTMLInputElement>(null)
 
   const [query, setQuery] = useState(initialQuery)
   const [isPending, startTransition] = useTransition()
 
   useEffect(() => {
+    // Só aplica mudança vinda da URL (voltar, Limpar, deep-link) se o usuário
+    // não estiver digitando — senão a prop “atrasada” apaga o que já foi digitado.
+    if (inputRef.current && document.activeElement === inputRef.current) return
     setQuery(initialQuery)
   }, [initialQuery])
 
@@ -69,6 +76,7 @@ export default function DebouncedSearchBox({
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
       )}
       <input
+        ref={inputRef}
         type="search"
         value={query}
         onChange={(e) => setQuery(e.target.value)}

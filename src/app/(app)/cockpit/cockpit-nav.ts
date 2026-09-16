@@ -35,6 +35,7 @@ import {
   SlidersHorizontal,
   ArrowDownToLine,
   ArrowUpRight,
+  Tags,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -133,6 +134,15 @@ export const cadastrosHubCards: CockpitNavItem[] = [
     addonsAny: ['cadastros', 'estoque', 'crm'],
     description: 'Catálogo de produtos e serviços',
     testId: 'hub-card-skus',
+  },
+  {
+    name: 'Famílias de SKU',
+    href: '/cockpit/cadastros/sku-familias',
+    icon: Tags,
+    permissionModule: 'skus',
+    addonsAny: ['cadastros', 'estoque', 'crm'],
+    description: 'Agrupamento (Cervejas, Destilados, etc.) para filtros e relatórios',
+    testId: 'hub-card-sku-familias',
   },
   {
     name: 'Conversões UM',
@@ -249,10 +259,19 @@ export const estoqueHubCards: CockpitNavItem[] = [
     name: 'Cardex / Movimentos',
     href: '/cockpit/estoque/cardex',
     icon: BookOpen,
-    permissionAny: ['estoque', 'estoque_cardex'],
+    permissionAny: ['estoque', 'estoque_cardex', 'estoque_relatorios'],
     addon: 'estoque',
     description: 'Livro razão com rastreabilidade completa e histórico de saldos',
     testId: 'hub-card-cardex',
+  },
+  {
+    name: 'Relatórios',
+    href: '/cockpit/estoque/relatorios',
+    icon: BarChart3,
+    permissionModule: 'estoque_relatorios',
+    addon: 'estoque',
+    description: 'KPIs: valor, fill rate, DOH, giro, críticos, remessas e mais',
+    testId: 'hub-card-estoque-relatorios',
   },
 ]
 
@@ -403,6 +422,8 @@ export const cockpitModules: CockpitModule[] = [
         'estoque_ajustes',
         'estoque_remessas',
         'estoque_requisicoes',
+        'estoque_atendimento',
+        'estoque_relatorios',
       ],
       addon: 'estoque',
       testId: 'nav-estoque',

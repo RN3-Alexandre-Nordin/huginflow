@@ -264,6 +264,8 @@ export async function createGrupoAcesso(formData: FormData) {
   const descricao = formData.get('descricao') as string
   const is_admin = formData.get('is_admin') === 'true'
   const permissoesStr = formData.get('permissoes') as string
+  const { parseCockpitTemplate } = await import('@/lib/cockpit/templates')
+  const cockpit_template = parseCockpitTemplate(formData.get('cockpit_template'))
   
   // Se for admin, ignora o que veio do front e gera o JSON completo
   const permissoes = is_admin 
@@ -294,7 +296,7 @@ export async function createGrupoAcesso(formData: FormData) {
   const supabaseAdmin = createAdminClient()
   const { error } = await supabaseAdmin
     .from('grupos_acesso')
-    .insert([{ nome, descricao, empresa_id, permissoes, is_admin }])
+    .insert([{ nome, descricao, empresa_id, permissoes, is_admin, cockpit_template }])
 
   if (error) {
     console.error("Erro ao criar grupo", error)
@@ -310,6 +312,8 @@ export async function updateGrupoAcesso(id: string, formData: FormData) {
   const descricao = formData.get('descricao') as string
   const is_admin = formData.get('is_admin') === 'true'
   const permissoesStr = formData.get('permissoes') as string
+  const { parseCockpitTemplate } = await import('@/lib/cockpit/templates')
+  const cockpit_template = parseCockpitTemplate(formData.get('cockpit_template'))
   
   // Se for admin, ignora o que veio do front e gera o JSON completo
   const permissoes = is_admin 
@@ -340,7 +344,7 @@ export async function updateGrupoAcesso(id: string, formData: FormData) {
   const supabaseAdmin = createAdminClient()
   const { error } = await supabaseAdmin
     .from('grupos_acesso')
-    .update({ nome, descricao, empresa_id, permissoes, is_admin })
+    .update({ nome, descricao, empresa_id, permissoes, is_admin, cockpit_template })
     .eq('id', id)
 
   if (error) {

@@ -48,6 +48,7 @@ yarn-error.log*
 # Scripts locais / testes (não versionar)
 /tmp/
 /.continue/
+/docs/testes/monte-sinai-usuarios-acesso-dev.*
 /scripts/supabase/migrations-prod.json
 /scripts/supabase/prod-deploy/out/
 /scripts/supabase/out/

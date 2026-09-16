@@ -1,12 +1,12 @@
 # Plano de Cutover para Produção — Release Setembro 2026 (v0.3.0)
 
 > **Documento Vivo de Subida para Produção**  
-> **Data de Compilação:** 13 de Setembro de 2026  
+> **Data de Compilação:** 13 de Setembro de 2026 (atualizado 16/09 — migrations 17–**27**)  
 > **Ambiente Origem (DEV):** `vujqukqsfwmoezwyuoum` ([huginflow-dev](https://supabase.com/dashboard/project/vujqukqsfwmoezwyuoum))  
 > **Ambiente Destino (PROD):** `zmypzexefjbovuknjlid` ([huginflow-prod](https://supabase.com/dashboard/project/zmypzexefjbovuknjlid))  
 > **Branch de Trabalho:** `develop` | **Branch de Produção:** `main`  
 > **VPS Produção:** Docker Swarm em `vps.rn3.tec.br` / Portainer / Traefik  
-> **Status do código (13/09):** snapshot em `develop` (GitHub) · SQL homologado em DEV · **smoke / testes de aceite: 14/09** · **PROD: aguardando pedido explícito**
+> **Status do código (16/09):** SQL homologado em DEV até `202609161910_crm_thread_sla_writers` · **PROD: aguardando pedido explícito**
 
 ---
 
@@ -35,6 +35,10 @@ Este cutover consolida **grandes ondas** de evolução do sistema desenvolvidas 
    - **Operações:** Locais (BRANCO), entradas (manual / planilha / NF-e XML), retiradas, **transferências em lote multi-SKU**, ajustes, **remessas a terceiros** e requisições.
    - **Remessas (13/09):** local de saída **por linha**; observação no **lote**; nº `REM-…`; tela de **retorno/liquidação** com SKU de volta (ex.: industrialização), **baixa definitiva** do que não retorna (consignação) e fechamento do lote quando `retornada + baixada ≥ enviada`.
    - **29 permissões granulares RBAC** na categoria "Estoque".
+   - **Aprovação interna (15/09):** parâmetros em `est_config` + fila `/requisicoes/aprovacao` (aprovador configurado, sem toggle RBAC).
+   - **Home Estoque (16/09):** template pronto `operador_estoque` via `grupos_acesso.cockpit_template` (PME, sem builder de KPI).
+   - **Planilha de requisição (16/09):** formato canônico + adapters cobráveis (ex.: ATC via addon `estoque_req_adapter_atc`); `crm_leads.codigo_externo`; rastreio `codigo_origem`/`sistema_origem`/`requisitante_nome_origem`; param `req_planilha_auto_atender` (apenas receber vs receber+baixar com atendimento parcial).
+   - **Relatórios de Estoque (16/09):** hub `/cockpit/estoque/relatorios` — 11 KPIs (valor, críticos, fill-rate, DOH/giro, sem movimento, excesso, terceiros, remessa, lead-time, ajustes) via RPC `est_rpc_relatorio` (agregação/paginação no Postgres; Excel/PDF da página). Cutover **25**.
 4. **Remodelação de Empresas & Contato Financeiro:**
    - Reestruturação visual no padrão dos novos cadastros (sistema de 6 abas dedicadas: Corporativo, Contato & Sede, Financeiro, Representante, Módulos & Addons, Cérebro IA).
    - Novos campos em aba própria para o contato financeiro/faturamento (`financeiro_nome`, `financeiro_email`, `financeiro_telefone`, `financeiro_chave_pix`) para automação de boletos, NF-e e cobrança.
@@ -42,6 +46,7 @@ Este cutover consolida **grandes ondas** de evolução do sistema desenvolvidas 
    - **Exclusão com Inteligência de Negócio:** Se o funil não possuir cards, realiza exclusão física definitiva com etapas e permissões. Se possuir cards, converte automaticamente para **Inativação** (`ativo = false`) para preservar o histórico operacional e a integridade referencial dos atendimentos, com suporte à reativação.
    - **Filtro de Status:** Listagem de funis com filtros rápidos `Ativos` (padrão), `Inativos` e `Todos` com contadores em tempo real.
    - **Integração Estoque ↔ Workflow:** A opção de aprovação de requisição de materiais via card Kanban só é visível se a organização tiver o addon de `workflow` habilitado.
+   - **Relatórios Workflow + Omnichannel (16/09):** Centro de Inteligência `/cockpit/relatorios` — 6 KPIs omni (fila, SLA, volume, heatmap, handover, por canal) + 8 workflow (receita, carteira, velocidade, conversão, dwell, forecast, gargalos, produtividade) via RPC `crm_rpc_relatorio`; triggers SLA em threads (`first_response_at` / `handover_at` / `closed_at` / `message_count_*`). Cutover **26–27**. RBAC `relatorios.view` + addon `workflow`.
 6. **Diretriz de Design System (Abas Temáticas Canônicas):**
    - Formalização da regra de proibição de "tripas verticais compridas" de campos empilhados (`.cursor/rules/ui-design-system-abas.mdc`).
    - Refatoração da tela de Configurações de Estoque (`/cockpit/estoque/configuracao`) para a arquitetura canônica de abas (`Importação NF-e`, `Requisições Internas` e `Fluxo de Aprovação`).
@@ -86,8 +91,19 @@ As migrations devem ser executadas **estritamente na ordem numérica indicada**,
 | **14** | `supabase/migrations/202609131600_est_transferencia_lotes.sql` | Lotes multi-SKU de transferência + vínculo no Cardex. | `SELECT to_regclass('public.est_transferencia_lotes');` |
 | **15** | `supabase/migrations/202609131700_est_remessa_item_local_obs_lote.sql` | Remessa: `local_origem_id` por item + `observacao` no lote. | `SELECT column_name FROM information_schema.columns WHERE table_name = 'est_remessa_itens' AND column_name = 'local_origem_id';` |
 | **16** | `supabase/migrations/202609131800_est_remessa_baixa_e_retorno_sku.sql` | Remessa: `quantidade_baixada`; tipo `remessa_baixa`; retorno com `sku_poder_id` / `quantidade_poder`. | `SELECT column_name FROM information_schema.columns WHERE table_name = 'est_remessa_itens' AND column_name = 'quantidade_baixada';` |
+| **17** | `supabase/migrations/202609151900_est_locais_padrao_branco_terceiros.sql` | Locais sistema BRANCO + TERCEIROS; `eh_terceiros`; seed ao criar empresa. | `SELECT column_name FROM information_schema.columns WHERE table_name = 'cad_locais_estoque' AND column_name = 'eh_terceiros';` |
+| **18** | `supabase/migrations/202609151910_est_remessa_cardex_dual_terceiros.sql` | Dual Cardex próprio↔TERCEIROS; poder por `remessa_id`. | Smoke remessa envio (2 linhas Cardex) ou `SELECT column_name FROM information_schema.columns WHERE table_name = 'est_saldos_poder_terceiros' AND column_name = 'remessa_id';` |
+| **19** | `supabase/migrations/202609152000_est_req_aprovacao_parametros.sql` | Aprovação interna: `req_aprovacao_*` em `est_config` + auditoria em `est_requisicoes`. | `SELECT column_name FROM information_schema.columns WHERE table_name = 'est_config' AND column_name = 'req_aprovador_usuario_id';` |
+| **20** | `supabase/migrations/202609161200_grupos_acesso_cockpit_template.sql` | Home pronta por grupo: `cockpit_template` (`auto` \| `atendente_omni` \| `operador_estoque`). | `SELECT column_name FROM information_schema.columns WHERE table_name = 'grupos_acesso' AND column_name = 'cockpit_template';` |
+| **21** | `supabase/migrations/202609161400_crm_leads_codigo_externo_req_adapter_atc.sql` | `crm_leads.codigo_externo` (matrícula) + addon `estoque_req_adapter_atc`. | `SELECT column_name FROM information_schema.columns WHERE table_name = 'crm_leads' AND column_name = 'codigo_externo';` · `SELECT 1 FROM addon_registry WHERE codigo = 'estoque_req_adapter_atc';` |
+| **22** | `supabase/migrations/202609161500_est_requisicoes_rastreio_origem.sql` | Rastreio planilha/integração: `codigo_origem`, `sistema_origem`, `requisitante_nome_origem` + unique idempotente. | `SELECT column_name FROM information_schema.columns WHERE table_name = 'est_requisicoes' AND column_name = 'codigo_origem';` |
+| **23** | `supabase/migrations/202609161600_est_config_req_planilha_auto_atender.sql` | Param: import planilha recebe+baixa (`req_planilha_auto_atender`) vs só recebe. | `SELECT column_name FROM information_schema.columns WHERE table_name = 'est_config' AND column_name = 'req_planilha_auto_atender';` |
+| **24** | `supabase/migrations/202609161700_cad_sku_familias.sql` | Famílias de SKU (`cad_sku_familias` + `cad_skus.familia_id`) + RLS. | `SELECT to_regclass('public.cad_sku_familias');` |
+| **25** | `supabase/migrations/202609161800_est_rpc_relatorios.sql` | Relatórios SaaS: RPC `est_rpc_relatorio` (filtros/`GROUP BY`/paginação no Postgres). | `SELECT routine_name FROM information_schema.routines WHERE routine_name = 'est_rpc_relatorio';` |
+| **26** | `supabase/migrations/202609161900_crm_rpc_relatorio.sql` | BI Workflow+Omni: RPC `crm_rpc_relatorio` (14 slugs). | `SELECT routine_name FROM information_schema.routines WHERE routine_name = 'crm_rpc_relatorio';` |
+| **27** | `supabase/migrations/202609161910_crm_thread_sla_writers.sql` | Triggers SLA thread (FRT, handover, closed, message_count). | `SELECT tgname FROM pg_trigger WHERE tgname LIKE 'trg_crm_%thread%';` |
 
-> **Observação:** 01–08 = Onda Cadastros · 09–10 + 12–16 = Onda Estoque · 11 = Funis. Em **DEV** (13/09) as migrations de estoque/remessa já foram aplicadas via MCP. **PROD:** só com pedido explícito. Smoke de aceite remessa/retorno/baixa planejado para **14/09**.
+> **Observação:** 01–08 = Onda Cadastros · 09–10 + 12–19 = Onda Estoque · 11 = Funis · **20 = Cockpit templates** · **21–23 = Planilha requisição** · **24 = Família SKU** · **25 = Relatórios estoque RPC** · **26–27 = BI Workflow/Omni**. Em **DEV** as migrations até **27** já foram aplicadas via MCP. **PROD:** só com pedido explícito.
 
 ---
 
@@ -95,9 +111,18 @@ As migrations devem ser executadas **estritamente na ordem numérica indicada**,
 
 ### 5.1 Novos Módulos e Componentes Criados
 - **Estoque Front-end:**
-  - `src/app/(app)/cockpit/estoque/**` (locais, entradas, retiradas, transferências, ajustes, remessas + `/retorno`, requisições, saldos, cardex e configuração).
-  - `src/components/estoque/**` (nav, paginação, etc.).
-  - `src/lib/estoque/**` (`operacoes-avancadas.ts` com liquidação remessa, `rpc-movimento.ts`, entradas, requisições, etc.).
+  - `src/app/(app)/cockpit/estoque/**` (locais, entradas, retiradas, transferências, ajustes, remessas + `/retorno`, requisições + `/aprovacao` + `/import`, saldos, cardex, configuração, **`relatorios` + `[slug]`**).
+  - `src/components/estoque/**` (nav, paginação, **`relatorios/`** filtros/export).
+  - `src/lib/estoque/**` (`operacoes-avancadas.ts`, `aprovacao-requisicao.ts`, `rpc-movimento.ts`, `requisicao-planilha/**`, **`relatorios/`** catalog/queries/format).
+- **Relatórios BI (Workflow + Omnichannel):**
+  - `src/app/(app)/cockpit/relatorios/**` (hub + `[slug]`).
+  - `src/components/relatorios/**` (`BiReportFiltersForm`, `BiReportExportBar`).
+  - `src/lib/relatorios/**` (catalog 14 slugs, queries → `crm_rpc_relatorio`, format).
+- **Cockpit templates (home):**
+  - `src/lib/cockpit/templates.ts`
+  - `src/app/(app)/cockpit/_components/EstoqueOperatorDashboard.tsx`
+  - `src/app/(app)/cockpit/estoque-cockpit-actions.ts`
+  - `src/app/(app)/cockpit/page.tsx` (resolve template)
 - **Cadastros Front-end:**
   - `src/app/(app)/cockpit/cadastros/**` (hubs e CRUDs de SKUs, Conversões UM, SKU De-Para e Ativos).
   - `src/components/skus/**`, `src/components/ativos/AtivoForm.tsx`, `src/components/pessoas/PessoaForm.tsx`.
@@ -136,6 +161,8 @@ As migrations devem ser executadas **estritamente na ordem numérica indicada**,
 2. Retorno mesmo SKU; retorno com SKU diferente (industrialização); baixa definitiva parcial fechando lote.
 3. Conferir Cardex (`remessa_saida` / `remessa_retorno` / `remessa_baixa`) e saldos / poder de terceiros.
 4. Transferência lote, entradas, retiradas e requisições (regressão rápida).
+5. **Relatórios Estoque:** `/cockpit/estoque/relatorios` — abrir `valor-estoque` e `consumo-doh`; filtros + paginação; Excel/PDF; RPC `est_rpc_relatorio` retorna `rows`/`resumo` (`total_count`).
+6. **Relatórios Workflow/Omni:** `/cockpit/relatorios` — abrir `omni-fila`, `omni-sla`, `wf-receita`, `wf-gargalos`; permissão `relatorios.view`; RPC `crm_rpc_relatorio`; triggers SLA (nova msg → `first_response_at` / handover → `handover_at`).
 
 ### Etapa 1: Preparação e Janela de Manutenção
 1. Agendar janela de baixo tráfego (ou notificar equipe de operações).
@@ -146,8 +173,14 @@ As migrations devem ser executadas **estritamente na ordem numérica indicada**,
 ### Etapa 2: Aplicação do Banco de Dados (Supabase Prod)
 *Somente executar com o OK formal do responsável.*
 1. Abrir o SQL Editor do Supabase Prod.
-2. Executar as migrations de **01 a 16** na ordem da Seção 4.
-3. Validar queries pós-execução (addons, cadastros, 15+ tabelas estoque, RPCs, colunas remessa, funis `ativo`).
+2. Executar as migrations de **01 a 27** na ordem da Seção 4.
+3. Validar queries pós-execução (addons, cadastros, famílias SKU, 15+ tabelas estoque, RPCs, colunas remessa/aprovação/planilha, `grupos_acesso.cockpit_template`, `crm_leads.codigo_externo`, funis `ativo`).
+4. **Validar RPCs de relatórios:**
+   ```sql
+   SELECT routine_name FROM information_schema.routines
+   WHERE routine_name IN ('est_rpc_relatorio', 'crm_rpc_relatorio');
+   SELECT tgname FROM pg_trigger WHERE tgname LIKE 'trg_crm_%thread%';
+   ```
 
 ### Etapa 3: Git, Versionamento e Deploy VPS
 1. Código e tag `v0.3.0` já versionados em **`develop`** (GitHub).
@@ -164,8 +197,11 @@ As migrations devem ser executadas **estritamente na ordem numérica indicada**,
 
 ### Etapa 4: Smoke Test Pós-Deploy (produção)
 - Cadastros (Pessoas, SKUs, Ativos), Empresas (aba Financeiro), Funis (ativo/inativo).
-- Estoque: locais, entrada, remessa envio/retorno/baixa, cardex, saldos.
-- Configuração estoque em abas; entitlement workflow nas requisições.
+- Estoque: locais, entrada, remessa envio/retorno/baixa, cardex, saldos, aprovação de requisição, **import planilha** (receber / receber+baixar).
+- **Relatórios Estoque** (`estoque_relatorios.view`): hub + 1–2 slugs Wave 1 com filtros/export.
+- **Relatórios BI** (`relatorios.view` + addon workflow): hub omni + workflow; fila/SLA e receita/gargalos.
+- Configuração estoque em abas; home `/cockpit` com template Omni vs Estoque conforme grupo.
+- Entitlement workflow nas requisições (card Kanban); addon `estoque_req_adapter_atc` se cliente ATC.
 
 ---
 
@@ -189,3 +225,4 @@ As migrations devem ser executadas **estritamente na ordem numérica indicada**,
 | `v0.2.0` | 2026-09-11 | Alexandre Nordin | Em DEV | Entitlements, Cadastros Mestres e spec Estoque. |
 | `v0.2.1` | 2026-09-11 | Alexandre Nordin | Em DEV | Regras estritas de governança Git e spec remessas. |
 | **`v0.3.0`** | **2026-09-13** | **Alexandre Nordin** | **Em DEV (GitHub `develop`)** | Estoque Fase 4.1 + remessa multi-local/liquidação (SKU diferente + baixa) + empresas/funis/abas. Smoke 14/09; cutover prod sob pedido explícito. |
+| `v0.3.x` | 2026-09-15/16 | Alexandre Nordin | Em DEV | Locais BRANCO/TERCEIROS + Cardex dual; aprovação req.; cockpit_template; planilha req; famílias SKU; **relatórios estoque (`est_rpc_relatorio`)** + **BI workflow/omni (`crm_rpc_relatorio` + SLA writers)**. Incluir migrations **17–27** no go-live. |

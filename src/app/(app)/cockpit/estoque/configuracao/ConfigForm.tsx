@@ -37,9 +37,20 @@ type ConfigData = {
   nfe_xml_diretorio: string | null
   nfe_xml_local_padrao_id: string | null
   req_saldo_insuficiente_modo: string
+  /** Import planilha: true = recebe + baixa; false = só recebe */
+  req_planilha_auto_atender?: boolean | null
   aprovacao_via_workflow: boolean
   aprovacao_funil_id: string | null
   aprovacao_estagio_id: string | null
+  req_aprovacao_ativa?: boolean | null
+  req_aprovador_usuario_id?: string | null
+  req_aprovacao_valor_minimo?: number | string | null
+}
+
+type UsuarioOption = {
+  id: string
+  nome_completo: string | null
+  email: string | null
 }
 
 type Props = {
@@ -47,6 +58,7 @@ type Props = {
   locais: LocalOption[]
   pipelines: PipelineOption[]
   stages: StageOption[]
+  usuarios: UsuarioOption[]
   hasWorkflowAddon?: boolean
   canManage: boolean
   empresaNome?: string
@@ -76,10 +88,10 @@ const SECTIONS_CONFIG: Record<SectionId, SectionMeta> = {
   requisicoes: {
     id: 'requisicoes',
     label: 'Requisições Internas',
-    hint: 'Políticas de atendimento e saldo',
-    title: 'Políticas de Atendimento de Requisições',
+    hint: 'Saldo, aprovação e aprovador',
+    title: 'Políticas de Requisições Internas',
     description:
-      'Diretriz operacional de liberação do almoxarifado quando a quantidade solicitada exceder o saldo disponível.',
+      'Tratamento de saldo insuficiente no atendimento e parâmetros de aprovação interna (aprovador e valor mínimo).',
     icon: ClipboardList,
   },
   workflow: {
@@ -98,6 +110,7 @@ export default function ConfigForm({
   locais,
   pipelines,
   stages,
+  usuarios,
   hasWorkflowAddon = false,
   canManage,
   empresaNome,
@@ -110,6 +123,14 @@ export default function ConfigForm({
   const [nfeXmlDiretorio, setNfeXmlDiretorio] = useState(config?.nfe_xml_diretorio || '')
   const [nfeXmlLocalPadraoId, setNfeXmlLocalPadraoId] = useState(config?.nfe_xml_local_padrao_id || '')
   const [reqSaldoModo, setReqSaldoModo] = useState(config?.req_saldo_insuficiente_modo || 'atende_parcial_pendente')
+  const [reqPlanilhaAutoAtender, setReqPlanilhaAutoAtender] = useState(
+    Boolean(config?.req_planilha_auto_atender)
+  )
+  const [reqAprovacaoAtiva, setReqAprovacaoAtiva] = useState(Boolean(config?.req_aprovacao_ativa))
+  const [reqAprovadorId, setReqAprovadorId] = useState(config?.req_aprovador_usuario_id || '')
+  const [reqValorMinimo, setReqValorMinimo] = useState(
+    String(config?.req_aprovacao_valor_minimo ?? '0'),
+  )
   const [aprovacaoWorkflow, setAprovacaoWorkflow] = useState(config?.aprovacao_via_workflow || false)
   const [aprovacaoFunilId, setAprovacaoFunilId] = useState(config?.aprovacao_funil_id || '')
   const [aprovacaoEstagioId, setAprovacaoEstagioId] = useState(config?.aprovacao_estagio_id || '')
@@ -137,6 +158,10 @@ export default function ConfigForm({
     formData.append('nfe_xml_diretorio', nfeXmlDiretorio)
     formData.append('nfe_xml_local_padrao_id', nfeXmlLocalPadraoId)
     formData.append('req_saldo_insuficiente_modo', reqSaldoModo)
+    if (reqPlanilhaAutoAtender) formData.append('req_planilha_auto_atender', 'on')
+    if (reqAprovacaoAtiva) formData.append('req_aprovacao_ativa', 'on')
+    formData.append('req_aprovador_usuario_id', reqAprovadorId)
+    formData.append('req_aprovacao_valor_minimo', reqValorMinimo || '0')
     if (aprovacaoWorkflow && hasWorkflowAddon) {
       formData.append('aprovacao_via_workflow', 'on')
       formData.append('aprovacao_funil_id', aprovacaoFunilId)
@@ -377,6 +402,127 @@ export default function ConfigForm({
                     </p>
                   </div>
                 </label>
+              </div>
+            </div>
+
+            <div className="border-t border-[#ffffff08] pt-5 space-y-3">
+              <h4 className="text-sm font-semibold text-white">Importação por planilha</h4>
+              <p className="text-[11px] text-gray-500 leading-relaxed">
+                Define o que acontece ao efetivar um upload em Requisições → Importar planilha.
+              </p>
+              <div className="grid gap-3">
+                <label
+                  className={`flex items-start gap-3 rounded-xl border p-4 cursor-pointer transition ${
+                    !reqPlanilhaAutoAtender
+                      ? 'border-[#2BAADF]/50 bg-[#2BAADF]/5 text-white'
+                      : 'border-[#ffffff0a] bg-[#0A0A0A] text-gray-300 hover:border-[#ffffff20]'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="req_planilha_auto"
+                    checked={!reqPlanilhaAutoAtender}
+                    onChange={() => setReqPlanilhaAutoAtender(false)}
+                    disabled={!canManage}
+                    className="mt-1 h-4 w-4 text-[#2BAADF] focus:ring-[#2BAADF]"
+                  />
+                  <div>
+                    <div className="text-sm font-semibold">Apenas receber (aguardar baixa manual)</div>
+                    <p className="text-xs text-gray-400 mt-1 leading-relaxed">
+                      Cria a(s) requisição(ões) e deixa no fluxo normal (aprovação / atendimento manual).
+                    </p>
+                  </div>
+                </label>
+                <label
+                  className={`flex items-start gap-3 rounded-xl border p-4 cursor-pointer transition ${
+                    reqPlanilhaAutoAtender
+                      ? 'border-[#2BAADF]/50 bg-[#2BAADF]/5 text-white'
+                      : 'border-[#ffffff0a] bg-[#0A0A0A] text-gray-300 hover:border-[#ffffff20]'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="req_planilha_auto"
+                    checked={reqPlanilhaAutoAtender}
+                    onChange={() => setReqPlanilhaAutoAtender(true)}
+                    disabled={!canManage}
+                    className="mt-1 h-4 w-4 text-[#2BAADF] focus:ring-[#2BAADF]"
+                  />
+                  <div>
+                    <div className="text-sm font-semibold">Receber e baixar estoque na hora</div>
+                    <p className="text-xs text-gray-400 mt-1 leading-relaxed">
+                      Após importar, libera a requisição e tenta atender imediatamente no local padrão.
+                      Se faltar saldo, baixa o disponível e a requisição fica{' '}
+                      <strong className="text-gray-300">parcialmente atendida</strong> com o restante pendente.
+                      (Bypassa a fila de aprovação nesta importação.)
+                    </p>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <div className="border-t border-[#ffffff08] pt-5 space-y-4">
+              <h4 className="text-sm font-semibold text-white">Aprovação interna</h4>
+              <label className="flex items-start gap-3 cursor-pointer rounded-xl border border-[#ffffff0a] bg-[#0A0A0A] p-4">
+                <input
+                  type="checkbox"
+                  checked={reqAprovacaoAtiva}
+                  onChange={(e) => setReqAprovacaoAtiva(e.target.checked)}
+                  disabled={!canManage}
+                  className="mt-0.5 h-4 w-4 rounded border-gray-700 bg-[#0A0A0A] text-[#2BAADF] focus:ring-[#2BAADF]"
+                />
+                <div>
+                  <span className="text-sm font-medium text-white">Exige aprovação de requisições</span>
+                  <p className="text-xs text-gray-400 mt-0.5 leading-relaxed">
+                    Quando ligada, o envio pode ir para a fila de aprovação conforme o valor mínimo (preço de compra dos SKUs).
+                  </p>
+                </div>
+              </label>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-300 mb-1.5">
+                    Aprovador {reqAprovacaoAtiva && <span className="text-red-400">*</span>}
+                  </label>
+                  <select
+                    value={reqAprovadorId}
+                    onChange={(e) => setReqAprovadorId(e.target.value)}
+                    disabled={!canManage || !reqAprovacaoAtiva}
+                    className="w-full rounded-xl border border-[#ffffff15] bg-[#0A0A0A] px-3.5 py-2.5 text-sm text-white focus:border-[#2BAADF] focus:outline-none disabled:opacity-60"
+                  >
+                    <option value="">Selecione o aprovador...</option>
+                    {usuarios.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.nome_completo || u.email || u.id}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-[11px] text-gray-500">
+                    Além deste usuário, admin da empresa e superadmin também podem liberar.
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-300 mb-1.5">
+                    Valor mínimo
+                  </label>
+                  <div className="relative">
+                    <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-semibold text-gray-500">
+                      R$
+                    </span>
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={reqValorMinimo}
+                      onChange={(e) => setReqValorMinimo(e.target.value)}
+                      disabled={!canManage || !reqAprovacaoAtiva}
+                      className="w-full rounded-xl border border-[#ffffff15] bg-[#0A0A0A] py-2.5 pl-10 pr-3.5 text-sm text-white focus:border-[#2BAADF] focus:outline-none disabled:opacity-60"
+                    />
+                  </div>
+                  <p className="mt-1 text-[11px] text-gray-500">
+                    0 = limiar não se aplica (toda requisição enviada vai para aprovação). Acima de 0, só exige se Σ qtd × preço de custo ≥ mínimo.
+                  </p>
+                </div>
               </div>
             </div>
           </div>

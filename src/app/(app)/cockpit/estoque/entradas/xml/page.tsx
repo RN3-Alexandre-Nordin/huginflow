@@ -26,6 +26,15 @@ export default async function ImportNfeXmlPage() {
     .order('eh_principal', { ascending: false })
     .order('codigo')
 
+  const { data: skusIniciais } = await supabase
+    .from('cad_skus')
+    .select('id, codigo, nome, unidade_estoque')
+    .eq('empresa_id', empresaId)
+    .eq('ativo', true)
+    .eq('controla_estoque', true)
+    .order('codigo')
+    .limit(80)
+
   const defaultLocal = await loadLocalPadraoEmpresa(supabase, empresaId, locais || [])
 
   return (
@@ -35,13 +44,13 @@ export default async function ImportNfeXmlPage() {
           <h1 className="text-xl font-semibold text-white tracking-tight">
             Importação de NF-e (XML)
           </h1>
-          <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 font-bold">
+          <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-full bg-[#2BAADF]/10 text-[#2BAADF] border border-[#2BAADF]/20 font-bold">
             Canal C · SEFAZ
           </span>
         </div>
         <p className="text-xs text-gray-400 mt-1">
-          Faça o upload do arquivo XML da nota fiscal emitida pelo fornecedor para alimentar o
-          estoque automaticamente.
+          Upload do XML: fornecedor e SKUs podem ser resolvidos neste fluxo (sem abrir telas
+          de cadastro).
         </p>
       </div>
 
@@ -49,6 +58,7 @@ export default async function ImportNfeXmlPage() {
         fornecedores={fornecedores}
         locais={locais || []}
         defaultLocalId={defaultLocal?.id}
+        skusIniciais={skusIniciais || []}
       />
     </div>
   )

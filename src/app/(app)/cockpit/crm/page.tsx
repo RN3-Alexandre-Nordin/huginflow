@@ -54,12 +54,12 @@ export default async function CrmHubPage() {
     {
        id: 'relatorios',
        name: 'Relatórios & Analytics',
-       description: 'Monitore as taxas de conversão de estágios, os gargalos de vendas e a meta de faturamento.',
+       description: 'Omnichannel (fila, SLA, heatmap) e Workflow (receita, funil, gargalos) — exportáveis.',
        icon: LineChart,
        href: '/cockpit/relatorios',
        color: '#F97316',
-       features: ['Taxa de Conversão', 'Previsão Fatura', 'Velocidade Média'],
-       active: true,
+       features: ['Fila & SLA', 'Conversão Funil', 'Forecast'],
+       active: hasWorkflow,
     }
   ]
 

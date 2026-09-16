@@ -25,7 +25,7 @@ Comparativo entre projetos:
 
 **Última migration no prod (intencional, MCP 2026-09-06):** cutover CRM + Analytics BI + `empresa_webhooks` + `test_runs` + `crm_interacoes` UPDATE RLS (além de finance/AR e `revert_handover_structured`, já presentes).
 
-**Última migration no dev:** `202609131800_est_remessa_baixa_e_retorno_sku` (além de `202609131700_est_remessa_item_local_obs_lote`, `202609131600_est_transferencia_lotes`, `202609131500_fix_rpc_saldo_decremento_check`, tabelas/RLS do estoque, ativos, reforma, SKUs, Pessoas e entitlements).
+**Última migration no dev:** `202609161910_crm_thread_sla_writers` (além de `202609161900_crm_rpc_relatorio`, `202609161800_est_rpc_relatorios`, `202609161700_cad_sku_familias`, `202609161600_est_config_req_planilha_auto_atender`, e pacote estoque/cadastros anterior).
 
 **Gate prod (combinado 2026-09-11):** **não aplicar** migrations/DDL em produção sem **pedido explícito**. Até lá: só DEV + documentação do pacote.
 
@@ -90,14 +90,50 @@ Apply precoce de C1+C2 em prod → **revertido** no mesmo dia (`rollback_prematu
 | E4 | `202609131600_est_transferencia_lotes.sql` | ✅ | ⏳ | Lotes multi-SKU de transferência (`est_transferencia_lotes`/`itens` + `lote_transferencia_id` no Cardex) + backfill. |
 | E5 | `202609131700_est_remessa_item_local_obs_lote.sql` | ✅ | ⏳ | Remessa: `local_origem_id` por item + `observacao` no lote. |
 | E6 | `202609131800_est_remessa_baixa_e_retorno_sku.sql` | ✅ | ⏳ | Remessa: `quantidade_baixada`, tipo `remessa_baixa`, retorno com SKU diferente (`sku_poder_id`). |
+| E7 | `202609151900_est_locais_padrao_branco_terceiros.sql` | ✅ | ⏳ | Locais sistema BRANCO + TERCEIROS; `eh_terceiros`; seed ao criar empresa. |
+| E8 | `202609151910_est_remessa_cardex_dual_terceiros.sql` | ✅ | ⏳ | Dual Cardex próprio↔TERCEIROS; tipos `remessa_entrada_terceiros` / `remessa_saida_terceiros`; poder por `remessa_id`; rebuild + backfill. |
+| E9 | `202609152000_est_req_aprovacao_parametros.sql` | ✅ | ⏳ | Aprovação interna de requisições: `req_aprovacao_*` em `est_config` + `valor_estimado` / auditoria em `est_requisicoes`. |
+| E10 | `202609161200_grupos_acesso_cockpit_template.sql` | ✅ | ⏳ | `grupos_acesso.cockpit_template` (`auto` \| `atendente_omni` \| `operador_estoque`) — home pronta por grupo. |
+| E11 | `202609161400_crm_leads_codigo_externo_req_adapter_atc.sql` | ✅ | ⏳ | `crm_leads.codigo_externo` + addon `estoque_req_adapter_atc` (adapter planilha ATC). |
+| E12 | `202609161500_est_requisicoes_rastreio_origem.sql` | ✅ | ⏳ | Rastreio origem: `codigo_origem`, `sistema_origem`, `requisitante_nome_origem` + unique idempotente. |
+| E13 | `202609161600_est_config_req_planilha_auto_atender.sql` | ✅ | ⏳ | `est_config.req_planilha_auto_atender` — import recebe+baixa vs só recebe. |
+| E14 | `202609161700_cad_sku_familias.sql` | ✅ | ⏳ | `cad_sku_familias` + `cad_skus.familia_id`; seed Monte Sinai em DEV. |
+| E15 | `202609161800_est_rpc_relatorios.sql` | ✅ | ⏳ | RPC `est_rpc_relatorio` — 11 relatórios com agregação/paginação no Postgres. |
+| E16 | `202609161900_crm_rpc_relatorio.sql` | ✅ | ⏳ | BI Workflow+Omni — RPC `crm_rpc_relatorio` (14 slugs). |
+| E17 | `202609161910_crm_thread_sla_writers.sql` | ✅ | ⏳ | Triggers FRT/handover/closed_at + message_count nas threads. |
 
 ### Checklist pré-prod do Módulo Estoque
 1. [ ] Bateria / smoke DEV (CRUD Locais com local BRANCO, Configuração do Estoque, Entradas, Baixas, Ajustes, Remessas Terceiros, Requisições e Cardex).
 2. [ ] Validação da Regra de Ouro (RPC atômica Cardex + Saldo).
-3. [ ] Pedido explícito do responsável para cutover prod.
-4. [ ] Backup prod.
-5. [ ] Aplicar migrations E1 e E2 no prod (MCP ou bundle).
-6. [ ] Deploy código front-end + smoke prod.
+3. [ ] **Relatórios estoque:** hub `/cockpit/estoque/relatorios` + RPC `est_rpc_relatorio` (E15).
+4. [ ] Pedido explícito do responsável para cutover prod.
+5. [ ] Backup prod.
+6. [ ] Aplicar migrations **E1–E17** no prod (MCP ou bundle), na ordem (E15–E17 = pacote Relatórios).
+7. [ ] Deploy código front-end + smoke prod (incl. import planilha + hubs de relatórios).
+
+---
+
+## Pacote Relatórios — Estoque + Workflow/Omni (16/09) — DEV ✅ · PROD ⏳
+
+> Padrão SaaS: agregação/`GROUP BY`/paginação no Postgres; UI só renderiza `{ rows, resumo }`; export Excel/PDF da página atual.
+
+| Hub | Rota | RPC | Permissão | Migrations |
+|-----|------|-----|-----------|------------|
+| **Estoque** | `/cockpit/estoque/relatorios` | `est_rpc_relatorio` (11 slugs) | `estoque_relatorios.view` / `estoque.view` | E15 / cutover **25** |
+| **BI Workflow + Omni** | `/cockpit/relatorios` | `crm_rpc_relatorio` (14 slugs) | `relatorios.view` + addon `workflow` | E16–E17 / cutover **26–27** |
+
+**Slugs estoque:** `valor-estoque`, `skus-criticos`, `fill-rate-requisicoes`, `consumo-doh`, `giro-estoque`, `estoque-sem-movimento`, `excesso-maximo`, `poder-terceiros`, `remessa-retorno-baixa`, `lead-time-req`, `ajustes-shrinkage`.
+
+**Slugs omni:** `omni-fila`, `omni-sla`, `omni-volume`, `omni-heatmap`, `omni-handover`, `omni-por-canal`.
+
+**Slugs workflow:** `wf-receita`, `wf-carteira`, `wf-velocidade`, `wf-conversao-etapas`, `wf-dwell`, `wf-forecast`, `wf-gargalos`, `wf-produtividade`.
+
+**Pós-apply prod (validação):**
+```sql
+SELECT routine_name FROM information_schema.routines
+WHERE routine_name IN ('est_rpc_relatorio', 'crm_rpc_relatorio');
+SELECT tgname FROM pg_trigger WHERE tgname LIKE 'trg_crm_%thread%';
+```
 
 ---
 
@@ -107,6 +143,15 @@ Registrar aqui tudo homologado em **dev** e ainda **não** em produção (além 
 
 | Data | Pacote | Dev | Prod | Doc detalhado | Notas |
 |------|--------|-----|------|---------------|-------|
+| 2026-09-16 | **BI: Workflow + Omnichannel + SLA writers** | ✅ SQL MCP + UI | ⏳ pedido explícito | cutover **26–27** · § Pacote Relatórios | `202609161900` + `202609161910`; hub `/cockpit/relatorios` |
+| 2026-09-16 | **Estoque: relatórios SaaS (RPC)** | ✅ SQL MCP + UI | ⏳ pedido explícito | cutover **25** · § Pacote Relatórios | `202609161800`; hub `/cockpit/estoque/relatorios` |
+| 2026-09-16 | **Estoque: planilha req auto-atender** | ✅ SQL MCP + UI | ⏳ pedido explícito | cutover **23** · §10.8.3 | `202609161600`; `req_planilha_auto_atender` |
+| 2026-09-16 | **Estoque: rastreio origem requisição** | ✅ SQL MCP + UI | ⏳ pedido explícito | cutover **22** · §10.8 | `202609161500`; `codigo_origem`/`sistema_origem`/`requisitante_nome_origem` |
+| 2026-09-16 | **Estoque: adapter ATC + codigo_externo** | ✅ SQL MCP + UI | ⏳ pedido explícito | cutover **21** · §10.8.2 | `202609161400`; addon `estoque_req_adapter_atc` |
+| 2026-09-16 | **Cockpit: templates prontos por grupo** | ✅ SQL MCP + UI | ⏳ pedido explícito | `lib/cockpit/templates.ts` | `202609161200`; home Omni vs Estoque; sem builder de KPI |
+| 2026-09-15 | **Estoque: aprovação interna de requisições** | ✅ SQL MCP + UI | ⏳ pedido explícito | § Pacote Estoque · §10.5 | `202609152000`; flag/aprovador/mínimo; fila `/requisicoes/aprovacao`; auditoria |
+| 2026-09-15 | **Estoque: Cardex dual remessa ↔ TERCEIROS** | ✅ SQL MCP + UI | ⏳ pedido explícito | § Pacote Estoque | `202609151910`; 2 linhas Cardex; poder por lote; UI sem impacto sintético |
+| 2026-09-15 | **Estoque: locais BRANCO + TERCEIROS** | ✅ SQL MCP + UI | ⏳ pedido explícito | § Pacote Estoque | `202609151900`; seed automático por empresa |
 | 2026-09-13 | **Estoque: remessa baixa + retorno SKU** | ✅ SQL MCP + UI | ⏳ pedido explícito | § Pacote Estoque | `202609131800_est_remessa_baixa_e_retorno_sku.sql`; liquidação retorno/baixa; industrialização |
 | 2026-09-13 | **Estoque: remessa multi-local + obs lote** | ✅ SQL MCP + UI | ⏳ pedido explícito | § Pacote Estoque | `202609131700_est_remessa_item_local_obs_lote.sql`; local de saída por linha; observação no lote; nº `REM-…` |
 | 2026-09-13 | **Estoque: fix RPC decremento saldo (CHECK)** | ✅ SQL MCP | ⏳ pedido explícito | § Pacote Estoque | `202609131500_fix_rpc_saldo_decremento_check.sql`; transferência/saída não quebram mais em `est_saldos_quantidade_check` |
@@ -125,7 +170,7 @@ Registrar aqui tudo homologado em **dev** e ainda **não** em produção (além 
 | 2026-09-07 | **RBAC por ação em leads/canais/roteamento** | ✅ SQL MCP + 3 baterias verdes | ⏳ aplicar no próximo cutover | Agente testes Fase 3 | `202609071530_phase3_permission_rls.sql`; cria `check_permission`, remove policy aberta de roteamento e sincroniza RLS com a matriz |
 | 2026-09-03 | **Webhooks de saída** (`empresa_webhooks`) para alarme de canal desconectado | ✅ SQL | ✅ SQL MCP 2026-09-06 · ⏳ código no release | Canais | Migration `202609031700` + unique URL; POST JSON + HMAC `X-HuginFlow-Signature` |
 | 2026-09-03 | **Sessão omnichannel — caminho único** (`SessionPersistenceService`) + heal órfãos DEV | ✅ código + heal DEV | ⏳ código no release · heal opcional | § Sessão única | Sem migration; writers unificados; monitor `scripts/omnichannel/monitor-orphan-sessions.sql` |
-| 2026-09-02 | **Analytics BI — backend MVP** (índices + RPCs relatórios) | ✅ SQL | ✅ SQL MCP 2026-09-06 | § Analytics BI | Migrations `202609021200`–`202609021204`; sem triggers; app front ainda não consome |
+| 2026-09-02 | **Analytics BI — backend MVP** (índices + RPCs relatórios) | ✅ SQL | ✅ SQL MCP 2026-09-06 | § Analytics BI | Migrations `202609021200`–`202609021204`; hub UI consome via `crm_rpc_relatorio` (16/09) |
 | 2026-09-02 | **test_runs** (módulo testes RN3) | ✅ SQL | ✅ SQL MCP 2026-09-06 | — | `202609021800_test_runs.sql` |
 | 2026-09-03 | **crm_interacoes UPDATE RLS** (apagar mensagem WhatsApp) | ✅ SQL | ✅ SQL MCP 2026-09-06 | — | `202609031630_crm_interacoes_update_rls.sql` |
 | 2026-09-01 | **Alerta desconexão canais inbound** (modal cockpit para toda a empresa) | ✅ SQL | ✅ SQL MCP 2026-09-06 · ⏳ código no release | § Performance + canais realtime | Migration `202609011200_crm_canais_realtime.sql`; código: banner + modal |

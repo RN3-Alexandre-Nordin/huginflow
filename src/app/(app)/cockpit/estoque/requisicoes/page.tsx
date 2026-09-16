@@ -13,6 +13,7 @@ import {
   XCircle,
   Layers,
   Send,
+  FileSpreadsheet,
 } from 'lucide-react'
 import BackTextButton from '@/components/BackTextButton'
 import DebouncedSearchBox from '@/components/DebouncedSearchBox'
@@ -70,9 +71,13 @@ export default async function EstoqueRequisicoesPage({ searchParams }: PageProps
       status,
       origem,
       observacao,
+      valor_estimado,
+      aprovado_em,
+      aprovacao_resultado,
       created_at,
-      crm_leads (id, nome),
-      usuarios (id, nome_completo),
+      crm_leads!est_requisicoes_requisitante_pessoa_id_fkey (id, nome),
+      usuarios!est_requisicoes_solicitante_usuario_id_fkey (id, nome_completo),
+      aprovador:usuarios!est_requisicoes_aprovador_usuario_id_fkey (id, nome_completo),
       est_requisicao_itens (
         id,
         quantidade_pedida,
@@ -116,13 +121,22 @@ export default async function EstoqueRequisicoesPage({ searchParams }: PageProps
         </div>
 
         {canCreate && (
-          <Link
-            href="/cockpit/estoque/requisicoes/novo"
-            className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-purple-600 hover:bg-purple-500 rounded-xl shadow-lg shadow-purple-500/20 transition-all"
-          >
-            <Plus className="h-4 w-4" />
-            Nova Requisição
-          </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              href="/cockpit/estoque/requisicoes/import"
+              className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-gray-200 bg-[#ffffff08] hover:bg-[#ffffff12] border border-[#ffffff12] rounded-xl transition-all"
+            >
+              <FileSpreadsheet className="h-4 w-4 text-purple-400" />
+              Importar planilha
+            </Link>
+            <Link
+              href="/cockpit/estoque/requisicoes/novo"
+              className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-purple-600 hover:bg-purple-500 rounded-xl shadow-lg shadow-purple-500/20 transition-all"
+            >
+              <Plus className="h-4 w-4" />
+              Nova Requisição
+            </Link>
+          </div>
         )}
       </div>
 
@@ -139,11 +153,12 @@ export default async function EstoqueRequisicoesPage({ searchParams }: PageProps
         <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto">
           {[
             { id: 'todos', label: 'Todas' },
-            { id: 'enviada', label: 'Enviadas' },
+            { id: 'pendente_aprovacao', label: 'Em aprovação' },
             { id: 'aprovada', label: 'Aprovadas' },
-            { id: 'parcialmente_atendida', label: 'Parciais' },
-            { id: 'atendida', label: 'Atendidas' },
+            { id: 'atendida_parcial', label: 'Parciais' },
+            { id: 'atendida_total', label: 'Atendidas' },
             { id: 'rascunho', label: 'Rascunhos' },
+            { id: 'rejeitada', label: 'Rejeitadas' },
             { id: 'cancelada', label: 'Canceladas' },
           ].map((st) => {
             const isSelected = (!status && st.id === 'todos') || status === st.id
@@ -200,6 +215,7 @@ export default async function EstoqueRequisicoesPage({ searchParams }: PageProps
                   <th className="py-3 px-4">Número</th>
                   <th className="py-3 px-4">Requisitante</th>
                   <th className="py-3 px-4">Solicitante</th>
+                  <th className="py-3 px-4">Valor est.</th>
                   <th className="py-3 px-4">Itens / Atendimento</th>
                   <th className="py-3 px-4">Status</th>
                   <th className="py-3 px-4">Data</th>
@@ -210,6 +226,7 @@ export default async function EstoqueRequisicoesPage({ searchParams }: PageProps
                 {requisicoes.map((req) => {
                   const requisitante = req.crm_leads as { id?: string; nome?: string } | null
                   const solicitante = req.usuarios as { id?: string; nome_completo?: string } | null
+                  const aprovador = req.aprovador as { id?: string; nome_completo?: string } | null
                   const itensList = (req.est_requisicao_itens || []) as Array<{
                     id: string
                     quantidade_pedida: number
@@ -221,6 +238,7 @@ export default async function EstoqueRequisicoesPage({ searchParams }: PageProps
                   const totalPedida = itensList.reduce((acc, i) => acc + Number(i.quantidade_pedida), 0)
                   const totalAtendida = itensList.reduce((acc, i) => acc + Number(i.quantidade_atendida), 0)
                   const percAtendido = totalPedida > 0 ? Math.round((totalAtendida / totalPedida) * 100) : 0
+                  const valorEst = Number(req.valor_estimado || 0)
 
                   return (
                     <tr key={req.id} className="hover:bg-[#ffffff03] transition-colors">
@@ -249,6 +267,12 @@ export default async function EstoqueRequisicoesPage({ searchParams }: PageProps
                           <span>{solicitante?.nome_completo || '—'}</span>
                         </div>
                       </td>
+                      <td className="py-3.5 px-4 font-mono text-gray-300">
+                        {valorEst.toLocaleString('pt-BR', {
+                          style: 'currency',
+                          currency: 'BRL',
+                        })}
+                      </td>
                       <td className="py-3.5 px-4">
                         <div className="space-y-1">
                           <div className="flex items-center justify-between text-[11px] font-mono">
@@ -265,6 +289,13 @@ export default async function EstoqueRequisicoesPage({ searchParams }: PageProps
                       </td>
                       <td className="py-3.5 px-4">
                         <StatusBadge status={req.status} />
+                        {aprovador?.nome_completo && req.aprovado_em && (
+                          <span className="mt-1 block text-[10px] text-gray-500">
+                            {req.aprovacao_resultado === 'rejeitada' ? 'Rejeitado' : 'Aprovado'} por{' '}
+                            {aprovador.nome_completo} ·{' '}
+                            {new Date(req.aprovado_em).toLocaleDateString('pt-BR')}
+                          </span>
+                        )}
                       </td>
                       <td className="py-3.5 px-4 text-gray-400">
                         <div className="flex items-center gap-1 text-[11px]">
@@ -294,7 +325,7 @@ export default async function EstoqueRequisicoesPage({ searchParams }: PageProps
 }
 
 function StatusBadge({ status }: { status: string }) {
-  if (status === 'atendida') {
+  if (status === 'atendida_total' || status === 'atendida') {
     return (
       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
         <CheckCircle2 className="h-3 w-3" />
@@ -302,7 +333,7 @@ function StatusBadge({ status }: { status: string }) {
       </span>
     )
   }
-  if (status === 'parcialmente_atendida') {
+  if (status === 'atendida_parcial' || status === 'parcialmente_atendida') {
     return (
       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">
         <AlertTriangle className="h-3 w-3" />
@@ -318,11 +349,19 @@ function StatusBadge({ status }: { status: string }) {
       </span>
     )
   }
-  if (status === 'enviada') {
+  if (status === 'pendente_aprovacao' || status === 'enviada') {
     return (
       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-purple-500/10 text-purple-400 border border-purple-500/20">
         <Send className="h-3 w-3" />
-        Enviada
+        Em aprovação
+      </span>
+    )
+  }
+  if (status === 'rejeitada') {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-orange-500/10 text-orange-400 border border-orange-500/20">
+        <XCircle className="h-3 w-3" />
+        Rejeitada
       </span>
     )
   }

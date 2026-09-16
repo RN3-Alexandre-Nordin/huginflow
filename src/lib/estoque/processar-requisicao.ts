@@ -1,5 +1,10 @@
 import type { EstCodigoErroEntrada } from './tipos'
 import { parseMovimentoAtomicoResult } from './rpc-movimento'
+import {
+  calcularValorEstimadoRequisicao,
+  mensagemStatusEnvio,
+  statusAoEnviarRequisicao,
+} from './aprovacao-requisicao'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type SupabaseClient = { from: (table: string) => any; rpc: (fn: string, args: any) => any }
@@ -18,6 +23,12 @@ export interface RequisicaoInput {
   departamento_id?: string | null
   observacao?: string | null
   origem?: 'manual' | 'planilha'
+  /** Número/ID no sistema de origem — 1 Hugin = 1 origem quando preenchido */
+  codigo_origem?: string | null
+  /** Ex.: atc_suprimentos, sap, planilha */
+  sistema_origem?: string | null
+  /** Nome do requisitante como veio na origem (rastreio) */
+  requisitante_nome_origem?: string | null
   enviar_imediatamente?: boolean
   itens: ItemRequisicaoInput[]
 }
@@ -57,7 +68,7 @@ export async function criarRequisicao(
 
   const { data: pessoa } = await client
     .from('crm_leads')
-    .select('id, nome')
+    .select('id, nome, ativo, papeis')
     .eq('empresa_id', params.empresa_id)
     .eq('id', params.requisitante_pessoa_id)
     .maybeSingle()
@@ -67,6 +78,24 @@ export async function criarRequisicao(
       sucesso: false,
       mensagem: 'Requisitante não cadastrado em Cadastros → Pessoas.',
       codigo: 'REQUISITANTE_NAO_CADASTRADO',
+    }
+  }
+
+  if (!pessoa.ativo) {
+    return {
+      sucesso: false,
+      mensagem: 'Requisitante inativo. Reative a pessoa ou escolha outro funcionário.',
+      codigo: 'REQUISITANTE_INATIVO',
+    }
+  }
+
+  const papeis = Array.isArray(pessoa.papeis) ? pessoa.papeis : []
+  if (!papeis.includes('funcionario')) {
+    return {
+      sucesso: false,
+      mensagem:
+        'Requisitante deve ter o papel Funcionário em Cadastros → Pessoas.',
+      codigo: 'REQUISITANTE_NAO_FUNCIONARIO',
     }
   }
 
@@ -82,11 +111,15 @@ export async function criarRequisicao(
   const skuIds = params.itens.map((i) => i.sku_id).filter(Boolean)
   const { data: skus } = await client
     .from('cad_skus')
-    .select('id, codigo, nome, controla_estoque, ativo')
+    .select('id, codigo, nome, controla_estoque, ativo, preco_custo')
     .eq('empresa_id', params.empresa_id)
     .in('id', skuIds)
 
   const skuMap = new Set((skus || []).map((s: { id: string; controla_estoque: boolean; ativo: boolean }) => s.id))
+  const precosPorSku = new Map<string, number>()
+  for (const s of skus || []) {
+    precosPorSku.set(s.id, Number(s.preco_custo || 0))
+  }
   for (const item of params.itens) {
     if (!item.sku_id || !skuMap.has(item.sku_id)) {
       return {
@@ -112,16 +145,55 @@ export async function criarRequisicao(
     .maybeSingle()
 
   const agora = new Date().toISOString()
-  const numero = await gerarNumeroRequisicao(params.empresa_id, client)
+  const codigoOrigem = params.codigo_origem?.trim() || null
+  const sistemaOrigem = params.sistema_origem?.trim() || (codigoOrigem ? 'planilha' : null)
+  const requisitanteNomeOrigem = params.requisitante_nome_origem?.trim() || null
 
-  // Status inicial: se enviar_imediatamente for true:
-  // Se aprovação via workflow estiver ligada ou requerer aprovação, status vira 'enviada'.
-  // Senão, fica 'rascunho' ou 'enviada'.
-  let statusInicial: 'rascunho' | 'enviada' = params.enviar_imediatamente ? 'enviada' : 'rascunho'
+  if (codigoOrigem && sistemaOrigem) {
+    const { data: jaExiste } = await client
+      .from('est_requisicoes')
+      .select('id, numero')
+      .eq('empresa_id', params.empresa_id)
+      .eq('sistema_origem', sistemaOrigem)
+      .eq('codigo_origem', codigoOrigem)
+      .maybeSingle()
+
+    if (jaExiste) {
+      return {
+        sucesso: false,
+        mensagem: `Requisição de origem ${sistemaOrigem}/${codigoOrigem} já existe no Hugin (${jaExiste.numero}).`,
+        codigo: 'REQUISICAO_ORIGEM_DUPLICADA',
+        requisicaoId: jaExiste.id as string,
+        numero: jaExiste.numero as string,
+      }
+    }
+  }
+
+  // Com código de origem: usa como número Hugin (rastreável). Sem: gera REQ-YYYYMMDD-####.
+  const numero = codigoOrigem
+    ? codigoOrigem
+    : await gerarNumeroRequisicao(params.empresa_id, client)
+  const valorEstimado = calcularValorEstimadoRequisicao(params.itens, precosPorSku)
+
+  // Status: rascunho OU (enviar) pendente_aprovacao / aprovada conforme parâmetros
+  let statusInicial: 'rascunho' | 'pendente_aprovacao' | 'aprovada' = 'rascunho'
+  let autoPorValorMinimo = false
+  let aprovacaoDesligada = false
   let workflowCardId: string | null = null
 
-  // Se aprovação via workflow está ativa e foi enviada
-  if (statusInicial === 'enviada' && config?.aprovacao_via_workflow) {
+  if (params.enviar_imediatamente) {
+    statusInicial = statusAoEnviarRequisicao(config, valorEstimado)
+    aprovacaoDesligada = !config?.req_aprovacao_ativa
+    const minimo = Number(config?.req_aprovacao_valor_minimo ?? 0)
+    autoPorValorMinimo =
+      Boolean(config?.req_aprovacao_ativa) &&
+      minimo > 0 &&
+      valorEstimado < minimo &&
+      statusInicial === 'aprovada'
+  }
+
+  // Se aprovação via workflow está ativa e foi para pendente de aprovação
+  if (statusInicial === 'pendente_aprovacao' && config?.aprovacao_via_workflow) {
     if (!config.aprovacao_funil_id) {
       return {
         sucesso: false,
@@ -153,7 +225,6 @@ export async function criarRequisicao(
       }
     }
 
-    // Cria card no funil de workflow
     const { data: novoCard, error: errCard } = await client
       .from('crm_cards')
       .insert({
@@ -162,7 +233,7 @@ export async function criarRequisicao(
         stage_id: stageId,
         titulo: `Aprovação Requisição ${numero} - ${pessoa.nome}`,
         lead_id: params.requisitante_pessoa_id,
-        valor: 0,
+        valor: valorEstimado,
         finalizado: false,
         created_at: agora,
         updated_at: agora,
@@ -186,8 +257,12 @@ export async function criarRequisicao(
       departamento_id: params.departamento_id || null,
       status: statusInicial,
       origem: params.origem || 'manual',
+      codigo_origem: codigoOrigem,
+      sistema_origem: sistemaOrigem,
+      requisitante_nome_origem: requisitanteNomeOrigem,
       workflow_card_id: workflowCardId,
       observacao: params.observacao?.trim() || null,
+      valor_estimado: valorEstimado,
       created_at: agora,
       updated_at: agora,
     })
@@ -233,7 +308,11 @@ export async function criarRequisicao(
     requisicaoId,
     numero,
     status: statusInicial,
-    mensagem: `Requisição ${numero} criada com sucesso.`,
+    valorEstimado,
+    mensagem: mensagemStatusEnvio(statusInicial, numero, {
+      autoPorValorMinimo,
+      aprovacaoDesligada,
+    }),
   }
 }
 
@@ -243,10 +322,21 @@ export async function atenderRequisicao(
     requisicao_id: string
     usuario_id?: string | null
     local_baixa_id?: string | null
+    /** Quantidades escolhidas pelo operador neste ciclo (atendimento parcial controlado). */
+    itens?: Array<{ item_id: string; quantidade: number }>
+    /** Sobrescreve `est_config.req_saldo_insuficiente_modo` (ex.: auto-planilha força parcial). */
+    modo_saldo?: string | null
   },
   client: SupabaseClient
 ) {
   const { empresa_id, requisicao_id, usuario_id, local_baixa_id } = params
+  const overrides = params.itens?.length
+    ? new Map(
+        params.itens
+          .filter((i) => i.item_id && Number(i.quantidade) > 0)
+          .map((i) => [i.item_id, Number(i.quantidade)])
+      )
+    : null
 
   // 1. Carrega requisição
   const { data: req, error: errReq } = await client
@@ -260,7 +350,7 @@ export async function atenderRequisicao(
     return { sucesso: false, mensagem: 'Requisição não encontrada.' }
   }
 
-  if (req.status !== 'aprovada' && req.status !== 'parcialmente_atendida') {
+  if (req.status !== 'aprovada' && req.status !== 'atendida_parcial') {
     return {
       sucesso: false,
       mensagem: `A requisição está com status "${req.status}" e não pode ser atendida no momento (deve estar Aprovada ou Parcialmente Atendida).`,
@@ -274,7 +364,10 @@ export async function atenderRequisicao(
     .eq('empresa_id', empresa_id)
     .maybeSingle()
 
-  const modoSaldo = config?.req_saldo_insuficiente_modo || 'atende_parcial_pendente'
+  const modoSaldo =
+    params.modo_saldo ||
+    config?.req_saldo_insuficiente_modo ||
+    'atende_parcial_pendente'
 
   // Local default se não informado
   let localResolvedId = local_baixa_id || config?.padrao_local_id || null
@@ -296,11 +389,17 @@ export async function atenderRequisicao(
   }
 
   // 3. Carrega itens pendentes da requisição
-  const { data: itens, error: errItens } = await client
+  let itensQuery = client
     .from('est_requisicao_itens')
     .select('*, cad_skus (id, codigo, nome)')
     .eq('requisicao_id', requisicao_id)
     .gt('quantidade_pendente', 0)
+
+  if (overrides) {
+    itensQuery = itensQuery.in('id', [...overrides.keys()])
+  }
+
+  const { data: itens, error: errItens } = await itensQuery
 
   if (errItens || !itens || itens.length === 0) {
     return {
@@ -315,6 +414,7 @@ export async function atenderRequisicao(
     .from('est_saldos')
     .select('sku_id, local_id, quantidade')
     .eq('empresa_id', empresa_id)
+    .eq('local_id', localResolvedId)
     .in('sku_id', skuIds)
 
   const saldoMap: Record<string, number> = {}
@@ -322,9 +422,8 @@ export async function atenderRequisicao(
     saldoMap[`${s.sku_id}_${s.local_id}`] = Number(s.quantidade)
   })
 
-  // Checagem prévia no modo 'nao_atende_requisicao':
-  // Se QUALQUER item tiver saldo < pendente, bloqueia a requisição inteira!
-  if (modoSaldo === 'nao_atende_requisicao') {
+  // Checagem prévia no modo 'nao_atende_requisicao' (só no modo automático sem overrides parciais intencionais)
+  if (modoSaldo === 'nao_atende_requisicao' && !overrides) {
     for (const item of itens) {
       const locId = item.local_id || localResolvedId
       const saldoDisponivel = saldoMap[`${item.sku_id}_${locId}`] || 0
@@ -353,27 +452,40 @@ export async function atenderRequisicao(
 
     let qtdParaBaixar = 0
 
-    if (saldoDisponivel >= pendente) {
-      qtdParaBaixar = pendente
-    } else {
-      // Saldo < pendente
-      if (modoSaldo === 'pula_item') {
-        // Pula o item sem baixar nada
-        await client
-          .from('est_requisicao_itens')
-          .update({ status_item: 'pulado', updated_at: agora })
-          .eq('id', item.id)
-        itensPulados++
-        continue
-      } else if (modoSaldo === 'atende_parcial_pendente') {
-        // Baixa o que tiver disponível
-        qtdParaBaixar = saldoDisponivel
+    if (overrides) {
+      const pedidaOp = overrides.get(item.id) || 0
+      qtdParaBaixar = Math.min(pedidaOp, pendente, Math.max(0, saldoDisponivel))
+      if (pedidaOp > pendente) {
+        return {
+          sucesso: false,
+          mensagem: `SKU ${skuInfo?.codigo || ''}: quantidade pedida (${pedidaOp}) maior que o pendente (${pendente}).`,
+        }
       }
+      if (pedidaOp > saldoDisponivel) {
+        if (modoSaldo === 'nao_atende_requisicao') {
+          return {
+            sucesso: false,
+            codigo: 'SALDO_INSUFICIENTE_BLOQUEIO',
+            mensagem: `SKU ${skuInfo?.codigo || ''}: saldo no local (${saldoDisponivel}) insuficiente para ${pedidaOp}.`,
+          }
+        }
+        // parcial / pula: baixa só o disponível (já capped acima)
+      }
+    } else if (saldoDisponivel >= pendente) {
+      qtdParaBaixar = pendente
+    } else if (modoSaldo === 'pula_item') {
+      await client
+        .from('est_requisicao_itens')
+        .update({ status_item: 'pulado', updated_at: agora })
+        .eq('id', item.id)
+      itensPulados++
+      continue
+    } else if (modoSaldo === 'atende_parcial_pendente') {
+      qtdParaBaixar = saldoDisponivel
     }
 
     if (qtdParaBaixar <= 0) {
-      // Sem saldo disponível para este item
-      if (modoSaldo === 'pula_item') {
+      if (!overrides && modoSaldo === 'pula_item') {
         itensPulados++
         await client
           .from('est_requisicao_itens')
@@ -383,7 +495,6 @@ export async function atenderRequisicao(
       continue
     }
 
-    // Registra movimento atômico de saída
     const { data: rpcRes, error: rpcErr } = await client.rpc(
       'est_registrar_movimento_atomico',
       {
@@ -410,10 +521,8 @@ export async function atenderRequisicao(
       }
     }
 
-    // Atualiza saldoMap em memória para os próximos itens
     saldoMap[`${item.sku_id}_${locId}`] = saldoDisponivel - qtdParaBaixar
 
-    // Atualiza o item da requisição
     const novaAtendida = Number(item.quantidade_atendida) + qtdParaBaixar
     const novaPendente = Number(item.quantidade_pedida) - novaAtendida
     const novoStatusItem = novaPendente <= 0 ? 'atendido' : 'parcial'
@@ -432,6 +541,14 @@ export async function atenderRequisicao(
     itensBaixados++
   }
 
+  if (itensBaixados === 0) {
+    return {
+      sucesso: false,
+      mensagem:
+        'Nenhum item foi baixado. Verifique o saldo no local selecionado e as quantidades informadas.',
+    }
+  }
+
   // 6. Recalcula o status geral da requisição
   const { data: itensAtualizados } = await client
     .from('est_requisicao_itens')
@@ -447,9 +564,9 @@ export async function atenderRequisicao(
 
   let novoStatusReq = req.status
   if (!temPendencia && temAlgumaBaixa) {
-    novoStatusReq = 'atendida'
+    novoStatusReq = 'atendida_total'
   } else if (temAlgumaBaixa) {
-    novoStatusReq = 'parcialmente_atendida'
+    novoStatusReq = 'atendida_parcial'
   }
 
   await client
@@ -463,8 +580,8 @@ export async function atenderRequisicao(
     itensBaixados,
     itensPulados,
     mensagem:
-      novoStatusReq === 'atendida'
+      novoStatusReq === 'atendida_total'
         ? `Requisição ${req.numero} atendida totalmente com sucesso!`
-        : `Atendimento registrado. A requisição ficou com status "${novoStatusReq}" (${itensBaixados} itens baixados).`,
+        : `Atendimento parcial registrado. Status "${novoStatusReq}" (${itensBaixados} item(ns) baixado(s) neste ciclo).`,
   }
 }

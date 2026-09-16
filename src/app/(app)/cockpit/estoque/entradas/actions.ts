@@ -194,16 +194,19 @@ export async function parseNfeXmlAction(xmlContent: string) {
 
   // 2. Checa duplicidade da chave da NF-e no sistema (§6.4)
   let nfeDuplicada = false
+  let loteDuplicado: { id: string; numero: string | null; status: string } | null = null
   if (parsed.chaveNfe) {
     const { data: chaveExistente } = await supabase
       .from('est_entrada_lotes')
       .select('id, numero, status')
       .eq('empresa_id', me.empresa_id)
       .eq('nfe_chave', parsed.chaveNfe)
+      .in('status', ['concluido', 'parcial', 'processando'])
       .maybeSingle()
 
     if (chaveExistente) {
       nfeDuplicada = true
+      loteDuplicado = chaveExistente
     }
   }
 
@@ -211,6 +214,7 @@ export async function parseNfeXmlAction(xmlContent: string) {
     parsed,
     fornecedorEncontrado,
     nfeDuplicada,
+    loteDuplicado,
   }
 }
 
@@ -221,6 +225,9 @@ export async function criarEntradaNfeXmlAction(data: {
   documento?: string
   observacao?: string
   justificativaGeral?: string
+  nfe_xml_nome?: string
+  /** sku_id resolvido na UI (após de-para / cadastro rápido) */
+  skuOverrides?: Record<number, string>
 }) {
   const me = await getMyProfile()
   const isSuperAdmin = me?.role_global === 'superadmin'
@@ -235,7 +242,7 @@ export async function criarEntradaNfeXmlAction(data: {
   }
 
   if (!data.pessoa_id) {
-    return { error: 'Selecione o fornecedor em Cadastros → Pessoas.' }
+    return { error: 'Confirme ou cadastre o fornecedor emitente da NF-e.' }
   }
 
   if (!data.local_id) {
@@ -252,14 +259,12 @@ export async function criarEntradaNfeXmlAction(data: {
 
   const supabase = await createClient()
 
-  // Converte itens do XML para itens de lote
   const itens: ItemEntradaInput[] = parsed.itens.map((it) => ({
     linha: it.linha,
     codigo_parceiro: it.codigo_parceiro,
+    sku_id: data.skuOverrides?.[it.linha] || null,
     unidade_origem: it.unidade_origem,
     quantidade_origem: it.quantidade_origem,
-    valor_unitario: it.valor_unitario,
-    valor_total: it.valor_total,
     justificativa: data.justificativaGeral || 'Entrada importada via XML NF-e',
   }))
 
@@ -270,7 +275,10 @@ export async function criarEntradaNfeXmlAction(data: {
     local_id: data.local_id,
     documento: data.documento || (parsed.numeroNfe ? `NF-e ${parsed.numeroNfe}` : 'NF-e XML'),
     nfe_chave: parsed.chaveNfe,
-    observacao: data.observacao || (parsed.fornecedorNome ? `Emitente: ${parsed.fornecedorNome}` : undefined),
+    nfe_xml_nome: data.nfe_xml_nome || null,
+    observacao:
+      data.observacao ||
+      (parsed.fornecedorNome ? `Emitente: ${parsed.fornecedorNome}` : undefined),
     usuario_id: me.id,
     movimento_em: parsed.emissaoEm,
     itens,

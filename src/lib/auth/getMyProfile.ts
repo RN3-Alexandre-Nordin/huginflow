@@ -11,7 +11,7 @@ export const getMyProfile = cache(async () => {
 
   const { data: me } = await supabase
     .from('usuarios')
-    .select('*, grupos_acesso(is_admin, permissoes)')
+    .select('*, grupos_acesso(is_admin, permissoes, cockpit_template)')
     .eq('auth_user_id', authUser.id)
     .single()
 

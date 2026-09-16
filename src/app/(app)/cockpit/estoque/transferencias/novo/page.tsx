@@ -16,6 +16,7 @@ export default async function NovaTransferenciaPage() {
     .select('id, codigo, nome, eh_principal')
     .eq('empresa_id', me?.empresa_id || '')
     .eq('ativo', true)
+    .eq('eh_terceiros', false)
     .order('eh_principal', { ascending: false })
     .order('codigo')
 

@@ -42,6 +42,13 @@ export async function createLocal(formData: FormData) {
   if (!codigo) return { error: 'Informe o código do local.' }
   if (!nome) return { error: 'Informe o nome do local.' }
 
+  if (codigo === 'TERCEIROS') {
+    return {
+      error:
+        'O código TERCEIROS é reservado ao sistema (estoque em poder de terceiros). Ele é criado automaticamente com a empresa.',
+    }
+  }
+
   // Regra BRANCO (§5.2): Se o código for BRANCO, é forçado como principal
   if (codigo === 'BRANCO') {
     ehPrincipal = true
@@ -156,7 +163,7 @@ export async function deleteLocal(id: string) {
   // 1. Verificar se é local principal
   let queryLocal = supabase
     .from('cad_locais_estoque')
-    .select('id, codigo, eh_principal')
+    .select('id, codigo, eh_principal, eh_terceiros')
     .eq('id', id)
   if (me?.role_global !== 'superadmin') {
     queryLocal = queryLocal.eq('empresa_id', empresaId)
@@ -165,6 +172,17 @@ export async function deleteLocal(id: string) {
 
   if (!localData) {
     return { error: 'Local não encontrado.' }
+  }
+
+  if (
+    localData.codigo === 'BRANCO' ||
+    localData.codigo === 'TERCEIROS' ||
+    localData.eh_terceiros
+  ) {
+    return {
+      error:
+        'Locais de sistema (BRANCO / TERCEIROS) não podem ser excluídos. Eles são criados automaticamente com a empresa.',
+    }
   }
 
   // 2. Verificar se possui saldo em estoque
@@ -216,30 +234,11 @@ export async function criarLocalBrancoRapido() {
   if (!empresaId) return { error: 'Empresa não identificada.' }
 
   const supabase = await createClient()
-
-  // Desmarca qualquer outro principal caso exista
-  await supabase
-    .from('cad_locais_estoque')
-    .update({ eh_principal: false, updated_at: new Date().toISOString() })
-    .eq('empresa_id', empresaId)
-    .eq('eh_principal', true)
-
-  const { error } = await supabase.from('cad_locais_estoque').insert([
-    {
-      empresa_id: empresaId,
-      codigo: 'BRANCO',
-      nome: 'Estoque Principal',
-      tipo: 'principal',
-      eh_principal: true,
-      ativo: true,
-      updated_at: new Date().toISOString(),
-    },
-  ])
+  const { error } = await supabase.rpc('est_garantir_locais_padrao', {
+    p_empresa_id: empresaId,
+  })
 
   if (error) {
-    if (error.code === '23505') {
-      return { error: 'O local BRANCO já está cadastrado nesta empresa.' }
-    }
     return { error: error.message }
   }
 

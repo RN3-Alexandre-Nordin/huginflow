@@ -1,0 +1,180 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  NF-e de TESTE — Hugin Flow / Monte Sinai Atacado (DEV)
+  Objetivo: validar (1) complementar fornecedor existente SEM CNPJ
+            e (2) criar SKU novo + de-para a partir da linha.
+
+  Fornecedor já cadastrado (sem documento):
+    id:   b0aa10c5-0c18-49b2-82d7-8578964960ee
+    nome: Distribuidora Gama Atacado Ltda
+    → na UI: "Já existe sem CNPJ? Complementar cadastro"
+
+  Emitente no XML (CNPJ ainda não está no cadastro):
+    CNPJ 11.222.333/0001-81 — Dist. Gama Atacado Ltda
+
+  Item (NÃO existe em cad_skus):
+    cProd GM-JACK1L → criar SKU novo (ex.: Whisky Jack Daniel's 1L) + de-para
+
+  Upload: Cockpit → Estoque → Entradas → Importar XML
+-->
+<nfeProc versao="4.00" xmlns="http://www.portalfiscal.inf.br/nfe">
+  <NFe xmlns="http://www.portalfiscal.inf.br/nfe">
+    <infNFe Id="NFe35260911222333000181550010000004561111222334" versao="4.00">
+      <ide>
+        <cUF>35</cUF>
+        <cNF>11112223</cNF>
+        <natOp>Venda de mercadoria</natOp>
+        <mod>55</mod>
+        <serie>1</serie>
+        <nNF>456</nNF>
+        <dhEmi>2026-09-16T14:15:00-03:00</dhEmi>
+        <tpNF>1</tpNF>
+        <idDest>1</idDest>
+        <cMunFG>3509502</cMunFG>
+        <tpImp>1</tpImp>
+        <tpEmis>1</tpEmis>
+        <cDV>4</cDV>
+        <tpAmb>2</tpAmb>
+        <finNFe>1</finNFe>
+        <indFinal>0</indFinal>
+        <indPres>1</indPres>
+        <procEmi>0</procEmi>
+        <verProc>HuginFlow-TESTE-1.0</verProc>
+      </ide>
+      <emit>
+        <CNPJ>11222333000181</CNPJ>
+        <xNome>Distribuidora Gama Atacado Ltda</xNome>
+        <xFant>Gama Atacado</xFant>
+        <enderEmit>
+          <xLgr>Avenida Norte-Sul</xLgr>
+          <nro>2500</nro>
+          <xCpl>Bloco B</xCpl>
+          <xBairro>Jardim Novo</xBairro>
+          <cMun>3509502</cMun>
+          <xMun>Campinas</xMun>
+          <UF>SP</UF>
+          <CEP>13010000</CEP>
+          <cPais>1058</cPais>
+          <xPais>Brasil</xPais>
+          <fone>1932221100</fone>
+        </enderEmit>
+        <IE>987654321098</IE>
+        <CRT>3</CRT>
+      </emit>
+      <dest>
+        <CNPJ>82838204000160</CNPJ>
+        <xNome>Monte Sinai Atacado</xNome>
+        <enderDest>
+          <xLgr>Avenida das Nacoes Unidas</xLgr>
+          <nro>14221</nro>
+          <xCpl>Edificio Tower A 12 Andar</xCpl>
+          <xBairro>Vila Gertrudes</xBairro>
+          <cMun>3550308</cMun>
+          <xMun>Sao Paulo</xMun>
+          <UF>SP</UF>
+          <CEP>04794000</CEP>
+          <cPais>1058</cPais>
+          <xPais>Brasil</xPais>
+        </enderDest>
+        <indIEDest>1</indIEDest>
+        <IE>112223334445</IE>
+      </dest>
+
+      <!-- Item único: SKU ainda NÃO cadastrado → criar + de-para -->
+      <det nItem="1">
+        <prod>
+          <cProd>GM-JACK1L</cProd>
+          <cEAN>SEM GTIN</cEAN>
+          <xProd>Whisky Jack Daniel's Old No.7 1L</xProd>
+          <NCM>22083020</NCM>
+          <CFOP>5102</CFOP>
+          <uCom>UN</uCom>
+          <qCom>12.0000</qCom>
+          <vUnCom>149.9000000000</vUnCom>
+          <vProd>1798.80</vProd>
+          <cEANTrib>SEM GTIN</cEANTrib>
+          <uTrib>UN</uTrib>
+          <qTrib>12.0000</qTrib>
+          <vUnTrib>149.9000000000</vUnTrib>
+          <indTot>1</indTot>
+        </prod>
+        <imposto>
+          <ICMS>
+            <ICMS00>
+              <orig>0</orig>
+              <CST>00</CST>
+              <modBC>3</modBC>
+              <vBC>1798.80</vBC>
+              <pICMS>18.00</pICMS>
+              <vICMS>323.78</vICMS>
+            </ICMS00>
+          </ICMS>
+          <PIS>
+            <PISAliq>
+              <CST>01</CST>
+              <vBC>1798.80</vBC>
+              <pPIS>1.65</pPIS>
+              <vPIS>29.68</vPIS>
+            </PISAliq>
+          </PIS>
+          <COFINS>
+            <COFINSAliq>
+              <CST>01</CST>
+              <vBC>1798.80</vBC>
+              <pCOFINS>7.60</pCOFINS>
+              <vCOFINS>136.71</vCOFINS>
+            </COFINSAliq>
+          </COFINS>
+        </imposto>
+      </det>
+
+      <total>
+        <ICMSTot>
+          <vBC>1798.80</vBC>
+          <vICMS>323.78</vICMS>
+          <vICMSDeson>0.00</vICMSDeson>
+          <vFCP>0.00</vFCP>
+          <vBCST>0.00</vBCST>
+          <vST>0.00</vST>
+          <vFCPST>0.00</vFCPST>
+          <vFCPSTRet>0.00</vFCPSTRet>
+          <vProd>1798.80</vProd>
+          <vFrete>0.00</vFrete>
+          <vSeg>0.00</vSeg>
+          <vDesc>0.00</vDesc>
+          <vII>0.00</vII>
+          <vIPI>0.00</vIPI>
+          <vIPIDevol>0.00</vIPIDevol>
+          <vPIS>29.68</vPIS>
+          <vCOFINS>136.71</vCOFINS>
+          <vOutro>0.00</vOutro>
+          <vNF>1798.80</vNF>
+        </ICMSTot>
+      </total>
+      <transp>
+        <modFrete>9</modFrete>
+      </transp>
+      <pag>
+        <detPag>
+          <tPag>01</tPag>
+          <vPag>1798.80</vPag>
+        </detPag>
+      </pag>
+      <infAdic>
+        <infCpl>NF-e sintetica de teste Hugin Flow. Complementar fornecedor + criar SKU novo.</infCpl>
+      </infAdic>
+    </infNFe>
+  </NFe>
+  <protNFe versao="4.00">
+    <infProt>
+      <tpAmb>2</tpAmb>
+      <verAplic>SP_NFE_PL_008i2</verAplic>
+      <chNFe>35260911222333000181550010000004561111222334</chNFe>
+      <dhRecbto>2026-09-16T14:16:00-03:00</dhRecbto>
+      <nProt>135260000045678</nProt>
+      <digVal>abcdefghijklmnopqrstuvwxyz012=</digVal>
+      <cStat>100</cStat>
+      <xMotivo>Autorizado o uso da NF-e</xMotivo>
+    </infProt>
+  </protNFe>
+</nfeProc>

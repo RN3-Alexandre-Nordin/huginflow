@@ -12,6 +12,7 @@ import {
   AlertTriangle,
   FileText,
   ArrowDownLeft,
+  BookOpen,
 } from 'lucide-react'
 import BackTextButton from '@/components/BackTextButton'
 import EstoqueAreaNav from '@/components/estoque/EstoqueAreaNav'
@@ -152,6 +153,13 @@ export default async function EstoqueRemessaDetalhesPage({ params }: PageProps) 
 
         <div className="flex items-center gap-2 flex-wrap justify-end">
           <StatusBadge status={remessa.status} />
+          <Link
+            href={`/cockpit/estoque/cardex?lote_remessa_id=${remessa.id}`}
+            className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/25 rounded-xl transition-all"
+          >
+            <BookOpen className="h-3.5 w-3.5" />
+            Cardex do lote
+          </Link>
           {podeRetornar && (
             <Link
               href={`/cockpit/estoque/remessas/${id}/retorno`}
@@ -310,9 +318,9 @@ export default async function EstoqueRemessaDetalhesPage({ params }: PageProps) 
                       )}
                     </td>
                     <td className="py-3.5 px-4 text-right">
-                      {it.movimento_saida_id ? (
+                      {it.movimento_saida_id || remessa.id ? (
                         <Link
-                          href={`/cockpit/estoque/cardex?movimento_id=${it.movimento_saida_id}`}
+                          href={`/cockpit/estoque/cardex?lote_remessa_id=${remessa.id}`}
                           className="inline-flex items-center gap-1 text-[11px] text-amber-400 hover:underline font-mono"
                         >
                           Ver no Cardex

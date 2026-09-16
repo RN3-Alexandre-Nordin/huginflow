@@ -16,11 +16,13 @@ const inputCls =
   'w-full bg-[#0A0A0A] border border-[#ffffff12] focus:border-[#2BAADF] rounded-xl px-4 py-2.5 text-sm text-white outline-none transition-all placeholder-gray-600 focus:ring-1 focus:ring-[#2BAADF]/30'
 
 type PessoaOpt = { id: string; nome: string | null; papeis?: string[] | null }
+type FamiliaOpt = { id: string; codigo: string; nome: string }
 
 type Props = {
   mode: 'create' | 'edit'
   sku?: SkuRecord | null
   pessoas: PessoaOpt[]
+  familias?: FamiliaOpt[]
   /** UMs já usadas na empresa (sugestões internas). */
   knownUnits?: string[]
   action: (formData: FormData) => Promise<{ error?: string } | void>
@@ -71,6 +73,7 @@ export default function SkuForm({
   mode,
   sku,
   pessoas,
+  familias = [],
   knownUnits = [],
   action,
   cancelHref,
@@ -207,6 +210,32 @@ export default function SkuForm({
                     placeholder="Ex.: PROD-001"
                   />
                 </Field>
+                <Field label="Família">
+                  <select
+                    name="familia_id"
+                    defaultValue={v('familia_id')}
+                    className={`${inputCls} appearance-none`}
+                  >
+                    <option value="">— Sem família —</option>
+                    {familias.map((f) => (
+                      <option key={f.id} value={f.id}>
+                        {f.codigo} · {f.nome}
+                      </option>
+                    ))}
+                  </select>
+                  {familias.length === 0 && (
+                    <p className="text-[10px] text-gray-500 mt-1">
+                      Cadastre em{' '}
+                      <Link
+                        href="/cockpit/cadastros/sku-familias"
+                        className="text-[#2BAADF] hover:underline"
+                      >
+                        Famílias de SKU
+                      </Link>
+                      .
+                    </p>
+                  )}
+                </Field>
                 <Field label="Código de barras">
                   <input name="codigo_barras" defaultValue={v('codigo_barras')} className={inputCls} />
                 </Field>
@@ -279,10 +308,32 @@ export default function SkuForm({
             <div className={section === 'comercial' ? 'space-y-5' : 'hidden'} role="tabpanel">
               <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                 <Field label="Preço de venda">
-                  <input name="preco_venda" defaultValue={v('preco_venda')} className={inputCls} />
+                  <div className="relative">
+                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-gray-500">
+                      R$
+                    </span>
+                    <input
+                      name="preco_venda"
+                      inputMode="decimal"
+                      defaultValue={v('preco_venda')}
+                      className={`${inputCls} pl-10`}
+                      placeholder="0,00"
+                    />
+                  </div>
                 </Field>
                 <Field label="Preço de custo">
-                  <input name="preco_custo" defaultValue={v('preco_custo')} className={inputCls} />
+                  <div className="relative">
+                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-gray-500">
+                      R$
+                    </span>
+                    <input
+                      name="preco_custo"
+                      inputMode="decimal"
+                      defaultValue={v('preco_custo')}
+                      className={`${inputCls} pl-10`}
+                      placeholder="0,00"
+                    />
+                  </div>
                 </Field>
                 <Field label="Moeda">
                   <input name="moeda" defaultValue={v('moeda', 'BRL')} className={inputCls} />

@@ -7,9 +7,6 @@ import {
   ArrowUpRight,
   RefreshCw,
   SlidersHorizontal,
-  Building2,
-  Calendar,
-  Layers,
   ArrowRight,
   Boxes,
   Truck,
@@ -33,6 +30,7 @@ interface PageProps {
     local_id?: string
     pessoa_id?: string
     movimento_id?: string
+    lote_remessa_id?: string
     page?: string
   }>
 }
@@ -63,7 +61,7 @@ export default async function EstoqueCardexPage({ searchParams }: PageProps) {
     )
   }
 
-  const { q, tipo, sku_id, local_id, pessoa_id, movimento_id, page: pageParam } =
+  const { q, tipo, sku_id, local_id, pessoa_id, movimento_id, lote_remessa_id, page: pageParam } =
     await searchParams
   const { page, from, to, pageSize } = estoqueRange(parseEstoquePage(pageParam))
   const empresaId = me?.empresa_id ?? ''
@@ -106,6 +104,8 @@ export default async function EstoqueCardexPage({ searchParams }: PageProps) {
       motivo_codigo,
       origem,
       ajuste_sinal,
+      sku_poder_id,
+      quantidade_poder,
       lote_entrada_id,
       lote_retirada_id,
       lote_ajuste_id,
@@ -115,6 +115,7 @@ export default async function EstoqueCardexPage({ searchParams }: PageProps) {
       movimento_em,
       created_at,
       cad_skus!est_movimentos_sku_id_fkey (id, codigo, nome, unidade_estoque),
+      sku_poder:cad_skus!est_movimentos_sku_poder_id_fkey (id, codigo, nome, unidade_estoque),
       local:cad_locais_estoque!est_movimentos_local_id_fkey (id, codigo, nome),
       local_destino:cad_locais_estoque!est_movimentos_local_destino_id_fkey (id, codigo, nome),
       crm_leads!est_movimentos_pessoa_id_fkey (id, nome),
@@ -131,6 +132,10 @@ export default async function EstoqueCardexPage({ searchParams }: PageProps) {
 
   if (movimento_id) {
     movQuery = movQuery.eq('id', movimento_id)
+  }
+
+  if (lote_remessa_id) {
+    movQuery = movQuery.eq('lote_remessa_id', lote_remessa_id)
   }
 
   if (tipo && tipo !== 'todos') {
@@ -201,7 +206,8 @@ export default async function EstoqueCardexPage({ searchParams }: PageProps) {
             Cardex — Livro Razão de Estoque
           </h1>
           <p className="text-xs text-gray-400 mt-0.5">
-            Registro cronológico e imutável de todas as movimentações atômicas de entrada, saída, ajuste e remessa.
+            Remessa grava dois lançamentos: saída do local próprio e entrada em TERCEIROS.
+            Baixa definitiva debita só TERCEIROS (e o analítico por pessoa/lote).
           </p>
         </div>
 
@@ -216,6 +222,21 @@ export default async function EstoqueCardexPage({ searchParams }: PageProps) {
 
       {/* Filtros (somente leitura do Cardex — não altera saldos) */}
       <div className="bg-[#121820] border border-[#ffffff0a] rounded-2xl p-4 space-y-3">
+        {(movimento_id || lote_remessa_id) && (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100">
+            <span>
+              {lote_remessa_id
+                ? 'Filtro ativo: todos os lançamentos deste lote de remessa (saída, TERCEIROS, retorno/baixa).'
+                : 'Filtro ativo: um único movimento do Cardex.'}
+            </span>
+            <Link
+              href="/cockpit/estoque/cardex"
+              className="font-semibold uppercase tracking-wider text-amber-300 hover:text-white"
+            >
+              Limpar filtro
+            </Link>
+          </div>
+        )}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
           <DebouncedSearchBox
             initialQuery={q || ''}
@@ -225,7 +246,7 @@ export default async function EstoqueCardexPage({ searchParams }: PageProps) {
               sku_id,
               local_id,
               pessoa_id,
-              movimento_id,
+              lote_remessa_id,
             }}
             className="relative w-full max-w-none md:col-span-2 lg:col-span-1"
             inputClassName="w-full bg-[#0d1218] border border-[#ffffff10] rounded-xl pl-10 pr-3 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-amber-500/50"
@@ -235,14 +256,16 @@ export default async function EstoqueCardexPage({ searchParams }: PageProps) {
             name="tipo"
             value={tipo && tipo !== 'todos' ? tipo : ''}
             emptyLabel="Todos os Tipos"
-            preserveParams={{ q, sku_id, local_id, pessoa_id, movimento_id }}
+            preserveParams={{ q, sku_id, local_id, pessoa_id, lote_remessa_id }}
             options={[
               { value: 'entrada', label: 'Entradas' },
               { value: 'saida', label: 'Saídas / Consumo' },
               { value: 'ajuste', label: 'Ajustes (+/-)' },
-              { value: 'remessa_saida', label: 'Remessa para Terceiros' },
-              { value: 'remessa_retorno', label: 'Retorno de Terceiros' },
-              { value: 'remessa_baixa', label: 'Baixa em Poder de Terceiros' },
+              { value: 'remessa_saida', label: 'Remessa — saída próprio' },
+              { value: 'remessa_entrada_terceiros', label: 'Remessa — entrada TERCEIROS' },
+              { value: 'remessa_saida_terceiros', label: 'Remessa — saída TERCEIROS' },
+              { value: 'remessa_retorno', label: 'Retorno — entrada próprio' },
+              { value: 'remessa_baixa', label: 'Baixa definitiva (TERCEIROS)' },
               { value: 'transferencia', label: 'Transferências' },
             ]}
             className="w-full bg-[#0d1218] border border-[#ffffff10] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500/50"
@@ -257,7 +280,7 @@ export default async function EstoqueCardexPage({ searchParams }: PageProps) {
               tipo: tipo && tipo !== 'todos' ? tipo : undefined,
               local_id,
               pessoa_id,
-              movimento_id,
+              lote_remessa_id,
             }}
             options={(skusFilter || []).map((s) => ({
               value: s.id,
@@ -275,7 +298,7 @@ export default async function EstoqueCardexPage({ searchParams }: PageProps) {
               tipo: tipo && tipo !== 'todos' ? tipo : undefined,
               sku_id,
               local_id,
-              movimento_id,
+              lote_remessa_id,
             }}
             options={(fornecedoresFilter || []).map((f) => ({
               value: f.id,
@@ -293,7 +316,7 @@ export default async function EstoqueCardexPage({ searchParams }: PageProps) {
               tipo: tipo && tipo !== 'todos' ? tipo : undefined,
               sku_id,
               pessoa_id,
-              movimento_id,
+              lote_remessa_id,
             }}
             options={(locaisFilter || []).map((l) => ({
               value: l.id,
@@ -329,7 +352,7 @@ export default async function EstoqueCardexPage({ searchParams }: PageProps) {
                   <th className="py-3 px-4">Tipo</th>
                   <th className="py-3 px-4">SKU / Produto</th>
                   <th className="py-3 px-4">Local</th>
-                  <th className="py-3 px-4 text-right">Qtd Mov.</th>
+                  <th className="py-3 px-4 text-right">Impacto</th>
                   <th className="py-3 px-4">Documento / Motivo</th>
                   <th className="py-3 px-4 text-right">Origem</th>
                 </tr>
@@ -341,10 +364,29 @@ export default async function EstoqueCardexPage({ searchParams }: PageProps) {
                   const localDestino = mov.local_destino as { id?: string; codigo?: string; nome?: string } | null
                   const pessoa = mov.crm_leads as { id?: string; nome?: string } | null
 
+                  const skuPoder = mov.sku_poder as {
+                    id?: string
+                    codigo?: string
+                    nome?: string
+                    unidade_estoque?: string
+                  } | null
+                  const isRemessa =
+                    mov.tipo === 'remessa_baixa' ||
+                    mov.tipo === 'remessa_saida' ||
+                    mov.tipo === 'remessa_entrada_terceiros' ||
+                    mov.tipo === 'remessa_saida_terceiros' ||
+                    mov.tipo === 'remessa_retorno'
                   const isEntrada =
                     mov.tipo === 'entrada' ||
                     mov.tipo === 'remessa_retorno' ||
+                    mov.tipo === 'remessa_entrada_terceiros' ||
                     (mov.tipo === 'ajuste' && mov.ajuste_sinal === 'positivo')
+                  const um = sku?.unidade_estoque || 'UN'
+                  const isTerceirosLocal =
+                    local?.codigo === 'TERCEIROS' ||
+                    mov.tipo === 'remessa_entrada_terceiros' ||
+                    mov.tipo === 'remessa_saida_terceiros' ||
+                    mov.tipo === 'remessa_baixa'
 
                   return (
                     <tr key={mov.id} className="hover:bg-[#ffffff03] transition-colors">
@@ -365,6 +407,13 @@ export default async function EstoqueCardexPage({ searchParams }: PageProps) {
                             <span className="text-[10px] text-gray-400 block truncate max-w-xs">
                               {sku.nome}
                             </span>
+                            {mov.tipo === 'remessa_retorno' &&
+                              skuPoder?.codigo &&
+                              skuPoder.codigo !== sku.codigo && (
+                                <span className="text-[10px] text-amber-400/90 block mt-0.5">
+                                  fecha poder: {skuPoder.codigo}
+                                </span>
+                              )}
                           </div>
                         ) : (
                           '—'
@@ -378,7 +427,16 @@ export default async function EstoqueCardexPage({ searchParams }: PageProps) {
                             {localDestino.codigo}
                           </span>
                         ) : local ? (
-                          local.codigo
+                          <div>
+                            <span className={isTerceirosLocal ? 'text-purple-300' : undefined}>
+                              {local.codigo}
+                            </span>
+                            {pessoa?.nome && isRemessa && (
+                              <span className="block text-[10px] text-purple-400/80 truncate max-w-[9rem]">
+                                {pessoa.nome}
+                              </span>
+                            )}
+                          </div>
                         ) : (
                           '—'
                         )}
@@ -389,8 +447,8 @@ export default async function EstoqueCardexPage({ searchParams }: PageProps) {
                             isEntrada ? 'text-emerald-400' : 'text-red-400'
                           }`}
                         >
-                          {isEntrada ? '+' : '-'}
-                          {mov.quantidade} {sku?.unidade_estoque || 'UN'}
+                          {isEntrada ? '+' : '−'}
+                          {mov.quantidade} {um}
                         </span>
                       </td>
                       <td className="py-3 px-4 max-w-xs">
@@ -402,7 +460,7 @@ export default async function EstoqueCardexPage({ searchParams }: PageProps) {
                             Doc: {mov.documento}
                           </span>
                         )}
-                        {pessoa && (
+                        {pessoa && !isRemessa && (
                           <span className="text-[10px] text-purple-400 block truncate">
                             {pessoa.nome}
                           </span>
@@ -492,6 +550,7 @@ export default async function EstoqueCardexPage({ searchParams }: PageProps) {
               ...(sku_id ? { sku_id } : {}),
               ...(pessoa_id ? { pessoa_id } : {}),
               ...(local_id ? { local_id } : {}),
+              ...(lote_remessa_id ? { lote_remessa_id } : {}),
               ...(movimento_id ? { movimento_id } : {}),
             }).toString()}
           />
@@ -541,17 +600,33 @@ function TipoMovimentoBadge({
   }
   if (tipo === 'remessa_saida') {
     return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-500/10 text-red-400 border border-red-500/20">
+        <Truck className="h-3 w-3" />
+        Saída remessa
+      </span>
+    )
+  }
+  if (tipo === 'remessa_entrada_terceiros') {
+    return (
       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-purple-500/10 text-purple-400 border border-purple-500/20">
         <Truck className="h-3 w-3" />
-        Envio Remessa
+        Entrada TERCEIROS
+      </span>
+    )
+  }
+  if (tipo === 'remessa_saida_terceiros') {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-purple-500/10 text-purple-300 border border-purple-500/20">
+        <Truck className="h-3 w-3" />
+        Saída TERCEIROS
       </span>
     )
   }
   if (tipo === 'remessa_retorno') {
     return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-purple-500/10 text-purple-400 border border-purple-500/20">
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
         <Truck className="h-3 w-3" />
-        Retorno Remessa
+        Retorno remessa
       </span>
     )
   }
@@ -559,7 +634,7 @@ function TipoMovimentoBadge({
     return (
       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">
         <Truck className="h-3 w-3" />
-        Baixa Remessa
+        Baixa TERCEIROS
       </span>
     )
   }

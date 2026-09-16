@@ -27,7 +27,21 @@ export default async function NovoSkuPage() {
     unitsQuery = unitsQuery.eq('empresa_id', me?.empresa_id ?? '')
   }
 
-  const [{ data: pessoas }, { data: skuUnits }] = await Promise.all([pessoasQuery, unitsQuery])
+  let familiasQuery = supabase
+    .from('cad_sku_familias')
+    .select('id, codigo, nome')
+    .eq('ativo', true)
+    .order('ordem')
+    .order('nome')
+  if (me?.role_global !== 'superadmin') {
+    familiasQuery = familiasQuery.eq('empresa_id', me?.empresa_id ?? '')
+  }
+
+  const [{ data: pessoas }, { data: skuUnits }, { data: familias }] = await Promise.all([
+    pessoasQuery,
+    unitsQuery,
+    familiasQuery,
+  ])
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-20 animate-in fade-in duration-500">
@@ -41,6 +55,7 @@ export default async function NovoSkuPage() {
       <SkuForm
         mode="create"
         pessoas={pessoas || []}
+        familias={familias || []}
         knownUnits={collectUnidadesFromSkus(skuUnits || [])}
         cancelHref="/cockpit/cadastros/skus"
         submitLabel="Cadastrar SKU"
