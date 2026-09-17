@@ -224,7 +224,7 @@ export default async function TransferenciasPage({ searchParams }: PageProps) {
                     codigo?: string
                   } | null
                   const usuario = lote.usuarios as { nome_completo?: string } | null
-                  const itens = (lote.est_transferencia_itens || []) as Array<{
+                  const itens = (lote.est_transferencia_itens || []) as unknown as Array<{
                     id: string
                     quantidade: number
                     cad_skus: {

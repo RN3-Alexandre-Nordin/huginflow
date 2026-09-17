@@ -716,14 +716,14 @@ export function ImportXmlForm({
                     <td className="py-2.5 px-3 font-mono text-white">{row.codigo_parceiro}</td>
                     <td className="py-2.5 px-3">
                       <span className="block truncate max-w-xs">
-                        {row.xml?.descricao_parceiro || row.sku_nome || '—'}
+                        {row.xml?.descricao_parceiro || ('sku_nome' in row ? row.sku_nome : null) || '—'}
                       </span>
                       {row.xml?.ncm && (
                         <span className="text-[10px] text-gray-500">NCM {row.xml.ncm}</span>
                       )}
-                      {row.sku_codigo && (
+                      {'sku_codigo' in row && row.sku_codigo && (
                         <span className="text-[10px] text-emerald-400/80 block">
-                          → {row.sku_codigo} {row.sku_nome}
+                          → {row.sku_codigo} {'sku_nome' in row ? row.sku_nome : ''}
                         </span>
                       )}
                     </td>

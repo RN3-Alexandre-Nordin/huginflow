@@ -63,7 +63,7 @@ export async function listarSkusComSaldoNoLocalAction(localId: string) {
 
   const skus = (data || [])
     .map((row) => {
-      const sku = row.cad_skus as {
+      const sku = row.cad_skus as unknown as {
         id: string
         codigo: string
         nome: string

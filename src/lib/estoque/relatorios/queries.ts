@@ -1,7 +1,8 @@
 import type { ReportFiltersInput } from './catalog'
 
+/** Cliente Supabase mínimo — `rpc` retorna builder thenable, não Promise estrita. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-type Sb = { rpc: (fn: string, args?: Record<string, unknown>) => Promise<{ data: any; error: any }> }
+type Sb = { rpc: (fn: string, args?: Record<string, unknown>) => any }
 
 const PAGE_SIZE_DEFAULT = 50
 const PAGE_SIZE_MAX = 200

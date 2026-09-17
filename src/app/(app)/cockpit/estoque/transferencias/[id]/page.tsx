@@ -84,7 +84,7 @@ export default async function TransferenciaLoteDetailPage({ params }: PageProps)
   const origem = lote.local_origem as { codigo?: string; nome?: string } | null
   const destino = lote.local_destino as { codigo?: string; nome?: string } | null
   const usuario = lote.usuarios as { nome_completo?: string } | null
-  const itens = ([...(lote.est_transferencia_itens || [])] as Array<{
+  const itens = ([...(lote.est_transferencia_itens || [])] as unknown as Array<{
     id: string
     linha: number
     quantidade: number

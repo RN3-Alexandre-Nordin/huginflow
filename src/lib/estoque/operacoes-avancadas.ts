@@ -1384,8 +1384,10 @@ export async function processarLoteTransferencia(params: {
     .eq('empresa_id', empresa_id)
     .in('id', [local_origem_id, local_destino_id])
 
-  const locOrigem = locais?.find((l) => l.id === local_origem_id)
-  const locDestino = locais?.find((l) => l.id === local_destino_id)
+  type LocalRow = { id: string; codigo: string; nome: string; ativo: boolean }
+  const locaisRows = (locais || []) as LocalRow[]
+  const locOrigem = locaisRows.find((l) => l.id === local_origem_id)
+  const locDestino = locaisRows.find((l) => l.id === local_destino_id)
 
   if (!locOrigem?.ativo) {
     return {
@@ -1408,7 +1410,15 @@ export async function processarLoteTransferencia(params: {
     .eq('empresa_id', empresa_id)
     .in('id', skuIds)
 
-  const skuMap = new Map((skusRows || []).map((s) => [s.id, s]))
+  type SkuRow = {
+    id: string
+    codigo: string
+    nome: string
+    unidade_estoque: string
+    controla_estoque: boolean
+    ativo: boolean
+  }
+  const skuMap = new Map(((skusRows || []) as SkuRow[]).map((s) => [s.id, s]))
 
   for (const it of itens) {
     const sku = skuMap.get(it.sku_id)
@@ -1503,10 +1513,19 @@ export async function processarLoteTransferencia(params: {
     }
   }
 
+  type ItemGravado = {
+    id: string
+    linha: number
+    sku_id: string
+    quantidade: number
+    observacao: string | null
+  }
+  const itensOk = itensGravados as ItemGravado[]
+
   let okCount = 0
   const erros: string[] = []
 
-  for (const it of itensGravados) {
+  for (const it of itensOk) {
     const sku = skuMap.get(it.sku_id)
     const motivoLinha =
       (it.observacao as string | null)?.trim() ||

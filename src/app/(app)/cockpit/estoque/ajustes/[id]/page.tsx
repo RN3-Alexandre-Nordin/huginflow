@@ -74,7 +74,7 @@ export default async function AjusteLoteDetailPage({ params }: PageProps) {
   if (error || !lote) notFound()
 
   const usuario = lote.usuarios as { nome_completo?: string } | null
-  const itens = ([...(lote.est_ajuste_itens || [])] as Array<{
+  const itens = ([...(lote.est_ajuste_itens || [])] as unknown as Array<{
     id: string
     linha: number
     quantidade: number
