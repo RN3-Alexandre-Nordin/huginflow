@@ -63,7 +63,7 @@ export default async function SkusPage(props: { searchParams: Promise<{ q?: stri
   const { data: skus } = await query
 
   return (
-    <div className="space-y-6 pb-20 font-sans">
+    <div data-testid="skus-page" className="space-y-6 pb-20 font-sans">
       <SkuAreaNav />
       <div className="flex items-center justify-between gap-4">
         <p className="text-sm text-gray-400 font-medium">

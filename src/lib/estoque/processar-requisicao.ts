@@ -1,10 +1,14 @@
-import type { EstCodigoErroEntrada } from './tipos'
 import { parseMovimentoAtomicoResult } from './rpc-movimento'
 import {
   calcularValorEstimadoRequisicao,
   mensagemStatusEnvio,
   statusAoEnviarRequisicao,
 } from './aprovacao-requisicao'
+import {
+  alocarLotesFefo,
+  somarSaldoSkuLocal,
+  type AlocacaoLoteFefo,
+} from './alocar-lotes-fefo'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type SupabaseClient = { from: (table: string) => any; rpc: (fn: string, args: any) => any }
@@ -324,6 +328,8 @@ export async function atenderRequisicao(
     local_baixa_id?: string | null
     /** Quantidades escolhidas pelo operador neste ciclo (atendimento parcial controlado). */
     itens?: Array<{ item_id: string; quantidade: number }>
+    /** Override FEFO: item_id → alocações manuais por lote. */
+    alocacoes_por_item?: Record<string, AlocacaoLoteFefo[]> | null
     /** Sobrescreve `est_config.req_saldo_insuficiente_modo` (ex.: auto-planilha força parcial). */
     modo_saldo?: string | null
   },
@@ -337,6 +343,7 @@ export async function atenderRequisicao(
           .map((i) => [i.item_id, Number(i.quantidade)])
       )
     : null
+  const alocacoesOverride = params.alocacoes_por_item || null
 
   // 1. Carrega requisição
   const { data: req, error: errReq } = await client
@@ -357,10 +364,10 @@ export async function atenderRequisicao(
     }
   }
 
-  // 2. Carrega configuração de modo de saldo
+  // 2. Carrega configuração de modo de saldo + FEFO
   const { data: config } = await client
     .from('est_config')
-    .select('req_saldo_insuficiente_modo, padrao_local_id')
+    .select('req_saldo_insuficiente_modo, padrao_local_id, bloquear_lotes_vencidos')
     .eq('empresa_id', empresa_id)
     .maybeSingle()
 
@@ -368,6 +375,7 @@ export async function atenderRequisicao(
     params.modo_saldo ||
     config?.req_saldo_insuficiente_modo ||
     'atende_parcial_pendente'
+  const bloquearVencidos = Boolean(config?.bloquear_lotes_vencidos)
 
   // Local default se não informado
   let localResolvedId = local_baixa_id || config?.padrao_local_id || null
@@ -391,7 +399,7 @@ export async function atenderRequisicao(
   // 3. Carrega itens pendentes da requisição
   let itensQuery = client
     .from('est_requisicao_itens')
-    .select('*, cad_skus (id, codigo, nome)')
+    .select('*, cad_skus (id, codigo, nome, controla_lote)')
     .eq('requisicao_id', requisicao_id)
     .gt('quantidade_pendente', 0)
 
@@ -408,28 +416,69 @@ export async function atenderRequisicao(
     }
   }
 
-  // 4. Carrega saldos atuais dos SKUs envolvidos no local de baixa
-  const skuIds = itens.map((i: { sku_id: string }) => i.sku_id)
-  const { data: saldosRows } = await client
-    .from('est_saldos')
-    .select('sku_id, local_id, quantidade')
-    .eq('empresa_id', empresa_id)
-    .eq('local_id', localResolvedId)
-    .in('sku_id', skuIds)
-
+  // 4. Carrega saldos atuais dos SKUs sem controle de lote (soma por sku×local)
+  const skuIdsSemLote = itens
+    .filter((i: { cad_skus?: { controla_lote?: boolean } | null }) => !i.cad_skus?.controla_lote)
+    .map((i: { sku_id: string }) => i.sku_id)
   const saldoMap: Record<string, number> = {}
-  saldosRows?.forEach((s: { sku_id: string; local_id: string; quantidade: number }) => {
-    saldoMap[`${s.sku_id}_${s.local_id}`] = Number(s.quantidade)
-  })
+
+  if (skuIdsSemLote.length > 0) {
+    const { data: saldosRows } = await client
+      .from('est_saldos')
+      .select('sku_id, local_id, quantidade')
+      .eq('empresa_id', empresa_id)
+      .eq('local_id', localResolvedId)
+      .in('sku_id', [...new Set(skuIdsSemLote)])
+      .limit(2000)
+
+    saldosRows?.forEach((s: { sku_id: string; local_id: string; quantidade: number }) => {
+      const key = `${s.sku_id}_${s.local_id}`
+      saldoMap[key] = (saldoMap[key] || 0) + Number(s.quantidade || 0)
+    })
+  }
+
+  async function saldoDisponivelItem(
+    skuId: string,
+    locId: string,
+    controlaLote: boolean
+  ): Promise<number> {
+    if (controlaLote) {
+      return somarSaldoSkuLocal(client, {
+        empresa_id,
+        sku_id: skuId,
+        local_id: locId,
+      })
+    }
+    if (locId === localResolvedId) {
+      return saldoMap[`${skuId}_${locId}`] || 0
+    }
+    // Item com local próprio diferente do default — soma pontual
+    const { data: rows } = await client
+      .from('est_saldos')
+      .select('quantidade')
+      .eq('empresa_id', empresa_id)
+      .eq('sku_id', skuId)
+      .eq('local_id', locId)
+      .limit(500)
+    return (rows || []).reduce(
+      (acc: number, r: { quantidade: number }) => acc + (Number(r.quantidade) || 0),
+      0
+    )
+  }
 
   // Checagem prévia no modo 'nao_atende_requisicao' (só no modo automático sem overrides parciais intencionais)
   if (modoSaldo === 'nao_atende_requisicao' && !overrides) {
     for (const item of itens) {
       const locId = item.local_id || localResolvedId
-      const saldoDisponivel = saldoMap[`${item.sku_id}_${locId}`] || 0
+      const skuInfo = item.cad_skus as {
+        codigo?: string
+        nome?: string
+        controla_lote?: boolean
+      } | null
+      const controlaLote = Boolean(skuInfo?.controla_lote)
+      const saldoDisponivel = await saldoDisponivelItem(item.sku_id, locId, controlaLote)
       const pendente = Number(item.quantidade_pendente)
       if (saldoDisponivel < pendente) {
-        const skuInfo = item.cad_skus as { codigo?: string; nome?: string } | null
         return {
           sucesso: false,
           codigo: 'SALDO_INSUFICIENTE_BLOQUEIO',
@@ -446,9 +495,14 @@ export async function atenderRequisicao(
 
   for (const item of itens) {
     const locId = item.local_id || localResolvedId
-    const saldoDisponivel = saldoMap[`${item.sku_id}_${locId}`] || 0
     const pendente = Number(item.quantidade_pendente)
-    const skuInfo = item.cad_skus as { codigo?: string; nome?: string } | null
+    const skuInfo = item.cad_skus as {
+      codigo?: string
+      nome?: string
+      controla_lote?: boolean
+    } | null
+    const controlaLote = Boolean(skuInfo?.controla_lote)
+    const saldoDisponivel = await saldoDisponivelItem(item.sku_id, locId, controlaLote)
 
     let qtdParaBaixar = 0
 
@@ -469,7 +523,6 @@ export async function atenderRequisicao(
             mensagem: `SKU ${skuInfo?.codigo || ''}: saldo no local (${saldoDisponivel}) insuficiente para ${pedidaOp}.`,
           }
         }
-        // parcial / pula: baixa só o disponível (já capped acima)
       }
     } else if (saldoDisponivel >= pendente) {
       qtdParaBaixar = pendente
@@ -495,35 +548,112 @@ export async function atenderRequisicao(
       continue
     }
 
-    const { data: rpcRes, error: rpcErr } = await client.rpc(
-      'est_registrar_movimento_atomico',
-      {
-        p_empresa_id: empresa_id,
-        p_tipo: 'saida',
-        p_sku_id: item.sku_id,
-        p_local_id: locId,
-        p_quantidade: qtdParaBaixar,
-        p_documento: req.numero,
-        p_pessoa_id: req.requisitante_pessoa_id,
-        p_origem: 'requisicao',
-        p_requisicao_id: req.id,
-        p_motivo: `Atendimento Requisição ${req.numero} - ${skuInfo?.codigo || ''}`,
-        p_usuario_id: usuario_id || null,
-        p_permitir_saldo_negativo: false,
+    let alocacoes: AlocacaoLoteFefo[] = []
+    if (controlaLote) {
+      const overrideAloc = alocacoesOverride?.[item.id]
+      if (overrideAloc?.length) {
+        alocacoes = overrideAloc.filter((a) => a.quantidade > 0 && a.lote_produto_id)
+        const somaOverride = alocacoes.reduce((s, a) => s + Number(a.quantidade || 0), 0)
+        if (somaOverride > qtdParaBaixar + 1e-9) {
+          return {
+            sucesso: false,
+            mensagem: `SKU ${skuInfo?.codigo || ''}: alocações de lote (${somaOverride}) excedem a quantidade a baixar (${qtdParaBaixar}).`,
+          }
+        }
+        qtdParaBaixar = Math.min(qtdParaBaixar, somaOverride)
+      } else {
+        try {
+          const fefo = await alocarLotesFefo(client, {
+            empresa_id,
+            sku_id: item.sku_id,
+            local_id: locId,
+            quantidade: qtdParaBaixar,
+            bloquear_vencidos: bloquearVencidos,
+          })
+          alocacoes = fefo.alocacoes
+          if (fefo.quantidade_faltante > 0) {
+            if (modoSaldo === 'nao_atende_requisicao') {
+              return {
+                sucesso: false,
+                codigo: 'SALDO_INSUFICIENTE_BLOQUEIO',
+                mensagem: `SKU ${skuInfo?.codigo || ''}: FEFO alocou ${fefo.quantidade_alocada} de ${qtdParaBaixar} (faltam ${fefo.quantidade_faltante}).`,
+              }
+            }
+            qtdParaBaixar = fefo.quantidade_alocada
+          }
+        } catch (e: unknown) {
+          const err = e as Error
+          return {
+            sucesso: false,
+            mensagem: `SKU ${skuInfo?.codigo || ''}: falha FEFO — ${err?.message || 'erro'}`,
+          }
+        }
       }
-    )
 
-    const parsed = parseMovimentoAtomicoResult(rpcRes, rpcErr)
-    if (!parsed.ok) {
-      return {
-        sucesso: false,
-        mensagem: `Falha ao baixar item ${skuInfo?.codigo || ''}: ${parsed.mensagem || 'Erro ao registrar movimento'}`,
+      if (qtdParaBaixar <= 0 || alocacoes.length === 0) {
+        if (modoSaldo === 'pula_item') {
+          itensPulados++
+          await client
+            .from('est_requisicao_itens')
+            .update({ status_item: 'pulado', updated_at: agora })
+            .eq('id', item.id)
+        }
+        continue
       }
+    } else {
+      alocacoes = [
+        {
+          lote_produto_id: '',
+          numero_lote: '',
+          data_validade: null,
+          quantidade: qtdParaBaixar,
+        },
+      ]
     }
 
-    saldoMap[`${item.sku_id}_${locId}`] = saldoDisponivel - qtdParaBaixar
+    let qtdEfetivada = 0
+    for (const aloc of alocacoes) {
+      const qtdAloc = Number(aloc.quantidade)
+      if (!Number.isFinite(qtdAloc) || qtdAloc <= 0) continue
 
-    const novaAtendida = Number(item.quantidade_atendida) + qtdParaBaixar
+      const { data: rpcRes, error: rpcErr } = await client.rpc(
+        'est_registrar_movimento_atomico',
+        {
+          p_empresa_id: empresa_id,
+          p_tipo: 'saida',
+          p_sku_id: item.sku_id,
+          p_local_id: locId,
+          p_quantidade: qtdAloc,
+          p_documento: req.numero,
+          p_pessoa_id: req.requisitante_pessoa_id,
+          p_origem: 'requisicao',
+          p_requisicao_id: req.id,
+          p_motivo: `Atendimento Requisição ${req.numero} - ${skuInfo?.codigo || ''}${
+            controlaLote && aloc.numero_lote ? ` · lote ${aloc.numero_lote}` : ''
+          }`,
+          p_usuario_id: usuario_id || null,
+          p_permitir_saldo_negativo: false,
+          p_lote_produto_id: controlaLote ? aloc.lote_produto_id : null,
+        }
+      )
+
+      const parsed = parseMovimentoAtomicoResult(rpcRes, rpcErr)
+      if (!parsed.ok) {
+        return {
+          sucesso: false,
+          mensagem: `Falha ao baixar item ${skuInfo?.codigo || ''}: ${parsed.mensagem || 'Erro ao registrar movimento'}`,
+        }
+      }
+      qtdEfetivada += qtdAloc
+    }
+
+    if (qtdEfetivada <= 0) continue
+
+    if (!controlaLote && locId === localResolvedId) {
+      saldoMap[`${item.sku_id}_${locId}`] = Math.max(0, saldoDisponivel - qtdEfetivada)
+    }
+
+    const novaAtendida = Number(item.quantidade_atendida) + qtdEfetivada
     const novaPendente = Number(item.quantidade_pedida) - novaAtendida
     const novoStatusItem = novaPendente <= 0 ? 'atendido' : 'parcial'
 

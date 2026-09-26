@@ -37,6 +37,7 @@ export async function listarSkusComSaldoNoLocalAction(localId: string) {
         nome: string
         unidade_estoque: string
         saldo: number
+        controla_lote: boolean
       }>,
     }
   }
@@ -53,7 +54,8 @@ export async function listarSkusComSaldoNoLocalAction(localId: string) {
         nome,
         unidade_estoque,
         ativo,
-        controla_estoque
+        controla_estoque,
+        controla_lote
       )
     `
     )
@@ -61,27 +63,48 @@ export async function listarSkusComSaldoNoLocalAction(localId: string) {
     .eq('local_id', localId)
     .gt('quantidade', 0)
 
-  const skus = (data || [])
-    .map((row) => {
-      const sku = row.cad_skus as unknown as {
-        id: string
-        codigo: string
-        nome: string
-        unidade_estoque: string
-        ativo: boolean
-        controla_estoque: boolean
-      } | null
-      if (!sku?.ativo || !sku.controla_estoque) return null
-      return {
+  const agg = new Map<
+    string,
+    {
+      id: string
+      codigo: string
+      nome: string
+      unidade_estoque: string
+      saldo: number
+      controla_lote: boolean
+    }
+  >()
+
+  for (const row of data || []) {
+    const sku = row.cad_skus as unknown as {
+      id: string
+      codigo: string
+      nome: string
+      unidade_estoque: string
+      ativo: boolean
+      controla_estoque: boolean
+      controla_lote?: boolean
+    } | null
+    if (!sku?.ativo || !sku.controla_estoque) continue
+    const prev = agg.get(sku.id)
+    const qtd = Number(row.quantidade || 0)
+    if (prev) {
+      prev.saldo += qtd
+    } else {
+      agg.set(sku.id, {
         id: sku.id,
         codigo: sku.codigo,
         nome: sku.nome,
         unidade_estoque: sku.unidade_estoque,
-        saldo: Number(row.quantidade || 0),
-      }
-    })
-    .filter((s): s is NonNullable<typeof s> => !!s)
-    .sort((a, b) => a.codigo.localeCompare(b.codigo, 'pt-BR'))
+        saldo: qtd,
+        controla_lote: Boolean(sku.controla_lote),
+      })
+    }
+  }
+
+  const skus = [...agg.values()].sort((a, b) =>
+    a.codigo.localeCompare(b.codigo, 'pt-BR')
+  )
 
   return { skus }
 }

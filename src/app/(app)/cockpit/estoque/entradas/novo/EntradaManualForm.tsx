@@ -31,6 +31,8 @@ interface SkuOption {
   nome: string
   unidade_estoque: string
   unidade_compra?: string | null
+  controla_lote?: boolean | null
+  exige_validade?: boolean | null
 }
 
 interface FornecedorOption {
@@ -60,6 +62,9 @@ interface FormRowItem {
   unidade_origem: string
   quantidade_origem: string
   justificativa: string
+  numero_lote: string
+  data_validade: string
+  data_fabricacao: string
   validacao?: ItemEntradaValidado
 }
 
@@ -90,6 +95,9 @@ export default function EntradaManualForm({
       unidade_origem: 'UN',
       quantidade_origem: '1',
       justificativa: '',
+      numero_lote: '',
+      data_validade: '',
+      data_fabricacao: '',
     },
   ])
 
@@ -109,6 +117,9 @@ export default function EntradaManualForm({
         unidade_origem: 'UN',
         quantidade_origem: '1',
         justificativa: '',
+        numero_lote: '',
+        data_validade: '',
+        data_fabricacao: '',
       },
     ])
   }
@@ -146,6 +157,9 @@ export default function EntradaManualForm({
       unidade_origem: r.unidade_origem?.trim().toUpperCase() || 'UN',
       quantidade_origem: parseFloat(r.quantidade_origem.replace(',', '.')) || 0,
       justificativa: r.justificativa?.trim() || null,
+      numero_lote: r.numero_lote?.trim() || null,
+      data_validade: r.data_validade?.trim() || null,
+      data_fabricacao: r.data_fabricacao?.trim() || null,
     }))
   }
 
@@ -381,7 +395,7 @@ export default function EntradaManualForm({
             </h2>
             <p className="text-[11px] text-gray-400 mt-0.5">
               Informe o SKU Hugin e a UM de origem; a conversão para UM de estoque e o Cardex são
-              automáticos. Código do fornecedor e justificativa são opcionais.
+              automáticos. SKUs com controle de lote exigem número (e validade, se configurado).
             </p>
           </div>
 
@@ -396,16 +410,19 @@ export default function EntradaManualForm({
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs text-gray-300 min-w-[750px]">
+          <table className="w-full text-left text-xs text-gray-300 min-w-[980px]">
             <thead className="bg-[#0e1319] text-gray-400 uppercase tracking-wider text-[10px] border-b border-[#ffffff08]">
               <tr>
                 <th className="py-2.5 px-3 w-10">#</th>
-                <th className="py-2.5 px-3 w-64">SKU / Produto *</th>
-                <th className="py-2.5 px-3 w-32">Cód. Fornecedor</th>
-                <th className="py-2.5 px-3 w-20">UM Origem</th>
-                <th className="py-2.5 px-3 w-24">Qtd Origem *</th>
+                <th className="py-2.5 px-3 w-56">SKU / Produto *</th>
+                <th className="py-2.5 px-3 w-28">Cód. Fornecedor</th>
+                <th className="py-2.5 px-3 w-16">UM</th>
+                <th className="py-2.5 px-3 w-20">Qtd *</th>
+                <th className="py-2.5 px-3 w-28">Lote</th>
+                <th className="py-2.5 px-3 w-28">Validade</th>
+                <th className="py-2.5 px-3 w-28">Fabricação</th>
                 <th className="py-2.5 px-3">Justificativa</th>
-                <th className="py-2.5 px-3 w-36 text-center">Status / Qtd Estoque</th>
+                <th className="py-2.5 px-3 w-32 text-center">Status</th>
                 <th className="py-2.5 px-3 w-10 text-right"></th>
               </tr>
             </thead>
@@ -414,6 +431,9 @@ export default function EntradaManualForm({
                 const val = row.validacao
                 const hasError = val?.status === 'erro'
                 const isOk = val?.status === 'ok'
+                const selectedSku = skus.find((s) => s.id === row.sku_id)
+                const controlaLote = Boolean(selectedSku?.controla_lote)
+                const exigeValidade = Boolean(selectedSku?.exige_validade)
 
                 return (
                   <tr
@@ -424,7 +444,6 @@ export default function EntradaManualForm({
                   >
                     <td className="py-3 px-3 font-mono text-gray-500">{idx + 1}</td>
 
-                    {/* SKU Selection */}
                     <td className="py-3 px-3">
                       <SearchableSelect
                         value={row.sku_id}
@@ -433,14 +452,13 @@ export default function EntradaManualForm({
                         emptyLabel="Nenhum SKU com este termo"
                         options={skus.map((s) => ({
                           value: s.id,
-                          label: `${s.codigo} - ${s.nome} (${s.unidade_estoque})`,
+                          label: `${s.codigo} - ${s.nome} (${s.unidade_estoque})${s.controla_lote ? ' · lote' : ''}`,
                           searchText: `${s.codigo} ${s.nome}`,
                         }))}
                         inputClassName="w-full bg-[#0d1218] border border-[#ffffff10] rounded-lg pl-8 pr-8 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500/50"
                       />
                     </td>
 
-                    {/* Código Parceiro */}
                     <td className="py-3 px-3">
                       <input
                         type="text"
@@ -451,7 +469,6 @@ export default function EntradaManualForm({
                       />
                     </td>
 
-                    {/* UM Origem */}
                     <td className="py-3 px-3">
                       <input
                         type="text"
@@ -464,7 +481,6 @@ export default function EntradaManualForm({
                       />
                     </td>
 
-                    {/* Quantidade Origem */}
                     <td className="py-3 px-3">
                       <input
                         type="text"
@@ -475,7 +491,50 @@ export default function EntradaManualForm({
                       />
                     </td>
 
-                    {/* Justificativa */}
+                    <td className="py-3 px-3">
+                      {controlaLote ? (
+                        <input
+                          type="text"
+                          value={row.numero_lote}
+                          onChange={(e) => updateRow(idx, { numero_lote: e.target.value })}
+                          placeholder="Nº lote *"
+                          className="w-full bg-[#0d1218] border border-[#2BAADF]/30 rounded-lg px-2.5 py-1.5 text-xs text-white font-mono focus:outline-none focus:border-[#2BAADF]/60"
+                        />
+                      ) : (
+                        <span className="text-[10px] text-gray-600">—</span>
+                      )}
+                    </td>
+
+                    <td className="py-3 px-3">
+                      {controlaLote ? (
+                        <input
+                          type="date"
+                          value={row.data_validade}
+                          onChange={(e) => updateRow(idx, { data_validade: e.target.value })}
+                          title={exigeValidade ? 'Validade obrigatória' : 'Validade (opcional)'}
+                          className={`w-full bg-[#0d1218] border rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-[#2BAADF]/60 ${
+                            exigeValidade ? 'border-[#2BAADF]/30' : 'border-[#ffffff10]'
+                          }`}
+                        />
+                      ) : (
+                        <span className="text-[10px] text-gray-600">—</span>
+                      )}
+                    </td>
+
+                    <td className="py-3 px-3">
+                      {controlaLote ? (
+                        <input
+                          type="date"
+                          value={row.data_fabricacao}
+                          onChange={(e) => updateRow(idx, { data_fabricacao: e.target.value })}
+                          title="Fabricação (opcional)"
+                          className="w-full bg-[#0d1218] border border-[#ffffff10] rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500/50"
+                        />
+                      ) : (
+                        <span className="text-[10px] text-gray-600">—</span>
+                      )}
+                    </td>
+
                     <td className="py-3 px-3">
                       <input
                         type="text"
@@ -492,7 +551,6 @@ export default function EntradaManualForm({
                       )}
                     </td>
 
-                    {/* Status e Quantidade Estoque */}
                     <td className="py-3 px-3 text-center">
                       {isOk && val?.quantidade_estoque != null ? (
                         <div className="inline-flex flex-col items-center">
@@ -516,7 +574,6 @@ export default function EntradaManualForm({
                       )}
                     </td>
 
-                    {/* Remover linha */}
                     <td className="py-3 px-3 text-right">
                       {rows.length > 1 && (
                         <button

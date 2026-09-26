@@ -7,12 +7,15 @@ O Supabase mantém um **MCP oficial** (`https://mcp.supabase.com/mcp`) — não 
 - Gerar types TypeScript do schema
 - Buscar documentação Supabase
 
-## Projetos HuginFlow
+## Ambientes HuginFlow
 
-| Servidor MCP | Project ref | Modo | Uso |
-|--------------|-------------|------|-----|
-| `supabase-huginflow-dev` | `vujqukqsfwmoezwyuoum` | Leitura + escrita | Migrations, schema, testes |
-| `supabase-huginflow-prod` | `zmypzexefjbovuknjlid` | Leitura + escrita |
+| Ambiente | Project ref | MCP | Evolution | App |
+|----------|-------------|-----|-----------|-----|
+| **Dev** | `vujqukqsfwmoezwyuoum` | `supabase-huginflow-dev` (leitura + escrita) | `evo-dev.rn3.tec.br` | `npm run dev` / `.env.local` |
+| **Prod** | `zmypzexefjbovuknjlid` | `supabase-huginflow-prod` | `evo.rn3.tec.br` | VPS Docker / secrets GH Actions |
+
+Log vivo de schema e pacotes ⏳ PROD: [MIGRACAO-SUPABASE.md](./MIGRACAO-SUPABASE.md).  
+Runbook go-live: [CUTOVER-PROD-SET-2026.md](./specs-a-aplicar/CUTOVER-PROD-SET-2026.md).
 
 **Migrations em produção:** **somente com pedido explícito** do responsável (gate 2026-09-11). Preferir `node scripts/supabase/prod-deploy/apply-bundle.mjs` (senha Postgres no `.env`). Sem pedido: documentar o pacote e homologar em DEV — não aplicar.
 

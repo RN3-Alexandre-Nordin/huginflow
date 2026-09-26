@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState, useTransition } from 'react'
+import { Fragment, useEffect, useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
@@ -17,14 +17,21 @@ import {
   Hash,
 } from 'lucide-react'
 import SearchableSelect from '@/components/SearchableSelect'
+import LotePicker, {
+  expandirItensPorAlocacaoLote,
+  type AlocacaoLoteFefo,
+} from '@/components/estoque/LotePicker'
 import { criarRemessaAction, previewNumeroRemessaAction } from '../actions'
-import { MOTIVOS_REMESSA } from '@/lib/estoque/operacoes-avancadas'
+import {
+  MOTIVOS_REMESSA,
+} from '@/lib/estoque/operacoes-avancadas'
 
 interface SkuOption {
   id: string
   codigo: string
   nome: string
   unidade_estoque: string
+  controla_lote?: boolean
 }
 
 interface PessoaOption {
@@ -48,11 +55,13 @@ interface SaldoKey {
 }
 
 interface Props {
+  empresaId: string
   pessoas: PessoaOption[]
   skus: SkuOption[]
   locais: LocalOption[]
   saldos: SaldoKey[]
   defaultLocalId?: string
+  bloquearVencidos?: boolean
 }
 
 interface RowItem {
@@ -60,18 +69,26 @@ interface RowItem {
   sku_id: string
   local_origem_id: string
   quantidade_enviada: string
+  alocacoes: AlocacaoLoteFefo[]
 }
 
 function saldoKey(skuId: string, localId: string) {
   return `${skuId}|${localId}`
 }
 
+function parseQtd(raw: string): number {
+  const n = parseFloat(String(raw).replace(',', '.'))
+  return Number.isFinite(n) ? n : NaN
+}
+
 export default function RemessaForm({
+  empresaId,
   pessoas,
   skus,
   locais,
   saldos,
   defaultLocalId,
+  bloquearVencidos = false,
 }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -92,6 +109,7 @@ export default function RemessaForm({
       sku_id: '',
       local_origem_id: defaultLocal,
       quantidade_enviada: '1',
+      alocacoes: [],
     },
   ])
 
@@ -133,6 +151,7 @@ export default function RemessaForm({
         sku_id: '',
         local_origem_id: defaultLocal,
         quantidade_enviada: '1',
+        alocacoes: [],
       },
     ])
   }
@@ -145,7 +164,17 @@ export default function RemessaForm({
   function updateRow(index: number, patch: Partial<RowItem>) {
     setRows((prev) => {
       const next = [...prev]
-      next[index] = { ...next[index], ...patch }
+      const cur = next[index]
+      const cleared =
+        ('sku_id' in patch && patch.sku_id !== cur.sku_id) ||
+        ('local_origem_id' in patch && patch.local_origem_id !== cur.local_origem_id) ||
+        ('quantidade_enviada' in patch &&
+          patch.quantidade_enviada !== cur.quantidade_enviada)
+      next[index] = {
+        ...cur,
+        ...patch,
+        ...(cleared && !('alocacoes' in patch) ? { alocacoes: [] } : {}),
+      }
       return next
     })
   }
@@ -180,7 +209,9 @@ export default function RemessaForm({
       linha: idx + 1,
       sku_id: r.sku_id,
       local_origem_id: r.local_origem_id,
-      qtd: parseFloat(r.quantidade_enviada.replace(',', '.')),
+      qtd: parseQtd(r.quantidade_enviada),
+      alocacoes: r.alocacoes,
+      controla_lote: Boolean(skuMap.get(r.sku_id)?.controla_lote),
     }))
 
     if (parsed.some((r) => !Number.isFinite(r.qtd) || r.qtd <= 0)) {
@@ -189,6 +220,26 @@ export default function RemessaForm({
         texto: 'A quantidade enviada deve ser maior que zero em todos os itens.',
       })
       return
+    }
+
+    for (const r of parsed) {
+      if (!r.controla_lote) continue
+      const alocs = (r.alocacoes || []).filter((a) => Number(a.quantidade) > 0 && a.lote_produto_id)
+      if (alocs.length === 0) {
+        setFeedback({
+          tipo: 'erro',
+          texto: `SKU ${skuMap.get(r.sku_id)?.codigo || ''}: informe lotes FEFO no envio.`,
+        })
+        return
+      }
+      const soma = alocs.reduce((s, a) => s + Number(a.quantidade), 0)
+      if (Math.abs(soma - r.qtd) > 1e-9) {
+        setFeedback({
+          tipo: 'erro',
+          texto: `SKU ${skuMap.get(r.sku_id)?.codigo || ''}: soma dos lotes (${soma}) ≠ quantidade (${r.qtd}).`,
+        })
+        return
+      }
     }
 
     // Demanda agregada por SKU×local (mesma regra do backend)
@@ -223,6 +274,30 @@ export default function RemessaForm({
 
     setFeedback(null)
     startTransition(async () => {
+      type RemessaExpandBase = {
+        sku_id: string
+        local_origem_id: string
+        quantidade: number
+        lote_produto_id?: string | null
+      }
+      const itens = expandirItensPorAlocacaoLote<RemessaExpandBase>(
+        parsed.map((r) => ({
+          controla_lote: r.controla_lote,
+          alocacoes: r.alocacoes,
+          base: {
+            sku_id: r.sku_id,
+            local_origem_id: r.local_origem_id,
+            quantidade: r.qtd,
+          },
+        }))
+      ).map((it) => ({
+        linha: it.linha,
+        sku_id: it.sku_id,
+        local_origem_id: it.local_origem_id,
+        quantidade_enviada: it.quantidade,
+        lote_produto_id: it.lote_produto_id ?? null,
+      }))
+
       const res = await criarRemessaAction({
         destinatario_pessoa_id: destinatarioId,
         motivo_codigo: motivoCodigo,
@@ -230,12 +305,7 @@ export default function RemessaForm({
         observacao: observacao.trim() || undefined,
         documento,
         previsao_retorno_em: previsaoRetorno || undefined,
-        itens: parsed.map((r) => ({
-          linha: r.linha,
-          sku_id: r.sku_id,
-          local_origem_id: r.local_origem_id,
-          quantidade_enviada: r.qtd,
-        })),
+        itens,
       })
 
       if ('error' in res) {
@@ -427,96 +497,121 @@ export default function RemessaForm({
               {rows.map((row, idx) => {
                 const skuSelected = skuMap.get(row.sku_id)
                 const disponivel = getSaldo(row.sku_id, row.local_origem_id)
-                const qtd = parseFloat(row.quantidade_enviada.replace(',', '.'))
+                const qtd = parseQtd(row.quantidade_enviada)
                 const saldoBaixo =
                   disponivel !== null &&
                   Number.isFinite(qtd) &&
                   qtd > disponivel
+                const controlaLote = Boolean(skuSelected?.controla_lote)
 
                 return (
-                  <tr key={row.id} className="hover:bg-[#ffffff03] transition-colors">
-                    <td className="py-3 px-3 font-mono text-gray-500">{idx + 1}</td>
-                    <td className="py-3 px-3">
-                      <SearchableSelect
-                        value={row.sku_id}
-                        onChange={(sku_id) => updateRow(idx, { sku_id })}
-                        placeholder="Buscar SKU…"
-                        emptyLabel="Nenhum SKU com este termo"
-                        options={skus.map((s) => ({
-                          value: s.id,
-                          label: `${s.codigo} - ${s.nome} (${s.unidade_estoque})`,
-                          searchText: `${s.codigo} ${s.nome}`,
-                        }))}
-                        inputClassName="w-full bg-[#0d1218] border border-[#ffffff10] rounded-lg pl-8 pr-8 py-1.5 text-xs text-white focus:outline-none focus:border-purple-500/50"
-                      />
-                    </td>
-                    <td className="py-3 px-3">
-                      <div className="flex items-center gap-1.5">
-                        <MapPin className="h-3 w-3 text-gray-500 shrink-0" />
-                        <select
-                          value={row.local_origem_id}
-                          onChange={(e) =>
-                            updateRow(idx, { local_origem_id: e.target.value })
-                          }
-                          className="w-full bg-[#0d1218] border border-[#ffffff10] rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-purple-500/50"
-                        >
-                          {locais.map((l) => (
-                            <option key={l.id} value={l.id}>
-                              {l.codigo} — {l.nome}
-                              {l.eh_principal ? ' ★' : ''}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </td>
-                    <td className="py-3 px-3">
-                      <div className="flex items-center gap-1.5">
-                        <input
-                          type="text"
-                          value={row.quantidade_enviada}
-                          onChange={(e) =>
-                            updateRow(idx, { quantidade_enviada: e.target.value })
-                          }
-                          placeholder="1"
-                          className={`w-full bg-[#0d1218] border rounded-lg px-2.5 py-1.5 text-xs text-white font-mono text-right focus:outline-none ${
-                            saldoBaixo
-                              ? 'border-red-500/50 focus:border-red-500/70'
-                              : 'border-[#ffffff10] focus:border-purple-500/50'
-                          }`}
+                  <Fragment key={row.id}>
+                    <tr className="hover:bg-[#ffffff03] transition-colors">
+                      <td className="py-3 px-3 font-mono text-gray-500">{idx + 1}</td>
+                      <td className="py-3 px-3">
+                        <SearchableSelect
+                          value={row.sku_id}
+                          onChange={(sku_id) => updateRow(idx, { sku_id })}
+                          placeholder="Buscar SKU…"
+                          emptyLabel="Nenhum SKU com este termo"
+                          options={skus.map((s) => ({
+                            value: s.id,
+                            label: `${s.codigo} - ${s.nome} (${s.unidade_estoque})${
+                              s.controla_lote ? ' · lote' : ''
+                            }`,
+                            searchText: `${s.codigo} ${s.nome}`,
+                          }))}
+                          inputClassName="w-full bg-[#0d1218] border border-[#ffffff10] rounded-lg pl-8 pr-8 py-1.5 text-xs text-white focus:outline-none focus:border-purple-500/50"
                         />
-                        <span className="text-[11px] text-gray-400 font-mono w-8">
-                          {skuSelected?.unidade_estoque || 'UN'}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="py-3 px-3">
-                      {row.sku_id && row.local_origem_id ? (
-                        <span
-                          className={`font-mono text-[11px] font-semibold ${
-                            saldoBaixo ? 'text-red-400' : 'text-purple-300'
-                          }`}
-                        >
-                          {Number(disponivel ?? 0).toLocaleString('pt-BR', {
-                            maximumFractionDigits: 4,
-                          })}{' '}
-                          {skuSelected?.unidade_estoque || 'UN'}
-                        </span>
-                      ) : (
-                        <span className="text-[10px] text-gray-600">—</span>
+                      </td>
+                      <td className="py-3 px-3">
+                        <div className="flex items-center gap-1.5">
+                          <MapPin className="h-3 w-3 text-gray-500 shrink-0" />
+                          <select
+                            value={row.local_origem_id}
+                            onChange={(e) =>
+                              updateRow(idx, { local_origem_id: e.target.value })
+                            }
+                            className="w-full bg-[#0d1218] border border-[#ffffff10] rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-purple-500/50"
+                          >
+                            {locais.map((l) => (
+                              <option key={l.id} value={l.id}>
+                                {l.codigo} — {l.nome}
+                                {l.eh_principal ? ' ★' : ''}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </td>
+                      <td className="py-3 px-3">
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="text"
+                            value={row.quantidade_enviada}
+                            onChange={(e) =>
+                              updateRow(idx, { quantidade_enviada: e.target.value })
+                            }
+                            placeholder="1"
+                            className={`w-full bg-[#0d1218] border rounded-lg px-2.5 py-1.5 text-xs text-white font-mono text-right focus:outline-none ${
+                              saldoBaixo
+                                ? 'border-red-500/50 focus:border-red-500/70'
+                                : 'border-[#ffffff10] focus:border-purple-500/50'
+                            }`}
+                          />
+                          <span className="text-[11px] text-gray-400 font-mono w-8">
+                            {skuSelected?.unidade_estoque || 'UN'}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-3">
+                        {row.sku_id && row.local_origem_id ? (
+                          <span
+                            className={`font-mono text-[11px] font-semibold ${
+                              saldoBaixo ? 'text-red-400' : 'text-purple-300'
+                            }`}
+                          >
+                            {Number(disponivel ?? 0).toLocaleString('pt-BR', {
+                              maximumFractionDigits: 4,
+                            })}{' '}
+                            {skuSelected?.unidade_estoque || 'UN'}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-gray-600">—</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-3 text-right">
+                        {rows.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => removeRow(idx)}
+                            className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                    {controlaLote &&
+                      empresaId &&
+                      Number.isFinite(qtd) &&
+                      qtd > 0 && (
+                        <tr className="bg-[#0a0e14]/80">
+                          <td />
+                          <td colSpan={5} className="px-3 pb-3">
+                            <LotePicker
+                              empresaId={empresaId}
+                              skuId={row.sku_id}
+                              localId={row.local_origem_id}
+                              quantidade={qtd}
+                              value={row.alocacoes}
+                              onChange={(alocacoes) => updateRow(idx, { alocacoes })}
+                              bloquearVencidos={bloquearVencidos}
+                              disabled={isPending}
+                            />
+                          </td>
+                        </tr>
                       )}
-                    </td>
-                    <td className="py-3 px-3 text-right">
-                      {rows.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => removeRow(idx)}
-                          className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      )}
-                    </td>
-                  </tr>
+                  </Fragment>
                 )
               })}
             </tbody>

@@ -1397,7 +1397,7 @@ Colunas: data, sku, nome, qtd, local, depto, requisicao, usuario.
 ### F5 — Piloto / go-live
 
 - [ ] Treino 2 admins + amostra departamental  
-- [ ] Homolog DEV verde (F4.1–F4.4)  
+- [ ] Homolog DEV verde (F4.1–F4.4) — bateria agente em [agente-testes-plano.md](../homologacao/agente-testes-plano.md) (§4.4 Estoque: scripts + smoke UI) · checklists em [MIGRACAO-SUPABASE.md](../MIGRACAO-SUPABASE.md) 
 - [ ] **Pedido explícito** → SQL + deploy prod  
 - [ ] Hiper-care  
 
@@ -1472,7 +1472,7 @@ Colunas: data, sku, nome, qtd, local, depto, requisicao, usuario.
 - **REGRA DE OURO** (topo deste doc): Cardex + Saldo na mesma transação  
 - Mapa geral: [plano-desenvolvimento-fases.md](./plano-desenvolvimento-fases.md)  
 - Decisões plataforma: [plataforma-entitlements-decisoes.md](./plataforma-entitlements-decisoes.md) §9  
-- Cutover SQL: [supabase-prod-deploy-pending.md](./supabase-prod-deploy-pending.md)  
+- Cutover SQL: [MIGRACAO-SUPABASE.md](../MIGRACAO-SUPABASE.md) · [CUTOVER-PROD-SET-2026.md](../specs-a-aplicar/CUTOVER-PROD-SET-2026.md)  
 - Conversão UM (código existente): `src/lib/skus/resolve-conversao.ts`  
 - De-para: `cad_sku_depara` · Pessoas: `crm_leads`  
 - Anexo comercial: `attachments/.../Controle_de_estoque_proposta.pdf`

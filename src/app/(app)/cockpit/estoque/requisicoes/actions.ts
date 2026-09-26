@@ -206,7 +206,17 @@ export async function transicionarStatusRequisicaoAction(
 export async function atenderRequisicaoAction(
   requisicaoId: string,
   localBaixaId?: string,
-  itens?: Array<{ item_id: string; quantidade: number }>
+  itens?: Array<{ item_id: string; quantidade: number }>,
+  alocacoesPorItem?: Record<
+    string,
+    Array<{
+      lote_produto_id: string
+      numero_lote: string
+      data_validade: string | null
+      quantidade: number
+      saldo_disponivel?: number
+    }>
+  > | null
 ) {
   const me = await getMyProfile()
   const isSuperAdmin = me?.role_global === 'superadmin'
@@ -233,6 +243,7 @@ export async function atenderRequisicaoAction(
       usuario_id: me.id,
       local_baixa_id: localBaixaId,
       itens,
+      alocacoes_por_item: alocacoesPorItem || null,
     },
     supabase
   )

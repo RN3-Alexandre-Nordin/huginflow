@@ -1,24 +1,26 @@
 # Plano de desenvolvimento — Hugin Flow (fases)
 
 Documento **mestre** para fasear o que já existe + o que vem a seguir.  
-Atualizar checkboxes a cada fechamento de fase.
+Atualizar checkboxes a cada fechamento de fase. Índice: [README.md](../README.md).
 
 | | |
 |--|--|
-| **Atualizado** | 2026-09-11 |
+| **Atualizado** | 2026-09-17 |
 | **Modelo** | App único · Supabase único · Foundation sempre on · módulos on/off (`empresa_addons`) |
-| **Prod** | Só com **pedido explícito** ([supabase-prod-deploy-pending.md](./supabase-prod-deploy-pending.md)) |
+| **Prod** | Só com **pedido explícito** ([MIGRACAO-SUPABASE.md](../MIGRACAO-SUPABASE.md) · [CUTOVER-PROD-SET-2026.md](../specs-a-aplicar/CUTOVER-PROD-SET-2026.md)) |
 | **Checkpoint** | `checkpoint/pre-core-2026-09-11` |
 
-### Docs relacionados
+### Docs relacionados (canônicos)
 
 | Doc | Papel |
 |-----|--------|
-| [plataforma-entitlements-decisoes.md](./plataforma-entitlements-decisoes.md) | Decisões congeladas |
+| [plataforma-entitlements-decisoes.md](./plataforma-entitlements-decisoes.md) | Decisões congeladas (por quê) |
 | [roadmap-plataforma-entitlements.md](./roadmap-plataforma-entitlements.md) | Detalhe W0–W9 entitlements |
-| [plano-modulo-estoque.md](./plano-modulo-estoque.md) | Resumo Estoque (apontador) |
-| [desenvolvimento-modulo-estoque.md](./desenvolvimento-modulo-estoque.md) | **Spec de implementação Estoque (F4/F5)** |
-| [MIGRACAO-SUPABASE.md](./MIGRACAO-SUPABASE.md) / [supabase-prod-deploy-pending.md](./supabase-prod-deploy-pending.md) | Cutover SQL |
+| [desenvolvimento-modulo-estoque.md](./desenvolvimento-modulo-estoque.md) | Spec Estoque (F4/F5) |
+| [planejamento-modulo-relatorios-bi.md](./planejamento-modulo-relatorios-bi.md) | Spec BI / relatórios |
+| [MIGRACAO-SUPABASE.md](../MIGRACAO-SUPABASE.md) | Log vivo schema + pacotes ⏳ PROD |
+| [CUTOVER-PROD-SET-2026.md](../specs-a-aplicar/CUTOVER-PROD-SET-2026.md) | Runbook go-live |
+| [homologacao/agente-testes-plano.md](../homologacao/agente-testes-plano.md) | Agente E2E |
 
 ---
 
@@ -31,14 +33,16 @@ Vender **licença Foundation** (sempre) e **ligar módulos** (Workflow, Omni, Es
 ## Mapa de fases
 
 ```
-F0 Foundation/plataforma     ✅ DEV (código + SQL)
-F1 Cadastros mestres         ✅ DEV · ⏳ homolog · ⏳ prod (pedido explícito)
-F2 Shell / nav hubs          ✅ DEV
-F3 Homologação + cutover SQL ⏳ (Cadastros C1–C7 + fases 3–5 se no mesmo release)
-F4 Estoque MVP               📋 (proposta Atlas)
+F0 Foundation/plataforma     ✅ DEV (código + SQL) · ⏳ prod
+F1 Cadastros mestres         ✅ DEV · ⏳ homolog · ⏳ prod
+F2 Shell / nav hubs          ✅ DEV (incl. pasta Estoque)
+F3 Homologação + cutover SQL ⏳ (Cadastros + Estoque + BI no mesmo release sob pedido)
+F4 Estoque MVP               ✅ DEV (F4.1–F4.4) · F4.5 parcial ✅ · ⏳ prod
 F5 Piloto Estoque / go-live  📋
 F6 Integrações / billing     📋 (depois)
 ```
+
+BI hub (`/cockpit/relatorios` + RPCs) ✅ DEV · ⏳ prod — ver spec BI.
 
 ---
 
@@ -53,7 +57,7 @@ F6 Integrações / billing     📋 (depois)
 | Motor `empresaHasAddon` / guards | ✅ código |
 | UI Addons (RN3) + ficha empresa | ✅ código |
 | API v1 addons | ✅ código |
-| E2E entitlements | ⏳ rodar bateria |
+| E2E entitlements | ✅ agente (fase entitlements) |
 | SQL em **prod** | ⏳ pedido explícito (`202609111200`) |
 
 **Saída:** Foundation sempre on; demais módulos controláveis.
@@ -72,11 +76,12 @@ Detalhe: [roadmap-plataforma-entitlements.md](./roadmap-plataforma-entitlements.
 | SKUs + conversões + de-para | ✅ DEV |
 | Reforma fiscal SKU | ✅ DEV |
 | Ativos + CC=`departamento_id` | ✅ DEV |
+| Famílias SKU | ✅ DEV |
 | Locais de estoque | ❌ **não** aqui → F4 |
 | Homolog / smoke DEV | ⏳ |
-| Pacote SQL C1–C7 em **prod** | ⏳ pedido explícito |
+| Pacote SQL C1–C8 em **prod** | ⏳ pedido explícito |
 
-**Migrations:** `202609111200` … `202609111900` (ver pending).
+**Migrations:** ver [MIGRACAO-SUPABASE.md](../MIGRACAO-SUPABASE.md) § Pacote Cadastros.
 
 **Saída:** mestres prontos; Estoque só consome SKU/Pessoas/Depto.
 
@@ -92,7 +97,8 @@ Detalhe: [roadmap-plataforma-entitlements.md](./roadmap-plataforma-entitlements.
 | Hubs + cards filtrados por addon/RBAC | ✅ DEV |
 | Subnav SKUs (Catálogo / Conversões / De-para) | ✅ DEV |
 | Item ativo (barra inset) | ✅ DEV |
-| Pasta **Estoque** | 📋 F4 |
+| Pasta **Estoque** + hub operacional | ✅ DEV |
+| Hub Relatórios BI | ✅ DEV |
 
 **Saída:** menu não explode; cada módulo novo = pasta + hub.
 
@@ -100,19 +106,19 @@ Detalhe: [roadmap-plataforma-entitlements.md](./roadmap-plataforma-entitlements.
 
 ## F3 — Homologação + cutover (gate prod)
 
-**Objetivo:** validar F0–F2 em DEV e, **só com OK explícito**, aplicar SQL/código em prod.
+**Objetivo:** validar F0–F4/BI em DEV e, **só com OK explícito**, aplicar SQL/código em prod.
 
 ### Checklist DEV
 - [ ] Smoke Pessoas / SKUs / Conversões / De-para / Ativos  
 - [ ] Smoke hubs + entitlements (módulo off some do menu)  
-- [ ] Bateria E2E relevante verde  
+- [ ] Smoke Estoque (checklist em MIGRACAO) + BI  
+- [ ] Bateria E2E (`test:agent:dev`) verde  
 - [ ] Commit/release alinhado (sem segredos)
 
 ### Cutover prod (quando pedir)
 - [ ] Backup  
-- [ ] Pacote Cadastros C1→C7  
-- [ ] (Opcional no mesmo release) fases 3–5 RBAC/analytics se ainda pendentes  
-- [ ] Deploy app  
+- [ ] Pacotes na ordem do [CUTOVER-PROD-SET-2026.md](../specs-a-aplicar/CUTOVER-PROD-SET-2026.md)  
+- [ ] Deploy app (`main` só com OK)  
 - [ ] Smoke prod  
 
 **Regra:** não aplicar DDL em prod sem pedido explícito.
@@ -122,22 +128,22 @@ Detalhe: [roadmap-plataforma-entitlements.md](./roadmap-plataforma-entitlements.
 ## F4 — Estoque MVP (nativo)
 
 **Origem:** proposta *Controle de Estoques — Materiais de Uso e Consumo* (Atlas).  
-**Detalhe de implementação:** [desenvolvimento-modulo-estoque.md](./desenvolvimento-modulo-estoque.md).
+**Spec:** [desenvolvimento-modulo-estoque.md](./desenvolvimento-modulo-estoque.md).
 
-| Subfase | Entrega | Depende |
-|---------|---------|---------|
-| **F4.0** | Workshop operacional (quem aprova?, atendimento parcial?) — KPIs só anotar | — |
-| **F4.1** | Fundação: locais, saldos/movimentos (tabelas), RLS, RBAC, hub operacional, CRUD locais | F1 SKUs |
-| **F4.2** | Entrada: lote tela + planilha + XML NFe (motor de validações) | F4.1 + Pessoas/De-para/UM |
-| **F4.3** | Requisição (manual + planilha) · param. saldo · prep. workflow aprovação | F4.1 + Pessoas |
-| **F4.4** | Retirada + transferência + ajuste + **remessa (poder de terceiros)** + atendimento req. (**fim MVP funcional**) | F4.2 + F4.3 |
-| **F4.5** | Consultas + export + KPIs (**fora do MVP — depois**) | F4.4 |
+| Subfase | Entrega | Status DEV |
+|---------|---------|------------|
+| **F4.0** | Workshop operacional | ⏳ / defaults no doc |
+| **F4.1** | Locais, Cardex/Saldo, RLS, RBAC, hub, config | ✅ |
+| **F4.2** | Entrada lote / planilha / XML NFe | ✅ |
+| **F4.3** | Requisição + aprovação interna + planilha | ✅ |
+| **F4.4** | Retirada + transferência + ajuste + remessa + atendimento | ✅ |
+| **F4.5** | Saldos + relatórios RPC; export consumido | ✅ parcial (export ⏳) |
 
-**Escopo piloto (proposta):** 1 CNPJ · 2 admins · ~20 usuários departamentais.
+**Escopo piloto:** 1 CNPJ · 2 admins · ~20 usuários departamentais.
 
 **Fora do MVP F4:** SAP/legado, inventário cíclico, MRP.
 
-**Só DEV** até F5 / pedido explícito de prod.
+**Só DEV** até F5 / pedido explícito de prod. Automação E2E Estoque (agente “Fase 6”): scripts `SCR-EST-*` + smoke UI hub/consultas — UI mutável operacional ainda parcial.
 
 ---
 
@@ -157,10 +163,10 @@ Detalhe: [roadmap-plataforma-entitlements.md](./roadmap-plataforma-entitlements.
 
 | Tema | Notas |
 |------|--------|
-| Integração SAP / legado | API-first / webhooks (proposta § integração) |
+| Integração SAP / legado | API-first / webhooks |
 | Ponte entitlement → `finance_contratos` | Sessão 7 do roadmap plataforma |
 | CRM comercial / FinOps | Slugs reservados; sem escopo agora |
-| Relatórios por módulo | Card “Relatórios” em cada hub (padrão já previsto) |
+| Export consumido / inventário cíclico | Pós F4.5 |
 
 ---
 
@@ -168,13 +174,10 @@ Detalhe: [roadmap-plataforma-entitlements.md](./roadmap-plataforma-entitlements.
 
 | # | Fase | Ação |
 |---|------|------|
-| 1 | F1/F2 | Fechar smoke DEV Cadastros + hubs |
-| 2 | F3 | Homologar; **não** ir a prod sem pedido |
-| 3 | F4.0 | Workshop Atlas (1–2 h) |
-| 4 | F4.1 | Começar Estoque em **DEV** |
-| 5 | F4.2→F4.4 | Operações (MVP funcional) |
-| 6 | F4.5 | Consultas/relatórios — depois |
-| 6 | F5 | Piloto + cutover sob pedido |
+| 1 | F3 | Smoke DEV Cadastros + Estoque + BI; agente Fases 1–5 verde |
+| 2 | F3 | Cutover **somente** com pedido explícito ([CUTOVER](../specs-a-aplicar/CUTOVER-PROD-SET-2026.md)) |
+| 3 | F5 | Piloto Atlas após prod |
+| 4 | F6 | SAP / billing ponte — depois |
 
 ---
 

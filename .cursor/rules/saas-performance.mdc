@@ -26,5 +26,5 @@ O Hugin Flow é **multi-tenant SaaS**. Antes de implementar listagens, dashboard
 
 ## Referências
 
-- Estoque: `docs/desenvolvimento-modulo-estoque.md` (§ Performance SaaS + Regra de Ouro)
+- Estoque: `docs/specs-aplicadas/desenvolvimento-modulo-estoque.md` (§ Performance SaaS + Regra de Ouro)
 - Git/prod: `.cursor/rules/git-main-e-producao.mdc`

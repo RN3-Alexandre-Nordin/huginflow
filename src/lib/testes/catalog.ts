@@ -176,6 +176,83 @@ export const TEST_CATALOG: Record<string, TestCatalogEntry> = {
     passos:
       'Cria funil sentinela em outro tenant, pesquisa pelo nome e tenta a URL direta sem obter o board.',
   },
+  'UI-CAD-01': {
+    id: 'UI-CAD-01',
+    area: 'Cadastros / hub',
+    expectativa: 'O hub Cadastros lista Pessoas, SKUs, Famílias, Conversões, De-para e Ativos.',
+    passos: 'Abre /cockpit/cadastros e confere os seis hub-cards de mestres.',
+  },
+  'UI-CAD-02': {
+    id: 'UI-CAD-02',
+    area: 'Cadastros / Pessoas',
+    expectativa: 'A lista de Pessoas carrega sem Acesso interditado.',
+    passos: 'Navega para /cockpit/crm/leads e valida o container pessoas-page.',
+  },
+  'UI-CAD-03': {
+    id: 'UI-CAD-03',
+    area: 'Cadastros / SKUs',
+    expectativa: 'A lista de SKUs carrega sem acesso interditado.',
+    passos: 'Navega para /cockpit/cadastros/skus e valida skus-page.',
+  },
+  'UI-CAD-04': {
+    id: 'UI-CAD-04',
+    area: 'Cadastros / Famílias',
+    expectativa: 'A lista de famílias de SKU carrega.',
+    passos: 'Navega para /cockpit/cadastros/sku-familias e valida sku-familias-page.',
+  },
+  'UI-CAD-05': {
+    id: 'UI-CAD-05',
+    area: 'Cadastros / Conversões UM',
+    expectativa: 'A lista de conversões de unidade carrega.',
+    passos: 'Navega para /cockpit/cadastros/conversoes-um e valida conversoes-um-page.',
+  },
+  'UI-CAD-06': {
+    id: 'UI-CAD-06',
+    area: 'Cadastros / De-para',
+    expectativa: 'A lista de de-para SKU×parceiro carrega.',
+    passos: 'Navega para /cockpit/cadastros/sku-depara e valida sku-depara-page.',
+  },
+  'UI-CAD-07': {
+    id: 'UI-CAD-07',
+    area: 'Cadastros / Ativos',
+    expectativa: 'A lista de ativos/patrimônio carrega.',
+    passos: 'Navega para /cockpit/cadastros/ativos e valida ativos-page.',
+  },
+  'SCR-CAD-01': {
+    id: 'SCR-CAD-01',
+    area: 'Cadastros',
+    expectativa:
+      'Família, SKU, conversão UM, pessoa, de-para e ativo CRUD com RLS e cleanup no tenant.',
+    passos:
+      'Cria cadeia efêmera filtrada por empresa_id, valida leitura autenticada e remove tudo ao final.',
+  },
+  'UI-ENT-01': {
+    id: 'UI-ENT-01',
+    area: 'Entitlements',
+    expectativa: 'Com addon workflow off, Funis some do menu e a URL é bloqueada.',
+    passos:
+      'Desliga workflow no tenant, faz login, confere nav/hub sem Funis e /cockpit/crm/funis → acesso-negado; restaura addon.',
+  },
+  'UI-ENT-02': {
+    id: 'UI-ENT-02',
+    area: 'Entitlements',
+    expectativa: 'Com addon omni off, Chat some do menu e a URL é bloqueada.',
+    passos:
+      'Desliga omni, valida nav sem Omni e /cockpit/crm/chat → acesso-negado; restaura addon.',
+  },
+  'UI-ENT-03': {
+    id: 'UI-ENT-03',
+    area: 'Entitlements / Financeiro',
+    expectativa: 'Admin de tenant não vê menu Financeiro e a rota cai em acesso negado.',
+    passos: 'No cockpit do tenant, confirma ausência do link Financeiro e bloqueio de /cockpit/financeiro.',
+  },
+  'API-ENT-01': {
+    id: 'API-ENT-01',
+    area: 'Entitlements / API v1',
+    expectativa: 'API interna de addons exige Bearer e não expõe financeiro como addon.',
+    passos:
+      'GET /api/v1/addons e /empresas/:id/addons com secret; confirma catalogo sem financeiro e 401 sem auth.',
+  },
   'SCR-INFRA-01': {
     id: 'SCR-INFRA-01',
     area: 'Infraestrutura',
@@ -312,6 +389,270 @@ export const TEST_CATALOG: Record<string, TestCatalogEntry> = {
     expectativa: 'O SSO permite acessar diretamente o formulário e a consulta no domínio Bifrost.',
     passos:
       'Emite um JWT curto para cada destino, navega diretamente em bifrost.rn3.tec.br e valida o formulário e a tela Meus chamados.',
+  },
+  'UI-EST-ADDON-01': {
+    id: 'UI-EST-ADDON-01',
+    area: 'Estoque / entitlement',
+    expectativa: 'Sem addon estoque o menu some e a URL do hub fica bloqueada.',
+    passos:
+      'Com tenant sem estoque (ou usuário sem entitlement), confirma ausência do item Estoque e bloqueio ao abrir /cockpit/estoque.',
+  },
+  'UI-EST-NAV-01': {
+    id: 'UI-EST-NAV-01',
+    area: 'Estoque / hub',
+    expectativa: 'Com addon e estoque.view, o hub Estoque abre com os cards operacionais.',
+    passos:
+      'Login no tenant com estoque, abre Estoque no menu e valida cards (Locais, Entradas, Retiradas, Transferências, Ajustes, Remessas, Requisições).',
+  },
+  'UI-EST-LOC-01': {
+    id: 'UI-EST-LOC-01',
+    area: 'Estoque / Locais',
+    expectativa: 'CRUD de locais mantém um único principal BRANCO e rejeita segundo principal.',
+    passos:
+      'Abre Locais, garante/cria BRANCO com eh_principal, tenta segundo principal e valida a mensagem de bloqueio.',
+  },
+  'UI-EST-CFG-01': {
+    id: 'UI-EST-CFG-01',
+    area: 'Estoque / Configuração',
+    expectativa: 'Configuração guarda path NFe, modo de saldo de req. e aprovador.',
+    passos:
+      'Abre Configuração, confere abas/campos de NFe e requisição e que o botão de reconstruir saldos aparece para quem pode.',
+  },
+  'UI-EST-SAL-01': {
+    id: 'UI-EST-SAL-01',
+    area: 'Estoque / Saldos',
+    expectativa: 'A consulta de saldos carrega posição materializada com paginação.',
+    passos: 'Abre Saldos, valida lista/paginação e que os totais vêm do servidor (não agregação no cliente).',
+  },
+  'UI-EST-CAR-01': {
+    id: 'UI-EST-CAR-01',
+    area: 'Estoque / Cardex',
+    expectativa: 'O Cardex lista movimentos com filtro e paginação, sem erro/timeout.',
+    passos:
+      'Abre Cardex, confirma painel (table/empty) e ausência de “Erro ao carregar” / statement timeout.',
+  },
+  'UI-EST-CAR-02': {
+    id: 'UI-EST-CAR-02',
+    area: 'Estoque / Cardex',
+    expectativa:
+      'Busca livre por código SKU com hífen (ex. DEST-011) resolve sem timeout; não mistura OR ilike+sku_id.',
+    passos:
+      'Abre /cardex?q=<codigo-com-hífen> do tenant; espera painel OK e zero mensagem de timeout.',
+  },
+  'UI-EST-REL-01': {
+    id: 'UI-EST-REL-01',
+    area: 'Estoque / Relatórios',
+    expectativa: 'O hub de relatórios abre slugs e a 1ª página respeita limite 50.',
+    passos:
+      'Abre /cockpit/estoque/relatorios, entra em um slug com volume e confere até 50 linhas na página 1.',
+  },
+  'UI-EST-ENT-01': {
+    id: 'UI-EST-ENT-01',
+    area: 'Estoque / Entradas',
+    expectativa: 'Entrada em lote na tela exige justificativa e sobe saldo.',
+    passos:
+      'Cria entrada manual com item, justificativa e local; confirma lote OK e saldo aumentado no local.',
+  },
+  'UI-EST-ENT-02': {
+    id: 'UI-EST-ENT-02',
+    area: 'Estoque / Entradas',
+    expectativa: 'Import de planilha de entrada valida linhas e grava só as OK.',
+    passos: 'Envia planilha de entrada; confere erros por linha e itens válidos persistidos.',
+  },
+  'UI-EST-ENT-03': {
+    id: 'UI-EST-ENT-03',
+    area: 'Estoque / Entradas NFe',
+    expectativa: 'XML NFe de fixture passa pelo motor V1–V4 e registra status.',
+    passos:
+      'Usa XML em docs/testes/, processa pela UI de XML e valida parse, bloqueios ou lote conforme cadastros.',
+  },
+  'UI-EST-ENT-04': {
+    id: 'UI-EST-ENT-04',
+    area: 'Estoque / Entradas',
+    expectativa: 'Sem fornecedor, de-para ou conversão UM a entrada é bloqueada com mensagem clara.',
+    passos:
+      'Tenta entrar item sem cadastro completo e confere mensagens apontando Pessoas / De-para / Conversões UM.',
+  },
+  'UI-EST-RET-01': {
+    id: 'UI-EST-RET-01',
+    area: 'Estoque / Retiradas',
+    expectativa: 'Retirada manual em lote baixa saldo e bloqueia quantidade acima do disponível.',
+    passos:
+      'Cria retirada com SKU+qtd+justificativa (local BRANCO); confirma cardex saida/retirada e bloqueio se insuficiente.',
+  },
+  'UI-EST-TRF-01': {
+    id: 'UI-EST-TRF-01',
+    area: 'Estoque / Transferências',
+    expectativa: 'Transferência move saldo origem→destino sem converter UM.',
+    passos:
+      'Monta lote com dois locais distintos, valida saldo na origem e confirma redistribuição após gravar.',
+  },
+  'UI-EST-AJU-01': {
+    id: 'UI-EST-AJU-01',
+    area: 'Estoque / Ajustes',
+    expectativa: 'Ajuste +/- exige justificativa e não gera saldo negativo.',
+    passos: 'Lança ajuste positivo e tenta negativo acima do saldo; valida bloqueio e cardex de ajuste.',
+  },
+  'UI-EST-REM-01': {
+    id: 'UI-EST-REM-01',
+    area: 'Estoque / Remessas',
+    expectativa: 'Envio a terceiro baixa local e sobe poder de terceiros.',
+    passos:
+      'Cria remessa com destinatário e motivo do catálogo; confere saldos local e poder de terceiros.',
+  },
+  'UI-EST-REM-02': {
+    id: 'UI-EST-REM-02',
+    area: 'Estoque / Remessas',
+    expectativa: 'Retorno parcial/total devolve ao local e reduz poder de terceiros.',
+    passos: 'Abre retorno da remessa, devolve quantidade e valida saldos sem misturar com entrada de compra.',
+  },
+  'UI-EST-REM-03': {
+    id: 'UI-EST-REM-03',
+    area: 'Estoque / Remessas',
+    expectativa: 'Baixa definitiva liquida o restante em poder de terceiros no Cardex.',
+    passos: 'Liquida item remanescente com motivo de baixa e confere movimento remessa_baixa / TERCEIROS.',
+  },
+  'UI-EST-REQ-01': {
+    id: 'UI-EST-REQ-01',
+    area: 'Estoque / Requisições',
+    expectativa: 'Requisição manual exige requisitante em Pessoas e itens SKU/qtd.',
+    passos: 'Cria requisição nova, seleciona pessoa e itens, salva e vê na listagem.',
+  },
+  'UI-EST-REQ-02': {
+    id: 'UI-EST-REQ-02',
+    area: 'Estoque / Requisições',
+    expectativa: 'Import de planilha de requisição cria documentos com origem rastreável.',
+    passos:
+      'Importa modelo Hugin (ou ATC se addon); confere codigo_origem/sistema_origem e itens gerados.',
+  },
+  'UI-EST-REQ-03': {
+    id: 'UI-EST-REQ-03',
+    area: 'Estoque / Aprovação',
+    expectativa: 'Fila de aprovação interna permite aprovar/reprovar com auditoria.',
+    passos:
+      'Com req pendente, abre /requisicoes/aprovacao como aprovador e registra decisão auditável.',
+  },
+  'UI-EST-REQ-04': {
+    id: 'UI-EST-REQ-04',
+    area: 'Estoque / Atendimento',
+    expectativa: 'Atendimento gera saída por requisição e respeita o modo de saldo insuficiente.',
+    passos:
+      'Atende req aprovada (total ou parcial conforme config) e confere cardex origem=requisicao + saldo.',
+  },
+  'SCR-EST-GOLD-01': {
+    id: 'SCR-EST-GOLD-01',
+    area: 'Estoque / Regra de Ouro',
+    expectativa: 'Cardex e Saldo gravam no mesmo commit; falha reverte os dois.',
+    passos:
+      'Chama RPC/fluxo atômico com sucesso e com erro forçado; valida presença/ausência conjunta em est_movimentos e est_saldos.',
+  },
+  'SCR-EST-BATCH-01': {
+    id: 'SCR-EST-BATCH-01',
+    area: 'Estoque / Batch',
+    expectativa: 'Reconstrução de saldos a partir do cardex fecha divergências por empresa.',
+    passos:
+      'Dispara est_reconstruir_saldos_from_cardex no tenant de teste e confere coerência com SUM do cardex.',
+  },
+  'SCR-EST-TENANT-01': {
+    id: 'SCR-EST-TENANT-01',
+    area: 'Estoque / Multi-tenant',
+    expectativa: 'Empresa A não lê estoque da empresa B via RLS.',
+    passos:
+      'Cria artefato efêmero no tenant A e consulta autenticado no B (ou sentinela); espera zero linhas.',
+  },
+  'SCR-EST-ENT-01': {
+    id: 'SCR-EST-ENT-01',
+    area: 'Estoque / Entradas',
+    expectativa: 'Entrada service/RPC sobe saldo e cardex tipo entrada.',
+    passos: 'Fixture mínima de entrada no tenant; valida movimento e upsert de est_saldos; cleanup.',
+  },
+  'SCR-EST-SALDO-01': {
+    id: 'SCR-EST-SALDO-01',
+    area: 'Estoque / Saldo insuficiente',
+    expectativa: 'Retirada, transferência e ajuste negativo bloqueiam acima do disponível.',
+    passos: 'Com saldo conhecido, tenta três operações acima do limite e espera erro sem alterar posição.',
+  },
+  'SCR-EST-TRF-01': {
+    id: 'SCR-EST-TRF-01',
+    area: 'Estoque / Transferências',
+    expectativa: 'Transferência redistribui saldos mantendo o total do SKU na empresa.',
+    passos: 'Transfere qtd origem→destino; confere origem↓ destino↑ e soma estável; cleanup.',
+  },
+  'SCR-EST-REM-01': {
+    id: 'SCR-EST-REM-01',
+    area: 'Estoque / Remessas',
+    expectativa: 'Envio e retorno atualizam saldo local e poder de terceiros juntos.',
+    passos: 'Envia remessa, valida poder; retorna parcial; confere ambos os saldos e cardex; cleanup.',
+  },
+  'SCR-EST-REQ-01': {
+    id: 'SCR-EST-REQ-01',
+    area: 'Estoque / Requisições',
+    expectativa: 'Ciclo requisição → aprovação → atendimento respeita o modo de saldo.',
+    passos:
+      'Cria req efêmera, aprova, atende conforme req_saldo_insuficiente_modo e valida cardex origem=requisicao.',
+  },
+  'SCR-EST-RPC-01': {
+    id: 'SCR-EST-RPC-01',
+    area: 'Estoque / Relatórios RPC',
+    expectativa: 'est_rpc_relatorio pagina com total_count estável e isola o tenant.',
+    passos:
+      'Chama slugs com limit/offset 50, confere total_count entre páginas e nega dados de outro empresa_id.',
+  },
+  'SCR-EST-RBAC-01': {
+    id: 'SCR-EST-RBAC-01',
+    area: 'Estoque / RBAC',
+    expectativa: 'Usuário sem estoque_* não cria lote; com permissão consegue.',
+    passos:
+      'Cria usuário/grupo efêmeros, tenta operação sem perm (bloqueio) e com perm (sucesso); cleanup.',
+  },
+  'SCR-EST-CAR-01': {
+    id: 'SCR-EST-CAR-01',
+    area: 'Estoque / Cardex',
+    expectativa:
+      'Busca Cardex por código SKU com hífen usa plano sku_ids (índice) e completa sob orçamento; rejeita OR(ilike+id).',
+    passos:
+      'Cria SKU DEST-* + movimento; planCardexTextSearch → sku_ids; query autenticada com embeds < 8s; cleanup.',
+  },
+  'SCR-EST-LOTE-01': {
+    id: 'SCR-EST-LOTE-01',
+    area: 'Estoque / Lote produto',
+    expectativa:
+      'SKU controla_lote: entrada exige lote; saldo no grão sku×local×lote; SKU sem flag permanece sem lote.',
+    passos:
+      'Cria SKU+lote; bloqueia entrada sem lote; sobe/baixa com p_lote_produto_id; confere SKU sem flag.',
+  },
+  'SCR-EST-LOTE-02': {
+    id: 'SCR-EST-LOTE-02',
+    area: 'Estoque / Lote FEFO + remessa',
+    expectativa:
+      'Dois lotes: saída no lote de validade mais próxima; remessa preserva lote_produto_id no poder.',
+    passos: 'Entrada em 2 lotes; saída no lote cedo; remessa_saida com lote; confere poder.',
+  },
+  'SCR-EST-SERIE-01': {
+    id: 'SCR-EST-SERIE-01',
+    area: 'Estoque / Série unitária',
+    expectativa:
+      'Placeholder até controla_serie no kernel; skip se coluna ausente.',
+    passos: 'Probe cad_skus.controla_serie; skip ou implementa grão série.',
+  },
+  'UI-EST-LOTE-01': {
+    id: 'UI-EST-LOTE-01',
+    area: 'Estoque / Lote UI consultas',
+    expectativa: 'Config lote/FEFO, saldos com filtro validade e cardex/relatório de lotes carregam.',
+    passos:
+      'Abre configuração (aba Lote), saldos?validade=, cardex e relatório validade-lotes sem erro.',
+  },
+  'UI-EST-LOTE-02': {
+    id: 'UI-EST-LOTE-02',
+    area: 'Estoque / LotePicker',
+    expectativa: 'Formulários de saída usam LotePicker quando SKU controla_lote.',
+    passos: 'Smoke nas rotas novo de retirada/ajuste/transf/remessa (página carrega).',
+  },
+  'UI-EST-SERIE-01': {
+    id: 'UI-EST-SERIE-01',
+    area: 'Estoque / Série UI',
+    expectativa: 'Reservado para controla_serie (fora do MVP lote).',
+    passos: 'Skip até flag/UI de série unitária existir.',
   },
 }
 

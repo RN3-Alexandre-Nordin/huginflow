@@ -12,5 +12,9 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 ## Performance SaaS
 
-Antes de listagens/agregações: `.cursor/rules/saas-performance.mdc`. Estoque: `docs/desenvolvimento-modulo-estoque.md` §2.1.
+Antes de listagens/agregações: `.cursor/rules/saas-performance.mdc`. Estoque: `docs/specs-aplicadas/desenvolvimento-modulo-estoque.md` §2.1.
+
+## Documentação canônica
+
+Índice: `docs/README.md`. Specs em DEV: `docs/specs-aplicadas/`. Pendências/cutover: `docs/specs-a-aplicar/`. Antes de feature/cutover/homolog, ler o canônico do domínio (fases, entitlements, estoque, BI, MIGRACAO).
 

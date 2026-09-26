@@ -49,6 +49,8 @@ interface SkuOpt {
   codigo: string
   nome: string
   unidade_estoque: string
+  controla_lote?: boolean | null
+  exige_validade?: boolean | null
 }
 
 interface Props {
@@ -56,6 +58,12 @@ interface Props {
   locais: Local[]
   defaultLocalId?: string
   skusIniciais: SkuOpt[]
+}
+
+type LoteOverride = {
+  numero_lote?: string
+  data_validade?: string
+  data_fabricacao?: string
 }
 
 type LinhaStatus = ItemEntradaValidado & { xml?: NfeXmlItem }
@@ -88,6 +96,7 @@ export function ImportXmlForm({
   const [justificativaGeral, setJustificativaGeral] = useState('Importação de NF-e via XML')
 
   const [skuOverrides, setSkuOverrides] = useState<Record<number, string>>({})
+  const [loteOverrides, setLoteOverrides] = useState<Record<number, LoteOverride>>({})
   const [linhas, setLinhas] = useState<LinhaStatus[]>([])
   const [resolvendoLinha, setResolvendoLinha] = useState<number | null>(null)
   const [modoNovoSku, setModoNovoSku] = useState(false)
@@ -106,7 +115,13 @@ export function ImportXmlForm({
   } | null>(null)
 
   const refreshPreview = useCallback(
-    (pid: string, overrides: Record<number, string>, xml: string, local: string) => {
+    (
+      pid: string,
+      overrides: Record<number, string>,
+      xml: string,
+      local: string,
+      lotes: Record<number, LoteOverride> = {},
+    ) => {
       if (!pid || !xml || !local) return
       startTransition(async () => {
         const res = await previewNfeLinhasAction({
@@ -114,6 +129,7 @@ export function ImportXmlForm({
           local_id: local,
           xml_content: xml,
           skuOverrides: overrides,
+          loteOverrides: lotes,
         })
         if ('error' in res && res.error) {
           setFeedback({ tipo: 'erro', texto: res.error })
@@ -143,6 +159,7 @@ export function ImportXmlForm({
     setFornecedorPendente(false)
     setPessoaComplementarId('')
     setSkuOverrides({})
+    setLoteOverrides({})
     setLinhas([])
     setResolvendoLinha(null)
 
@@ -157,6 +174,18 @@ export function ImportXmlForm({
         setParsedData(res.parsed)
         setNfeDuplicada(Boolean(res.nfeDuplicada))
         setLoteDuplicadoId(res.loteDuplicado?.id ?? null)
+
+        const seededLotes: Record<number, LoteOverride> = {}
+        for (const it of res.parsed.itens) {
+          if (it.numero_lote || it.data_validade || it.data_fabricacao) {
+            seededLotes[it.linha] = {
+              numero_lote: it.numero_lote || undefined,
+              data_validade: it.data_validade || undefined,
+              data_fabricacao: it.data_fabricacao || undefined,
+            }
+          }
+        }
+        setLoteOverrides(seededLotes)
 
         const emitNome =
           res.parsed.emitente?.nome ||
@@ -177,6 +206,7 @@ export function ImportXmlForm({
             {},
             text,
             localId,
+            seededLotes,
           )
         } else {
           setFornecedorPendente(true)
@@ -234,7 +264,7 @@ export function ImportXmlForm({
           ? `Fornecedor criado: ${pessoa.nome}`
           : `Fornecedor já existia: ${pessoa.nome}`,
       })
-      refreshPreview(pessoa.id, skuOverrides, xmlContent, localId)
+      refreshPreview(pessoa.id, skuOverrides, xmlContent, localId, loteOverrides)
     })
   }
 
@@ -264,13 +294,13 @@ export function ImportXmlForm({
         tipo: 'sucesso',
         texto: `Cadastro complementado com CNPJ/dados da NF-e: ${pessoa.nome}`,
       })
-      refreshPreview(pessoa.id, skuOverrides, xmlContent, localId)
+      refreshPreview(pessoa.id, skuOverrides, xmlContent, localId, loteOverrides)
     })
   }
 
   useEffect(() => {
     if (pessoaId && xmlContent && localId && !fornecedorPendente) {
-      refreshPreview(pessoaId, skuOverrides, xmlContent, localId)
+      refreshPreview(pessoaId, skuOverrides, xmlContent, localId, loteOverrides)
     }
   }, [localId]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -316,7 +346,7 @@ export function ImportXmlForm({
       setSkuOverrides(next)
       setResolvendoLinha(null)
       setFeedback({ tipo: 'sucesso', texto: 'De-para gravado. Linha resolvida.' })
-      refreshPreview(pessoaId, next, xmlContent, localId)
+      refreshPreview(pessoaId, next, xmlContent, localId, loteOverrides)
     })
   }
 
@@ -360,7 +390,7 @@ export function ImportXmlForm({
       setResolvendoLinha(null)
       setModoNovoSku(false)
       setFeedback({ tipo: 'sucesso', texto: `SKU ${res.sku!.codigo} criado e vinculado.` })
-      refreshPreview(pessoaId, next, xmlContent, localId)
+      refreshPreview(pessoaId, next, xmlContent, localId, loteOverrides)
     })
   }
 
@@ -394,6 +424,7 @@ export function ImportXmlForm({
         justificativaGeral,
         nfe_xml_nome: nomeArquivo || undefined,
         skuOverrides,
+        loteOverrides,
       })
       if ('error' in res) {
         setFeedback({ tipo: 'erro', texto: res.error || 'Erro desconhecido.' })
@@ -643,7 +674,7 @@ export function ImportXmlForm({
                   value={pessoaId}
                   onChange={(id) => {
                     setPessoaId(id)
-                    refreshPreview(id, skuOverrides, xmlContent, localId)
+                    refreshPreview(id, skuOverrides, xmlContent, localId, loteOverrides)
                   }}
                   disabled={isPending}
                   placeholder="Fornecedor…"
@@ -691,6 +722,7 @@ export function ImportXmlForm({
                   <th className="py-2 px-3">Parceiro</th>
                   <th className="py-2 px-3">Descrição / NCM</th>
                   <th className="py-2 px-3 text-right">Qtd</th>
+                  <th className="py-2 px-3">Lote / Validade</th>
                   <th className="py-2 px-3">Status</th>
                   <th className="py-2 px-3" />
                 </tr>
@@ -709,8 +741,26 @@ export function ImportXmlForm({
                   status: 'erro' as const,
                   erro_codigo: 'DEPARA_NAO_ENCONTRADO' as const,
                   erro_mensagem: 'Aguardando validação…',
+                  numero_lote: it.numero_lote,
+                  data_validade: it.data_validade,
+                  data_fabricacao: it.data_fabricacao,
                   xml: it,
-                }))).map((row) => (
+                }))).map((row) => {
+                  const ov = loteOverrides[row.linha] || {}
+                  const numeroLote =
+                    ov.numero_lote ?? row.numero_lote ?? row.xml?.numero_lote ?? ''
+                  const dataVal =
+                    ov.data_validade ?? row.data_validade ?? row.xml?.data_validade ?? ''
+                  const dataFab =
+                    ov.data_fabricacao ??
+                    row.data_fabricacao ??
+                    row.xml?.data_fabricacao ??
+                    ''
+                  const showLoteEdit =
+                    row.erro_codigo === 'LOTE_OBRIGATORIO' ||
+                    row.erro_codigo === 'VALIDADE_OBRIGATORIA'
+
+                  return (
                   <tr key={row.linha} className="hover:bg-[#ffffff03]">
                     <td className="py-2.5 px-3 font-mono text-gray-500">{row.linha}</td>
                     <td className="py-2.5 px-3 font-mono text-white">{row.codigo_parceiro}</td>
@@ -730,6 +780,89 @@ export function ImportXmlForm({
                     <td className="py-2.5 px-3 text-right font-mono">
                       {row.quantidade_origem} {row.unidade_origem}
                     </td>
+                    <td className="py-2.5 px-3 min-w-[11rem]">
+                      {showLoteEdit ? (
+                        <div className="space-y-1.5">
+                          <input
+                            type="text"
+                            value={numeroLote}
+                            placeholder="Nº lote *"
+                            onChange={(e) =>
+                              setLoteOverrides((prev) => ({
+                                ...prev,
+                                [row.linha]: { ...prev[row.linha], numero_lote: e.target.value },
+                              }))
+                            }
+                            onBlur={() =>
+                              pessoaId &&
+                              refreshPreview(
+                                pessoaId,
+                                skuOverrides,
+                                xmlContent,
+                                localId,
+                                {
+                                  ...loteOverrides,
+                                  [row.linha]: {
+                                    ...loteOverrides[row.linha],
+                                    numero_lote: numeroLote,
+                                    data_validade: dataVal || undefined,
+                                    data_fabricacao: dataFab || undefined,
+                                  },
+                                },
+                              )
+                            }
+                            className="w-full bg-[#0A0A0A] border border-[#2BAADF]/35 rounded-lg px-2 py-1 text-[11px] text-white font-mono"
+                          />
+                          <input
+                            type="date"
+                            value={dataVal}
+                            onChange={(e) =>
+                              setLoteOverrides((prev) => ({
+                                ...prev,
+                                [row.linha]: {
+                                  ...prev[row.linha],
+                                  data_validade: e.target.value,
+                                },
+                              }))
+                            }
+                            onBlur={() =>
+                              pessoaId &&
+                              refreshPreview(
+                                pessoaId,
+                                skuOverrides,
+                                xmlContent,
+                                localId,
+                                {
+                                  ...loteOverrides,
+                                  [row.linha]: {
+                                    ...loteOverrides[row.linha],
+                                    numero_lote: numeroLote,
+                                    data_validade: dataVal || undefined,
+                                    data_fabricacao: dataFab || undefined,
+                                  },
+                                },
+                              )
+                            }
+                            className="w-full bg-[#0A0A0A] border border-[#ffffff15] rounded-lg px-2 py-1 text-[11px] text-white"
+                          />
+                          <p className="text-[9px] text-amber-400/90">
+                            SKU controla lote — complete rastro ausente no XML
+                          </p>
+                        </div>
+                      ) : numeroLote ? (
+                        <div>
+                          <span className="font-mono text-white">{numeroLote}</span>
+                          {dataVal && (
+                            <span className="block text-[10px] text-gray-500">Val. {dataVal}</span>
+                          )}
+                          {dataFab && (
+                            <span className="block text-[10px] text-gray-600">Fab. {dataFab}</span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-[10px] text-gray-600">—</span>
+                      )}
+                    </td>
                     <td className="py-2.5 px-3">
                       {row.status === 'ok' ? (
                         <span className="text-emerald-400 text-[10px] font-bold uppercase">OK</span>
@@ -740,7 +873,9 @@ export function ImportXmlForm({
                       )}
                     </td>
                     <td className="py-2.5 px-3 text-right">
-                      {row.status !== 'ok' && (
+                      {row.status !== 'ok' &&
+                        row.erro_codigo !== 'LOTE_OBRIGATORIO' &&
+                        row.erro_codigo !== 'VALIDADE_OBRIGATORIA' && (
                         <button
                           type="button"
                           onClick={() => abrirResolver(row.linha, row.xml)}
@@ -749,9 +884,29 @@ export function ImportXmlForm({
                           Resolver
                         </button>
                       )}
+                      {(row.erro_codigo === 'LOTE_OBRIGATORIO' ||
+                        row.erro_codigo === 'VALIDADE_OBRIGATORIA') && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            pessoaId &&
+                            refreshPreview(
+                              pessoaId,
+                              skuOverrides,
+                              xmlContent,
+                              localId,
+                              loteOverrides,
+                            )
+                          }
+                          className="text-[11px] text-[#2BAADF] hover:underline font-medium"
+                        >
+                          Revalidar
+                        </button>
+                      )}
                     </td>
                   </tr>
-                ))}
+                  )
+                })}
               </tbody>
             </table>
           </div>

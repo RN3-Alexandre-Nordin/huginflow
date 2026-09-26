@@ -51,7 +51,7 @@ export default async function AtivosPage(props: { searchParams: Promise<{ q?: st
   const { data: rows } = await query
 
   return (
-    <div className="space-y-6 pb-20">
+    <div data-testid="ativos-page" className="space-y-6 pb-20">
       <div className="flex items-center justify-between gap-4">
         <p className="text-sm text-gray-400">
           Patrimônio / ativo fixo. Depreciação vinculada à fórmula (módulo Ativo futuro).

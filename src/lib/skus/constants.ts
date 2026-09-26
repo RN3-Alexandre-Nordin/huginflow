@@ -39,7 +39,7 @@ export const SKU_FORM_SECTIONS = [
   { id: 'identidade', label: 'Identidade', hint: 'Código, tipo e descrição' },
   { id: 'unidades', label: 'Unidades', hint: 'UM venda, compra e estoque' },
   { id: 'comercial', label: 'Comercial', hint: 'Preços e moeda' },
-  { id: 'estoque', label: 'Estoque', hint: 'Reposição, mínimos e fornecedor' },
+  { id: 'estoque', label: 'Estoque', hint: 'Reposição, lote/validade e fornecedor' },
   { id: 'fiscal', label: 'Fiscal', hint: 'Legado · PIS/COFINS · Reforma' },
 ] as const
 
@@ -62,6 +62,8 @@ export type SkuRecord = {
   preco_custo?: number | string | null
   moeda?: string | null
   controla_estoque?: boolean | null
+  controla_lote?: boolean | null
+  exige_validade?: boolean | null
   ponto_reposicao?: number | string | null
   estoque_minimo?: number | string | null
   estoque_maximo?: number | string | null
@@ -148,6 +150,12 @@ export function skuPayloadFromForm(formData: FormData) {
     moeda: str(formData, 'moeda') || 'BRL',
     controla_estoque:
       formData.get('controla_estoque') === 'on' || formData.get('controla_estoque') === 'true',
+    controla_lote:
+      formData.get('controla_lote') === 'on' || formData.get('controla_lote') === 'true',
+    exige_validade:
+      formData.get('controla_lote') === 'on' || formData.get('controla_lote') === 'true'
+        ? formData.get('exige_validade') === 'on' || formData.get('exige_validade') === 'true'
+        : false,
     ponto_reposicao: num(formData, 'ponto_reposicao'),
     estoque_minimo: num(formData, 'estoque_minimo'),
     estoque_maximo: num(formData, 'estoque_maximo'),

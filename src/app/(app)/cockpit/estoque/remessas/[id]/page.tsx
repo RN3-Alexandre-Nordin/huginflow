@@ -94,7 +94,8 @@ export default async function EstoqueRemessaDetalhesPage({ params }: PageProps) 
       `
       *,
       cad_skus (id, codigo, nome, unidade_estoque),
-      local_origem:cad_locais_estoque!est_remessa_itens_local_origem_id_fkey (id, codigo, nome)
+      local_origem:cad_locais_estoque!est_remessa_itens_local_origem_id_fkey (id, codigo, nome),
+      est_lotes_produto (id, numero_lote, data_validade)
     `
     )
     .eq('remessa_id', id)
@@ -241,6 +242,7 @@ export default async function EstoqueRemessaDetalhesPage({ params }: PageProps) 
               <tr>
                 <th className="py-3 px-4 w-12">#</th>
                 <th className="py-3 px-4">SKU / Produto</th>
+                <th className="py-3 px-4">Lote</th>
                 <th className="py-3 px-4">Local de Saída</th>
                 <th className="py-3 px-4 text-center">Enviada</th>
                 <th className="py-3 px-4 text-center">Retornada</th>
@@ -258,6 +260,21 @@ export default async function EstoqueRemessaDetalhesPage({ params }: PageProps) 
                     local_origem?: { id?: string; codigo?: string; nome?: string } | null
                   }
                 ).local_origem
+                const loteRaw = (
+                  it as {
+                    est_lotes_produto?:
+                      | { numero_lote?: string; data_validade?: string | null }
+                      | { numero_lote?: string; data_validade?: string | null }[]
+                      | null
+                  }
+                ).est_lotes_produto
+                const loteInfo = Array.isArray(loteRaw) ? loteRaw[0] : loteRaw
+                const valLabel = loteInfo?.data_validade
+                  ? (() => {
+                      const [y, m, d] = loteInfo.data_validade!.split('-')
+                      return y && m && d ? `${d}/${m}/${y}` : loteInfo.data_validade
+                    })()
+                  : null
                 const baixada = Number((it as { quantidade_baixada?: number }).quantidade_baixada || 0)
                 const emPoder =
                   Number(it.quantidade_enviada) - Number(it.quantidade_retornada || 0) - baixada
@@ -277,6 +294,20 @@ export default async function EstoqueRemessaDetalhesPage({ params }: PageProps) 
                         </div>
                       ) : (
                         '—'
+                      )}
+                    </td>
+                    <td className="py-3.5 px-4">
+                      {loteInfo?.numero_lote ? (
+                        <div>
+                          <span className="font-mono text-[11px] text-amber-300">
+                            {loteInfo.numero_lote}
+                          </span>
+                          {valLabel && (
+                            <span className="block text-[10px] text-gray-500">Val. {valLabel}</span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-gray-600">—</span>
                       )}
                     </td>
                     <td className="py-3.5 px-4">

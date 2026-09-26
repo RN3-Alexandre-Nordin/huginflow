@@ -10,6 +10,7 @@ import {
   Loader2,
   FolderOpen,
   CheckCircle2,
+  CalendarClock,
 } from 'lucide-react'
 import { saveEstoqueConfig } from './actions'
 
@@ -45,6 +46,8 @@ type ConfigData = {
   req_aprovacao_ativa?: boolean | null
   req_aprovador_usuario_id?: string | null
   req_aprovacao_valor_minimo?: number | string | null
+  fefo_sugerido?: boolean | null
+  bloquear_lotes_vencidos?: boolean | null
 }
 
 type UsuarioOption = {
@@ -64,7 +67,7 @@ type Props = {
   empresaNome?: string
 }
 
-type SectionId = 'nfe' | 'requisicoes' | 'workflow'
+type SectionId = 'nfe' | 'requisicoes' | 'lotes' | 'workflow'
 
 interface SectionMeta {
   id: SectionId
@@ -93,6 +96,15 @@ const SECTIONS_CONFIG: Record<SectionId, SectionMeta> = {
     description:
       'Tratamento de saldo insuficiente no atendimento e parâmetros de aprovação interna (aprovador e valor mínimo).',
     icon: ClipboardList,
+  },
+  lotes: {
+    id: 'lotes',
+    label: 'Lote e validade',
+    hint: 'FEFO sugerido e lotes vencidos',
+    title: 'Políticas de lote e validade',
+    description:
+      'Sugestão FEFO nas saídas (operador pode alterar) e bloqueio opcional de lotes com validade vencida.',
+    icon: CalendarClock,
   },
   workflow: {
     id: 'workflow',
@@ -134,6 +146,10 @@ export default function ConfigForm({
   const [aprovacaoWorkflow, setAprovacaoWorkflow] = useState(config?.aprovacao_via_workflow || false)
   const [aprovacaoFunilId, setAprovacaoFunilId] = useState(config?.aprovacao_funil_id || '')
   const [aprovacaoEstagioId, setAprovacaoEstagioId] = useState(config?.aprovacao_estagio_id || '')
+  const [fefoSugerido, setFefoSugerido] = useState(config?.fefo_sugerido !== false)
+  const [bloquearLotesVencidos, setBloquearLotesVencidos] = useState(
+    Boolean(config?.bloquear_lotes_vencidos),
+  )
 
   const filteredStages = stages.filter((s) => s.pipeline_id === aprovacaoFunilId)
 
@@ -141,6 +157,7 @@ export default function ConfigForm({
   const availableSections: SectionMeta[] = [
     SECTIONS_CONFIG.nfe,
     SECTIONS_CONFIG.requisicoes,
+    SECTIONS_CONFIG.lotes,
     ...(hasWorkflowAddon ? [SECTIONS_CONFIG.workflow] : []),
   ]
 
@@ -167,6 +184,8 @@ export default function ConfigForm({
       formData.append('aprovacao_funil_id', aprovacaoFunilId)
       formData.append('aprovacao_estagio_id', aprovacaoEstagioId)
     }
+    if (fefoSugerido) formData.append('fefo_sugerido', 'on')
+    if (bloquearLotesVencidos) formData.append('bloquear_lotes_vencidos', 'on')
 
     try {
       const res = await saveEstoqueConfig(formData)
@@ -527,7 +546,44 @@ export default function ConfigForm({
             </div>
           </div>
 
-          {/* Aba 3: Fluxo de Aprovação via Workflow (se addon ativo) */}
+          {/* Aba: Lote e validade */}
+          <div
+            className={activeSection === 'lotes' ? 'space-y-5 animate-in fade-in duration-200' : 'hidden'}
+            role="tabpanel"
+          >
+            <label className="flex items-start gap-3 cursor-pointer rounded-xl border border-[#ffffff0a] bg-[#0A0A0A] p-4">
+              <input
+                type="checkbox"
+                checked={fefoSugerido}
+                onChange={(e) => setFefoSugerido(e.target.checked)}
+                disabled={!canManage}
+                className="mt-0.5 h-4 w-4 rounded border-gray-700 bg-[#0A0A0A] text-[#2BAADF] focus:ring-[#2BAADF]"
+              />
+              <div>
+                <span className="text-sm font-medium text-white">Sugerir FEFO nas saídas</span>
+                <p className="text-xs text-gray-400 mt-0.5 leading-relaxed">
+                  Pré-preenche lotes pela validade mais próxima (First Expired, First Out). O operador pode alterar antes de confirmar.
+                </p>
+              </div>
+            </label>
+            <label className="flex items-start gap-3 cursor-pointer rounded-xl border border-[#ffffff0a] bg-[#0A0A0A] p-4">
+              <input
+                type="checkbox"
+                checked={bloquearLotesVencidos}
+                onChange={(e) => setBloquearLotesVencidos(e.target.checked)}
+                disabled={!canManage}
+                className="mt-0.5 h-4 w-4 rounded border-gray-700 bg-[#0A0A0A] text-[#2BAADF] focus:ring-[#2BAADF]"
+              />
+              <div>
+                <span className="text-sm font-medium text-white">Bloquear lotes vencidos no FEFO</span>
+                <p className="text-xs text-gray-400 mt-0.5 leading-relaxed">
+                  Quando ligado, a sugestão FEFO ignora lotes com data de validade anterior a hoje (default desligado no MVP).
+                </p>
+              </div>
+            </label>
+          </div>
+
+          {/* Aba: Fluxo de Aprovação via Workflow (se addon ativo) */}
           {hasWorkflowAddon && (
             <div className={activeSection === 'workflow' ? 'space-y-5 animate-in fade-in duration-200' : 'hidden'} role="tabpanel">
               <label className="flex items-start gap-3 cursor-pointer rounded-xl border border-[#ffffff0a] bg-[#0A0A0A] p-4">

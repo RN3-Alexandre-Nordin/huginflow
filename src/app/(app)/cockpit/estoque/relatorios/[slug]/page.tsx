@@ -89,6 +89,7 @@ export default async function EstoqueRelatorioSlugPage(props: {
     terceiro_id: get('terceiro_id') || undefined,
     status_remessa: get('status_remessa') || undefined,
     sinal_ajuste: get('sinal_ajuste') || undefined,
+    status_validade: get('status_validade') || undefined,
     limit: pageSize,
     offset,
   }

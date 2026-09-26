@@ -1,6 +1,8 @@
 # Plano de Cutover para Produção — Release Setembro 2026 (v0.3.0)
 
-> **Documento Vivo de Subida para Produção**  
+> **Runbook operacional de subida para produção.**  
+> Pacotes SQL, changelog e checklists pré-prod: [MIGRACAO-SUPABASE.md](../MIGRACAO-SUPABASE.md).  
+> Índice: [README.md](../README.md).  
 > **Data de Compilação:** 13 de Setembro de 2026 (atualizado 16/09 — migrations 17–**27**)  
 > **Ambiente Origem (DEV):** `vujqukqsfwmoezwyuoum` ([huginflow-dev](https://supabase.com/dashboard/project/vujqukqsfwmoezwyuoum))  
 > **Ambiente Destino (PROD):** `zmypzexefjbovuknjlid` ([huginflow-prod](https://supabase.com/dashboard/project/zmypzexefjbovuknjlid))  
@@ -141,7 +143,7 @@ As migrations devem ser executadas **estritamente na ordem numérica indicada**,
 - `.cursorrules` / `AGENTS.md` (governança Git + UI).
 - `src/constants/permissions.ts` (RBAC estoque).
 - `src/app/(app)/cockpit/cockpit-nav.ts`, `CockpitShell.tsx`, actions de empresas/CRM.
-- Docs: `docs/desenvolvimento-modulo-estoque.md`, `docs/MIGRACAO-SUPABASE.md`, `docs/supabase-prod-deploy-pending.md`, este cutover.
+- Docs: `docs/specs-aplicadas/desenvolvimento-modulo-estoque.md`, `docs/MIGRACAO-SUPABASE.md`, este cutover.
 
 ### 5.3 Arquivos Obsoletos Removidos
 - `src/app/(app)/cockpit/empresas/[id]/StatusToggle.tsx`

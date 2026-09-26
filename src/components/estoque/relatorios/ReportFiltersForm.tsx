@@ -219,6 +219,20 @@ export default function ReportFiltersForm({
             </select>
           </label>
         )}
+        {has('status_validade') && (
+          <label className="block text-[10px] uppercase tracking-wider text-gray-500">
+            Validade
+            <select
+              name="status_validade"
+              defaultValue={values.status_validade || 'todos'}
+              className={`${inputCls} mt-1`}
+            >
+              <option value="todos">Todos</option>
+              <option value="a_vencer">A vencer (30 dias)</option>
+              <option value="vencido">Vencidos</option>
+            </select>
+          </label>
+        )}
         {has('so_com_saldo') && (
           <label className="flex items-end gap-2 text-xs text-gray-300 pb-2">
             <input

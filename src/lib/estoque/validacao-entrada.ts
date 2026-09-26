@@ -208,11 +208,23 @@ export async function validarLoteEntrada(
   Object.values(deparasMap).forEach((id) => todosSkuIdsSet.add(id))
   const todosSkuIds = Array.from(todosSkuIdsSet)
 
-  let skusMap: Record<string, { id: string; codigo: string; nome: string; unidade_estoque: string; controla_estoque: boolean; ativo: boolean }> = {}
+  let skusMap: Record<
+    string,
+    {
+      id: string
+      codigo: string
+      nome: string
+      unidade_estoque: string
+      controla_estoque: boolean
+      controla_lote: boolean
+      exige_validade: boolean
+      ativo: boolean
+    }
+  > = {}
   if (todosSkuIds.length > 0) {
     const { data: skus } = await client
       .from('cad_skus')
-      .select('id, codigo, nome, unidade_estoque, controla_estoque, ativo')
+      .select('id, codigo, nome, unidade_estoque, controla_estoque, controla_lote, exige_validade, ativo')
       .eq('empresa_id', empresa_id)
       .in('id', todosSkuIds)
 
@@ -343,6 +355,58 @@ export async function validarLoteEntrada(
 
     // Justificativa opcional (lote_tela e demais origens)
     const just = item.justificativa?.trim() || null
+    const numeroLote = item.numero_lote?.trim() || null
+    const dataValidade = item.data_validade?.trim() || null
+    const dataFabricacao = item.data_fabricacao?.trim() || null
+    const loteProdutoId = item.lote_produto_id?.trim() || null
+
+    if (sku.controla_lote && !numeroLote && !loteProdutoId) {
+      resultadoItens.push({
+        linha: item.linha,
+        codigo_parceiro: codigoParceiroTrim,
+        sku_id: sku.id,
+        sku_codigo: sku.codigo,
+        sku_nome: sku.nome,
+        unidade_origem: item.unidade_origem,
+        quantidade_origem: qtdOrigem,
+        unidade_estoque: sku.unidade_estoque,
+        quantidade_estoque: null,
+        fator_conversao: null,
+        justificativa: just,
+        numero_lote: null,
+        data_validade: dataValidade,
+        data_fabricacao: dataFabricacao,
+        lote_produto_id: null,
+        status: 'erro',
+        erro_codigo: 'LOTE_OBRIGATORIO',
+        erro_mensagem: `O SKU "${sku.codigo}" exige número de lote.`,
+      })
+      continue
+    }
+
+    if (sku.controla_lote && sku.exige_validade && !dataValidade && !loteProdutoId) {
+      resultadoItens.push({
+        linha: item.linha,
+        codigo_parceiro: codigoParceiroTrim,
+        sku_id: sku.id,
+        sku_codigo: sku.codigo,
+        sku_nome: sku.nome,
+        unidade_origem: item.unidade_origem,
+        quantidade_origem: qtdOrigem,
+        unidade_estoque: sku.unidade_estoque,
+        quantidade_estoque: null,
+        fator_conversao: null,
+        justificativa: just,
+        numero_lote: numeroLote,
+        data_validade: null,
+        data_fabricacao: dataFabricacao,
+        lote_produto_id: loteProdutoId,
+        status: 'erro',
+        erro_codigo: 'VALIDADE_OBRIGATORIA',
+        erro_mensagem: `O SKU "${sku.codigo}" exige data de validade no lote.`,
+      })
+      continue
+    }
 
     // V3: Conversão de Unidade de Medida
     const umOrigem = (item.unidade_origem || sku.unidade_estoque || 'UN').trim().toUpperCase()
@@ -372,6 +436,10 @@ export async function validarLoteEntrada(
         quantidade_estoque: null,
         fator_conversao: null,
         justificativa: just,
+        numero_lote: numeroLote,
+        data_validade: dataValidade,
+        data_fabricacao: dataFabricacao,
+        lote_produto_id: loteProdutoId,
         status: 'erro',
         erro_codigo: 'CONVERSAO_NAO_ENCONTRADA',
         erro_mensagem: `Unidade de origem "${umOrigem}" difere da unidade de estoque "${umEstoque}" do SKU "${sku.codigo}" e não há conversão cadastrada (específica ou genérica) em Cadastros → Conversões UM. Ex.: 1 ${umOrigem} = N ${umEstoque}.`,
@@ -393,6 +461,10 @@ export async function validarLoteEntrada(
       quantidade_estoque: qtdEstoque,
       fator_conversao: fator,
       justificativa: just,
+      numero_lote: numeroLote,
+      data_validade: dataValidade,
+      data_fabricacao: dataFabricacao,
+      lote_produto_id: loteProdutoId,
       status: 'ok',
       erro_codigo: null,
       erro_mensagem: null,

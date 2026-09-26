@@ -43,7 +43,7 @@ export default async function NovaRemessaPage() {
 
   let skusQuery = supabase
     .from('cad_skus')
-    .select('id, codigo, nome, unidade_estoque')
+    .select('id, codigo, nome, unidade_estoque, controla_lote')
     .eq('ativo', true)
     .eq('controla_estoque', true)
     .order('codigo')
@@ -66,7 +66,7 @@ export default async function NovaRemessaPage() {
   }
   const { data: locais } = await locaisQuery
 
-  // Saldos materializados para label "disp. no local" (SKU × local) — sem recalcular cardex
+  // Saldos materializados agregados SKU × local (soma lotes)
   let saldosQuery = supabase
     .from('est_saldos')
     .select('sku_id, local_id, quantidade')
@@ -77,7 +77,27 @@ export default async function NovaRemessaPage() {
   } else if (empresaId) {
     saldosQuery = saldosQuery.eq('empresa_id', empresaId)
   }
-  const { data: saldos } = await saldosQuery.limit(5000)
+  const { data: saldosRaw } = await saldosQuery.limit(5000)
+
+  const saldosAgg = new Map<string, { sku_id: string; local_id: string; quantidade: number }>()
+  for (const s of saldosRaw || []) {
+    const key = `${s.sku_id}|${s.local_id}`
+    const prev = saldosAgg.get(key)
+    const q = Number(s.quantidade) || 0
+    if (prev) prev.quantidade += q
+    else
+      saldosAgg.set(key, {
+        sku_id: s.sku_id as string,
+        local_id: s.local_id as string,
+        quantidade: q,
+      })
+  }
+
+  const { data: config } = await supabase
+    .from('est_config')
+    .select('bloquear_lotes_vencidos')
+    .eq('empresa_id', empresaId)
+    .maybeSingle()
 
   const defaultLocal = locais?.find((l) => l.eh_principal || l.codigo === 'BRANCO') || locais?.[0]
 
@@ -86,15 +106,13 @@ export default async function NovaRemessaPage() {
       <EstoqueAreaNav />
 
       <RemessaForm
+        empresaId={empresaId}
         pessoas={pessoas}
         skus={skus || []}
         locais={locais || []}
-        saldos={(saldos || []).map((s) => ({
-          sku_id: s.sku_id as string,
-          local_id: s.local_id as string,
-          quantidade: Number(s.quantidade) || 0,
-        }))}
+        saldos={[...saldosAgg.values()]}
         defaultLocalId={defaultLocal?.id}
+        bloquearVencidos={Boolean(config?.bloquear_lotes_vencidos)}
       />
     </div>
   )

@@ -12,6 +12,7 @@ import {
   Send,
   XCircle,
 } from 'lucide-react'
+import LotePicker, { type AlocacaoLoteFefo } from '@/components/estoque/LotePicker'
 import {
   atenderRequisicaoAction,
   transicionarStatusRequisicaoAction,
@@ -28,23 +29,27 @@ export type ItemAtendimentoUi = {
   quantidade_pendente: number
   status_item: string
   local_id: string | null
+  controla_lote?: boolean
 }
 
-type SaldoRow = { sku_id: string; local_id: string; quantidade: number }
+type SaldoProp = { sku_id: string; local_id: string; quantidade: number }
 
 interface Props {
   requisicaoId: string
+  empresaId: string
   status: string
   canApprove: boolean
   canAtender: boolean
   locais: Array<{ id: string; codigo: string; nome: string; eh_principal: boolean }>
   modoSaldo: string
   itens: ItemAtendimentoUi[]
-  saldos: SaldoRow[]
+  saldos: SaldoProp[]
+  bloquearVencidos?: boolean
 }
 
 export default function AtendimentoPanel({
   requisicaoId,
+  empresaId,
   status,
   canApprove,
   canAtender,
@@ -52,6 +57,7 @@ export default function AtendimentoPanel({
   modoSaldo,
   itens,
   saldos,
+  bloquearVencidos = false,
 }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -62,6 +68,9 @@ export default function AtendimentoPanel({
     tipo: 'erro' | 'sucesso' | 'alerta'
     texto: string
   } | null>(null)
+  const [alocacoesPorItem, setAlocacoesPorItem] = useState<
+    Record<string, AlocacaoLoteFefo[]>
+  >({})
 
   const pendentes = useMemo(
     () => itens.filter((i) => Number(i.quantidade_pendente) > 0 && i.status_item !== 'pulado'),
@@ -72,7 +81,7 @@ export default function AtendimentoPanel({
     const map: Record<string, number> = {}
     for (const s of saldos) {
       if (s.local_id === localBaixaId) {
-        map[s.sku_id] = Number(s.quantidade)
+        map[s.sku_id] = (map[s.sku_id] || 0) + Number(s.quantidade)
       }
     }
     return map
@@ -99,6 +108,7 @@ export default function AtendimentoPanel({
       next[it.id] = String(max)
     }
     setQtds(next)
+    setAlocacoesPorItem({})
   }, [qtdsSeedKey, itens, saldoNoLocal])
 
   function handleTransition(
@@ -122,6 +132,8 @@ export default function AtendimentoPanel({
       .map((it) => ({
         item_id: it.id,
         quantidade: parseFloat((qtds[it.id] || '0').replace(',', '.')),
+        controla_lote: Boolean(it.controla_lote),
+        sku_codigo: it.sku_codigo,
       }))
       .filter((i) => Number.isFinite(i.quantidade) && i.quantidade > 0)
 
@@ -134,8 +146,37 @@ export default function AtendimentoPanel({
       return
     }
 
+    const alocsPayload: Record<string, AlocacaoLoteFefo[]> = {}
+    for (const it of itensAtender) {
+      if (!it.controla_lote) continue
+      const alocs = (alocacoesPorItem[it.item_id] || []).filter(
+        (a) => Number(a.quantidade) > 0 && a.lote_produto_id
+      )
+      if (alocs.length === 0) {
+        setFeedback({
+          tipo: 'erro',
+          texto: `SKU ${it.sku_codigo}: informe ao menos um lote produto (FEFO).`,
+        })
+        return
+      }
+      const soma = alocs.reduce((s, a) => s + Number(a.quantidade), 0)
+      if (Math.abs(soma - it.quantidade) > 1e-9) {
+        setFeedback({
+          tipo: 'erro',
+          texto: `SKU ${it.sku_codigo}: soma dos lotes (${soma}) deve igualar a qtd a atender (${it.quantidade}).`,
+        })
+        return
+      }
+      alocsPayload[it.item_id] = alocs
+    }
+
     startTransition(async () => {
-      const res = await atenderRequisicaoAction(requisicaoId, localBaixaId, itensAtender)
+      const res = await atenderRequisicaoAction(
+        requisicaoId,
+        localBaixaId,
+        itensAtender.map(({ item_id, quantidade }) => ({ item_id, quantidade })),
+        Object.keys(alocsPayload).length > 0 ? alocsPayload : null
+      )
       if ('error' in res) {
         setFeedback({ tipo: 'erro', texto: res.error || 'Erro desconhecido.' })
         return
@@ -181,7 +222,6 @@ export default function AtendimentoPanel({
         </div>
       )}
 
-      {/* Toolbar de ações */}
       <div className="overflow-hidden rounded-2xl border border-[#ffffff0a] bg-[#121820] shadow-xl">
         <div className="flex flex-col gap-4 p-5 lg:flex-row lg:items-end lg:justify-between">
           <div className="min-w-0 space-y-1">
@@ -301,7 +341,6 @@ export default function AtendimentoPanel({
           </div>
         </div>
 
-        {/* Linhas de atendimento parcial — grid alinhado */}
         {podeAtenderAgora && (
           <div className="border-t border-[#ffffff08]">
             <div className="flex flex-col gap-1 border-b border-[#ffffff08] bg-[#0A0A0A]/60 px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
@@ -318,7 +357,6 @@ export default function AtendimentoPanel({
               )}
             </div>
 
-            {/* Cabeçalho desktop */}
             <div className="hidden grid-cols-[minmax(0,1.6fr)_7rem_7rem_10rem] gap-3 border-b border-[#ffffff08] bg-[#0e1319] px-5 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-gray-500 md:grid">
               <span>SKU / produto</span>
               <span className="text-right">Pendente</span>
@@ -332,81 +370,109 @@ export default function AtendimentoPanel({
                 const max = Math.min(Number(it.quantidade_pendente), Math.max(0, saldo))
                 const semSaldo = saldo <= 0
                 const parcialSaldo = !semSaldo && saldo < Number(it.quantidade_pendente)
+                const qtdNum = parseFloat((qtds[it.id] || '0').replace(',', '.'))
+                const controlaLote = Boolean(it.controla_lote)
 
                 return (
-                  <li
-                    key={it.id}
-                    className="grid grid-cols-1 gap-3 px-5 py-3.5 md:grid-cols-[minmax(0,1.6fr)_7rem_7rem_10rem] md:items-center md:gap-3"
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate font-mono text-sm font-semibold text-white">
-                        {it.sku_codigo}
-                      </p>
-                      <p className="truncate text-[11px] text-gray-500">{it.sku_nome}</p>
-                    </div>
-
-                    <div className="flex items-center justify-between md:block md:text-right">
-                      <span className="text-[10px] uppercase text-gray-600 md:hidden">
-                        Pendente
-                      </span>
-                      <p className="font-mono text-sm tabular-nums text-amber-400">
-                        {it.quantidade_pendente}
-                        <span className="ml-1 text-[10px] text-gray-600">{it.unidade}</span>
-                      </p>
-                    </div>
-
-                    <div className="flex items-center justify-between md:block md:text-right">
-                      <span className="text-[10px] uppercase text-gray-600 md:hidden">
-                        Saldo local
-                      </span>
-                      <p
-                        className={`font-mono text-sm tabular-nums ${
-                          semSaldo
-                            ? 'text-red-400'
-                            : parcialSaldo
-                              ? 'text-amber-300'
-                              : 'text-gray-300'
-                        }`}
-                      >
-                        {saldo}
-                        <span className="ml-1 text-[10px] text-gray-600">{it.unidade}</span>
-                      </p>
-                    </div>
-
-                    <div className="flex items-center justify-between gap-2 md:justify-end">
-                      <span className="text-[10px] uppercase text-gray-600 md:hidden">
-                        Qtd a atender
-                      </span>
-                      <div className="flex w-full max-w-[10rem] items-center overflow-hidden rounded-xl border border-[#ffffff15] bg-[#0A0A0A] focus-within:border-emerald-500/40 md:w-auto">
-                        <input
-                          type="number"
-                          min={0}
-                          max={max}
-                          step="any"
-                          value={qtds[it.id] ?? '0'}
-                          onChange={(e) =>
-                            setQtds((prev) => ({ ...prev, [it.id]: e.target.value }))
-                          }
-                          disabled={semSaldo || isPending}
-                          className="h-10 w-full min-w-0 bg-transparent px-3 text-right font-mono text-sm tabular-nums text-white outline-none disabled:opacity-40"
-                        />
-                        <span className="shrink-0 border-l border-[#ffffff10] px-2.5 text-[10px] font-medium text-gray-500">
-                          {it.unidade}
-                        </span>
+                  <li key={it.id} className="space-y-3 px-5 py-3.5">
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1.6fr)_7rem_7rem_10rem] md:items-center md:gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate font-mono text-sm font-semibold text-white">
+                          {it.sku_codigo}
+                          {controlaLote && (
+                            <span className="ml-1.5 text-[10px] font-medium text-amber-400/80">
+                              · lote
+                            </span>
+                          )}
+                        </p>
+                        <p className="truncate text-[11px] text-gray-500">{it.sku_nome}</p>
                       </div>
+
+                      <div className="flex items-center justify-between md:block md:text-right">
+                        <span className="text-[10px] uppercase text-gray-600 md:hidden">
+                          Pendente
+                        </span>
+                        <p className="font-mono text-sm tabular-nums text-amber-400">
+                          {it.quantidade_pendente}
+                          <span className="ml-1 text-[10px] text-gray-600">{it.unidade}</span>
+                        </p>
+                      </div>
+
+                      <div className="flex items-center justify-between md:block md:text-right">
+                        <span className="text-[10px] uppercase text-gray-600 md:hidden">
+                          Saldo local
+                        </span>
+                        <p
+                          className={`font-mono text-sm tabular-nums ${
+                            semSaldo
+                              ? 'text-red-400'
+                              : parcialSaldo
+                                ? 'text-amber-300'
+                                : 'text-gray-300'
+                          }`}
+                        >
+                          {saldo}
+                          <span className="ml-1 text-[10px] text-gray-600">{it.unidade}</span>
+                        </p>
+                      </div>
+
+                      <div className="flex items-center justify-between gap-2 md:justify-end">
+                        <span className="text-[10px] uppercase text-gray-600 md:hidden">
+                          Qtd a atender
+                        </span>
+                        <div className="flex w-full max-w-[10rem] items-center overflow-hidden rounded-xl border border-[#ffffff15] bg-[#0A0A0A] focus-within:border-emerald-500/40 md:w-auto">
+                          <input
+                            type="number"
+                            min={0}
+                            max={max}
+                            step="any"
+                            value={qtds[it.id] ?? '0'}
+                            onChange={(e) =>
+                              setQtds((prev) => ({ ...prev, [it.id]: e.target.value }))
+                            }
+                            disabled={semSaldo || isPending}
+                            className="h-10 w-full min-w-0 bg-transparent px-3 text-right font-mono text-sm tabular-nums text-white outline-none disabled:opacity-40"
+                          />
+                          <span className="shrink-0 border-l border-[#ffffff10] px-2.5 text-[10px] font-medium text-gray-500">
+                            {it.unidade}
+                          </span>
+                        </div>
+                      </div>
+
+                      {semSaldo && (
+                        <p className="col-span-full flex items-center gap-1.5 text-[10px] text-red-400/90 md:col-span-1 md:col-start-4 md:justify-end">
+                          <AlertTriangle className="h-3 w-3" />
+                          Sem saldo neste local
+                        </p>
+                      )}
+                      {!semSaldo && max < Number(it.quantidade_pendente) && (
+                        <p className="col-span-full text-[10px] text-gray-600 md:col-span-1 md:col-start-4 md:text-right">
+                          Máx. neste ciclo: {max} {it.unidade}
+                        </p>
+                      )}
                     </div>
 
-                    {semSaldo && (
-                      <p className="col-span-full flex items-center gap-1.5 text-[10px] text-red-400/90 md:col-span-1 md:col-start-4 md:justify-end">
-                        <AlertTriangle className="h-3 w-3" />
-                        Sem saldo neste local
-                      </p>
-                    )}
-                    {!semSaldo && max < Number(it.quantidade_pendente) && (
-                      <p className="col-span-full text-[10px] text-gray-600 md:col-span-1 md:col-start-4 md:text-right">
-                        Máx. neste ciclo: {max} {it.unidade}
-                      </p>
-                    )}
+                    {controlaLote &&
+                      empresaId &&
+                      localBaixaId &&
+                      Number.isFinite(qtdNum) &&
+                      qtdNum > 0 && (
+                        <LotePicker
+                          empresaId={empresaId}
+                          skuId={it.sku_id}
+                          localId={localBaixaId}
+                          quantidade={qtdNum}
+                          value={alocacoesPorItem[it.id] || []}
+                          onChange={(alocacoes) =>
+                            setAlocacoesPorItem((prev) => ({
+                              ...prev,
+                              [it.id]: alocacoes,
+                            }))
+                          }
+                          bloquearVencidos={bloquearVencidos}
+                          disabled={isPending || semSaldo}
+                        />
+                      )}
                   </li>
                 )
               })}

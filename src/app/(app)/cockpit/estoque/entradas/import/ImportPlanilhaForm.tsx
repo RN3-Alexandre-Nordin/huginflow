@@ -84,9 +84,9 @@ export default function ImportPlanilhaForm({
 
   function downloadCsvTemplate() {
     const csvContent =
-      'codigo_item,unidade_origem,quantidade,justificativa\n' +
-      'COD-FORNECEDOR-01,CX,10,Recebimento da ordem de compra\n' +
-      'LUVA-M,UN,50,Reposição de estoque\n'
+      'codigo_item,unidade_origem,quantidade,justificativa,numero_lote,data_validade,data_fabricacao\n' +
+      'COD-FORNECEDOR-01,CX,10,Recebimento da ordem de compra,LOTE-A1,2027-06-30,2026-01-15\n' +
+      'LUVA-M,UN,50,Reposição de estoque,,,\n'
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
@@ -111,6 +111,14 @@ export default function ImportPlanilhaForm({
     reader.readAsText(file)
   }
 
+  function normalizeHeader(h: string) {
+    return h
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9_]/g, '')
+  }
+
   function parseCsvText(raw: string) {
     if (!raw.trim()) {
       setParsedItens([])
@@ -125,15 +133,34 @@ export default function ImportPlanilhaForm({
 
     if (lines.length === 0) return
 
-    // Detecta separador (, ou ;)
     const firstLine = lines[0]
     const separator = firstLine.includes(';') ? ';' : ','
 
-    // Checa se primeira linha é cabeçalho
+    const headerCells = firstLine.split(separator).map((c) =>
+      normalizeHeader(c.replace(/^["']|["']$/g, '').trim()),
+    )
     const hasHeader =
-      firstLine.toLowerCase().includes('codigo') ||
-      firstLine.toLowerCase().includes('item') ||
-      firstLine.toLowerCase().includes('quantidade')
+      headerCells.some((h) => h.includes('codigo') || h.includes('item')) ||
+      headerCells.some((h) => h.includes('quantidade') || h === 'qtd')
+
+    const colIndex = (aliases: string[]) => {
+      if (!hasHeader) return -1
+      for (const a of aliases) {
+        const i = headerCells.findIndex((h) => h === a || h.includes(a))
+        if (i >= 0) return i
+      }
+      return -1
+    }
+
+    const idxCodigo = hasHeader
+      ? colIndex(['codigo_item', 'codigo', 'item', 'sku'])
+      : 0
+    const idxUm = hasHeader ? colIndex(['unidade_origem', 'unidade', 'um']) : 1
+    const idxQtd = hasHeader ? colIndex(['quantidade', 'qtd', 'qty']) : 2
+    const idxJust = hasHeader ? colIndex(['justificativa', 'motivo', 'obs']) : 3
+    const idxLote = hasHeader ? colIndex(['numero_lote', 'lote', 'nrolote']) : 4
+    const idxVal = hasHeader ? colIndex(['data_validade', 'validade', 'dval']) : 5
+    const idxFab = hasHeader ? colIndex(['data_fabricacao', 'fabricacao', 'dfab']) : 6
 
     const dataLines = hasHeader ? lines.slice(1) : lines
 
@@ -148,12 +175,17 @@ export default function ImportPlanilhaForm({
       const cols = line.split(separator).map((c) => c.replace(/^["']|["']$/g, '').trim())
       if (cols.length < 2) return
 
-      const codigoRaw = cols[0] || ''
-      const unidadeOrigem = cols[1]?.toUpperCase() || 'UN'
-      const qtdRaw = cols[2] ? cols[2].replace(',', '.') : '0'
-      const justificativa = cols[3] || 'Importação via planilha'
+      const cell = (i: number) => (i >= 0 && i < cols.length ? cols[i] : '') || ''
 
-      // Se o código bater diretamente com um SKU cadastrado, usa o sku_id, senão trata como codigo_parceiro
+      const codigoRaw = cell(idxCodigo >= 0 ? idxCodigo : 0)
+      const unidadeOrigem = (cell(idxUm >= 0 ? idxUm : 1) || 'UN').toUpperCase()
+      const qtdRaw = (cell(idxQtd >= 0 ? idxQtd : 2) || '0').replace(',', '.')
+      const justificativa =
+        cell(idxJust >= 0 ? idxJust : 3) || 'Importação via planilha'
+      const numeroLote = cell(idxLote).trim() || null
+      const dataValidade = cell(idxVal).trim() || null
+      const dataFabricacao = cell(idxFab).trim() || null
+
       const matchedSkuId = skuMapByCode[codigoRaw.toUpperCase()]
 
       items.push({
@@ -163,6 +195,9 @@ export default function ImportPlanilhaForm({
         unidade_origem: unidadeOrigem,
         quantidade_origem: parseFloat(qtdRaw) || 0,
         justificativa,
+        numero_lote: numeroLote,
+        data_validade: dataValidade,
+        data_fabricacao: dataFabricacao,
       })
     })
 
@@ -393,7 +428,9 @@ export default function ImportPlanilhaForm({
               Arquivo CSV ou Dados da Planilha
             </h2>
             <p className="text-[11px] text-gray-400 mt-0.5">
-              Colunas esperadas: <code>codigo_item</code>, <code>unidade_origem</code>, <code>quantidade</code>, <code>justificativa</code>.
+              Colunas: <code>codigo_item</code>, <code>unidade_origem</code>, <code>quantidade</code>,{' '}
+              <code>justificativa</code>; opcionais: <code>numero_lote</code>, <code>data_validade</code>,{' '}
+              <code>data_fabricacao</code>.
             </p>
           </div>
 
@@ -439,7 +476,7 @@ export default function ImportPlanilhaForm({
                 setCsvRaw(e.target.value)
                 parseCsvText(e.target.value)
               }}
-              placeholder="codigo_item,unidade_origem,quantidade,justificativa&#10;COD-01,CX,10,Reposicao&#10;LUVA-M,UN,50,Reposicao"
+              placeholder="codigo_item,unidade_origem,quantidade,justificativa,numero_lote,data_validade,data_fabricacao&#10;COD-01,CX,10,Reposicao,LOTE-1,2027-01-31,&#10;LUVA-M,UN,50,Reposicao,,,"
               className="w-full bg-[#0d1218] border border-[#ffffff10] rounded-xl p-2.5 text-xs text-white font-mono focus:outline-none focus:border-blue-500/50"
             />
           </div>
@@ -474,6 +511,7 @@ export default function ImportPlanilhaForm({
                   <th className="py-2.5 px-4 w-12">#</th>
                   <th className="py-2.5 px-4">Código / SKU Informado</th>
                   <th className="py-2.5 px-4">Qtd Origem</th>
+                  <th className="py-2.5 px-4">Lote / Validade</th>
                   <th className="py-2.5 px-4">Justificativa</th>
                   <th className="py-2.5 px-4 text-center">Status / Qtd Estoque</th>
                 </tr>
@@ -502,6 +540,25 @@ export default function ImportPlanilhaForm({
                       </td>
                       <td className="py-3 px-4 font-mono text-gray-300">
                         {item.quantidade_origem} {item.unidade_origem}
+                      </td>
+                      <td className="py-3 px-4 text-gray-300">
+                        {item.numero_lote ? (
+                          <div>
+                            <span className="font-mono text-white">{item.numero_lote}</span>
+                            {item.data_validade && (
+                              <span className="block text-[10px] text-gray-500">
+                                Val. {item.data_validade}
+                              </span>
+                            )}
+                            {item.data_fabricacao && (
+                              <span className="block text-[10px] text-gray-600">
+                                Fab. {item.data_fabricacao}
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-gray-600">—</span>
+                        )}
                       </td>
                       <td className="py-3 px-4 text-gray-300">
                         <div>{item.justificativa || '—'}</div>

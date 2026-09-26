@@ -13,6 +13,10 @@ export interface NfeXmlItem {
   codigo_barras?: string
   unidade_tributavel?: string
   quantidade_tributavel?: number
+  /** Rastro (lote/validade) quando presente na NF-e */
+  numero_lote?: string | null
+  data_validade?: string | null
+  data_fabricacao?: string | null
 }
 
 export interface NfeXmlEmitente {
@@ -60,6 +64,37 @@ function digits(v: unknown): string {
 function num(v: unknown): number {
   const n = parseFloat(str(v).replace(',', '.'))
   return Number.isFinite(n) ? n : 0
+}
+
+/** Normaliza data NF-e (AAAA-MM-DD ou AAAAMMDD) para ISO date. */
+function nfeDate(v: unknown): string | null {
+  const raw = str(v)
+  if (!raw) return null
+  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10)
+  if (/^\d{8}$/.test(raw)) {
+    return `${raw.slice(0, 4)}-${raw.slice(4, 6)}-${raw.slice(6, 8)}`
+  }
+  const d = new Date(raw)
+  if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10)
+  return null
+}
+
+function extractRastro(prod: Record<string, unknown>): {
+  numero_lote: string | null
+  data_validade: string | null
+  data_fabricacao: string | null
+} {
+  const raw = prod.rastro
+  if (!raw) {
+    return { numero_lote: null, data_validade: null, data_fabricacao: null }
+  }
+  const list = Array.isArray(raw) ? raw : [raw]
+  const first = (list[0] || {}) as Record<string, unknown>
+  return {
+    numero_lote: str(first.nLote) || null,
+    data_validade: nfeDate(first.dVal),
+    data_fabricacao: nfeDate(first.dFab),
+  }
 }
 
 /**
@@ -162,6 +197,8 @@ export function parseNfeXml(xmlString: string): NfeXmlParsed {
       const codigoBarras =
         ean && ean !== 'SEM GTIN' ? ean : eanTrib && eanTrib !== 'SEM GTIN' ? eanTrib : undefined
 
+      const rastro = extractRastro(prod)
+
       itens.push({
         linha,
         codigo_parceiro: str(prod.cProd) || `ITEM-${linha}`,
@@ -175,6 +212,9 @@ export function parseNfeXml(xmlString: string): NfeXmlParsed {
         codigo_barras: codigoBarras,
         unidade_tributavel: str(prod.uTrib).toUpperCase() || undefined,
         quantidade_tributavel: prod.qTrib != null ? num(prod.qTrib) : undefined,
+        numero_lote: rastro.numero_lote,
+        data_validade: rastro.data_validade,
+        data_fabricacao: rastro.data_fabricacao,
       })
     }
 

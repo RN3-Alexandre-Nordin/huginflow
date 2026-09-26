@@ -1,5 +1,6 @@
 import { validarLoteEntrada } from './validacao-entrada'
 import { parseMovimentoAtomicoResult } from './rpc-movimento'
+import { resolverOuCriarLoteProduto } from './lotes-produto'
 import type { LoteEntradaInput } from './tipos'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -91,7 +92,7 @@ export async function processarLoteEntrada(
 
   const loteId = loteCriado.id as string
 
-  // 4. Grava os itens no banco
+  // 4. Grava os itens no banco (inclui campos de lote produto)
   const rowsItens = validacao.itens.map((it) => ({
     empresa_id: params.empresa_id,
     lote_id: loteId,
@@ -104,6 +105,10 @@ export async function processarLoteEntrada(
     quantidade_estoque: it.quantidade_estoque,
     fator_conversao: it.fator_conversao,
     justificativa: it.justificativa,
+    numero_lote: it.numero_lote ?? null,
+    data_validade: it.data_validade ?? null,
+    data_fabricacao: it.data_fabricacao ?? null,
+    lote_produto_id: it.lote_produto_id ?? null,
     status: it.status,
     erro_codigo: it.erro_codigo,
     erro_mensagem: it.erro_mensagem,
@@ -114,7 +119,9 @@ export async function processarLoteEntrada(
   const { data: itensGravados, error: errItens } = await client
     .from('est_entrada_itens')
     .insert(rowsItens)
-    .select('id, linha, status, sku_id, quantidade_estoque, justificativa')
+    .select(
+      'id, linha, status, sku_id, quantidade_estoque, justificativa, numero_lote, data_validade, data_fabricacao, lote_produto_id'
+    )
 
   if (errItens || !itensGravados) {
     await client
@@ -132,6 +139,28 @@ export async function processarLoteEntrada(
     }
   }
 
+  const skuIdsOk = [
+    ...new Set(
+      (itensGravados as { sku_id: string | null; status: string }[])
+        .filter((i) => i.status === 'ok' && i.sku_id)
+        .map((i) => i.sku_id as string)
+    ),
+  ]
+  const skuFlags = new Map<string, { controla_lote: boolean; exige_validade: boolean }>()
+  if (skuIdsOk.length > 0) {
+    const { data: skusFlags } = await client
+      .from('cad_skus')
+      .select('id, controla_lote, exige_validade')
+      .eq('empresa_id', params.empresa_id)
+      .in('id', skuIdsOk)
+    for (const s of skusFlags || []) {
+      skuFlags.set(s.id, {
+        controla_lote: Boolean(s.controla_lote),
+        exige_validade: Boolean(s.exige_validade),
+      })
+    }
+  }
+
   // 5. Efetivação atômica no Cardex + Saldo para cada item OK (REGRA DE OURO)
   let movimentosEfetivados = 0
   const itensComFalhaExecucao: string[] = []
@@ -144,6 +173,59 @@ export async function processarLoteEntrada(
     const qtd = Number(item.quantidade_estoque)
     if (!Number.isFinite(qtd) || qtd <= 0) {
       continue
+    }
+
+    const flags = skuFlags.get(item.sku_id) || {
+      controla_lote: false,
+      exige_validade: false,
+    }
+    let loteProdutoId: string | null = item.lote_produto_id || null
+
+    if (flags.controla_lote) {
+      if (loteProdutoId) {
+        // já informado
+      } else if (item.numero_lote?.trim()) {
+        try {
+          const resolved = await resolverOuCriarLoteProduto(client, {
+            empresa_id: params.empresa_id,
+            sku_id: item.sku_id,
+            numero_lote: item.numero_lote,
+            data_validade: item.data_validade,
+            data_fabricacao: item.data_fabricacao,
+            exige_validade: flags.exige_validade,
+          })
+          loteProdutoId = resolved.id
+          await client
+            .from('est_entrada_itens')
+            .update({ lote_produto_id: loteProdutoId, updated_at: agora })
+            .eq('id', item.id)
+        } catch (e: unknown) {
+          const err = e as Error
+          itensComFalhaExecucao.push(`Linha ${item.linha}: ${err?.message || 'Falha no lote'}`)
+          await client
+            .from('est_entrada_itens')
+            .update({
+              status: 'erro',
+              erro_codigo: 'LOTE_OBRIGATORIO',
+              erro_mensagem: err?.message || 'Falha ao resolver lote produto.',
+            })
+            .eq('id', item.id)
+          continue
+        }
+      } else {
+        itensComFalhaExecucao.push(`Linha ${item.linha}: lote obrigatório`)
+        await client
+          .from('est_entrada_itens')
+          .update({
+            status: 'erro',
+            erro_codigo: 'LOTE_OBRIGATORIO',
+            erro_mensagem: 'SKU controla lote e número do lote não foi informado.',
+          })
+          .eq('id', item.id)
+        continue
+      }
+    } else {
+      loteProdutoId = null
     }
 
     const motivo = item.justificativa
@@ -166,6 +248,7 @@ export async function processarLoteEntrada(
           p_motivo: motivo,
           p_usuario_id: params.usuario_id || null,
           p_permitir_saldo_negativo: false,
+          p_lote_produto_id: loteProdutoId,
         },
       )
 

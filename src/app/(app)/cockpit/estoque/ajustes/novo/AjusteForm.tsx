@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { Fragment, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
@@ -12,14 +12,23 @@ import {
   XCircle,
 } from 'lucide-react'
 import SearchableSelect from '@/components/SearchableSelect'
+import LotePicker, {
+  expandirItensPorAlocacaoLote,
+  type AlocacaoLoteFefo,
+} from '@/components/estoque/LotePicker'
 import { criarAjusteAction } from '../actions'
-import { MOTIVOS_AJUSTE } from '@/lib/estoque/operacoes-avancadas'
+import {
+  MOTIVOS_AJUSTE,
+  type ItemAjusteInput,
+} from '@/lib/estoque/operacoes-avancadas'
 
 interface SkuOption {
   id: string
   codigo: string
   nome: string
   unidade_estoque: string
+  controla_lote?: boolean
+  exige_validade?: boolean
 }
 
 interface LocalOption {
@@ -30,9 +39,11 @@ interface LocalOption {
 }
 
 interface Props {
+  empresaId: string
   skus: SkuOption[]
   locais: LocalOption[]
   defaultLocalId?: string
+  bloquearVencidos?: boolean
 }
 
 interface RowItem {
@@ -43,9 +54,24 @@ interface RowItem {
   quantidade: string
   motivo_codigo: string
   justificativa: string
+  alocacoes: AlocacaoLoteFefo[]
+  numero_lote: string
+  data_validade: string
+  data_fabricacao: string
 }
 
-export default function AjusteForm({ skus, locais, defaultLocalId }: Props) {
+function parseQtd(raw: string): number {
+  const n = parseFloat(String(raw).replace(',', '.'))
+  return Number.isFinite(n) ? n : NaN
+}
+
+export default function AjusteForm({
+  empresaId,
+  skus,
+  locais,
+  defaultLocalId,
+  bloquearVencidos = false,
+}: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
 
@@ -62,6 +88,10 @@ export default function AjusteForm({ skus, locais, defaultLocalId }: Props) {
       quantidade: '1',
       motivo_codigo: 'inventario',
       justificativa: '',
+      alocacoes: [],
+      numero_lote: '',
+      data_validade: '',
+      data_fabricacao: '',
     },
   ])
 
@@ -70,19 +100,24 @@ export default function AjusteForm({ skus, locais, defaultLocalId }: Props) {
     texto: string
   } | null>(null)
 
+  function emptyRow(): RowItem {
+    return {
+      id: `row-${Date.now()}`,
+      sku_id: '',
+      local_id: defaultLocalId || (locais[0]?.id ?? ''),
+      sinal: '+',
+      quantidade: '1',
+      motivo_codigo: 'inventario',
+      justificativa: '',
+      alocacoes: [],
+      numero_lote: '',
+      data_validade: '',
+      data_fabricacao: '',
+    }
+  }
+
   function addRow() {
-    setRows((prev) => [
-      ...prev,
-      {
-        id: `row-${Date.now()}`,
-        sku_id: '',
-        local_id: defaultLocalId || (locais[0]?.id ?? ''),
-        sinal: '+',
-        quantidade: '1',
-        motivo_codigo: 'inventario',
-        justificativa: '',
-      },
-    ])
+    setRows((prev) => [...prev, emptyRow()])
   }
 
   function removeRow(index: number) {
@@ -93,7 +128,17 @@ export default function AjusteForm({ skus, locais, defaultLocalId }: Props) {
   function updateRow(index: number, patch: Partial<RowItem>) {
     setRows((prev) => {
       const next = [...prev]
-      next[index] = { ...next[index], ...patch }
+      const cur = next[index]
+      const cleared =
+        ('sku_id' in patch && patch.sku_id !== cur.sku_id) ||
+        ('local_id' in patch && patch.local_id !== cur.local_id) ||
+        ('quantidade' in patch && patch.quantidade !== cur.quantidade) ||
+        ('sinal' in patch && patch.sinal !== cur.sinal)
+      next[index] = {
+        ...cur,
+        ...patch,
+        ...(cleared && !('alocacoes' in patch) ? { alocacoes: [] } : {}),
+      }
       return next
     })
   }
@@ -115,7 +160,7 @@ export default function AjusteForm({ skus, locais, defaultLocalId }: Props) {
     }
 
     const invalidQtd = rows.some((r) => {
-      const val = parseFloat(r.quantidade.replace(',', '.'))
+      const val = parseQtd(r.quantidade)
       return isNaN(val) || val <= 0
     })
     if (invalidQtd) {
@@ -123,22 +168,95 @@ export default function AjusteForm({ skus, locais, defaultLocalId }: Props) {
       return
     }
 
+    for (const r of rows) {
+      const sku = skus.find((s) => s.id === r.sku_id)
+      if (!sku?.controla_lote) continue
+      if (r.sinal === '-') {
+        const alocs = (r.alocacoes || []).filter((a) => Number(a.quantidade) > 0 && a.lote_produto_id)
+        if (alocs.length === 0) {
+          setFeedback({
+            tipo: 'erro',
+            texto: `SKU ${sku.codigo}: informe ao menos um lote produto na saída.`,
+          })
+          return
+        }
+        const soma = alocs.reduce((s, a) => s + Number(a.quantidade), 0)
+        const qtd = parseQtd(r.quantidade)
+        if (Math.abs(soma - qtd) > 1e-9) {
+          setFeedback({
+            tipo: 'erro',
+            texto: `SKU ${sku.codigo}: soma dos lotes (${soma}) deve igualar a quantidade (${qtd}).`,
+          })
+          return
+        }
+      } else {
+        if (!r.numero_lote.trim()) {
+          setFeedback({
+            tipo: 'erro',
+            texto: `SKU ${sku.codigo}: número do lote é obrigatório na entrada (+).`,
+          })
+          return
+        }
+        if (sku.exige_validade !== false && !r.data_validade) {
+          setFeedback({
+            tipo: 'erro',
+            texto: `SKU ${sku.codigo}: data de validade é obrigatória.`,
+          })
+          return
+        }
+      }
+    }
+
     setFeedback(null)
     startTransition(async () => {
-      const itensPayload = rows.map((r, idx) => ({
-        linha: idx + 1,
-        sku_id: r.sku_id,
-        local_id: r.local_id,
-        sinal: r.sinal,
-        quantidade: parseFloat(r.quantidade.replace(',', '.')),
-        motivo_codigo: r.motivo_codigo,
-        justificativa: r.justificativa.trim(),
-      }))
+      const expandidos: ItemAjusteInput[] = []
+      let linha = 1
+      for (const r of rows) {
+        const sku = skus.find((s) => s.id === r.sku_id)
+        const controlaLote = Boolean(sku?.controla_lote)
+        const qtd = parseQtd(r.quantidade)
+        const base = {
+          sku_id: r.sku_id,
+          local_id: r.local_id,
+          sinal: r.sinal,
+          motivo_codigo: r.motivo_codigo,
+          justificativa: r.justificativa.trim(),
+        }
+
+        if (controlaLote && r.sinal === '-' && r.alocacoes.length > 0) {
+          const parts = expandirItensPorAlocacaoLote<ItemAjusteInput>([
+            {
+              controla_lote: true,
+              alocacoes: r.alocacoes,
+              base: { ...base, quantidade: qtd },
+            },
+          ])
+          for (const p of parts) {
+            expandidos.push({ ...p, linha })
+            linha += 1
+          }
+        } else {
+          expandidos.push({
+            ...base,
+            linha,
+            quantidade: qtd,
+            lote_produto_id: null,
+            numero_lote: controlaLote && r.sinal === '+' ? r.numero_lote.trim() : null,
+            data_validade:
+              controlaLote && r.sinal === '+' && r.data_validade ? r.data_validade : null,
+            data_fabricacao:
+              controlaLote && r.sinal === '+' && r.data_fabricacao
+                ? r.data_fabricacao
+                : null,
+          })
+          linha += 1
+        }
+      }
 
       const res = await criarAjusteAction({
         observacao,
         movimento_em: movimentoEm ? new Date(movimentoEm).toISOString() : undefined,
-        itens: itensPayload,
+        itens: expandidos,
       })
 
       if ('error' in res) {
@@ -238,111 +356,184 @@ export default function AjusteForm({ skus, locais, defaultLocalId }: Props) {
             <tbody className="divide-y divide-[#ffffff05]">
               {rows.map((row, idx) => {
                 const skuSelected = skus.find((s) => s.id === row.sku_id)
+                const controlaLote = Boolean(skuSelected?.controla_lote)
+                const qtdNum = parseQtd(row.quantidade)
 
                 return (
-                  <tr key={row.id} className="hover:bg-[#ffffff03] transition-colors">
-                    <td className="py-3 px-3 font-mono text-gray-500">{idx + 1}</td>
-                    <td className="py-3 px-3">
-                      <SearchableSelect
-                        value={row.sku_id}
-                        onChange={(sku_id) => updateRow(idx, { sku_id })}
-                        placeholder="Buscar SKU…"
-                        emptyLabel="Nenhum SKU com este termo"
-                        options={skus.map((s) => ({
-                          value: s.id,
-                          label: `${s.codigo} - ${s.nome} (${s.unidade_estoque})`,
-                          searchText: `${s.codigo} ${s.nome}`,
-                        }))}
-                        inputClassName="w-full bg-[#0d1218] border border-[#ffffff10] rounded-lg pl-8 pr-8 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500/50"
-                      />
-                    </td>
-                    <td className="py-3 px-3">
-                      <select
-                        value={row.local_id}
-                        onChange={(e) => updateRow(idx, { local_id: e.target.value })}
-                        className="w-full bg-[#0d1218] border border-[#ffffff10] rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500/50"
-                      >
-                        {locais.map((l) => (
-                          <option key={l.id} value={l.id}>
-                            {l.codigo} {l.eh_principal ? '★' : ''}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td className="py-3 px-3">
-                      <div className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => updateRow(idx, { sinal: '+' })}
-                          className={`flex-1 py-1 text-xs font-bold rounded-lg transition-all ${
-                            row.sinal === '+'
-                              ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                              : 'text-gray-500 hover:text-white bg-[#ffffff05]'
-                          }`}
+                  <Fragment key={row.id}>
+                    <tr className="hover:bg-[#ffffff03] transition-colors">
+                      <td className="py-3 px-3 font-mono text-gray-500">{idx + 1}</td>
+                      <td className="py-3 px-3">
+                        <SearchableSelect
+                          value={row.sku_id}
+                          onChange={(sku_id) => updateRow(idx, { sku_id })}
+                          placeholder="Buscar SKU…"
+                          emptyLabel="Nenhum SKU com este termo"
+                          options={skus.map((s) => ({
+                            value: s.id,
+                            label: `${s.codigo} - ${s.nome} (${s.unidade_estoque})${
+                              s.controla_lote ? ' · lote' : ''
+                            }`,
+                            searchText: `${s.codigo} ${s.nome}`,
+                          }))}
+                          inputClassName="w-full bg-[#0d1218] border border-[#ffffff10] rounded-lg pl-8 pr-8 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500/50"
+                        />
+                      </td>
+                      <td className="py-3 px-3">
+                        <select
+                          value={row.local_id}
+                          onChange={(e) => updateRow(idx, { local_id: e.target.value })}
+                          className="w-full bg-[#0d1218] border border-[#ffffff10] rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500/50"
                         >
-                          + Entrada
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => updateRow(idx, { sinal: '-' })}
-                          className={`flex-1 py-1 text-xs font-bold rounded-lg transition-all ${
-                            row.sinal === '-'
-                              ? 'bg-red-500/20 text-red-400 border border-red-500/30'
-                              : 'text-gray-500 hover:text-white bg-[#ffffff05]'
-                          }`}
+                          {locais.map((l) => (
+                            <option key={l.id} value={l.id}>
+                              {l.codigo} {l.eh_principal ? '★' : ''}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="py-3 px-3">
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => updateRow(idx, { sinal: '+' })}
+                            className={`flex-1 py-1 text-xs font-bold rounded-lg transition-all ${
+                              row.sinal === '+'
+                                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                : 'text-gray-500 hover:text-white bg-[#ffffff05]'
+                            }`}
+                          >
+                            + Entrada
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => updateRow(idx, { sinal: '-' })}
+                            className={`flex-1 py-1 text-xs font-bold rounded-lg transition-all ${
+                              row.sinal === '-'
+                                ? 'bg-red-500/20 text-red-400 border border-red-500/30'
+                                : 'text-gray-500 hover:text-white bg-[#ffffff05]'
+                            }`}
+                          >
+                            - Saída
+                          </button>
+                        </div>
+                      </td>
+                      <td className="py-3 px-3">
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="text"
+                            value={row.quantidade}
+                            onChange={(e) => updateRow(idx, { quantidade: e.target.value })}
+                            placeholder="1"
+                            className="w-full bg-[#0d1218] border border-[#ffffff10] rounded-lg px-2 py-1.5 text-xs text-white font-mono text-right focus:outline-none focus:border-blue-500/50"
+                          />
+                          <span className="text-[10px] text-gray-400 font-mono">
+                            {skuSelected?.unidade_estoque || 'UN'}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-3">
+                        <select
+                          value={row.motivo_codigo}
+                          onChange={(e) => updateRow(idx, { motivo_codigo: e.target.value })}
+                          className="w-full bg-[#0d1218] border border-[#ffffff10] rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500/50"
                         >
-                          - Saída
-                        </button>
-                      </div>
-                    </td>
-                    <td className="py-3 px-3">
-                      <div className="flex items-center gap-1">
+                          {MOTIVOS_AJUSTE.map((m) => (
+                            <option key={m.codigo} value={m.codigo}>
+                              {m.label}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="py-3 px-3">
                         <input
                           type="text"
-                          value={row.quantidade}
-                          onChange={(e) => updateRow(idx, { quantidade: e.target.value })}
-                          placeholder="1"
-                          className="w-full bg-[#0d1218] border border-[#ffffff10] rounded-lg px-2 py-1.5 text-xs text-white font-mono text-right focus:outline-none focus:border-blue-500/50"
+                          value={row.justificativa}
+                          onChange={(e) => updateRow(idx, { justificativa: e.target.value })}
+                          placeholder="Descreva o motivo do ajuste..."
+                          className="w-full bg-[#0d1218] border border-[#ffffff10] rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500/50"
                         />
-                        <span className="text-[10px] text-gray-400 font-mono">
-                          {skuSelected?.unidade_estoque || 'UN'}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="py-3 px-3">
-                      <select
-                        value={row.motivo_codigo}
-                        onChange={(e) => updateRow(idx, { motivo_codigo: e.target.value })}
-                        className="w-full bg-[#0d1218] border border-[#ffffff10] rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500/50"
-                      >
-                        {MOTIVOS_AJUSTE.map((m) => (
-                          <option key={m.codigo} value={m.codigo}>
-                            {m.label}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td className="py-3 px-3">
-                      <input
-                        type="text"
-                        value={row.justificativa}
-                        onChange={(e) => updateRow(idx, { justificativa: e.target.value })}
-                        placeholder="Descreva o motivo do ajuste..."
-                        className="w-full bg-[#0d1218] border border-[#ffffff10] rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500/50"
-                      />
-                    </td>
-                    <td className="py-3 px-3 text-right">
-                      {rows.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => removeRow(idx)}
-                          className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      )}
-                    </td>
-                  </tr>
+                      </td>
+                      <td className="py-3 px-3 text-right">
+                        {rows.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => removeRow(idx)}
+                            className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                    {controlaLote && row.sinal === '-' && empresaId && Number.isFinite(qtdNum) && qtdNum > 0 && (
+                      <tr className="bg-[#0a0e14]/80">
+                        <td />
+                        <td colSpan={7} className="px-3 pb-3">
+                          <LotePicker
+                            empresaId={empresaId}
+                            skuId={row.sku_id}
+                            localId={row.local_id}
+                            quantidade={qtdNum}
+                            value={row.alocacoes}
+                            onChange={(alocacoes) => updateRow(idx, { alocacoes })}
+                            bloquearVencidos={bloquearVencidos}
+                            disabled={isPending}
+                          />
+                        </td>
+                      </tr>
+                    )}
+                    {controlaLote && row.sinal === '+' && (
+                      <tr className="bg-[#0a0e14]/80">
+                        <td />
+                        <td colSpan={7} className="px-3 pb-3">
+                          <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                            <div>
+                              <label className="block text-[10px] font-semibold uppercase tracking-wider text-emerald-300/80 mb-1">
+                                Nº lote *
+                              </label>
+                              <input
+                                type="text"
+                                value={row.numero_lote}
+                                onChange={(e) =>
+                                  updateRow(idx, { numero_lote: e.target.value })
+                                }
+                                placeholder="Ex: L240915"
+                                className="w-full bg-[#0d1218] border border-[#ffffff10] rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500/40"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-semibold uppercase tracking-wider text-emerald-300/80 mb-1">
+                                Validade
+                                {skuSelected?.exige_validade !== false ? ' *' : ''}
+                              </label>
+                              <input
+                                type="date"
+                                value={row.data_validade}
+                                onChange={(e) =>
+                                  updateRow(idx, { data_validade: e.target.value })
+                                }
+                                className="w-full bg-[#0d1218] border border-[#ffffff10] rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500/40"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-semibold uppercase tracking-wider text-emerald-300/80 mb-1">
+                                Fabricação
+                              </label>
+                              <input
+                                type="date"
+                                value={row.data_fabricacao}
+                                onChange={(e) =>
+                                  updateRow(idx, { data_fabricacao: e.target.value })
+                                }
+                                className="w-full bg-[#0d1218] border border-[#ffffff10] rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500/40"
+                              />
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 )
               })}
             </tbody>

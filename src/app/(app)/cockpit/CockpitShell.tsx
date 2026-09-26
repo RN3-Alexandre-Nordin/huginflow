@@ -193,6 +193,7 @@ export default function CockpitShell({
               pathname={pathname}
               navName={navItem.name}
               mustChangePassword={mustChangePassword}
+              isAdminOrSuperAdmin={isAdminOrSuperAdmin}
             />
 
             <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4 sm:p-8">{children}</div>
@@ -221,6 +222,7 @@ function CockpitShellHeader({
   pathname,
   navName,
   mustChangePassword,
+  isAdminOrSuperAdmin,
 }: {
   sidebarOpen: boolean
   ready: boolean
@@ -231,6 +233,7 @@ function CockpitShellHeader({
   pathname: string
   navName: string
   mustChangePassword: boolean
+  isAdminOrSuperAdmin: boolean
 }) {
   const chrome = useCockpitPageChrome()
   const title = chrome.title || navName
@@ -280,7 +283,9 @@ function CockpitShellHeader({
                 </h1>
               </div>
               <div className="flex shrink-0 items-center gap-4">
-                {!mustChangePassword && <CockpitHelpButton />}
+                {!mustChangePassword && (
+                  <CockpitHelpButton isAdminOrSuperAdmin={isAdminOrSuperAdmin} />
+                )}
                 <LanguageSwitcher />
                 <div className="h-5 w-px bg-[#ffffff1a]" />
                 <form action={logout}>

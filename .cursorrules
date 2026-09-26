@@ -64,4 +64,4 @@ Traceability: Toda ação automatizada pela IA deve deixar um log de "Por que is
 ### 10. [NOVO] Performance SaaS — consultar antes de listagens/agregações
 O Hugin Flow é multi-tenant SaaS. **Antes** de criar ou alterar telas de lista, dashboards ou agregações:
 - Consultar `.cursor/rules/saas-performance.mdc` (alwaysApply).
-- Em estoque: também `docs/desenvolvimento-modulo-estoque.md` §2.1 (paginar; `GROUP BY`/VIEW no Postgres; ler `est_saldos`; não agregar milhares de linhas no JS).
+- Em estoque: também `docs/specs-aplicadas/desenvolvimento-modulo-estoque.md` §2.1 (paginar; `GROUP BY`/VIEW no Postgres; ler `est_saldos`; não agregar milhares de linhas no JS).

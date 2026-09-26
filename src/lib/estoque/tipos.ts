@@ -14,6 +14,8 @@ export type EstCodigoErroEntrada =
   | 'NFE_DUPLICADA'
   | 'XML_INVALIDO'
   | 'JUSTIFICATIVA_OBRIGATORIA'
+  | 'LOTE_OBRIGATORIO'
+  | 'VALIDADE_OBRIGATORIA'
 
 export interface ItemEntradaInput {
   linha: number
@@ -22,6 +24,10 @@ export interface ItemEntradaInput {
   unidade_origem: string
   quantidade_origem: number
   justificativa?: string | null
+  numero_lote?: string | null
+  data_validade?: string | null
+  data_fabricacao?: string | null
+  lote_produto_id?: string | null
 }
 
 export interface ItemEntradaValidado {
@@ -36,6 +42,10 @@ export interface ItemEntradaValidado {
   quantidade_estoque: number | null
   fator_conversao: number | null
   justificativa: string | null
+  numero_lote?: string | null
+  data_validade?: string | null
+  data_fabricacao?: string | null
+  lote_produto_id?: string | null
   status: EstStatusItem
   erro_codigo: EstCodigoErroEntrada | null
   erro_mensagem: string | null

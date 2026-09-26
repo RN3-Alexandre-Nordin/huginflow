@@ -2,6 +2,8 @@
 
 Processo reutilizável para validar cada deploy em **produção** (`https://app.huginflow.com`) antes de liberar clientes.
 
+Índice geral da documentação: [../README.md](../README.md).
+
 ## Quando usar
 
 - Novo deploy em `main` / imagem `:latest`
@@ -11,18 +13,17 @@ Processo reutilizável para validar cada deploy em **produção** (`https://app.
 
 ## Arquivos
 
-| Arquivo | Uso |
-|---------|-----|
-## E2E / Módulo de Testes (superadmin)
-
 | Item | Uso |
 |------|-----|
 | [`/cockpit/testes`](../../src/app/(app)/cockpit/testes/page.tsx) | UI RN3: disparar suíte, progresso, histórico HTML |
 | `TEST_RUNNER_ENABLED=true` | Obrigatório no `.env.local` (local/self-hosted) para o botão Rodar |
-| `npm run test:e2e:core` | Mesma suíte via CLI |
+| `npm run test:e2e:core` / `npm run test:agent:dev` | Suíte via CLI |
 | [execucoes/](./execucoes/) | Artefatos HTML/JSON por run (+ `agente-latest.html`) |
-| [plano-homologacao-versao.md](./plano-homologacao-versao.md) | Checklist mestre — copie por release (`homologacao-2026-07-15.md`) |
+| [agente-testes-plano.md](./agente-testes-plano.md) | **Controle mestre do agente** (UI+scripts Fases 1–5 · Estoque hold) |
+| [plano-homologacao-versao.md](./plano-homologacao-versao.md) | Checklist mestre — copie por release |
 | [stress-test-plan.md](./stress-test-plan.md) | Plano opcional de carga / stress |
+| [../MIGRACAO-SUPABASE.md](../MIGRACAO-SUPABASE.md) | Pacotes SQL ⏳ PROD + checklists pré-prod |
+| [../specs-a-aplicar/CUTOVER-PROD-SET-2026.md](../specs-a-aplicar/CUTOVER-PROD-SET-2026.md) | Runbook go-live |
 | `scripts/supabase/run-homologacao-prod.mjs` | Runner automatizado (blocos 1–11) |
 | `scripts/supabase/out/prod-test-tenant.json` | Tenant de teste gerado (local, não commitar) |
 
@@ -55,5 +56,5 @@ node scripts/supabase/block2-test-auth-prod.mjs
 
 ## Histórico go-live NASU (2026-07-02)
 
-Blocos 1–11 automatizados em prod OK. Bloco 12 pendente (UAT NASU no sábado).  
-Detalhe item a item: [script-teste-pacote-crm-ago-2026.md](./script-teste-pacote-crm-ago-2026.md) e [supabase-prod-deploy-pending.md](../supabase-prod-deploy-pending.md).
+Blocos 1–11 automatizados em prod OK. Bloco 12 pendente (UAT NASU).  
+Roteiro contínuo: [agente-testes-plano.md](./agente-testes-plano.md) · pacotes SQL: [../MIGRACAO-SUPABASE.md](../MIGRACAO-SUPABASE.md).

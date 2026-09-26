@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import {
@@ -11,38 +11,59 @@ import {
   Headphones,
   HelpCircle,
   ListTodo,
+  Package,
   Ticket,
 } from 'lucide-react'
 import BifrostSupportModal, {
   type BifrostEmbedMode,
 } from '@/components/bifrost/BifrostSupportModal'
 
-const HELP_ITEMS = [
+const MANUAL_ITEMS = [
   {
     href: '/cockpit/ajuda',
-    label: 'Manual do sistema',
-    description: 'Referência completa de todas as funções do Cockpit',
+    label: 'Manual do administrador',
+    description: 'Empresa, usuários, grupos e permissões',
     icon: BookOpen,
+    adminOnly: true,
+  },
+  {
+    href: '/cockpit/ajuda/estoque',
+    label: 'Manual de Estoque',
+    description: 'Locais, entradas, requisições e remessas',
+    icon: Package,
+    adminOnly: false,
   },
   {
     href: '/cockpit/ajuda/treinamento',
     label: 'Treinamento do operador',
-    description: 'Guia prático — WhatsApp, cards e chat interno',
+    description: 'WhatsApp, cards e chat interno',
     icon: GraduationCap,
+    adminOnly: false,
   },
 ] as const
 
 type MenuCoords = { top: number; right: number }
 
-export default function CockpitHelpButton() {
+type Props = {
+  /** Só admin / superadmin veem o Manual do administrador. */
+  isAdminOrSuperAdmin?: boolean
+}
+
+export default function CockpitHelpButton({ isAdminOrSuperAdmin = false }: Props) {
   const [open, setOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
   const [coords, setCoords] = useState<MenuCoords>({ top: 0, right: 0 })
   const [chamadosOpen, setChamadosOpen] = useState(false)
+  const [manuaisOpen, setManuaisOpen] = useState(false)
   const [bifrostOpen, setBifrostOpen] = useState(false)
   const [bifrostMode, setBifrostMode] = useState<BifrostEmbedMode>('abrir-chamado')
   const buttonRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
+
+  const visibleManuals = useMemo(
+    () => MANUAL_ITEMS.filter((item) => !item.adminOnly || isAdminOrSuperAdmin),
+    [isAdminOrSuperAdmin],
+  )
 
   useEffect(() => {
     setMounted(true)
@@ -65,6 +86,7 @@ export default function CockpitHelpButton() {
   const closeMenu = useCallback(() => {
     setOpen(false)
     setChamadosOpen(false)
+    setManuaisOpen(false)
   }, [])
 
   const openBifrost = useCallback(
@@ -122,7 +144,10 @@ export default function CockpitHelpButton() {
             role="menuitem"
             data-testid="help-tickets-menu"
             aria-expanded={chamadosOpen}
-            onClick={() => setChamadosOpen((v) => !v)}
+            onClick={() => {
+              setChamadosOpen((v) => !v)
+              setManuaisOpen(false)
+            }}
             className="flex w-full items-start gap-3 px-3 py-3 rounded-lg text-left hover:bg-[#ffffff08] transition-colors group"
           >
             <div className="p-2 rounded-lg bg-orange-500/10 border border-orange-500/20 text-orange-400 shrink-0 group-hover:scale-105 transition-transform">
@@ -183,28 +208,62 @@ export default function CockpitHelpButton() {
 
         <div className="mx-3 my-1 border-t border-[#ffffff08]" />
 
-        {HELP_ITEMS.map((item) => {
-          const Icon = item.icon
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              role="menuitem"
-              onClick={closeMenu}
-              className="flex items-start gap-3 px-3 py-3 mx-1.5 rounded-lg text-left hover:bg-[#ffffff08] transition-colors group"
-            >
-              <div className="p-2 rounded-lg bg-[#2BAADF]/10 border border-[#2BAADF]/20 text-[#2BAADF] shrink-0 group-hover:scale-105 transition-transform">
-                <Icon className="w-4 h-4" />
-              </div>
-              <div className="min-w-0 pt-0.5">
-                <p className="text-sm font-bold text-white group-hover:text-[#2BAADF] transition-colors">
-                  {item.label}
-                </p>
-                <p className="text-[11px] text-gray-500 leading-snug mt-0.5">{item.description}</p>
-              </div>
-            </Link>
-          )
-        })}
+        <div className="mx-1.5">
+          <button
+            type="button"
+            role="menuitem"
+            data-testid="help-manuals-menu"
+            aria-expanded={manuaisOpen}
+            onClick={() => {
+              setManuaisOpen((v) => !v)
+              setChamadosOpen(false)
+            }}
+            className="flex w-full items-start gap-3 px-3 py-3 rounded-lg text-left hover:bg-[#ffffff08] transition-colors group"
+          >
+            <div className="p-2 rounded-lg bg-[#2BAADF]/10 border border-[#2BAADF]/20 text-[#2BAADF] shrink-0 group-hover:scale-105 transition-transform">
+              <BookOpen className="w-4 h-4" />
+            </div>
+            <div className="min-w-0 flex-1 pt-0.5">
+              <p className="text-sm font-bold text-white group-hover:text-[#2BAADF] transition-colors">
+                Manuais
+              </p>
+              <p className="text-[11px] text-gray-500 leading-snug mt-0.5">
+                {isAdminOrSuperAdmin
+                  ? 'Administrador, Estoque e treinamento do operador'
+                  : 'Estoque e treinamento do operador'}
+              </p>
+            </div>
+            <ChevronRight
+              className={`w-4 h-4 shrink-0 text-gray-500 mt-2 transition-transform ${manuaisOpen ? 'rotate-90' : ''}`}
+            />
+          </button>
+
+          {manuaisOpen ? (
+            <div className="mb-1 ml-2 space-y-0.5 border-l border-[#ffffff10] pl-2">
+              {visibleManuals.map((item) => {
+                const Icon = item.icon
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    role="menuitem"
+                    data-testid={`help-manual-${item.href.split('/').pop() || 'sistema'}`}
+                    onClick={closeMenu}
+                    className="flex w-full items-start gap-2.5 rounded-lg px-2.5 py-2.5 text-left hover:bg-[#ffffff08] transition-colors group"
+                  >
+                    <Icon className="w-3.5 h-3.5 mt-0.5 shrink-0 text-[#2BAADF]/80" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-white group-hover:text-[#2BAADF]">
+                        {item.label}
+                      </p>
+                      <p className="text-[10px] text-gray-500 leading-snug">{item.description}</p>
+                    </div>
+                  </Link>
+                )
+              })}
+            </div>
+          ) : null}
+        </div>
       </div>
     ) : null
 

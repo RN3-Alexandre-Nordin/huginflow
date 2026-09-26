@@ -11,6 +11,7 @@ import {
   GitCompare,
   Timer,
   SlidersHorizontal,
+  CalendarClock,
 } from 'lucide-react'
 
 export type ReportFilterKey =
@@ -27,6 +28,7 @@ export type ReportFilterKey =
   | 'terceiro'
   | 'status_remessa'
   | 'sinal_ajuste'
+  | 'status_validade'
 
 export type ReportDef = {
   slug: string
@@ -231,6 +233,23 @@ export const ESTOQUE_REPORTS: ReportDef[] = [
       { key: 'motivo', label: 'Motivo' },
     ],
   },
+  {
+    slug: 'validade-lotes',
+    title: 'Validade de lotes',
+    description: 'Saldos por lote: a vencer, vencidos ou todos',
+    wave: 2,
+    icon: CalendarClock,
+    filters: ['local', 'sku_codigo', 'status_validade'],
+    columns: [
+      { key: 'sku_codigo', label: 'SKU' },
+      { key: 'sku_nome', label: 'Nome' },
+      { key: 'local', label: 'Local' },
+      { key: 'numero_lote', label: 'Lote' },
+      { key: 'data_validade', label: 'Validade' },
+      { key: 'quantidade', label: 'Qtd', format: 'number' },
+      { key: 'status_validade', label: 'Status' },
+    ],
+  },
 ]
 
 export function getReportBySlug(slug: string): ReportDef | undefined {
@@ -252,6 +271,7 @@ export type ReportFiltersInput = {
   terceiro_id?: string
   status_remessa?: string
   sinal_ajuste?: string
+  status_validade?: string
   /** page size (default 50, max 200) — agregado no Postgres via est_rpc_relatorio */
   limit?: number
   offset?: number

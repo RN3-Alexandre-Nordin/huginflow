@@ -1,4 +1,4 @@
-/** Executa scripts das Fases 1–5 e consolida scripts-summary.json. */
+/** Executa scripts das Fases 1–6 e consolida scripts-summary.json. */
 import { spawn } from 'child_process'
 import { existsSync, readFileSync, writeFileSync } from 'fs'
 import { dirname, resolve } from 'path'
@@ -34,14 +34,18 @@ function readCases(file) {
 const phase1Code = await run('scripts/agent/phase1-scripts.mjs')
 const phase2Code = await run('scripts/agent/phase2-scripts.mjs')
 const phase3Code = await run('scripts/agent/phase3-scripts.mjs')
+const phaseCadCode = await run('scripts/agent/phase-cadastros-scripts.mjs')
 const phase4Code = await run('scripts/agent/phase4-scripts.mjs')
 const phase5Code = await run('scripts/agent/phase5-scripts.mjs')
+const phase6Code = await run('scripts/agent/phase6-scripts.mjs')
 const cases = [
   ...readCases('scripts-summary.json'),
   ...readCases('phase2-scripts-summary.json'),
   ...readCases('phase3-scripts-summary.json'),
+  ...readCases('phase-cadastros-scripts-summary.json'),
   ...readCases('phase4-scripts-summary.json'),
   ...readCases('phase5-scripts-summary.json'),
+  ...readCases('phase6-scripts-summary.json'),
 ]
 const passed = cases.filter((item) => item.status === 'passed').length
 const failed = cases.filter((item) => item.status === 'failed').length
@@ -58,8 +62,10 @@ if (
   phase1Code !== 0 ||
   phase2Code !== 0 ||
   phase3Code !== 0 ||
+  phaseCadCode !== 0 ||
   phase4Code !== 0 ||
   phase5Code !== 0 ||
+  phase6Code !== 0 ||
   failed > 0
 ) {
   process.exit(1)

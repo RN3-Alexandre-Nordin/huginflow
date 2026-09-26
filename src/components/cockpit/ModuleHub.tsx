@@ -8,6 +8,8 @@ type Props = {
   description?: string
   cards: CockpitNavItem[]
   emptyMessage?: string
+  /** data-testid do container (ex.: cadastros-hub). */
+  testId?: string
 }
 
 /** Hub de módulo no estilo Bifrost Admin (cards). */
@@ -16,10 +18,14 @@ export default function ModuleHub({
   description,
   cards,
   emptyMessage = 'Nenhuma área disponível com suas permissões atuais.',
+  testId,
 }: Props) {
   if (cards.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 text-center">
+      <div
+        data-testid={testId}
+        className="flex flex-col items-center justify-center py-20 text-center"
+      >
         <Lock className="mb-4 h-10 w-10 text-red-500" />
         <h2 className="mb-2 text-2xl font-semibold tracking-tight text-white">{title}</h2>
         <p className="mb-8 max-w-md text-sm text-gray-400">{emptyMessage}</p>
@@ -29,7 +35,7 @@ export default function ModuleHub({
   }
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-6 pb-20">
+    <div data-testid={testId} className="mx-auto flex max-w-5xl flex-col gap-6 pb-20">
       <div>
         <h2 className="text-2xl font-semibold tracking-tight text-white">{title}</h2>
         {description && <p className="mt-1 text-sm text-gray-400">{description}</p>}

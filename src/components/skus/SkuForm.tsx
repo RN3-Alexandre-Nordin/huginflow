@@ -81,6 +81,7 @@ export default function SkuForm({
 }: Props) {
   const [section, setSection] = useState<SkuFormSectionId>('identidade')
   const [tipo, setTipo] = useState(sku?.tipo === 'servico' ? 'servico' : 'produto')
+  const [controlaLote, setControlaLote] = useState(sku?.controla_lote === true)
 
   const [state, formAction, isPending] = useActionState(
     async (_prev: { error?: string } | null, formData: FormData) => {
@@ -361,6 +362,34 @@ export default function SkuForm({
                     />
                     Controla estoque (quantidades na UM de estoque)
                   </label>
+                </Field>
+                <Field label="Lote / validade" className="md:col-span-2">
+                  <div className="space-y-2">
+                    <label className="inline-flex items-center gap-2 text-sm text-gray-300">
+                      <input
+                        type="checkbox"
+                        name="controla_lote"
+                        checked={controlaLote}
+                        onChange={(e) => setControlaLote(e.target.checked)}
+                        className="rounded border-[#ffffff30] text-[#2BAADF] focus:ring-[#2BAADF]/40"
+                      />
+                      Controla lote (batch) nas movimentações
+                    </label>
+                    {controlaLote && (
+                      <label className="inline-flex items-center gap-2 text-sm text-gray-300 pl-6">
+                        <input
+                          type="checkbox"
+                          name="exige_validade"
+                          defaultChecked={sku?.exige_validade !== false}
+                          className="rounded border-[#ffffff30] text-[#2BAADF] focus:ring-[#2BAADF]/40"
+                        />
+                        Exige data de validade no lote
+                      </label>
+                    )}
+                    <p className="text-[10px] text-gray-500">
+                      Com lote ativo, entradas e saídas passam a exigir número do lote (e validade, se marcada).
+                    </p>
+                  </div>
                 </Field>
                 <Field label="Ponto de reposição">
                   <input

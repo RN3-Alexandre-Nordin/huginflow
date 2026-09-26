@@ -28,6 +28,7 @@ export default async function CadastrosHubPage() {
       description="Mestres compartilhados. Locais de estoque ficam no módulo Estoque."
       cards={cards}
       emptyMessage="Seu grupo ou os addons da empresa não liberam Pessoas, SKUs ou Ativos."
+      testId="cadastros-hub"
     />
   )
 }

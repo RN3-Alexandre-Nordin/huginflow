@@ -43,10 +43,14 @@ interface ItemEmPoder {
   quantidade_retornada: number
   quantidade_baixada: number
   quantidade_em_poder: number
+  lote_produto_id: string | null
+  numero_lote: string | null
+  data_validade: string | null
   cad_skus: {
     codigo: string
     nome: string
     unidade_estoque: string
+    controla_lote?: boolean
   } | null
   local_origem: { id: string; codigo: string; nome: string } | null
 }
@@ -506,8 +510,10 @@ export default function RetornoForm({
 
   const itemOptions = itens.map((it) => ({
     value: it.id,
-    label: `${it.cad_skus?.codigo || 'SKU'} · em poder ${it.quantidade_em_poder} ${it.cad_skus?.unidade_estoque || 'UN'}`,
-    searchText: `${it.cad_skus?.codigo || ''} ${it.cad_skus?.nome || ''}`,
+    label: `${it.cad_skus?.codigo || 'SKU'}${
+      it.numero_lote ? ` · lote ${it.numero_lote}` : ''
+    } · em poder ${it.quantidade_em_poder} ${it.cad_skus?.unidade_estoque || 'UN'}`,
+    searchText: `${it.cad_skus?.codigo || ''} ${it.cad_skus?.nome || ''} ${it.numero_lote || ''}`,
   }))
 
   const sectionsWithCount = LIQUIDACAO_SECTIONS.map((s) => {
@@ -654,6 +660,7 @@ export default function RetornoForm({
                 <thead className="bg-[#0A0A0A] text-gray-500 uppercase tracking-wider text-[10px] border-b border-[#ffffff08]">
                   <tr>
                     <th className="py-2.5 px-3">SKU enviado</th>
+                    <th className="py-2.5 px-3">Lote produto</th>
                     <th className="py-2.5 px-3 text-right">Enviado</th>
                     <th className="py-2.5 px-3 text-right">Retornada</th>
                     <th className="py-2.5 px-3 text-right">Baixada</th>
@@ -677,6 +684,26 @@ export default function RetornoForm({
                           <span className="text-[11px] text-gray-500 block truncate max-w-[16rem]">
                             {it.cad_skus?.nome}
                           </span>
+                        </td>
+                        <td className="py-2.5 px-3">
+                          {it.lote_produto_id || it.numero_lote ? (
+                            <div>
+                              <span className="font-mono text-[11px] text-amber-300">
+                                {it.numero_lote || it.lote_produto_id?.slice(0, 8)}
+                              </span>
+                              {it.data_validade && (
+                                <span className="block text-[10px] text-gray-500">
+                                  Val.{' '}
+                                  {(() => {
+                                    const [y, m, d] = it.data_validade.split('-')
+                                    return y && m && d ? `${d}/${m}/${y}` : it.data_validade
+                                  })()}
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-[10px] text-gray-600">—</span>
+                          )}
                         </td>
                         <td className="py-2.5 px-3 text-right font-mono text-gray-400">
                           {it.quantidade_enviada} {um}
@@ -869,6 +896,14 @@ export default function RetornoForm({
                                   <span className="mt-0.5 block text-[10px] text-[#2BAADF]/80">
                                     Industrialização · poder integral
                                   </span>
+                                  {item?.numero_lote && (
+                                    <span className="mt-0.5 block font-mono text-[10px] text-amber-300/90">
+                                      Lote {item.numero_lote}
+                                      {item.data_validade
+                                        ? ` · val. ${item.data_validade}`
+                                        : ''}
+                                    </span>
+                                  )}
                                 </div>
                               ) : (
                                 <select
@@ -884,6 +919,11 @@ export default function RetornoForm({
                                     </option>
                                   ))}
                                 </select>
+                              )}
+                              {!ind && item?.numero_lote && (
+                                <span className="mt-1 block font-mono text-[10px] text-amber-300/80">
+                                  Preserva lote {item.numero_lote}
+                                </span>
                               )}
                             </td>
                             <td className="py-2.5 px-3">

@@ -69,7 +69,7 @@ export default async function ConversoesUmPage(props: {
       : allRows
 
   return (
-    <div className="space-y-6 pb-20">
+    <div data-testid="conversoes-um-page" className="space-y-6 pb-20">
       <SkuAreaNav />
       <div className="flex items-center justify-between gap-4">
         <p className="text-sm text-gray-400">

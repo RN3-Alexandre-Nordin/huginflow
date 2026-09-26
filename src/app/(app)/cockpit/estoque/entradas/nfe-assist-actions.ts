@@ -232,6 +232,10 @@ export async function previewNfeLinhasAction(input: {
   xml_content: string
   /** sku_id já resolvido pelo operador (mapa linha → sku) */
   skuOverrides?: Record<number, string>
+  loteOverrides?: Record<
+    number,
+    { numero_lote?: string; data_validade?: string; data_fabricacao?: string }
+  >
 }) {
   const me = await getMyProfile()
   if (!canEntrada(me) || !me?.empresa_id) return { error: 'Sem permissão.' }
@@ -239,14 +243,20 @@ export async function previewNfeLinhasAction(input: {
   const parsed = parseNfeXml(input.xml_content)
   if (!parsed.sucesso) return { error: parsed.erro || 'XML inválido.' }
 
-  const itens: ItemEntradaInput[] = parsed.itens.map((it) => ({
-    linha: it.linha,
-    codigo_parceiro: it.codigo_parceiro,
-    sku_id: input.skuOverrides?.[it.linha] || null,
-    unidade_origem: it.unidade_origem,
-    quantidade_origem: it.quantidade_origem,
-    justificativa: 'Entrada importada via XML NF-e',
-  }))
+  const itens: ItemEntradaInput[] = parsed.itens.map((it) => {
+    const ov = input.loteOverrides?.[it.linha]
+    return {
+      linha: it.linha,
+      codigo_parceiro: it.codigo_parceiro,
+      sku_id: input.skuOverrides?.[it.linha] || null,
+      unidade_origem: it.unidade_origem,
+      quantidade_origem: it.quantidade_origem,
+      justificativa: 'Entrada importada via XML NF-e',
+      numero_lote: ov?.numero_lote?.trim() || it.numero_lote || null,
+      data_validade: ov?.data_validade?.trim() || it.data_validade || null,
+      data_fabricacao: ov?.data_fabricacao?.trim() || it.data_fabricacao || null,
+    }
+  })
 
   const params: LoteEntradaInput = {
     empresa_id: me.empresa_id,
@@ -272,7 +282,7 @@ export async function buscarSkusEntradaAction(q: string) {
   const term = q.trim()
   let query = supabase
     .from('cad_skus')
-    .select('id, codigo, nome, unidade_estoque, ncm')
+    .select('id, codigo, nome, unidade_estoque, ncm, controla_lote, exige_validade')
     .eq('empresa_id', me.empresa_id)
     .eq('ativo', true)
     .eq('controla_estoque', true)

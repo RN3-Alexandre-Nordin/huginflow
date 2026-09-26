@@ -1,41 +1,53 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  NF-e de TESTE — Hugin Flow / Monte Sinai Atacado (DEV)
-  Objetivo: validar (1) criação de fornecedor novo e (2) de-para de SKU.
+  DEMO ENTRADA NF-e — Hugin Flow / Monte Sinai Atacado (DEV)
+  Cenário B: FORNECEDOR + DE-PARA JÁ CONFIGURADOS (caminho feliz)
 
-  Emitente (NÃO cadastrado): DISTRIBUIDORA BETA TESTE LTDA — CNPJ 99.888.777/0001-66
-  Destinatário: Monte Sinai Atacado — CNPJ 82.838.204/0001-60
+  Tenant: Monte Sinai Atacado — CNPJ 82.838.204/0001-60
 
-  Itens (cProd do parceiro ≠ código interno → exige de-para):
-    1) BT-AGUA500SG  → mapear para AGUA-044  (Água Mineral sem Gás 500ml)
-    2) BT-HEIN330    → mapear para CERV-001  (Cerveja Heineken Long Neck 330ml)
-    3) BT-REDLBL1L   → mapear para DEST-011  (Whisky Red Label 1L)
+  Emitente JÁ cadastrado (Pessoas + papel fornecedor):
+    DISTRIBUIDORA BETA TESTE LTDA — CNPJ 99.888.777/0001-66
+    pessoa_id DEV: eb406bc8-2e6e-4fc6-aa27-4f57d65366ac
+
+  De-para JÁ existentes (cad_sku_depara):
+    BT-AGUA500SG  → AGUA-044  (Água Mineral sem Gás 500ml) · UN
+    BT-HEIN330    → CERV-001  (Cerveja Heineken Long Neck 330ml) · UN
+    BT-REDLBL1L   → DEST-011  (Whisky Red Label 1L) · UN
+
+  Na tela /cockpit/estoque/entradas/xml o fluxo esperado:
+    1) Fornecedor reconhecido automaticamente
+    2) 3 linhas com SKU resolvido via de-para
+    3) Confirmar entrada → cardex + saldo (Regra de Ouro)
 
   Upload: Cockpit → Estoque → Entradas → Importar XML
+  Data demo: 2026-09-18
+
+  Se o Beta tiver sido apagado do tenant, recriar Pessoa + 3 de-paras
+  antes da apresentação (ver comentários acima).
 -->
 <nfeProc versao="4.00" xmlns="http://www.portalfiscal.inf.br/nfe">
   <NFe xmlns="http://www.portalfiscal.inf.br/nfe">
-    <infNFe Id="NFe35260999888777000166550010000001231123456789" versao="4.00">
+    <infNFe Id="NFe35260999888777000166550010000009011123456781" versao="4.00">
       <ide>
         <cUF>35</cUF>
-        <cNF>12345678</cNF>
+        <cNF>90011123</cNF>
         <natOp>Venda de mercadoria</natOp>
         <mod>55</mod>
         <serie>1</serie>
-        <nNF>123</nNF>
-        <dhEmi>2026-09-16T10:30:00-03:00</dhEmi>
+        <nNF>901</nNF>
+        <dhEmi>2026-09-18T10:45:00-03:00</dhEmi>
         <tpNF>1</tpNF>
         <idDest>1</idDest>
         <cMunFG>3550308</cMunFG>
         <tpImp>1</tpImp>
         <tpEmis>1</tpEmis>
-        <cDV>9</cDV>
+        <cDV>1</cDV>
         <tpAmb>2</tpAmb>
         <finNFe>1</finNFe>
         <indFinal>0</indFinal>
         <indPres>1</indPres>
         <procEmi>0</procEmi>
-        <verProc>HuginFlow-TESTE-1.0</verProc>
+        <verProc>HuginFlow-DEMO-1.0</verProc>
       </ide>
       <emit>
         <CNPJ>99888777000166</CNPJ>
@@ -76,7 +88,6 @@
         <IE>112223334445</IE>
       </dest>
 
-      <!-- Item 1: de-para → AGUA-044 -->
       <det nItem="1">
         <prod>
           <cProd>BT-AGUA500SG</cProd>
@@ -85,12 +96,12 @@
           <NCM>22011000</NCM>
           <CFOP>5102</CFOP>
           <uCom>UN</uCom>
-          <qCom>24.0000</qCom>
+          <qCom>48.0000</qCom>
           <vUnCom>1.8500000000</vUnCom>
-          <vProd>44.40</vProd>
+          <vProd>88.80</vProd>
           <cEANTrib>SEM GTIN</cEANTrib>
           <uTrib>UN</uTrib>
-          <qTrib>24.0000</qTrib>
+          <qTrib>48.0000</qTrib>
           <vUnTrib>1.8500000000</vUnTrib>
           <indTot>1</indTot>
         </prod>
@@ -100,31 +111,30 @@
               <orig>0</orig>
               <CST>00</CST>
               <modBC>3</modBC>
-              <vBC>44.40</vBC>
+              <vBC>88.80</vBC>
               <pICMS>18.00</pICMS>
-              <vICMS>7.99</vICMS>
+              <vICMS>15.98</vICMS>
             </ICMS00>
           </ICMS>
           <PIS>
             <PISAliq>
               <CST>01</CST>
-              <vBC>44.40</vBC>
+              <vBC>88.80</vBC>
               <pPIS>1.65</pPIS>
-              <vPIS>0.73</vPIS>
+              <vPIS>1.47</vPIS>
             </PISAliq>
           </PIS>
           <COFINS>
             <COFINSAliq>
               <CST>01</CST>
-              <vBC>44.40</vBC>
+              <vBC>88.80</vBC>
               <pCOFINS>7.60</pCOFINS>
-              <vCOFINS>3.37</vCOFINS>
+              <vCOFINS>6.75</vCOFINS>
             </COFINSAliq>
           </COFINS>
         </imposto>
       </det>
 
-      <!-- Item 2: de-para → CERV-001 -->
       <det nItem="2">
         <prod>
           <cProd>BT-HEIN330</cProd>
@@ -133,12 +143,12 @@
           <NCM>22030000</NCM>
           <CFOP>5102</CFOP>
           <uCom>UN</uCom>
-          <qCom>48.0000</qCom>
+          <qCom>60.0000</qCom>
           <vUnCom>4.9000000000</vUnCom>
-          <vProd>235.20</vProd>
+          <vProd>294.00</vProd>
           <cEANTrib>SEM GTIN</cEANTrib>
           <uTrib>UN</uTrib>
-          <qTrib>48.0000</qTrib>
+          <qTrib>60.0000</qTrib>
           <vUnTrib>4.9000000000</vUnTrib>
           <indTot>1</indTot>
         </prod>
@@ -148,31 +158,30 @@
               <orig>0</orig>
               <CST>00</CST>
               <modBC>3</modBC>
-              <vBC>235.20</vBC>
+              <vBC>294.00</vBC>
               <pICMS>18.00</pICMS>
-              <vICMS>42.34</vICMS>
+              <vICMS>52.92</vICMS>
             </ICMS00>
           </ICMS>
           <PIS>
             <PISAliq>
               <CST>01</CST>
-              <vBC>235.20</vBC>
+              <vBC>294.00</vBC>
               <pPIS>1.65</pPIS>
-              <vPIS>3.88</vPIS>
+              <vPIS>4.85</vPIS>
             </PISAliq>
           </PIS>
           <COFINS>
             <COFINSAliq>
               <CST>01</CST>
-              <vBC>235.20</vBC>
+              <vBC>294.00</vBC>
               <pCOFINS>7.60</pCOFINS>
-              <vCOFINS>17.88</vCOFINS>
+              <vCOFINS>22.34</vCOFINS>
             </COFINSAliq>
           </COFINS>
         </imposto>
       </det>
 
-      <!-- Item 3: de-para → DEST-011 -->
       <det nItem="3">
         <prod>
           <cProd>BT-REDLBL1L</cProd>
@@ -181,12 +190,12 @@
           <NCM>22083020</NCM>
           <CFOP>5102</CFOP>
           <uCom>UN</uCom>
-          <qCom>6.0000</qCom>
+          <qCom>8.0000</qCom>
           <vUnCom>89.9000000000</vUnCom>
-          <vProd>539.40</vProd>
+          <vProd>719.20</vProd>
           <cEANTrib>SEM GTIN</cEANTrib>
           <uTrib>UN</uTrib>
-          <qTrib>6.0000</qTrib>
+          <qTrib>8.0000</qTrib>
           <vUnTrib>89.9000000000</vUnTrib>
           <indTot>1</indTot>
         </prod>
@@ -196,25 +205,25 @@
               <orig>0</orig>
               <CST>00</CST>
               <modBC>3</modBC>
-              <vBC>539.40</vBC>
+              <vBC>719.20</vBC>
               <pICMS>18.00</pICMS>
-              <vICMS>97.09</vICMS>
+              <vICMS>129.46</vICMS>
             </ICMS00>
           </ICMS>
           <PIS>
             <PISAliq>
               <CST>01</CST>
-              <vBC>539.40</vBC>
+              <vBC>719.20</vBC>
               <pPIS>1.65</pPIS>
-              <vPIS>8.90</vPIS>
+              <vPIS>11.87</vPIS>
             </PISAliq>
           </PIS>
           <COFINS>
             <COFINSAliq>
               <CST>01</CST>
-              <vBC>539.40</vBC>
+              <vBC>719.20</vBC>
               <pCOFINS>7.60</pCOFINS>
-              <vCOFINS>40.99</vCOFINS>
+              <vCOFINS>54.66</vCOFINS>
             </COFINSAliq>
           </COFINS>
         </imposto>
@@ -222,25 +231,25 @@
 
       <total>
         <ICMSTot>
-          <vBC>819.00</vBC>
-          <vICMS>147.42</vICMS>
+          <vBC>1102.00</vBC>
+          <vICMS>198.36</vICMS>
           <vICMSDeson>0.00</vICMSDeson>
           <vFCP>0.00</vFCP>
           <vBCST>0.00</vBCST>
           <vST>0.00</vST>
           <vFCPST>0.00</vFCPST>
           <vFCPSTRet>0.00</vFCPSTRet>
-          <vProd>819.00</vProd>
+          <vProd>1102.00</vProd>
           <vFrete>0.00</vFrete>
           <vSeg>0.00</vSeg>
           <vDesc>0.00</vDesc>
           <vII>0.00</vII>
           <vIPI>0.00</vIPI>
           <vIPIDevol>0.00</vIPIDevol>
-          <vPIS>13.51</vPIS>
-          <vCOFINS>62.24</vCOFINS>
+          <vPIS>18.19</vPIS>
+          <vCOFINS>83.75</vCOFINS>
           <vOutro>0.00</vOutro>
-          <vNF>819.00</vNF>
+          <vNF>1102.00</vNF>
         </ICMSTot>
       </total>
       <transp>
@@ -249,11 +258,11 @@
       <pag>
         <detPag>
           <tPag>01</tPag>
-          <vPag>819.00</vPag>
+          <vPag>1102.00</vPag>
         </detPag>
       </pag>
       <infAdic>
-        <infCpl>NF-e sintetica de teste Hugin Flow. Fornecedor novo + de-para SKU.</infCpl>
+        <infCpl>DEMO Hugin Flow — fornecedor e de-para ja configurados (caminho feliz).</infCpl>
       </infAdic>
     </infNFe>
   </NFe>
@@ -261,9 +270,9 @@
     <infProt>
       <tpAmb>2</tpAmb>
       <verAplic>SP_NFE_PL_008i2</verAplic>
-      <chNFe>35260999888777000166550010000001231123456789</chNFe>
-      <dhRecbto>2026-09-16T10:31:00-03:00</dhRecbto>
-      <nProt>135260000012345</nProt>
+      <chNFe>35260999888777000166550010000009011123456781</chNFe>
+      <dhRecbto>2026-09-18T10:46:00-03:00</dhRecbto>
+      <nProt>135260000009011</nProt>
       <digVal>abcdefghijklmnopqrstuvwxyz012=</digVal>
       <cStat>100</cStat>
       <xMotivo>Autorizado o uso da NF-e</xMotivo>

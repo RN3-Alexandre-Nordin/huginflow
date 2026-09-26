@@ -1,18 +1,20 @@
 # Migração Supabase — registro vivo (dev → produção)
 
-> 🚀 **Documento Consolidado de Cutover:** Consulte o roteiro completo de subida para produção em [CUTOVER-PROD-SET-2026.md](./CUTOVER-PROD-SET-2026.md), contendo passo a passo, ordem das migrations, dependências e validações pós-deploy.
+> **Canônico de schema.** Runbook operacional do go-live: [CUTOVER-PROD-SET-2026.md](./specs-a-aplicar/CUTOVER-PROD-SET-2026.md).  
+> Índice da documentação: [README.md](./README.md).  
+> Atualize este documento a cada alteração de schema, migration no DEV, ou item no bundle de produção.
 
-> **Atualize este documento a cada alteração de schema**, migration aplicada no dev, ou item incluído no bundle de produção.
-
-| Ambiente | Project ref | Dashboard |
-|----------|-------------|-----------|
-| **Dev** | `vujqukqsfwmoezwyuoum` | [huginflow-dev](https://supabase.com/dashboard/project/vujqukqsfwmoezwyuoum) |
-| **Prod** | `zmypzexefjbovuknjlid` | [huginflow-prod](https://supabase.com/dashboard/project/zmypzexefjbovuknjlid) |
+| Ambiente | Project ref | Dashboard | Evolution |
+|----------|-------------|-----------|-----------|
+| **Dev** | `vujqukqsfwmoezwyuoum` | [huginflow-dev](https://supabase.com/dashboard/project/vujqukqsfwmoezwyuoum) | `evo-dev.rn3.tec.br` |
+| **Prod** | `zmypzexefjbovuknjlid` | [huginflow-prod](https://supabase.com/dashboard/project/zmypzexefjbovuknjlid) | `evo.rn3.tec.br` |
 
 **Última migration no prod (intencional):** pacote até `test_runs`/Analytics BI via MCP em 2026-09-06.  
 **Gate prod (combinado 2026-09-11):** aplicar SQL/código em produção **somente** com pedido explícito do responsável. Até lá: documentar e homologar em DEV.
 
-**Última migration no dev:** `202609161700_cad_sku_familias` (além de planilha req 161400–161600, cockpit_template, aprovação req. e anteriores de estoque).
+**Última migration no dev:** `202609181800_estoque_lote_produto_validade` (lote produto + FEFO; além de `crm_thread_sla_writers`, `crm_rpc_relatorio`, `est_rpc_relatorios`, famílias SKU, planilha req, cockpit_template, aprovação e pacote estoque/cadastros).
+
+**Pendente em prod (além do changelog ⏳):** Fases 3–5 agente (`202609071530` … `202609072045`) + pacotes Cadastros C1–C8 + Estoque E1–E17. Não aplicar sem backup, smoke e autorização explícita.
 
 **Gerar bundle SQL consolidado:**
 
@@ -28,6 +30,7 @@ node scripts/supabase/prod-deploy/build-bundle.mjs
 
 | Data | Migration / alteração | Dev | Prod | Arquivo | Notas |
 |------|----------------------|-----|------|---------|-------|
+| 2026-09-18 | `estoque_lote_produto_validade` | ✅ | ⏳ | `supabase/migrations/202609181800_estoque_lote_produto_validade.sql` | `est_lotes_produto`, flags SKU, `lote_produto_id` em saldos/movimentos/itens, RPC `p_lote_produto_id`, FEFO config |
 | 2026-09-16 | `crm_thread_sla_writers` | ✅ | ⏳ | `supabase/migrations/202609161910_crm_thread_sla_writers.sql` | Triggers FRT/handover/closed_at + message_count; cutover **27** |
 | 2026-09-16 | `crm_rpc_relatorio` | ✅ | ⏳ | `supabase/migrations/202609161900_crm_rpc_relatorio.sql` | BI omni+workflow RPC (14 slugs); cutover **26** |
 | 2026-09-16 | `est_rpc_relatorios` | ✅ | ⏳ | `supabase/migrations/202609161800_est_rpc_relatorios.sql` | RPC `est_rpc_relatorio` (11 slugs, agregação+paginação); cutover **25** |
@@ -109,7 +112,7 @@ node scripts/supabase/prod-deploy/build-bundle.mjs
 
 ### Pacote CRM / omni (ago/2026) — fora do bundle finance
 
-Aplicar após o pacote finance (ou em cutover CRM dedicado). Detalhes: [supabase-prod-deploy-pending.md](./supabase-prod-deploy-pending.md).
+Aplicar após o pacote finance (ou em cutover CRM dedicado). Ordem canônica: [CUTOVER-PROD-SET-2026.md](./specs-a-aplicar/CUTOVER-PROD-SET-2026.md).
 
 | # | ID | Arquivo |
 |---|-----|---------|
@@ -118,13 +121,13 @@ Aplicar após o pacote finance (ou em cutover CRM dedicado). Detalhes: [supabase
 | 20 | `crm_card_files_whatsapp_inbound` | `supabase/migrations/202608311400_crm_card_files_whatsapp_inbound.sql` |
 | 21 | `crm_chat_threads_active_speaker` | `supabase/migrations/202608311800_crm_chat_threads_active_speaker.sql` |
 
-Código associado (sem SQL): documentos WhatsApp, ensurer, kanban data/hora, notify responsável — ver changelog em [supabase-prod-deploy-pending.md](./supabase-prod-deploy-pending.md).
+Código associado (sem SQL): documentos WhatsApp, ensurer, kanban data/hora, notify responsável — ver changelog acima.
 
-**Roteiro de homologação:** [homologacao/script-teste-pacote-crm-ago-2026.md](./homologacao/script-teste-pacote-crm-ago-2026.md)
+**Homologação contínua:** [homologacao/agente-testes-plano.md](./homologacao/agente-testes-plano.md) · [homologacao/plano-homologacao-versao.md](./homologacao/plano-homologacao-versao.md).
 
 ### Pacote Cadastros / entitlements (set/2026) — **NÃO aplicar até homologação DEV**
 
-Detalhes e decisões: [supabase-prod-deploy-pending.md](./supabase-prod-deploy-pending.md) § Pacote Cadastros · [plataforma-entitlements-decisoes.md](./plataforma-entitlements-decisoes.md) §9.
+Decisões: [plataforma-entitlements-decisoes.md](./specs-aplicadas/plataforma-entitlements-decisoes.md) §9 (CC = departamento; locais de estoque só no addon `estoque`).
 
 | # | ID | Arquivo | Prod |
 |---|-----|---------|------|
@@ -141,9 +144,17 @@ Detalhes e decisões: [supabase-prod-deploy-pending.md](./supabase-prod-deploy-p
 
 > Em 2026-09-11 houve apply precoce de C1/C2 em prod; foi **revertido** no mesmo dia (`rollback_premature_cadastros_wave_parcial`). Prod voltou ao baseline pré-onda Cadastros.
 
+**Checklist pré-prod Cadastros**
+
+1. [ ] Smoke DEV (Pessoas, SKUs, Conversões UM, De-para, Ativos + select CC).
+2. [ ] Pedido explícito para cutover prod.
+3. [ ] Backup prod.
+4. [ ] Aplicar C1→C8 na ordem (MCP ou bundle).
+5. [ ] Deploy código + smoke prod.
+
 ### Pacote Estoque (set/2026) — **NÃO aplicar até homologação DEV**
 
-Detalhes e decisões: [supabase-prod-deploy-pending.md](./supabase-prod-deploy-pending.md) § Pacote Estoque · [desenvolvimento-modulo-estoque.md](./desenvolvimento-modulo-estoque.md).
+Spec: [desenvolvimento-modulo-estoque.md](./specs-aplicadas/desenvolvimento-modulo-estoque.md).
 
 | # | ID | Arquivo | Prod |
 |---|-----|---------|------|
@@ -167,8 +178,36 @@ Detalhes e decisões: [supabase-prod-deploy-pending.md](./supabase-prod-deploy-p
 
 **Gate:** homologação completa em DEV + **pedido explícito** do responsável. **Nada em produção.**
 
-> Ordem no cutover canônico: [CUTOVER-PROD-SET-2026.md](./CUTOVER-PROD-SET-2026.md) Seção 4 — itens **17–27** (após remessa 16; **25**=relatórios estoque · **26–27**=BI workflow/omni).
+> Ordem no cutover: [CUTOVER-PROD-SET-2026.md](./specs-a-aplicar/CUTOVER-PROD-SET-2026.md) Seção 4 — itens **17–27** (após remessa 16; **25**=relatórios estoque · **26–27**=BI workflow/omni).
 
+**Checklist pré-prod Estoque**
+
+1. [ ] Smoke DEV (Locais BRANCO, Config, Entradas, Retiradas, Ajustes, Remessas, Requisições, Cardex).
+2. [ ] Regra de Ouro (RPC atômica Cardex + Saldo).
+3. [ ] Relatórios: hub `/cockpit/estoque/relatorios` + `est_rpc_relatorio` (E15).
+4. [ ] Pedido explícito + backup prod.
+5. [ ] Aplicar E1–E17 na ordem; deploy front + smoke (planilha + hubs).
+
+### Pacote Relatórios — Estoque + Workflow/Omni (16/09) — DEV ✅ · PROD ⏳
+
+> Padrão SaaS: agregação/`GROUP BY`/paginação no Postgres; UI só renderiza `{ rows, resumo }`. Spec BI: [planejamento-modulo-relatorios-bi.md](./specs-aplicadas/planejamento-modulo-relatorios-bi.md).
+
+| Hub | Rota | RPC | Permissão | Migrations |
+|-----|------|-----|-----------|------------|
+| **Estoque** | `/cockpit/estoque/relatorios` | `est_rpc_relatorio` (11 slugs) | `estoque_relatorios.view` / `estoque.view` | E15 |
+| **BI Workflow + Omni** | `/cockpit/relatorios` | `crm_rpc_relatorio` (14 slugs) | `relatorios.view` + addon `workflow` | E16–E17 |
+
+**Pós-apply prod:**
+
+```sql
+SELECT routine_name FROM information_schema.routines
+WHERE routine_name IN ('est_rpc_relatorio', 'crm_rpc_relatorio');
+SELECT tgname FROM pg_trigger WHERE tgname LIKE 'trg_crm_%thread%';
+```
+
+### Sessão omnichannel — caminho único (código)
+
+API canônica: `src/lib/omnichannel/SessionPersistenceService.ts`. Monitor/heal: `scripts/omnichannel/monitor-orphan-sessions.sql` · `heal-orphan-sessions.mjs`. Heal em prod só com órfãos e **por empresa**.
 ---
 
 ## Como aplicar em produção

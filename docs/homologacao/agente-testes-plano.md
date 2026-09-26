@@ -111,6 +111,32 @@ Legenda de **status**:
 | UI-TENANT-01 | Não vazar funil de outra empresa | Multi-tenant | `fase-3` `ui` |
 | UI-DASH-01 | KPIs e filtros do dashboard gestor | §10 | `fase-4` `ui` |
 
+### 4.1b Cadastros mestres (F1)
+
+| ID | O que valida | Status |
+|----|--------------|--------|
+| UI-CAD-01 | Hub Cadastros: Pessoas, SKUs, Famílias, Conversões, De-para, Ativos | `coberto` `ui` |
+| UI-CAD-02 | Lista Pessoas carrega | `coberto` `ui` |
+| UI-CAD-03 | Lista SKUs carrega | `coberto` `ui` |
+| UI-CAD-04 | Lista Famílias SKU carrega | `coberto` `ui` |
+| UI-CAD-05 | Lista Conversões UM carrega | `coberto` `ui` |
+| UI-CAD-06 | Lista De-para carrega | `coberto` `ui` |
+| UI-CAD-07 | Lista Ativos carrega | `coberto` `ui` |
+| SCR-CAD-01 | CRUD cadeia família→SKU→UM→pessoa→de-para→ativo + cleanup | `coberto` `script` |
+
+Comando script: `npm run test:agent:scripts:cadastros` (também entra em `test:agent:scripts` / `test:agent:dev`).
+
+### 4.1c Entitlements / addons (F0)
+
+| ID | O que valida | Status |
+|----|--------------|--------|
+| UI-ENT-01 | `workflow` off → menu/URL Funis bloqueados | `coberto` `ui` |
+| UI-ENT-02 | `omni` off → menu/URL Chat bloqueados | `coberto` `ui` |
+| UI-ENT-03 | Financeiro permanece `rn3Only` para admin de tenant | `coberto` `ui` |
+| API-ENT-01 | `/api/v1/addons` Bearer + catálogo sem slug `financeiro` | `coberto` `ui` |
+
+Specs: `e2e/core/entitlements.spec.ts` (já na suíte Playwright do `test:agent:dev`). Exige `TEST_ALLOW_MUTATIONS=1` nos casos que desligam addon.
+
 ### 4.2 Scripts / API (homologação existente → adaptados a **dev**)
 
 | ID | Bloco homologação | O que valida | Status |
@@ -145,6 +171,91 @@ Legenda de **status**:
 | UI-OMNI-MULTI | Duas sessões mesmo lead (deptos) | `fase-3` |
 | UI-CARD-MOVE | Arrastar card de coluna | `fase-3` |
 
+### 4.4 Módulo Estoque (Fase 6) — inventário
+
+**Fontes:** [desenvolvimento-modulo-estoque.md](../specs-aplicadas/desenvolvimento-modulo-estoque.md) (§12 rotas, §13 RBAC, §16 aceite) · pacotes SQL em [MIGRACAO-SUPABASE.md](../MIGRACAO-SUPABASE.md) § Pacote Estoque · smoke de volume em [smoke-relatorios-monte-sinai-dev.md](../testes/smoke-relatorios-monte-sinai-dev.md).
+
+**Pré-condições do tenant de teste:** addon `estoque` ligado · SKUs com `controla_estoque` · Pessoas (fornecedor/destinatário/requisitante) · local `BRANCO` (+ 2º local para transferência) · de-para e conversão UM quando o caso de entrada exigir · `TEST_ALLOW_MUTATIONS=1` + cleanup por `empresa_id` / marcador do run.
+
+**REGRA DE OURO (obrigatória em todo SCR-EST que movimente):** após sucesso, existe linha em `est_movimentos` **e** `est_saldos` coerente; em falha parcial, nenhum dos dois fica gravado. Preferir RPC `est_registrar_movimento_atomico` / fluxos de lote já usados pela UI.
+
+#### 4.4.1 UI — hub, cadastros e consultas
+
+| ID | O que valida | Aceite / spec | Status |
+|----|--------------|---------------|--------|
+| UI-EST-ADDON-01 | Sem addon `estoque` → menu oculto e URL `/cockpit/estoque` bloqueada | §16.1 | `coberto` `fase-6` `ui` |
+| UI-EST-NAV-01 | Com addon + `estoque.view`: menu Estoque → hub com cards operacionais | §12 | `coberto` `fase-6` `ui` |
+| UI-EST-LOC-01 | CRUD Locais; cria/mantém principal `BRANCO` (`eh_principal`); bloqueia 2º principal | §5 · §16.2 | `coberto` `fase-6` `ui` (smoke lista; CRUD completo ainda manual) |
+| UI-EST-CFG-01 | Configuração: path NFe (rede local), modo saldo req., aprovador; botão reconstruir saldos visível a quem pode | §4.1 · §16.3 | `coberto` `fase-6` `ui` (smoke tela) |
+| UI-EST-SAL-01 | Tela Saldos carrega posição (`est_saldos` / consolidado) com paginação | F4.5 parcial | `coberto` `fase-6` `ui` (smoke tela) |
+| UI-EST-CAR-01 | Cardex lista movimentos; painel OK sem “Erro ao carregar” / timeout | §2.1 · §4.0 | `coberto` `fase-6` `ui` |
+| UI-EST-CAR-02 | Busca `?q=` com código hifenizado (regressão DEST-011 / OR ilike+sku) | Performance SaaS | `coberto` `fase-6` `ui` |
+| UI-EST-REL-01 | Hub `/cockpit/estoque/relatorios` abre slugs; 1ª página ≤50 linhas | F4.5 · smoke MS | `coberto` `fase-6` `ui` (smoke hub) |
+
+#### 4.4.2 UI — entradas
+
+| ID | O que valida | Aceite / spec | Status |
+|----|--------------|---------------|--------|
+| UI-EST-ENT-01 | Entrada lote na tela: justificativa obrigatória; grava lote + sobe saldo | §6 · §16.4–5 | `planejado` `fase-6` `ui` |
+| UI-EST-ENT-02 | Entrada por planilha (template) com erros por linha e itens OK gravados | §6 canal B | `planejado` `fase-6` `ui` |
+| UI-EST-ENT-03 | Entrada XML NFe (fixture em `docs/testes/*.xml`): parse + motor V1–V4 + status | §6 canal C · §16.4 | `planejado` `fase-6` `ui` |
+| UI-EST-ENT-04 | Bloqueios de cadastro: sem fornecedor / sem de-para / UM sem conversão → mensagem aponta Cadastros | §16.6–8 | `planejado` `fase-6` `ui` |
+
+#### 4.4.3 UI — saídas operacionais (retirada, transferência, ajuste)
+
+| ID | O que valida | Aceite / spec | Status |
+|----|--------------|---------------|--------|
+| UI-EST-RET-01 | Retirada lote tabular (só manual): SKU+qtd+justificativa; default `BRANCO`; bloqueia saldo insuficiente | §8 · §16.12–15 | `planejado` `fase-6` `ui` |
+| UI-EST-TRF-01 | Transferência multi-SKU: origem≠destino; consulta saldo origem; UM estoque só | §7 · §16.10–11 | `planejado` `fase-6` `ui` |
+| UI-EST-AJU-01 | Ajuste lote tabular (+/−): justificativa; não gera saldo negativo | §9 · §16.14–15 | `planejado` `fase-6` `ui` |
+
+#### 4.4.4 UI — remessa (poder de terceiros)
+
+| ID | O que valida | Aceite / spec | Status |
+|----|--------------|---------------|--------|
+| UI-EST-REM-01 | Envio: destinatário Pessoas + motivo catálogo; baixa local + sobe poder de terceiros | §11 · §16.23 | `planejado` `fase-6` `ui` |
+| UI-EST-REM-02 | Retorno parcial/total: devolve ao local e reduz poder; não mistura com entrada de compra | §11 · §16.24 | `planejado` `fase-6` `ui` |
+| UI-EST-REM-03 | Baixa definitiva / liquidação (quando aplicável): Cardex `remessa_baixa` em TERCEIROS | hist. 2026-09-13 | `planejado` `fase-6` `ui` |
+
+#### 4.4.5 UI — requisições
+
+| ID | O que valida | Aceite / spec | Status |
+|----|--------------|---------------|--------|
+| UI-EST-REQ-01 | Requisição manual: requisitante Pessoas + itens SKU/qtd | §10 · §16.16 | `planejado` `fase-6` `ui` |
+| UI-EST-REQ-02 | Import planilha (Hugin e/ou adapter ATC se addon); origem rastreável | §10.8 · hist. adapter | `planejado` `fase-6` `ui` |
+| UI-EST-REQ-03 | Fila aprovação interna (aprovador config / admin); auditoria | §10.5 | `planejado` `fase-6` `ui` |
+| UI-EST-REQ-04 | Atendimento gera `saida`/`origem=requisicao` e respeita `req_saldo_insuficiente_modo` | §10.4 · §16.17–19 | `planejado` `fase-6` `ui` |
+
+#### 4.4.6 Scripts / API (mutáveis, tenant-safe)
+
+| ID | O que valida | Aceite / spec | Status |
+|----|--------------|---------------|--------|
+| SCR-EST-GOLD-01 | Movimento atômico: Cardex + Saldo no mesmo commit; falha → rollback | §16.21 · Regra de Ouro | `coberto` `fase-6` `script` |
+| SCR-EST-BATCH-01 | `est_reconstruir_saldos_from_cardex` reconcilia por `empresa_id` sem divergência residual | §16.22 | `coberto` `fase-6` `script` |
+| SCR-EST-TENANT-01 | Empresa A não lê lotes/saldos/movimentos/reqs/remessas da B (RLS) | §16.20 | `coberto` `fase-6` `script` |
+| SCR-EST-ENT-01 | Entrada via service/RPC com fixture mínima sobe saldo e cardex `entrada` | §6 · §16.9 | `coberto` `fase-6` `script` |
+| SCR-EST-SALDO-01 | Retirada/transferência/ajuste negativo bloqueados com saldo insuficiente | §16.10 · §16.15 | `coberto` `fase-6` `script` |
+| SCR-EST-TRF-01 | Transferência redistribui saldos (total empresa estável; origem↓ destino↑) | §7 | `coberto` `fase-6` `script` |
+| SCR-EST-REM-01 | Envio/retorno atualizam `est_saldos` + `est_saldos_poder_terceiros` juntos | §11 · §16.23–24 | `coberto` `fase-6` `script` (envio; retorno UI ainda planejado) |
+| SCR-EST-REQ-01 | Ciclo req → (aprovação) → atendimento parcial/total conforme modo config | §10 · §16.17–19 | `coberto` `fase-6` `script` (req aprovada + saida; fila aprovacao UI ainda planejada) |
+| SCR-EST-RPC-01 | `est_rpc_relatorio`: `total_count` estável, page 50 + offset, isolamento tenants | smoke MS · F4.5 | `coberto` `fase-6` `script` |
+| SCR-EST-RBAC-01 | Slugs `estoque_*` / matriz: usuário sem perm não cria lote; com perm cria | §13 | `coberto` `fase-6` `script` |
+| SCR-EST-CAR-01 | Busca Cardex por SKU hifenizado: plano `sku_ids`, query < 8s, rejeita OR(ilike+id) | Performance SaaS · cardex-filters | `coberto` `fase-6` `script` |
+| SCR-EST-LOTE-01 | SKU `controla_lote`: entrada/saída com `lote_produto_id`; SKU sem flag grão NULL | lote/validade kernel | `coberto` `fase-6` `script` |
+| SCR-EST-LOTE-02 | Dois lotes FEFO + remessa preserva `lote_produto_id` no poder | lote/validade | `coberto` `fase-6` `script` |
+| SCR-EST-SERIE-01 | Placeholder `controla_serie` (skip até kernel série) | série unitária futura | `planejado` `fase-6` `script` (skip) |
+| UI-EST-LOTE-01 | Config FEFO + saldos validade + relatório `validade-lotes` | lote/validade | `coberto` `fase-6` `ui` |
+| UI-EST-LOTE-02 | Smoke rotas com LotePicker (retirada/ajuste/transf/remessa) | lote/validade | `coberto` `fase-6` `ui` |
+| UI-EST-SERIE-01 | Reservado UI série unitária | série futura | `planejado` `fase-6` `ui` (skip) |
+
+#### 4.4.7 Manual / smoke de volume (não bloqueiam verde da suíte até estabilizar)
+
+| ID | O que valida | Ref. | Status |
+|----|--------------|------|--------|
+| MAN-EST-NFE-AGENT | Agente on-prem lê pasta UNC e envia XML (não roda na VPS) | §2 · §6 | `manual` |
+| MAN-EST-SMOKE-MS | Paginação/cálculo/perf nos 11 slugs + BI (Monte Sinai scale) | [smoke-relatorios-monte-sinai-dev.md](../testes/smoke-relatorios-monte-sinai-dev.md) | `manual` `fase-6` |
+| MAN-EST-UAT | Piloto Atlas: 2 admins + amostra departamental | F5 · §15 | `manual` |
+
 ---
 
 ## 5. Cronograma de incremento (schedule)
@@ -157,6 +268,7 @@ Legenda de **status**:
 | **3 — Segurança e leads** | +2 semanas | RBAC UI, tenant, menções, leads, canais, multi-sessão, drag card | — |
 | **4 — IA / WhatsApp / RAG** | Após núcleo estável | Scripts 7–10; WhatsApp sem QR; simulador | `npm run test:agent:scripts:phase4` |
 | **5 — Prod smoke + BI** | Quando fase 1–2 confiáveis | Mesma bateria apontando prod (tenant teste) + analytics/BI | `npm run test:agent:prod-smoke` |
+| **6 — Estoque MVP** | Após Fases 1–5 verdes; módulo já em DEV | UI smoke hub/consultas + scripts SCR-EST-* §4.4 | `npm run test:agent:scripts:phase6` · incluso em `test:agent:scripts` / `test:agent:dev` |
 
 **Regra de ouro:** só avança de fase se a anterior estiver **verde 3 runs seguidos** em dev.
 
@@ -169,6 +281,7 @@ Legenda de **status**:
 3. Ler o **HTML** em `docs/homologacao/execucoes/agente-latest.html`
 4. Se vermelho → corrige → roda de novo
 5. Só então merge / preparação de deploy
+6. Fase 6: `npm run test:agent:scripts:phase6` (ou a suíte completa já inclui) + UI Estoque no mesmo relatório E2E
 
 ---
 
@@ -177,6 +290,10 @@ Legenda de **status**:
 | Já temos | Papel no agente |
 |----------|-----------------|
 | `docs/homologacao/plano-homologacao-versao.md` | Checklist humano + mapa dos blocos |
+| `docs/homologacao/agente-testes-plano.md` §4.4 | Inventário Estoque (Fase 6) — espelha aceite §16 da spec |
+| `docs/specs-aplicadas/desenvolvimento-modulo-estoque.md` | Spec + critérios de aceite do módulo Estoque |
+| `docs/MIGRACAO-SUPABASE.md` | Pacotes SQL Estoque/Cadastros ⏳ PROD |
+| `docs/testes/smoke-relatorios-monte-sinai-dev.md` | Smoke manual de volume/paginação (relatórios) |
 | `scripts/supabase/block*-prod.mjs` | Viram camada **script**; espelhos **dev** quando necessário |
 | `scripts/manual/capture-screenshots.mjs` | Referência de login/navegação Playwright (não é a suíte) |
 | Manual do operador | Fonte dos casos UI `UI-*` |
@@ -223,7 +340,7 @@ Não jogamos fora a homologação: o agente **automatiza e reporta**; o checklis
 
 **Como validar:** `npm run dev:turbo` → `npm run test:agent:dev` → abrir `docs/homologacao/execucoes/agente-latest.html`.
 
-**Próximo:** manter a suíte Fases 1–5 verde e executar o smoke read-only antes de releases.
+**Próximo:** manter a suíte Fases 1–6 verde (3 runs); completar UI mutável Estoque ainda `planejado`.
 
 ---
 
@@ -321,3 +438,38 @@ service role ou `TEST_ALLOW_MUTATIONS=1` e não executa qualquer escrita.
 Runs verdes finais: `276e926f-0ad8-47fb-a58f-68a9ecbdfc90`,
 `e8e0a19a-4339-44e9-83f3-57b0e0f61f66` e
 `fb69121e-6ae5-486c-9927-266a269f7a00`.
+
+---
+
+## 15. Fase 6 — Estoque
+
+| Item | Status |
+|------|--------|
+| Inventário §4.4 (UI + SCR + manual) alinhado à spec e ao aceite §16 | ✅ documentado |
+| Spec / histórico DEV (F4.1–F4.4 + remessa + aprovação + relatórios RPC) | ✅ em DEV · PROD ⏳ |
+| Specs Playwright `e2e/core/estoque.spec.ts` (ADDON/NAV/LOC/CFG/SAL/CAR-01+02/REL) | ✅ smoke + busca Cardex |
+| Scripts `scripts/agent/phase6-scripts.mjs` (… + SCR-EST-CAR-01) | ✅ coberto |
+| Unit `src/lib/estoque/cardex-filters.test.mjs` (estratégia busca / anti-timeout) | ✅ `npm run test:unit:estoque` |
+| Catálogo `UI-EST-*` / `SCR-EST-*` em `src/lib/testes/catalog.ts` | ✅ entradas adicionadas |
+| Fixture XML/planilha já em `docs/testes/` (NFe + modelo req) | ✅ reutilizar |
+| UI mutável entradas/retiradas/remessa/req (UI-EST-ENT/RET/TRF/AJU/REM/REQ) | `planejado` |
+| Smoke volume Monte Sinai (paginação/cálculo) | `manual` — doc dedicado |
+| Incluir Fase 6 em `test:agent:dev` / suite `/cockpit/testes` | ✅ scripts no runner · UI via `e2e/core` |
+| Três execuções DEV verdes consecutivas | ⏳ |
+
+### Ordem sugerida de implementação (automação)
+
+1. ~~**Foundation:** `UI-EST-ADDON-01`, `UI-EST-NAV-01`, `UI-EST-LOC-01`, `UI-EST-CFG-01` + `SCR-EST-TENANT-01` / `SCR-EST-GOLD-01`.~~ ✅
+2. ~~**Movimentações SCR:** entrada / saldo / transferência / remessa envio.~~ ✅ · UI mutável ainda planejada
+3. **Requisições UI:** criar → aprovar → atender (modos de saldo).
+4. ~~**Consultas:** saldos, cardex, `SCR-EST-RPC-01` + amostra de `UI-EST-REL-01`.~~ ✅ smoke
+5. ~~**RBAC:** `SCR-EST-RBAC-01` + smoke de menu oculto.~~ ✅
+6. Exigir 3 verdes consecutivos da bateria Fase 6 antes de tratar como homologável.
+
+### Critério de “Estoque pronto para homolog/piloto”
+
+- [ ] Todos os IDs `fase-6` marcados `coberto` (exceto `manual`)
+- [ ] Zero divergência Cardex×Saldo nos runs mutáveis
+- [ ] Isolamento tenant comprovado (`SCR-EST-TENANT-01`)
+- [ ] Checklist pré-prod Estoque em [MIGRACAO-SUPABASE.md](../MIGRACAO-SUPABASE.md) preenchível
+- [ ] Cutover PROD **somente** com pedido explícito (regra `develop` ≠ `main`)

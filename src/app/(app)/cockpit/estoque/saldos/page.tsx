@@ -20,14 +20,22 @@ interface PageProps {
     q?: string
     local_id?: string
     visao?: string
+    validade?: string
     page?: string
   }>
 }
+
+type LoteEmbed = {
+  id?: string
+  numero_lote?: string
+  data_validade?: string | null
+} | null
 
 type SaldoProprioRow = {
   id: string
   local_id: string
   quantidade: number
+  lote_produto_id: string | null
   cad_skus: {
     id: string
     codigo: string
@@ -35,6 +43,26 @@ type SaldoProprioRow = {
     unidade_estoque: string
   } | null
   cad_locais_estoque: { id: string; codigo: string; nome: string } | null
+  est_lotes_produto: LoteEmbed | LoteEmbed[] | null
+}
+
+function unwrapLote(
+  raw: LoteEmbed | LoteEmbed[] | null | undefined
+): { numero_lote: string; data_validade: string | null } | null {
+  if (!raw) return null
+  const lote = Array.isArray(raw) ? raw[0] : raw
+  if (!lote?.numero_lote) return null
+  return {
+    numero_lote: lote.numero_lote,
+    data_validade: lote.data_validade ?? null,
+  }
+}
+
+function formatValidadeBr(iso: string | null): string {
+  if (!iso) return '—'
+  const [y, m, d] = iso.split('-')
+  if (!y || !m || !d) return iso
+  return `${d}/${m}/${y}`
 }
 
 type SaldoConsolidadoRow = {
@@ -71,11 +99,27 @@ export default async function EstoqueSaldosPage({ searchParams }: PageProps) {
     )
   }
 
-  const { aba = 'proprio', q, local_id, visao: visaoParam, page: pageParam } = await searchParams
+  const {
+    aba = 'proprio',
+    q,
+    local_id,
+    visao: visaoParam,
+    validade: validadeParam,
+    page: pageParam,
+  } = await searchParams
   const visao: VisaoProprio = visaoParam === 'total' ? 'total' : 'por_local'
+  const validadeFiltro =
+    validadeParam === 'a_vencer' || validadeParam === 'vencido' ? validadeParam : ''
   const { page, from, to, pageSize } = estoqueRange(parseEstoquePage(pageParam))
   const empresaId = me?.empresa_id ?? ''
   const supabase = await createClient()
+  const hoje = new Date()
+  const hojeIso = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`
+  const em30Iso = (() => {
+    const d = new Date(hoje)
+    d.setDate(d.getDate() + 30)
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  })()
 
   const { data: locais } = await supabase
     .from('cad_locais_estoque')
@@ -129,6 +173,10 @@ export default async function EstoqueSaldosPage({ searchParams }: PageProps) {
         skuIds = (skusMatch || []).map((s) => s.id)
       }
 
+      const loteJoin = validadeFiltro
+        ? 'est_lotes_produto!inner(id, numero_lote, data_validade)'
+        : 'est_lotes_produto(id, numero_lote, data_validade)'
+
       let query = supabase
         .from('est_saldos')
         .select(
@@ -136,8 +184,10 @@ export default async function EstoqueSaldosPage({ searchParams }: PageProps) {
           id,
           local_id,
           quantidade,
+          lote_produto_id,
           cad_skus (id, codigo, nome, unidade_estoque),
-          cad_locais_estoque (id, codigo, nome)
+          cad_locais_estoque (id, codigo, nome),
+          ${loteJoin}
         `,
           { count: 'exact' },
         )
@@ -153,13 +203,27 @@ export default async function EstoqueSaldosPage({ searchParams }: PageProps) {
           query = query.in('sku_id', skuIds)
         }
       }
+      if (validadeFiltro === 'vencido') {
+        query = query
+          .not('lote_produto_id', 'is', null)
+          .lt('est_lotes_produto.data_validade', hojeIso)
+      } else if (validadeFiltro === 'a_vencer') {
+        query = query
+          .not('lote_produto_id', 'is', null)
+          .gte('est_lotes_produto.data_validade', hojeIso)
+          .lte('est_lotes_produto.data_validade', em30Iso)
+      }
 
       const { data, count } = await query
       saldosProprios = ((data as unknown as SaldoProprioRow[]) || []).sort((a, b) => {
         const ca = a.cad_locais_estoque?.codigo || ''
         const cb = b.cad_locais_estoque?.codigo || ''
         if (ca !== cb) return ca.localeCompare(cb)
-        return (a.cad_skus?.codigo || '').localeCompare(b.cad_skus?.codigo || '')
+        const skuCmp = (a.cad_skus?.codigo || '').localeCompare(b.cad_skus?.codigo || '')
+        if (skuCmp !== 0) return skuCmp
+        const la = unwrapLote(a.est_lotes_produto)?.numero_lote || ''
+        const lb = unwrapLote(b.est_lotes_produto)?.numero_lote || ''
+        return la.localeCompare(lb)
       })
       totalRows = count ?? saldosProprios.length
     }
@@ -207,7 +271,7 @@ export default async function EstoqueSaldosPage({ searchParams }: PageProps) {
     aba,
     ...(aba === 'proprio' ? { visao } : {}),
     q,
-    ...(aba === 'proprio' && visao === 'por_local' ? { local_id } : {}),
+    ...(aba === 'proprio' && visao === 'por_local' ? { local_id, validade: validadeFiltro || undefined } : {}),
   })
 
   // Agrupa posição por depósito (só totalizadores por local + linhas SKU limpas)
@@ -275,6 +339,9 @@ export default async function EstoqueSaldosPage({ searchParams }: PageProps) {
                   visao,
                   q,
                   ...(visao === 'por_local' ? { local_id } : {}),
+                  ...(visao === 'por_local' && validadeFiltro
+                    ? { validade: validadeFiltro }
+                    : {}),
                 })}`}
                 className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 ${
                   aba === 'proprio'
@@ -308,22 +375,48 @@ export default async function EstoqueSaldosPage({ searchParams }: PageProps) {
                   ...(aba === 'proprio' && visao === 'por_local' && local_id
                     ? { local_id }
                     : {}),
+                  ...(aba === 'proprio' && visao === 'por_local' && validadeFiltro
+                    ? { validade: validadeFiltro }
+                    : {}),
                 }}
                 className="relative flex-1 max-w-none"
                 inputClassName="w-full bg-[#0d1218] border border-[#ffffff10] rounded-xl pl-9 pr-3 py-1.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500/50"
               />
               {aba === 'proprio' && visao === 'por_local' && (
-                <UrlFilterSelect
-                  name="local_id"
-                  value={local_id || ''}
-                  emptyLabel="Todos os depósitos"
-                  preserveParams={{ aba, q, visao }}
-                  options={(locais || []).map((l) => ({
-                    value: l.id,
-                    label: l.codigo,
-                  }))}
-                  className="bg-[#0d1218] border border-[#ffffff10] rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500/50"
-                />
+                <>
+                  <UrlFilterSelect
+                    name="local_id"
+                    value={local_id || ''}
+                    emptyLabel="Todos os depósitos"
+                    preserveParams={{
+                      aba,
+                      q,
+                      visao,
+                      ...(validadeFiltro ? { validade: validadeFiltro } : {}),
+                    }}
+                    options={(locais || []).map((l) => ({
+                      value: l.id,
+                      label: l.codigo,
+                    }))}
+                    className="bg-[#0d1218] border border-[#ffffff10] rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500/50"
+                  />
+                  <UrlFilterSelect
+                    name="validade"
+                    value={validadeFiltro}
+                    emptyLabel="Toda validade"
+                    preserveParams={{
+                      aba,
+                      q,
+                      visao,
+                      ...(local_id ? { local_id } : {}),
+                    }}
+                    options={[
+                      { value: 'a_vencer', label: 'A vencer (30d)' },
+                      { value: 'vencido', label: 'Vencidos' },
+                    ]}
+                    className="bg-[#0d1218] border border-[#ffffff10] rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500/50"
+                  />
+                </>
               )}
             </div>
           </div>
@@ -339,6 +432,7 @@ export default async function EstoqueSaldosPage({ searchParams }: PageProps) {
                   visao: 'por_local',
                   q,
                   local_id,
+                  ...(validadeFiltro ? { validade: validadeFiltro } : {}),
                 })}`}
                 className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                   visao === 'por_local'
@@ -374,8 +468,12 @@ export default async function EstoqueSaldosPage({ searchParams }: PageProps) {
             {visao === 'total'
               ? 'Posição consolidada da empresa (depósitos somados por produto).'
               : local_id
-                ? 'Posição do depósito selecionado (saldo por produto).'
-                : 'Posição por depósito (saldo constante de cada produto no local).'}
+                ? 'Posição do depósito selecionado (saldo por produto/lote).'
+                : validadeFiltro === 'vencido'
+                  ? 'Saldos com lote vencido (validade anterior a hoje).'
+                  : validadeFiltro === 'a_vencer'
+                    ? 'Saldos com validade nos próximos 30 dias.'
+                    : 'Posição por depósito (saldo constante de cada produto/lote no local).'}
           </p>
         )}
 
@@ -405,6 +503,8 @@ export default async function EstoqueSaldosPage({ searchParams }: PageProps) {
                       <thead className="text-gray-500 uppercase tracking-wider text-[10px] border-b border-[#ffffff05]">
                         <tr>
                           <th className="py-2 px-4 font-medium">Produto</th>
+                          <th className="py-2 px-4 font-medium">Lote</th>
+                          <th className="py-2 px-4 font-medium">Validade</th>
                           <th className="py-2 px-4 text-right font-medium">Saldo</th>
                           <th className="py-2 px-4 text-right font-medium w-28">Cardex</th>
                         </tr>
@@ -412,11 +512,17 @@ export default async function EstoqueSaldosPage({ searchParams }: PageProps) {
                       <tbody className="divide-y divide-[#ffffff05]">
                         {g.rows.map((s) => {
                           const skuId = s.cad_skus?.id
+                          const lote = unwrapLote(s.est_lotes_produto)
+                          const valIso = lote?.data_validade ?? null
+                          const vencido = valIso != null && valIso < hojeIso
+                          const aVencer =
+                            valIso != null && valIso >= hojeIso && valIso <= em30Iso
                           const cardexHref =
                             skuId && s.local_id
                               ? `/cockpit/estoque/cardex?${new URLSearchParams({
                                   sku_id: skuId,
                                   local_id: s.local_id,
+                                  ...(lote?.numero_lote ? { lote: lote.numero_lote } : {}),
                                 }).toString()}`
                               : skuId
                                 ? `/cockpit/estoque/cardex?sku_id=${encodeURIComponent(skuId)}`
@@ -430,6 +536,22 @@ export default async function EstoqueSaldosPage({ searchParams }: PageProps) {
                                 </span>
                                 <span className="text-gray-500 mx-1.5">·</span>
                                 <span className="text-gray-400">{s.cad_skus?.nome}</span>
+                              </td>
+                              <td className="py-2.5 px-4 font-mono text-amber-300/90">
+                                {lote?.numero_lote || (
+                                  <span className="text-gray-600">—</span>
+                                )}
+                              </td>
+                              <td
+                                className={`py-2.5 px-4 font-mono ${
+                                  vencido
+                                    ? 'text-red-400'
+                                    : aVencer
+                                      ? 'text-amber-300'
+                                      : 'text-gray-400'
+                                }`}
+                              >
+                                {formatValidadeBr(valIso)}
                               </td>
                               <td className="py-2.5 px-4 text-right font-mono font-bold text-white">
                                 {s.quantidade}{' '}

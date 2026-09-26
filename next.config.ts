@@ -12,9 +12,11 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: [
     new URL(process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").hostname,
   ],
-  // Manual: rename do arquivo HTML na P4
+  // Manuais HTML + assets de captura (prints/vídeos)
   outputFileTracingIncludes: {
-    '/api/ajuda/manual': ['./docs/manual-usuario-huginflow.html'],
+    '/api/ajuda/manual': ['./docs/manuais/manual-administrador.html'],
+    '/api/ajuda/manual-estoque': ['./docs/manuais/manual-estoque.html'],
+    '/api/ajuda/treinamento-operadores': ['./docs/manuais/treinamento-operadores.html'],
     '/api/ajuda/img/*': ['./docs/manual/img/**/*'],
   },
   experimental: {

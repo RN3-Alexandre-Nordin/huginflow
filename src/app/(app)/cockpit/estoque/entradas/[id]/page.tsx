@@ -90,7 +90,8 @@ export default async function EstoqueEntradaDetalhesPage({ params }: PageProps) 
     .select(
       `
       *,
-      cad_skus (id, codigo, nome, unidade_estoque)
+      cad_skus (id, codigo, nome, unidade_estoque),
+      est_lotes_produto (id, numero_lote, data_validade, data_fabricacao)
     `
     )
     .eq('lote_id', id)
@@ -216,6 +217,7 @@ export default async function EstoqueEntradaDetalhesPage({ params }: PageProps) 
                 <th className="py-3 px-4">Qtd Origem</th>
                 <th className="py-3 px-4">Conversão</th>
                 <th className="py-3 px-4">Qtd Estoque</th>
+                <th className="py-3 px-4">Lote / Validade</th>
                 <th className="py-3 px-4">Justificativa</th>
                 <th className="py-3 px-4 text-center">Status</th>
                 <th className="py-3 px-4 text-right">Cardex</th>
@@ -224,6 +226,14 @@ export default async function EstoqueEntradaDetalhesPage({ params }: PageProps) 
             <tbody className="divide-y divide-[#ffffff05]">
               {itens?.map((it) => {
                 const sku = it.cad_skus as { id?: string; codigo?: string; nome?: string; unidade_estoque?: string } | null
+                const loteProdRaw = it.est_lotes_produto as
+                  | { id?: string; numero_lote?: string; data_validade?: string | null; data_fabricacao?: string | null }
+                  | { id?: string; numero_lote?: string; data_validade?: string | null; data_fabricacao?: string | null }[]
+                  | null
+                const loteProd = Array.isArray(loteProdRaw) ? loteProdRaw[0] : loteProdRaw
+                const numeroLote = loteProd?.numero_lote || it.numero_lote
+                const dataValidade = loteProd?.data_validade || it.data_validade
+                const dataFabricacao = loteProd?.data_fabricacao || it.data_fabricacao
                 const isOk = it.status === 'ok'
 
                 return (
@@ -268,6 +278,27 @@ export default async function EstoqueEntradaDetalhesPage({ params }: PageProps) 
                         </span>
                       ) : (
                         '—'
+                      )}
+                    </td>
+                    <td className="py-3.5 px-4">
+                      {numeroLote ? (
+                        <div>
+                          <span className="font-mono text-white">{numeroLote}</span>
+                          {dataValidade && (
+                            <span className="block text-[10px] text-gray-500">
+                              Val.{' '}
+                              {new Date(dataValidade + 'T12:00:00').toLocaleDateString('pt-BR')}
+                            </span>
+                          )}
+                          {dataFabricacao && (
+                            <span className="block text-[10px] text-gray-600">
+                              Fab.{' '}
+                              {new Date(dataFabricacao + 'T12:00:00').toLocaleDateString('pt-BR')}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-gray-600">—</span>
                       )}
                     </td>
                     <td className="py-3.5 px-4 text-gray-300">

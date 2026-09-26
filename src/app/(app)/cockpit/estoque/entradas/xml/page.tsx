@@ -28,7 +28,7 @@ export default async function ImportNfeXmlPage() {
 
   const { data: skusIniciais } = await supabase
     .from('cad_skus')
-    .select('id, codigo, nome, unidade_estoque')
+    .select('id, codigo, nome, unidade_estoque, controla_lote, exige_validade')
     .eq('empresa_id', empresaId)
     .eq('ativo', true)
     .eq('controla_estoque', true)

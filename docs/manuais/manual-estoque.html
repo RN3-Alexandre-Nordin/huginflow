@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Hugin Flow — Manual do Usuário · Estoque</title>
+  <style>
+    :root {
+      --bg: #0f1419; --surface: #1a2332; --surface2: #243044; --text: #e7ecf3;
+      --muted: #9aa8bc; --accent: #2baadf; --green: #3dd68c; --orange: #f97316;
+      --warn: #ffb020; --border: #2d3a4f; --code-bg: #121820; --step: #80b828;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; color-scheme: dark; }
+    body { margin: 0; font-family: "Segoe UI", system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; font-size: 15px; }
+    .layout { display: grid; grid-template-columns: 280px 1fr; min-height: 100vh; }
+    @media (max-width: 960px) { .layout { grid-template-columns: 1fr; } .toc { position: static; height: auto; } }
+    .toc { position: sticky; top: 0; height: 100vh; overflow-y: auto; background: var(--surface); border-right: 1px solid var(--border); padding: 1.25rem 1rem 2rem; scrollbar-width: thin; }
+    .toc-logo { font-size: 1.05rem; font-weight: 800; margin-bottom: 0.2rem; }
+    .toc-sub { font-size: 0.72rem; color: var(--muted); margin-bottom: 1rem; line-height: 1.4; }
+    .toc nav a { display: block; padding: 0.38rem 0.6rem; font-size: 0.8rem; color: var(--muted); text-decoration: none; border-radius: 6px; border-left: 2px solid transparent; margin-bottom: 0.1rem; }
+    .toc nav a:hover { color: var(--text); background: rgba(255,255,255,0.04); }
+    .toc .section-label { font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 0.85rem 0 0.35rem 0.6rem; }
+    .content { padding: 2rem 2rem 5rem; max-width: 920px; }
+    header.doc-header { border-bottom: 1px solid var(--border); padding-bottom: 1.5rem; margin-bottom: 2rem; }
+    h1 { font-size: 1.85rem; margin: 0 0 0.5rem; font-weight: 900; letter-spacing: -0.02em; }
+    .subtitle { color: var(--muted); margin: 0; font-size: 1rem; max-width: 42rem; }
+    .meta { margin-top: 1rem; font-size: 0.85rem; color: var(--muted); }
+    h2 { font-size: 1.28rem; margin: 2.75rem 0 0.85rem; padding-bottom: 0.35rem; border-bottom: 2px solid var(--accent); color: var(--accent); scroll-margin-top: 1rem; }
+    h3 { font-size: 1.02rem; margin: 1.6rem 0 0.65rem; color: var(--text); }
+    p { margin: 0.45rem 0 0.9rem; }
+    a { color: var(--accent); }
+    ul, ol { margin: 0.45rem 0 0.9rem; padding-left: 1.35rem; }
+    li { margin: 0.3rem 0; }
+    code { font-family: Consolas, monospace; font-size: 0.86em; background: var(--code-bg); padding: 0.1em 0.35em; border-radius: 4px; color: var(--accent); }
+    .alert { border-radius: 8px; padding: 0.85rem 1rem; margin: 1rem 0; border-left: 4px solid var(--warn); background: rgba(255,176,32,0.08); font-size: 0.9rem; }
+    .alert.info { border-left-color: var(--accent); background: rgba(43,170,223,0.08); }
+    .alert.ok { border-left-color: var(--green); background: rgba(61,214,140,0.08); }
+    .alert.danger { border-left-color: #ef4444; background: rgba(239,68,68,0.08); }
+    .badge { display: inline-block; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; padding: 0.18rem 0.5rem; border-radius: 4px; margin-right: 0.35rem; }
+    .badge-op { background: rgba(43,170,223,0.15); color: var(--accent); }
+    .badge-admin { background: rgba(249,115,22,0.15); color: var(--orange); }
+    .procedure { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.2rem 1.4rem; margin: 1.1rem 0; }
+    .procedure-title { font-weight: 700; font-size: 0.94rem; margin: 0 0 0.85rem; display: flex; align-items: center; gap: 0.5rem; }
+    .procedure-title span { background: var(--step); color: #0a0a0a; width: 1.45rem; height: 1.45rem; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 0.72rem; font-weight: 800; flex-shrink: 0; }
+    .steps { list-style: none; padding: 0; margin: 0; counter-reset: step; }
+    .steps li { counter-increment: step; padding: 0.6rem 0 0.6rem 2.45rem; position: relative; border-bottom: 1px solid var(--border); font-size: 0.94rem; }
+    .steps li:last-child { border-bottom: none; }
+    .steps li::before { content: counter(step); position: absolute; left: 0; top: 0.6rem; width: 1.55rem; height: 1.55rem; background: var(--surface2); border: 1px solid var(--border); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.72rem; font-weight: 700; color: var(--accent); }
+    .steps li .hint { display: block; margin-top: 0.35rem; font-size: 0.84rem; color: var(--muted); }
+    table { width: 100%; border-collapse: collapse; margin: 0.85rem 0 1.1rem; font-size: 0.88rem; }
+    th, td { border: 1px solid var(--border); padding: 0.55rem 0.7rem; text-align: left; vertical-align: top; }
+    th { background: var(--surface2); font-weight: 600; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+    tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+    .card-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin: 1rem 0; }
+    @media (max-width: 640px) { .card-grid { grid-template-columns: 1fr; } }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 0.9rem 1rem; font-size: 0.88rem; }
+    .card strong { display: block; margin-bottom: 0.25rem; color: var(--text); }
+    .flow-box { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1rem 1.25rem; margin: 1rem 0; font-size: 0.88rem; line-height: 1.75; font-family: Consolas, monospace; color: var(--muted); white-space: pre-wrap; }
+    .checklist { list-style: none; padding: 0; margin: 0.75rem 0; }
+    .checklist li { padding: 0.35rem 0 0.35rem 1.65rem; position: relative; font-size: 0.9rem; }
+    .checklist li::before { content: "☐"; position: absolute; left: 0; color: var(--accent); }
+    footer { margin-top: 3rem; padding-top: 1.25rem; border-top: 1px solid var(--border); font-size: 0.82rem; color: var(--muted); }
+    @media print { .toc { display: none; } .layout { display: block; } }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <aside class="toc">
+      <div class="toc-logo">Hugin Flow</div>
+      <div class="toc-sub">Manual do Usuário<br />Módulo Estoque</div>
+      <nav>
+        <div class="section-label">Comece aqui</div>
+        <a href="#sobre">Sobre este manual</a>
+        <a href="#acesso">Acesso e permissões</a>
+        <a href="#conceitos">Conceitos essenciais</a>
+        <a href="#hub">Hub Estoque</a>
+        <div class="section-label">Cadastros prévios</div>
+        <a href="#mestres">O que fica em Cadastros</a>
+        <a href="#locais">Locais de estoque</a>
+        <a href="#config">Configuração</a>
+        <div class="section-label">Entradas</div>
+        <a href="#entradas">Visão geral</a>
+        <a href="#entrada-manual">Entrada na tela</a>
+        <a href="#entrada-planilha">Entrada por planilha</a>
+        <a href="#entrada-nfe">Entrada por XML NFe</a>
+        <div class="section-label">Saídas e movimentações</div>
+        <a href="#retiradas">Retiradas</a>
+        <a href="#transferencias">Transferências</a>
+        <a href="#ajustes">Ajustes</a>
+        <div class="section-label">Requisições</div>
+        <a href="#requisicoes">Criar e importar</a>
+        <a href="#aprovacao">Aprovação</a>
+        <a href="#atendimento">Atendimento (baixa)</a>
+        <div class="section-label">Remessas</div>
+        <a href="#remessas">Envio para terceiros</a>
+        <a href="#retorno">Retorno e baixa</a>
+        <div class="section-label">Consultas</div>
+        <a href="#saldos">Saldos</a>
+        <a href="#cardex">Cardex</a>
+        <a href="#relatorios">Relatórios</a>
+        <div class="section-label">Apoio</div>
+        <a href="#problemas">Problemas comuns</a>
+        <a href="#checklist">Checklist do dia a dia</a>
+        <a href="#glossario">Glossário</a>
+      </nav>
+    </aside>
+
+    <main class="content">
+      <header class="doc-header">
+        <h1>Manual do Usuário — Estoque</h1>
+        <p class="subtitle">
+          Guia prático para operar locais, entradas, retiradas, transferências, ajustes,
+          requisições, remessas, saldos, cardex e relatórios no Cockpit Hugin Flow.
+        </p>
+        <p class="meta">
+          Menu: <strong>Estoque</strong> · Ajuda no app: ícone <strong>?</strong> → <strong>Manuais</strong> → <strong>Manual de Estoque</strong> ·
+          Rev. set/2026
+        </p>
+      </header>
+
+      <h2 id="sobre">1. Sobre este manual</h2>
+      <p>
+        Este material é para <strong>operadores e gestores</strong> que usam o módulo Estoque no dia a dia.
+        Não substitui o <em>Manual do administrador</em> (empresa, usuários e permissões) nem o
+        <em>Treinamento do operador</em> (WhatsApp, cards e chat).
+      </p>
+      <div class="alert info">
+        O módulo só aparece se a empresa tiver o addon <strong>estoque</strong> ativo e o seu
+        grupo de acesso tiver permissão de <strong>visualizar</strong> Estoque. Sem addon ou sem
+        permissão, o menu some e a URL é bloqueada.
+      </div>
+
+      <h2 id="acesso">2. Acesso e permissões</h2>
+      <table>
+        <thead>
+          <tr><th>Quem</th><th>O que costuma fazer</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="badge badge-op">Operador</span></td>
+            <td>Entradas, retiradas, transferências, remessas, requisições e consultas (conforme matriz).</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-admin">Admin / aprovador</span></td>
+            <td>Configuração, aprovação de requisições, reconstruir saldos, locais e parâmetros.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        Se um botão ou tela não aparecer, peça ao administrador para revisar o
+        <strong>grupo de acesso</strong> (ações Ver / Criar / Editar do módulo Estoque).
+      </p>
+
+      <h2 id="conceitos">3. Conceitos essenciais</h2>
+      <div class="card-grid">
+        <div class="card">
+          <strong>Local</strong>
+          Onde o material fica (almoxarifado, loja, etc.). Toda empresa tem um local principal
+          <code>BRANCO</code>. Existe também o local especial <code>TERCEIROS</code> para remessas.
+        </div>
+        <div class="card">
+          <strong>Saldo</strong>
+          Quantidade atual por SKU × local. É o que a tela de Saldos mostra e o que o sistema
+          valida antes de baixar.
+        </div>
+        <div class="card">
+          <strong>Cardex</strong>
+          Histórico de movimentos (entrada, saída, transferência, ajuste, remessa…). Auditoria
+          e rastreio.
+        </div>
+        <div class="card">
+          <strong>Regra de ouro</strong>
+          Toda movimentação grava Cardex <em>e</em> atualiza Saldo juntos. Se algo falhar, nada
+          fica pela metade.
+        </div>
+      </div>
+      <div class="alert">
+        <strong>Não confunda as saídas:</strong>
+        <ul>
+          <li><strong>Retirada</strong> = consumo (sai e não volta).</li>
+          <li><strong>Atendimento de requisição</strong> = baixa vinculada a um pedido interno.</li>
+          <li><strong>Remessa</strong> = material nosso em poder de terceiro (espera retorno).</li>
+          <li><strong>Transferência</strong> = muda de local próprio, sem consumir.</li>
+        </ul>
+      </div>
+
+      <h2 id="hub">4. Hub Estoque</h2>
+      <p>
+        No menu lateral, clique em <strong>Estoque</strong>. O hub reúne os cards das rotinas:
+        Locais, Configuração, Entradas, Retiradas, Transferências, Ajustes, Remessas,
+        Requisições, Saldos, Cardex e Relatórios.
+      </p>
+      <div class="flow-box">Cockpit → Estoque → escolha o card da operação</div>
+
+      <h2 id="mestres">5. Cadastros que o Estoque usa</h2>
+      <p>Antes de operar, confira estes mestres em <strong>Cadastros</strong>:</p>
+      <table>
+        <thead>
+          <tr><th>Cadastro</th><th>Para que serve no Estoque</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Pessoas</td><td>Fornecedor (entrada), requisitante, destinatário de remessa</td></tr>
+          <tr><td>SKUs</td><td>Itens com <code>controla estoque</code> e unidades</td></tr>
+          <tr><td>Conversões UM</td><td>Quando a compra vem em unidade diferente da de estoque</td></tr>
+          <tr><td>De-para SKU</td><td>Código do fornecedor ↔ SKU Hugin (NFe / planilha)</td></tr>
+        </tbody>
+      </table>
+      <div class="alert danger">
+        Sem fornecedor, de-para ou conversão de UM, a <strong>entrada</strong> (sobretudo NFe)
+        pode ser bloqueada com mensagem apontando o cadastro faltante.
+      </div>
+
+      <h2 id="locais">6. Locais de estoque</h2>
+      <p><span class="badge badge-admin">Admin</span> Rota: <code>/cockpit/estoque/locais</code></p>
+      <div class="procedure">
+        <p class="procedure-title"><span>1</span> Manter locais</p>
+        <ol class="steps">
+          <li>Abra <strong>Estoque → Locais</strong>.</li>
+          <li>Garanta o local principal <code>BRANCO</code> (único principal por empresa).</li>
+          <li>Crie almoxarifados / lojas adicionais se a operação usar vários locais.
+            <span class="hint">O sistema não permite dois locais principais.</span>
+          </li>
+          <li>Não use o local <code>TERCEIROS</code> como origem de saída operacional — ele é
+            reservado ao controle de remessas.</li>
+        </ol>
+      </div>
+
+      <h2 id="config">7. Configuração do módulo</h2>
+      <p><span class="badge badge-admin">Admin</span> Rota: <code>/cockpit/estoque/configuracao</code></p>
+      <p>Principais parâmetros (organizados em abas):</p>
+      <table>
+        <thead>
+          <tr><th>Área</th><th>O que define</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>NFe / XML</td>
+            <td>Pasta de rede <strong>local do cliente</strong> (UNC) onde o agente on-prem lê XMLs. Não fica na nuvem do Hugin.</td>
+          </tr>
+          <tr>
+            <td>Requisições</td>
+            <td>Modo de saldo insuficiente no atendimento; aprovação interna (aprovador e valor mínimo); auto-atender import de planilha.</td>
+          </tr>
+          <tr>
+            <td>Workflow (opcional)</td>
+            <td>Criar card de aprovação em funil/estágio do CRM.</td>
+          </tr>
+          <tr>
+            <td>Manutenção</td>
+            <td>Botão para <strong>reconstruir saldos a partir do Cardex</strong> (uso excepcional / reconciliação).</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="alert info">
+        Modos de saldo insuficiente no atendimento:
+        <strong>atende parcial</strong> (baixa o disponível e deixa pendência),
+        <strong>não atende a requisição</strong>, ou
+        <strong>pula o item</strong> e segue nos demais.
+      </div>
+
+      <h2 id="entradas">8. Entradas — visão geral</h2>
+      <p>Três canais para subir estoque:</p>
+      <div class="card-grid">
+        <div class="card"><strong>Tela (lote)</strong> Digitação com justificativa por linha.</div>
+        <div class="card"><strong>Planilha</strong> Import CSV/XLSX com erros por linha.</div>
+        <div class="card"><strong>XML NFe</strong> Parse da nota + vínculo de cadastros.</div>
+      </div>
+
+      <h2 id="entrada-manual">8.1 Entrada na tela</h2>
+      <div class="procedure">
+        <p class="procedure-title"><span>2</span> Registrar entrada manual</p>
+        <ol class="steps">
+          <li>Vá em <strong>Estoque → Entradas → Nova</strong>.</li>
+          <li>Informe fornecedor (Pessoas), local de destino (default <code>BRANCO</code>) e documento se houver.</li>
+          <li>Inclua linhas: SKU, quantidade e <strong>justificativa</strong> (obrigatória).</li>
+          <li>Confirme. O sistema sobe o saldo e grava o Cardex tipo <code>entrada</code>.</li>
+        </ol>
+      </div>
+
+      <h2 id="entrada-planilha">8.2 Entrada por planilha</h2>
+      <div class="procedure">
+        <p class="procedure-title"><span>3</span> Importar planilha de entrada</p>
+        <ol class="steps">
+          <li>Abra <strong>Entradas → Importar</strong> e baixe o modelo.</li>
+          <li>Preencha SKU, quantidades e dados exigidos pelo template.</li>
+          <li>Envie o arquivo. Linhas com erro são listadas; as válidas podem ser gravadas.</li>
+        </ol>
+      </div>
+
+      <h2 id="entrada-nfe">8.3 Entrada por XML NFe</h2>
+      <p>
+        O caminho da pasta NFe é configurado em <strong>Configuração</strong>. Um agente na
+        rede do cliente lê os XMLs e envia ao Hugin. Na tela de Entradas você acompanha o
+        processamento, resolve bloqueios de cadastro (fornecedor, de-para, UM) e conclui o lote.
+      </p>
+      <div class="alert">
+        A VPS do Hugin <strong>não</strong> acessa pastas da sua rede local. Sem o agente
+        on-prem, a pasta UNC não é lida automaticamente.
+      </div>
+
+      <h2 id="retiradas">9. Retiradas</h2>
+      <p><span class="badge badge-op">Operador</span> Consumo manual em lote tabular (sem planilha/XML).</p>
+      <div class="procedure">
+        <p class="procedure-title"><span>4</span> Baixar por retirada</p>
+        <ol class="steps">
+          <li>Abra <strong>Estoque → Retiradas → Nova</strong>.</li>
+          <li>Informe SKU, quantidade, local (default <code>BRANCO</code>) e justificativa.</li>
+          <li>Confirme. Se o saldo for insuficiente, a linha é bloqueada.</li>
+        </ol>
+      </div>
+
+      <h2 id="transferencias">10. Transferências</h2>
+      <div class="procedure">
+        <p class="procedure-title"><span>5</span> Mover entre locais</p>
+        <ol class="steps">
+          <li>Abra <strong>Transferências → Nova</strong>.</li>
+          <li>Escolha local de origem ≠ destino e os SKUs/quantidades.</li>
+          <li>Confira o saldo na origem antes de gravar.
+            <span class="hint">A transferência não converte unidade de medida — usa a UM de estoque.</span>
+          </li>
+        </ol>
+      </div>
+
+      <h2 id="ajustes">11. Ajustes</h2>
+      <p>Correção de inventário (+/−) com justificativa. Ajuste negativo não pode gerar saldo negativo.</p>
+      <div class="procedure">
+        <p class="procedure-title"><span>6</span> Lançar ajuste</p>
+        <ol class="steps">
+          <li>Abra <strong>Ajustes → Novo</strong>.</li>
+          <li>Informe SKU, local, quantidade, sinal (positivo/negativo) e motivo.</li>
+          <li>Grave. Use ajuste só para correção — não substitui entrada de compra nem retirada operacional.</li>
+        </ol>
+      </div>
+
+      <h2 id="requisicoes">12. Requisições de materiais</h2>
+      <p>Pedido interno: requisitante em Pessoas + itens SKU/quantidade. Canais: tela ou planilha.</p>
+      <div class="procedure">
+        <p class="procedure-title"><span>7</span> Criar requisição manual</p>
+        <ol class="steps">
+          <li>Abra <strong>Requisições → Nova</strong>.</li>
+          <li>Selecione o <strong>requisitante</strong> (obrigatório — cadastre em Pessoas se faltar).</li>
+          <li>Adicione pelo menos um item (SKU + qtd &gt; 0).</li>
+          <li>Salve / envie. Conforme a configuração, a req pode ir para aprovação ou já ficar aprovada.</li>
+        </ol>
+      </div>
+      <p>
+        Na importação por planilha, use o modelo Hugin (ou adapter do cliente, se contratado).
+        Colunas típicas: documento do requisitante, código do SKU, quantidade; opcionalmente
+        <code>codigo_origem</code> / <code>sistema_origem</code> para rastreio e evitar reimport duplicado.
+      </p>
+
+      <h2 id="aprovacao">12.1 Aprovação</h2>
+      <p>
+        Se a aprovação interna estiver ligada em Configuração, requisições acima do valor mínimo
+        ficam em <strong>pendente de aprovação</strong>. Aprove ou reprove em
+        <code>/cockpit/estoque/requisicoes/aprovacao</code> (aprovador configurado, admin ou superadmin).
+      </p>
+
+      <h2 id="atendimento">12.2 Atendimento (baixa)</h2>
+      <div class="procedure">
+        <p class="procedure-title"><span>8</span> Atender requisição aprovada</p>
+        <ol class="steps">
+          <li>Abra a requisição aprovada.</li>
+          <li>Informe as quantidades a atender por item (respeitando o modo de saldo insuficiente).</li>
+          <li>Confirme. O Cardex registra saída com origem <code>requisicao</code> e o saldo local baixa.</li>
+        </ol>
+      </div>
+      <div class="alert ok">
+        Atendimento de requisição ≠ Retirada. A retirada é consumo avulso; o atendimento fica
+        vinculado ao número da requisição para rastreio.
+      </div>
+
+      <h2 id="remessas">13. Remessas — envio para terceiros</h2>
+      <p>
+        Material <strong>próprio</strong> que sai fisicamente para um terceiro (conserto, locação,
+        industrialização…) <em>sem</em> ser consumo. O saldo local baixa e sobe o
+        <strong>poder de terceiros</strong>.
+      </p>
+      <div class="procedure">
+        <p class="procedure-title"><span>9</span> Enviar remessa</p>
+        <ol class="steps">
+          <li>Abra <strong>Remessas → Nova</strong>.</li>
+          <li>Escolha o destinatário (Pessoas) e um motivo do catálogo (ex.: locação, conserto).</li>
+          <li>Informe local de origem, SKUs e quantidades.</li>
+          <li>Confirme o envio. Acompanhe o saldo em Saldos (aba / filtro de poder de terceiros) e no Cardex.</li>
+        </ol>
+      </div>
+
+      <h2 id="retorno">13.1 Retorno e baixa definitiva</h2>
+      <div class="procedure">
+        <p class="procedure-title"><span>10</span> Devolver ou liquidar</p>
+        <ol class="steps">
+          <li>Na remessa aberta, use a ação de <strong>retorno</strong> (parcial ou total).</li>
+          <li>Informe o local de entrada e as quantidades que voltam.
+            <span class="hint">Retorno não é entrada de compra / NFe.</span>
+          </li>
+          <li>Se o material não voltará, use a <strong>baixa definitiva</strong> (liquidação) com o motivo adequado.</li>
+        </ol>
+      </div>
+
+      <h2 id="saldos">14. Consulta de saldos</h2>
+      <p>
+        Em <strong>Estoque → Saldos</strong> você vê a posição atual (paginada). Filtre por local,
+        SKU ou poder de terceiros. Os totais vêm do servidor — não é preciso “baixar tudo” para conferir.
+      </p>
+
+      <h2 id="cardex">15. Cardex</h2>
+      <p>
+        Em <strong>Estoque → Cardex</strong> consulte o histórico com filtros de período, SKU e tipo.
+        Use paginação; o Cardex é a fonte de auditoria dos movimentos.
+      </p>
+
+      <h2 id="relatorios">16. Relatórios</h2>
+      <p>
+        O hub <strong>Estoque → Relatórios</strong> oferece indicadores (valor de estoque, SKUs críticos,
+        fill rate de requisições, poder de terceiros, ajustes, etc.). Cada relatório pagina
+        (padrão 50 linhas) e permite exportar a página atual.
+      </p>
+
+      <h2 id="problemas">17. Problemas comuns</h2>
+      <table>
+        <thead>
+          <tr><th>Situação</th><th>O que fazer</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Menu Estoque não aparece</td>
+            <td>Confirmar addon <code>estoque</code> e permissão Ver no grupo de acesso.</td>
+          </tr>
+          <tr>
+            <td>Entrada NFe bloqueada</td>
+            <td>Cadastrar fornecedor, de-para e conversão UM; depois reprocessar.</td>
+          </tr>
+          <tr>
+            <td>“Saldo insuficiente”</td>
+            <td>Conferir local/SKU em Saldos; reduzir qtd ou fazer entrada/transferência antes.</td>
+          </tr>
+          <tr>
+            <td>Requisição sem requisitante</td>
+            <td>Cadastrar a pessoa em Cadastros → Pessoas e selecioná-la de novo.</td>
+          </tr>
+          <tr>
+            <td>Import duplicado de req</td>
+            <td>Mesmo <code>sistema_origem</code> + <code>codigo_origem</code> já existe — use a req gravada.</td>
+          </tr>
+          <tr>
+            <td>Saldo “estranho” após falha</td>
+            <td>Operações atômicas não deixam meia baixa. Se houver suspeita antiga, admin pode reconstruir saldos na Configuração.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2 id="checklist">18. Checklist do dia a dia</h2>
+      <ul class="checklist">
+        <li>Locais ativos e <code>BRANCO</code> definido</li>
+        <li>SKUs com controle de estoque e pessoas (fornecedor / requisitante / terceiro) ok</li>
+        <li>Entradas do dia conferidas (tela / planilha / NFe)</li>
+        <li>Requisições aprovadas e atendidas conforme política</li>
+        <li>Remessas abertas com previsão de retorno acompanhadas</li>
+        <li>Saldos e Cardex conferidos nos itens críticos</li>
+      </ul>
+
+      <h2 id="glossario">19. Glossário rápido</h2>
+      <table>
+        <thead>
+          <tr><th>Termo</th><th>Significado</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>SKU</td><td>Item cadastrado (código + descrição + unidades)</td></tr>
+          <tr><td>BRANCO</td><td>Local principal padrão da empresa</td></tr>
+          <tr><td>UM</td><td>Unidade de medida (compra / estoque / venda)</td></tr>
+          <tr><td>De-para</td><td>Código do parceiro mapeado para o SKU Hugin</td></tr>
+          <tr><td>Poder de terceiros</td><td>Saldo nosso que está fisicamente com outra pessoa/empresa</td></tr>
+          <tr><td>Cardex</td><td>Livro-razão de movimentos de estoque</td></tr>
+        </tbody>
+      </table>
+
+      <footer>
+        Hugin Flow · Manual do Usuário — Estoque · set/2026 ·
+        Dúvidas de produto: Central de ajuda → Chamados ·
+        Outros guias: Manuais → Manual do administrador / Treinamento do operador
+      </footer>
+    </main>
+  </div>
+</body>
+</html>

@@ -28,6 +28,7 @@ export default async function EstoqueHubPage() {
       description="Gestão operacional de materiais, movimentações, requisições e poder de terceiros."
       cards={cards}
       emptyMessage="Seu grupo de acesso ou os addons da empresa não liberam operações de estoque."
+      testId="estoque-hub"
     />
   )
 }

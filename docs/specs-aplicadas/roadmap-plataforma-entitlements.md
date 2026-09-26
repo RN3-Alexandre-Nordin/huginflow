@@ -107,13 +107,13 @@ O prompt original misturava **faturamento SaaS da RN3** com um futuro **addon Fi
 
 - [x] Confirmar checkpoint git `checkpoint/pre-core-2026-09-11` acessível no remoto
 - [x] Documentar decisões: [plataforma-entitlements-decisoes.md](./plataforma-entitlements-decisoes.md)
-- [x] Inventariar `cockpit-nav.ts` → addon: [plataforma-entitlements-inventario-w0.md](./plataforma-entitlements-inventario-w0.md)
-- [x] Listar `page.tsx` que receberão guard (mesmo inventário)
+- [x] Inventariar `cockpit-nav.ts` → addon *(SoT = código; ver nota em decisões)*
+- [x] Listar `page.tsx` que receberão guard (mesmo inventário no código)
 - [x] Confirmar defaults técnicos de backfill: `cadastros`/`workflow`/`omni` = on
 - [x] Seed **sem** addon `financeiro`; reservar `finops` off / billable / sem rotas
 - [x] Defaults comerciais: billable workflow/omni/estoque/crm/finops; cadastros `included`
 - [x] Documentar: `finance_*` = billing SaaS RN3; FinOps ≠ essas tabelas
-- [x] Registrar migration futura em `docs/supabase-prod-deploy-pending.md`
+- [x] Registrar migration futura em [MIGRACAO-SUPABASE.md](../MIGRACAO-SUPABASE.md)
 
 **W0 concluído em 11/09/2026.**
 

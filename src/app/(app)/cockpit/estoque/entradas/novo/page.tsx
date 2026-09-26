@@ -58,7 +58,7 @@ export default async function NovaEntradaPage() {
 
   let skusQuery = supabase
     .from('cad_skus')
-    .select('id, codigo, nome, unidade_estoque, unidade_compra')
+    .select('id, codigo, nome, unidade_estoque, unidade_compra, controla_lote, exige_validade')
     .eq('ativo', true)
     .eq('controla_estoque', true)
     .order('codigo')

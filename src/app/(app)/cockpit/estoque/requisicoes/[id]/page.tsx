@@ -94,7 +94,7 @@ export default async function EstoqueRequisicaoDetalhesPage({ params }: PageProp
     .select(
       `
       *,
-      cad_skus (id, codigo, nome, unidade_estoque),
+      cad_skus (id, codigo, nome, unidade_estoque, controla_lote),
       cad_locais_estoque (id, codigo, nome)
     `
     )
@@ -148,6 +148,7 @@ export default async function EstoqueRequisicaoDetalhesPage({ params }: PageProp
       codigo?: string
       nome?: string
       unidade_estoque?: string
+      controla_lote?: boolean
     } | null
     return {
       id: it.id as string,
@@ -160,6 +161,7 @@ export default async function EstoqueRequisicaoDetalhesPage({ params }: PageProp
       quantidade_pendente: Number(it.quantidade_pendente),
       status_item: String(it.status_item || 'pendente'),
       local_id: (it.local_id as string | null) || null,
+      controla_lote: Boolean(sku?.controla_lote),
     }
   })
 
@@ -315,6 +317,7 @@ export default async function EstoqueRequisicaoDetalhesPage({ params }: PageProp
       {/* Painel de Transição e Atendimento */}
       <AtendimentoPanel
         requisicaoId={requisicao.id}
+        empresaId={empresaId}
         status={requisicao.status}
         canApprove={canApprove}
         canAtender={canAtender}
@@ -322,6 +325,7 @@ export default async function EstoqueRequisicaoDetalhesPage({ params }: PageProp
         modoSaldo={config?.req_saldo_insuficiente_modo || 'atende_parcial_pendente'}
         itens={itensUi}
         saldos={saldosRows}
+        bloquearVencidos={Boolean(config?.bloquear_lotes_vencidos)}
       />
 
       {/* Tabela de Itens */}

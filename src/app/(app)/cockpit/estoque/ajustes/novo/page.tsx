@@ -39,7 +39,7 @@ export default async function NovoAjustePage() {
 
   let skusQuery = supabase
     .from('cad_skus')
-    .select('id, codigo, nome, unidade_estoque')
+    .select('id, codigo, nome, unidade_estoque, controla_lote, exige_validade')
     .eq('ativo', true)
     .eq('controla_estoque', true)
     .order('codigo')
@@ -62,6 +62,12 @@ export default async function NovoAjustePage() {
   }
   const { data: locais } = await locaisQuery
 
+  const { data: config } = await supabase
+    .from('est_config')
+    .select('bloquear_lotes_vencidos')
+    .eq('empresa_id', empresaId)
+    .maybeSingle()
+
   const defaultLocal = locais?.find((l) => l.eh_principal || l.codigo === 'BRANCO') || locais?.[0]
 
   return (
@@ -69,9 +75,11 @@ export default async function NovoAjustePage() {
       <EstoqueAreaNav />
 
       <AjusteForm
+        empresaId={empresaId}
         skus={skus || []}
         locais={locais || []}
         defaultLocalId={defaultLocal?.id}
+        bloquearVencidos={Boolean(config?.bloquear_lotes_vencidos)}
       />
     </div>
   )

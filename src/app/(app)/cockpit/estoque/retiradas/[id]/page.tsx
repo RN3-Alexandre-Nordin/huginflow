@@ -58,8 +58,10 @@ export default async function RetiradaLoteDetailPage({ params }: PageProps) {
         status,
         erro_mensagem,
         movimento_id,
+        lote_produto_id,
         cad_skus ( codigo, nome, unidade_estoque ),
-        cad_locais_estoque ( codigo, nome )
+        cad_locais_estoque ( codigo, nome ),
+        est_lotes_produto ( id, numero_lote, data_validade )
       )
     `
     )
@@ -81,8 +83,13 @@ export default async function RetiradaLoteDetailPage({ params }: PageProps) {
     status: string
     erro_mensagem: string | null
     movimento_id: string | null
+    lote_produto_id: string | null
     cad_skus: { codigo: string; nome: string; unidade_estoque: string } | null
     cad_locais_estoque: { codigo: string; nome: string } | null
+    est_lotes_produto:
+      | { numero_lote?: string; data_validade?: string | null }
+      | { numero_lote?: string; data_validade?: string | null }[]
+      | null
   }>).sort((a, b) => a.linha - b.linha)
 
   return (
@@ -171,6 +178,7 @@ export default async function RetiradaLoteDetailPage({ params }: PageProps) {
                 <th className="py-2.5 px-4">#</th>
                 <th className="py-2.5 px-4">SKU</th>
                 <th className="py-2.5 px-4">Local</th>
+                <th className="py-2.5 px-4">Lote</th>
                 <th className="py-2.5 px-4">Qtd</th>
                 <th className="py-2.5 px-4">Justificativa</th>
                 <th className="py-2.5 px-4">Status</th>
@@ -178,7 +186,16 @@ export default async function RetiradaLoteDetailPage({ params }: PageProps) {
               </tr>
             </thead>
             <tbody className="divide-y divide-[#ffffff05]">
-              {itens.map((it) => (
+              {itens.map((it) => {
+                const loteRaw = it.est_lotes_produto
+                const loteInfo = Array.isArray(loteRaw) ? loteRaw[0] : loteRaw
+                const valLabel = loteInfo?.data_validade
+                  ? (() => {
+                      const [y, m, d] = loteInfo.data_validade!.split('-')
+                      return y && m && d ? `${d}/${m}/${y}` : loteInfo.data_validade
+                    })()
+                  : null
+                return (
                 <tr key={it.id}>
                   <td className="py-3 px-4 font-mono text-gray-500">{it.linha}</td>
                   <td className="py-3 px-4">
@@ -189,6 +206,20 @@ export default async function RetiradaLoteDetailPage({ params }: PageProps) {
                   </td>
                   <td className="py-3 px-4 font-mono text-gray-300">
                     {it.cad_locais_estoque?.codigo || '—'}
+                  </td>
+                  <td className="py-3 px-4">
+                    {loteInfo?.numero_lote ? (
+                      <div>
+                        <span className="font-mono text-[11px] text-amber-300">
+                          {loteInfo.numero_lote}
+                        </span>
+                        {valLabel && (
+                          <span className="block text-[10px] text-gray-500">Val. {valLabel}</span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-gray-600">—</span>
+                    )}
                   </td>
                   <td className="py-3 px-4 font-mono text-red-300 font-bold">
                     −
@@ -223,7 +254,8 @@ export default async function RetiradaLoteDetailPage({ params }: PageProps) {
                     )}
                   </td>
                 </tr>
-              ))}
+                )
+              })}
             </tbody>
           </table>
         </div>

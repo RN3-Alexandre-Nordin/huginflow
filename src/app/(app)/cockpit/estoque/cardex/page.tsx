@@ -19,6 +19,10 @@ import EstoquePagination from '@/components/estoque/EstoquePagination'
 import { getMyProfile } from '@/app/(app)/cockpit/actions'
 import { hasPermission } from '@/utils/permissions'
 import { estoqueRange, parseEstoquePage } from '@/lib/estoque/listagem'
+import {
+  planCardexTextSearch,
+  postgrestIlikePattern,
+} from '@/lib/estoque/cardex-filters.mjs'
 
 export const metadata = { title: 'Cardex / Livro Razão | HuginFlow' }
 
@@ -31,6 +35,7 @@ interface PageProps {
     pessoa_id?: string
     movimento_id?: string
     lote_remessa_id?: string
+    lote?: string
     page?: string
   }>
 }
@@ -61,8 +66,17 @@ export default async function EstoqueCardexPage({ searchParams }: PageProps) {
     )
   }
 
-  const { q, tipo, sku_id, local_id, pessoa_id, movimento_id, lote_remessa_id, page: pageParam } =
-    await searchParams
+  const {
+    q,
+    tipo,
+    sku_id,
+    local_id,
+    pessoa_id,
+    movimento_id,
+    lote_remessa_id,
+    lote: loteParam,
+    page: pageParam,
+  } = await searchParams
   const { page, from, to, pageSize } = estoqueRange(parseEstoquePage(pageParam))
   const empresaId = me?.empresa_id ?? ''
   const supabase = await createClient()
@@ -70,26 +84,56 @@ export default async function EstoqueCardexPage({ searchParams }: PageProps) {
   // Resolve texto livre → SKUs e fornecedores (Performance SaaS: filtra no banco)
   let skuIdsFromQ: string[] = []
   let pessoaIdsFromQ: string[] = []
-  if (q && q.trim()) {
-    const term = q.trim()
-    let skuQ = supabase
-      .from('cad_skus')
-      .select('id')
-      .or(`codigo.ilike.%${term}%,nome.ilike.%${term}%`)
-      .limit(100)
-    let leadQ = supabase
-      .from('crm_leads')
-      .select('id')
-      .or(`nome.ilike.%${term}%,documento.ilike.%${term}%`)
-      .limit(100)
-    if (!isSuperAdmin) {
-      skuQ = skuQ.eq('empresa_id', empresaId)
-      leadQ = leadQ.eq('empresa_id', empresaId)
+  let loteProdutoIdsFromLote: string[] = []
+  const term = (q ?? '').trim()
+  const loteFilter = (loteParam ?? '').trim()
+
+  if (term) {
+    const likePat = postgrestIlikePattern(term)
+    if (likePat) {
+      let skuQ = supabase
+        .from('cad_skus')
+        .select('id')
+        .or(`codigo.ilike.${likePat},nome.ilike.${likePat}`)
+        .limit(50)
+      let leadQ = supabase
+        .from('crm_leads')
+        .select('id')
+        .or(`nome.ilike.${likePat},documento.ilike.${likePat}`)
+        .limit(50)
+      if (empresaId) {
+        skuQ = skuQ.eq('empresa_id', empresaId)
+        leadQ = leadQ.eq('empresa_id', empresaId)
+      }
+      const [{ data: skusMatch }, { data: leadsMatch }] = await Promise.all([skuQ, leadQ])
+      skuIdsFromQ = (skusMatch || []).map((s) => s.id)
+      pessoaIdsFromQ = (leadsMatch || []).map((l) => l.id)
     }
-    const [{ data: skusMatch }, { data: leadsMatch }] = await Promise.all([skuQ, leadQ])
-    skuIdsFromQ = (skusMatch || []).map((s) => s.id)
-    pessoaIdsFromQ = (leadsMatch || []).map((l) => l.id)
   }
+
+  // Filtro por número de lote produto (`lote=` ou termo de busca)
+  {
+    const loteSearch = loteFilter || term
+    if (loteSearch) {
+      const clean = loteSearch.replace(/%/g, '').replace(/"/g, '')
+      let loteQ = supabase
+        .from('est_lotes_produto')
+        .select('id')
+        .ilike('numero_lote', `%${clean}%`)
+        .limit(100)
+      if (empresaId) loteQ = loteQ.eq('empresa_id', empresaId)
+      const { data: lotesMatch } = await loteQ
+      loteProdutoIdsFromLote = (lotesMatch || []).map((l) => l.id)
+    }
+  }
+
+  const searchPlan = planCardexTextSearch({
+    term,
+    skuIdsFromQ,
+    pessoaIdsFromQ,
+    skuIdFilter: sku_id,
+    pessoaIdFilter: pessoa_id,
+  })
 
   // 1. Carrega Movimentos (paginado — Performance SaaS)
   let movQuery = supabase
@@ -111,6 +155,7 @@ export default async function EstoqueCardexPage({ searchParams }: PageProps) {
       lote_ajuste_id,
       lote_remessa_id,
       lote_transferencia_id,
+      lote_produto_id,
       requisicao_id,
       movimento_em,
       created_at,
@@ -119,14 +164,15 @@ export default async function EstoqueCardexPage({ searchParams }: PageProps) {
       local:cad_locais_estoque!est_movimentos_local_id_fkey (id, codigo, nome),
       local_destino:cad_locais_estoque!est_movimentos_local_destino_id_fkey (id, codigo, nome),
       crm_leads!est_movimentos_pessoa_id_fkey (id, nome),
-      usuarios!est_movimentos_usuario_id_fkey (id, nome_completo)
+      usuarios!est_movimentos_usuario_id_fkey (id, nome_completo),
+      est_lotes_produto (id, numero_lote, data_validade)
     `,
-      { count: 'exact' },
+      { count: searchPlan.countMode },
     )
     .order('movimento_em', { ascending: false })
     .range(from, to)
 
-  if (!isSuperAdmin) {
+  if (empresaId) {
     movQuery = movQuery.eq('empresa_id', empresaId)
   }
 
@@ -154,17 +200,52 @@ export default async function EstoqueCardexPage({ searchParams }: PageProps) {
     movQuery = movQuery.eq('pessoa_id', pessoa_id)
   }
 
-  if (q && q.trim()) {
-    const term = q.trim()
-    const orParts = [`documento.ilike.%${term}%`, `motivo.ilike.%${term}%`]
-    if (skuIdsFromQ.length > 0) {
-      orParts.push(`sku_id.in.(${skuIdsFromQ.join(',')})`)
+  if (loteFilter && loteProdutoIdsFromLote.length > 0) {
+    movQuery = movQuery.in('lote_produto_id', loteProdutoIdsFromLote)
+  } else if (loteFilter && loteProdutoIdsFromLote.length === 0) {
+    movQuery = movQuery.eq('lote_produto_id', '00000000-0000-0000-0000-000000000000')
+  }
+
+  if (searchPlan.mode === 'sku_ids') {
+    if (loteProdutoIdsFromLote.length > 0 && !loteFilter) {
+      movQuery = movQuery.or(
+        `sku_id.in.(${searchPlan.skuIds.join(',')}),lote_produto_id.in.(${loteProdutoIdsFromLote.join(',')})`,
+      )
+    } else {
+      movQuery = movQuery.in('sku_id', searchPlan.skuIds)
     }
-    if (pessoaIdsFromQ.length > 0) {
-      orParts.push(`pessoa_id.in.(${pessoaIdsFromQ.join(',')})`)
+  } else if (searchPlan.mode === 'pessoa_ids') {
+    movQuery = movQuery.in('pessoa_id', searchPlan.pessoaIds)
+  } else if (searchPlan.mode === 'sku_or_pessoa') {
+    const parts = [
+      `sku_id.in.(${searchPlan.skuIds.join(',')})`,
+      `pessoa_id.in.(${searchPlan.pessoaIds.join(',')})`,
+    ]
+    if (loteProdutoIdsFromLote.length > 0 && !loteFilter) {
+      parts.push(`lote_produto_id.in.(${loteProdutoIdsFromLote.join(',')})`)
     }
-    // Se não achou SKU/fornecedor e termo não bate doc/motivo, ainda aplica or (pode zerar)
-    movQuery = movQuery.or(orParts.join(','))
+    movQuery = movQuery.or(parts.join(','))
+  } else if (
+    searchPlan.mode === 'documento_motivo' &&
+    searchPlan.likePat &&
+    !loteFilter
+  ) {
+    if (loteProdutoIdsFromLote.length > 0) {
+      movQuery = movQuery.or(
+        `documento.ilike.${searchPlan.likePat},motivo.ilike.${searchPlan.likePat},lote_produto_id.in.(${loteProdutoIdsFromLote.join(',')})`,
+      )
+    } else {
+      movQuery = movQuery.or(
+        `documento.ilike.${searchPlan.likePat},motivo.ilike.${searchPlan.likePat}`,
+      )
+    }
+  } else if (
+    searchPlan.mode === 'none' &&
+    !loteFilter &&
+    loteProdutoIdsFromLote.length > 0 &&
+    term
+  ) {
+    movQuery = movQuery.in('lote_produto_id', loteProdutoIdsFromLote)
   }
 
   const { data: movimentos, error, count: movCount } = await movQuery
@@ -240,13 +321,14 @@ export default async function EstoqueCardexPage({ searchParams }: PageProps) {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
           <DebouncedSearchBox
             initialQuery={q || ''}
-            placeholder="SKU, fornecedor, documento ou motivo..."
+            placeholder="SKU, fornecedor, documento, motivo ou lote..."
             preserveParams={{
               tipo: tipo && tipo !== 'todos' ? tipo : undefined,
               sku_id,
               local_id,
               pessoa_id,
               lote_remessa_id,
+              lote: loteFilter || undefined,
             }}
             className="relative w-full max-w-none md:col-span-2 lg:col-span-1"
             inputClassName="w-full bg-[#0d1218] border border-[#ffffff10] rounded-xl pl-10 pr-3 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-amber-500/50"
@@ -256,7 +338,7 @@ export default async function EstoqueCardexPage({ searchParams }: PageProps) {
             name="tipo"
             value={tipo && tipo !== 'todos' ? tipo : ''}
             emptyLabel="Todos os Tipos"
-            preserveParams={{ q, sku_id, local_id, pessoa_id, lote_remessa_id }}
+            preserveParams={{ q, sku_id, local_id, pessoa_id, lote_remessa_id, lote: loteFilter || undefined }}
             options={[
               { value: 'entrada', label: 'Entradas' },
               { value: 'saida', label: 'Saídas / Consumo' },
@@ -281,6 +363,7 @@ export default async function EstoqueCardexPage({ searchParams }: PageProps) {
               local_id,
               pessoa_id,
               lote_remessa_id,
+              lote: loteFilter || undefined,
             }}
             options={(skusFilter || []).map((s) => ({
               value: s.id,
@@ -299,6 +382,7 @@ export default async function EstoqueCardexPage({ searchParams }: PageProps) {
               sku_id,
               local_id,
               lote_remessa_id,
+              lote: loteFilter || undefined,
             }}
             options={(fornecedoresFilter || []).map((f) => ({
               value: f.id,
@@ -317,6 +401,7 @@ export default async function EstoqueCardexPage({ searchParams }: PageProps) {
               sku_id,
               pessoa_id,
               lote_remessa_id,
+              lote: loteFilter || undefined,
             }}
             options={(locaisFilter || []).map((l) => ({
               value: l.id,
@@ -325,16 +410,42 @@ export default async function EstoqueCardexPage({ searchParams }: PageProps) {
             className="w-full bg-[#0d1218] border border-[#ffffff10] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500/50"
           />
         </div>
+        {loteFilter && (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100">
+            <span>
+              Filtro de lote produto: <span className="font-mono font-semibold">{loteFilter}</span>
+            </span>
+            <Link
+              href={`/cockpit/estoque/cardex?${new URLSearchParams({
+                ...(q ? { q } : {}),
+                ...(tipo && tipo !== 'todos' ? { tipo } : {}),
+                ...(sku_id ? { sku_id } : {}),
+                ...(pessoa_id ? { pessoa_id } : {}),
+                ...(local_id ? { local_id } : {}),
+              }).toString()}`}
+              className="font-semibold uppercase tracking-wider text-amber-300 hover:text-white"
+            >
+              Limpar lote
+            </Link>
+          </div>
+        )}
       </div>
 
       {/* Tabela do Cardex */}
-      <div className="bg-[#121820] border border-[#ffffff0a] rounded-2xl overflow-hidden shadow-xl">
+      <div
+        className="bg-[#121820] border border-[#ffffff0a] rounded-2xl overflow-hidden shadow-xl"
+        data-testid="estoque-cardex-panel"
+      >
         {error ? (
-          <div className="p-8 text-center text-red-400 text-xs">
+          <div
+            className="p-8 text-center text-red-400 text-xs"
+            data-testid="estoque-cardex-error"
+            role="alert"
+          >
             Erro ao carregar Cardex: {error.message}
           </div>
         ) : !movimentos || movimentos.length === 0 ? (
-          <div className="p-12 text-center">
+          <div className="p-12 text-center" data-testid="estoque-cardex-empty">
             <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mx-auto mb-3">
               <BookOpen className="h-7 w-7 text-amber-400" />
             </div>
@@ -344,13 +455,15 @@ export default async function EstoqueCardexPage({ searchParams }: PageProps) {
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto" data-testid="estoque-cardex-table">
             <table className="w-full text-left text-xs text-gray-300">
               <thead className="bg-[#0e1319] text-gray-400 font-semibold uppercase tracking-wider text-[10px] border-b border-[#ffffff08]">
                 <tr>
                   <th className="py-3 px-4">Data / Hora</th>
                   <th className="py-3 px-4">Tipo</th>
                   <th className="py-3 px-4">SKU / Produto</th>
+                  <th className="py-3 px-4">Lote</th>
+                  <th className="py-3 px-4">Validade</th>
                   <th className="py-3 px-4">Local</th>
                   <th className="py-3 px-4 text-right">Impacto</th>
                   <th className="py-3 px-4">Documento / Motivo</th>
@@ -370,6 +483,11 @@ export default async function EstoqueCardexPage({ searchParams }: PageProps) {
                     nome?: string
                     unidade_estoque?: string
                   } | null
+                  const loteRaw = mov.est_lotes_produto as
+                    | { numero_lote?: string; data_validade?: string | null }
+                    | { numero_lote?: string; data_validade?: string | null }[]
+                    | null
+                  const loteEmbed = Array.isArray(loteRaw) ? loteRaw[0] : loteRaw
                   const isRemessa =
                     mov.tipo === 'remessa_baixa' ||
                     mov.tipo === 'remessa_saida' ||
@@ -418,6 +536,24 @@ export default async function EstoqueCardexPage({ searchParams }: PageProps) {
                         ) : (
                           '—'
                         )}
+                      </td>
+                      <td className="py-3 px-4">
+                        {loteEmbed?.numero_lote ? (
+                          <span className="font-mono text-white text-[11px]">
+                            {loteEmbed.numero_lote}
+                          </span>
+                        ) : (
+                          <span className="text-gray-600">—</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-gray-400 whitespace-nowrap">
+                        {loteEmbed?.data_validade
+                          ? (() => {
+                              const iso = loteEmbed.data_validade as string
+                              const [y, m, d] = iso.split('-')
+                              return y && m && d ? `${d}/${m}/${y}` : iso
+                            })()
+                          : '—'}
                       </td>
                       <td className="py-3 px-4 font-mono text-gray-300">
                         {local && localDestino ? (
@@ -552,6 +688,7 @@ export default async function EstoqueCardexPage({ searchParams }: PageProps) {
               ...(local_id ? { local_id } : {}),
               ...(lote_remessa_id ? { lote_remessa_id } : {}),
               ...(movimento_id ? { movimento_id } : {}),
+              ...(loteFilter ? { lote: loteFilter } : {}),
             }).toString()}
           />
         </div>

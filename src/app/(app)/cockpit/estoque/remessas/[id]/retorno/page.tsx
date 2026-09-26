@@ -101,8 +101,10 @@ export default async function EstoqueRemessaRetornoPage({ params }: PageProps) {
       quantidade_retornada,
       quantidade_baixada,
       status_item,
-      cad_skus (id, codigo, nome, unidade_estoque),
-      local_origem:cad_locais_estoque!est_remessa_itens_local_origem_id_fkey (id, codigo, nome)
+      lote_produto_id,
+      cad_skus (id, codigo, nome, unidade_estoque, controla_lote),
+      local_origem:cad_locais_estoque!est_remessa_itens_local_origem_id_fkey (id, codigo, nome),
+      est_lotes_produto (id, numero_lote, data_validade)
     `
     )
     .eq('remessa_id', id)
@@ -122,12 +124,18 @@ export default async function EstoqueRemessaRetornoPage({ params }: PageProps) {
         codigo?: string
         nome?: string
         unidade_estoque?: string
+        controla_lote?: boolean
       } | null
       const localOrigem = it.local_origem as {
         id?: string
         codigo?: string
         nome?: string
       } | null
+      const loteRaw = it.est_lotes_produto as
+        | { id?: string; numero_lote?: string; data_validade?: string | null }
+        | { id?: string; numero_lote?: string; data_validade?: string | null }[]
+        | null
+      const lote = Array.isArray(loteRaw) ? loteRaw[0] : loteRaw
 
       return {
         id: it.id as string,
@@ -137,11 +145,15 @@ export default async function EstoqueRemessaRetornoPage({ params }: PageProps) {
         quantidade_retornada: Number(it.quantidade_retornada || 0),
         quantidade_baixada: Number(it.quantidade_baixada || 0),
         quantidade_em_poder: emPoder,
+        lote_produto_id: (it.lote_produto_id as string) || null,
+        numero_lote: lote?.numero_lote || null,
+        data_validade: lote?.data_validade || null,
         cad_skus: sku
           ? {
               codigo: sku.codigo || '',
               nome: sku.nome || '',
               unidade_estoque: sku.unidade_estoque || 'UN',
+              controla_lote: Boolean(sku.controla_lote),
             }
           : null,
         local_origem:

@@ -45,6 +45,11 @@ export async function saveEstoqueConfig(formData: FormData) {
   const aprovacaoViaWorkflow = formData.get('aprovacao_via_workflow') === 'on' || formData.get('aprovacao_via_workflow') === 'true'
   const aprovacaoFunilId = (formData.get('aprovacao_funil_id') as string) || null
   const aprovacaoEstagioId = (formData.get('aprovacao_estagio_id') as string) || null
+  const fefoSugerido =
+    formData.get('fefo_sugerido') === 'on' || formData.get('fefo_sugerido') === 'true'
+  const bloquearLotesVencidos =
+    formData.get('bloquear_lotes_vencidos') === 'on' ||
+    formData.get('bloquear_lotes_vencidos') === 'true'
 
   const reqAprovacaoAtiva =
     formData.get('req_aprovacao_ativa') === 'on' ||
@@ -113,6 +118,8 @@ export async function saveEstoqueConfig(formData: FormData) {
       aprovacao_via_workflow: aprovacaoViaWorkflow,
       aprovacao_funil_id: aprovacaoViaWorkflow ? (aprovacaoFunilId || null) : null,
       aprovacao_estagio_id: aprovacaoViaWorkflow ? finalEstagioId : null,
+      fefo_sugerido: fefoSugerido,
+      bloquear_lotes_vencidos: bloquearLotesVencidos,
       updated_at: new Date().toISOString(),
       updated_by: me?.id || null,
     },

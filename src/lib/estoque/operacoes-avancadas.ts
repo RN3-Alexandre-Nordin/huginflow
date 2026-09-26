@@ -1,7 +1,45 @@
 import { parseMovimentoAtomicoResult } from './rpc-movimento'
+import { resolverOuCriarLoteProduto } from './lotes-produto'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type SupabaseClient = { from: (table: string) => any; rpc: (fn: string, args: any) => any }
+
+async function saldoSkuLocal(
+  client: SupabaseClient,
+  opts: {
+    empresa_id: string
+    sku_id: string
+    local_id: string
+    lote_produto_id?: string | null
+  }
+): Promise<number> {
+  let q = client
+    .from('est_saldos')
+    .select('quantidade')
+    .eq('empresa_id', opts.empresa_id)
+    .eq('sku_id', opts.sku_id)
+    .eq('local_id', opts.local_id)
+
+  if (opts.lote_produto_id) {
+    const { data } = await q.eq('lote_produto_id', opts.lote_produto_id).maybeSingle()
+    return Number(data?.quantidade || 0)
+  }
+
+  const { data } = await q.is('lote_produto_id', null).maybeSingle()
+  if (data) return Number(data.quantidade || 0)
+
+  const { data: all } = await client
+    .from('est_saldos')
+    .select('quantidade')
+    .eq('empresa_id', opts.empresa_id)
+    .eq('sku_id', opts.sku_id)
+    .eq('local_id', opts.local_id)
+    .limit(200)
+  return (all || []).reduce(
+    (acc: number, r: { quantidade: number }) => acc + Number(r.quantidade || 0),
+    0
+  )
+}
 
 // ==============================================================================
 // 1. MOTIVOS DE REMESSA (CATÁLOGO §11.3)
@@ -45,6 +83,7 @@ export interface ItemRetiradaInput {
   local_id: string
   quantidade: number
   justificativa: string
+  lote_produto_id?: string | null
 }
 
 export async function gerarNumeroRetirada(
@@ -99,7 +138,7 @@ export async function processarLoteRetirada(
   const [{ data: skusRows }, { data: locaisRows }] = await Promise.all([
     client
       .from('cad_skus')
-      .select('id, codigo, ativo, controla_estoque, unidade_estoque')
+      .select('id, codigo, ativo, controla_estoque, controla_lote, unidade_estoque')
       .eq('empresa_id', params.empresa_id)
       .in('id', skuIds),
     client
@@ -114,7 +153,7 @@ export async function processarLoteRetirada(
 
   for (const it of params.itens) {
     const sku = skuMap.get(it.sku_id) as
-      | { codigo: string; ativo: boolean; controla_estoque: boolean }
+      | { codigo: string; ativo: boolean; controla_estoque: boolean; controla_lote?: boolean }
       | undefined
     const local = localMap.get(it.local_id) as { codigo: string; ativo: boolean } | undefined
     if (!sku?.ativo) {
@@ -131,6 +170,13 @@ export async function processarLoteRetirada(
         mensagem: `Linha ${it.linha}: o SKU ${sku.codigo} não controla estoque.`,
       }
     }
+    if (sku.controla_lote && !it.lote_produto_id) {
+      return {
+        sucesso: false,
+        codigo: 'LOTE_OBRIGATORIO',
+        mensagem: `Linha ${it.linha}: o SKU ${sku.codigo} exige lote produto.`,
+      }
+    }
     if (!local?.ativo) {
       return {
         sucesso: false,
@@ -140,13 +186,24 @@ export async function processarLoteRetirada(
     }
   }
 
-  // Agrega demanda por SKU×local (várias linhas no mesmo par)
-  const demanda = new Map<string, { sku_id: string; local_id: string; qtd: number; linhas: number[] }>()
+  // Agrega demanda por SKU×local×lote
+  const demanda = new Map<
+    string,
+    {
+      sku_id: string
+      local_id: string
+      lote_produto_id: string | null
+      qtd: number
+      linhas: number[]
+    }
+  >()
   for (const it of params.itens) {
-    const key = `${it.sku_id}|${it.local_id}`
+    const loteId = it.lote_produto_id || null
+    const key = `${it.sku_id}|${it.local_id}|${loteId || ''}`
     const cur = demanda.get(key) || {
       sku_id: it.sku_id,
       local_id: it.local_id,
+      lote_produto_id: loteId,
       qtd: 0,
       linhas: [] as number[],
     }
@@ -156,15 +213,12 @@ export async function processarLoteRetirada(
   }
 
   for (const dem of demanda.values()) {
-    const { data: saldoRow } = await client
-      .from('est_saldos')
-      .select('quantidade')
-      .eq('empresa_id', params.empresa_id)
-      .eq('sku_id', dem.sku_id)
-      .eq('local_id', dem.local_id)
-      .maybeSingle()
-
-    const saldoDisponivel = Number(saldoRow?.quantidade || 0)
+    const saldoDisponivel = await saldoSkuLocal(client, {
+      empresa_id: params.empresa_id,
+      sku_id: dem.sku_id,
+      local_id: dem.local_id,
+      lote_produto_id: dem.lote_produto_id,
+    })
     if (saldoDisponivel < dem.qtd) {
       const sku = skuMap.get(dem.sku_id) as { codigo?: string; unidade_estoque?: string } | undefined
       const local = localMap.get(dem.local_id) as { codigo?: string } | undefined
@@ -209,6 +263,7 @@ export async function processarLoteRetirada(
     local_id: it.local_id,
     quantidade: it.quantidade,
     justificativa: it.justificativa.trim(),
+    lote_produto_id: it.lote_produto_id || null,
     status: 'ok',
     created_at: agora,
     updated_at: agora,
@@ -217,7 +272,7 @@ export async function processarLoteRetirada(
   const { data: itensGravados, error: errItens } = await client
     .from('est_retirada_itens')
     .insert(rowsItens)
-    .select('id, linha, sku_id, local_id, quantidade, justificativa')
+    .select('id, linha, sku_id, local_id, quantidade, justificativa, lote_produto_id')
 
   if (errItens || !itensGravados) {
     await client
@@ -249,6 +304,7 @@ export async function processarLoteRetirada(
         p_motivo: `Retirada manual — ${it.justificativa}`,
         p_usuario_id: params.usuario_id || null,
         p_permitir_saldo_negativo: false,
+        p_lote_produto_id: it.lote_produto_id ?? null,
       }
     )
 
@@ -313,6 +369,10 @@ export interface ItemAjusteInput {
   quantidade: number
   motivo_codigo: string
   justificativa: string
+  lote_produto_id?: string | null
+  numero_lote?: string | null
+  data_validade?: string | null
+  data_fabricacao?: string | null
 }
 
 export async function gerarNumeroAjuste(
@@ -375,7 +435,7 @@ export async function processarLoteAjuste(
   const [{ data: skusRows }, { data: locaisRows }] = await Promise.all([
     client
       .from('cad_skus')
-      .select('id, codigo, ativo, controla_estoque, unidade_estoque')
+      .select('id, codigo, ativo, controla_estoque, controla_lote, exige_validade, unidade_estoque')
       .eq('empresa_id', params.empresa_id)
       .in('id', skuIds),
     client
@@ -388,9 +448,17 @@ export async function processarLoteAjuste(
   const skuMap = new Map((skusRows || []).map((s: { id: string }) => [s.id, s]))
   const localMap = new Map((locaisRows || []).map((l: { id: string }) => [l.id, l]))
 
+  // Resolve lotes de ajuste+ e valida lote obrigatório
+  const lotePorLinha = new Map<number, string | null>()
   for (const it of params.itens) {
     const sku = skuMap.get(it.sku_id) as
-      | { codigo: string; ativo: boolean; controla_estoque: boolean }
+      | {
+          codigo: string
+          ativo: boolean
+          controla_estoque: boolean
+          controla_lote?: boolean
+          exige_validade?: boolean
+        }
       | undefined
     const local = localMap.get(it.local_id) as { codigo: string; ativo: boolean } | undefined
     if (!sku?.ativo) {
@@ -414,19 +482,72 @@ export async function processarLoteAjuste(
         mensagem: `Linha ${it.linha}: local inválido ou inativo.`,
       }
     }
+
+    let loteId = it.lote_produto_id || null
+    if (sku.controla_lote) {
+      if (it.sinal === '+') {
+        if (loteId) {
+          lotePorLinha.set(it.linha, loteId)
+        } else if (it.numero_lote?.trim()) {
+          try {
+            const resolved = await resolverOuCriarLoteProduto(client, {
+              empresa_id: params.empresa_id,
+              sku_id: it.sku_id,
+              numero_lote: it.numero_lote,
+              data_validade: it.data_validade,
+              data_fabricacao: it.data_fabricacao,
+              exige_validade: Boolean(sku.exige_validade),
+            })
+            loteId = resolved.id
+            lotePorLinha.set(it.linha, loteId)
+          } catch (e: unknown) {
+            const err = e as Error
+            return {
+              sucesso: false,
+              codigo: 'LOTE_OBRIGATORIO',
+              mensagem: `Linha ${it.linha}: ${err?.message || 'Falha ao resolver lote.'}`,
+            }
+          }
+        } else {
+          return {
+            sucesso: false,
+            codigo: 'LOTE_OBRIGATORIO',
+            mensagem: `Linha ${it.linha}: ajuste positivo do SKU ${sku.codigo} exige lote (número ou id).`,
+          }
+        }
+      } else if (!loteId) {
+        return {
+          sucesso: false,
+          codigo: 'LOTE_OBRIGATORIO',
+          mensagem: `Linha ${it.linha}: o SKU ${sku.codigo} exige lote produto.`,
+        }
+      } else {
+        lotePorLinha.set(it.linha, loteId)
+      }
+    } else {
+      lotePorLinha.set(it.linha, null)
+    }
   }
 
-  // Agrega demanda negativa por SKU×local (várias linhas no mesmo par)
+  // Agrega demanda negativa por SKU×local×lote
   const demandaNeg = new Map<
     string,
-    { sku_id: string; local_id: string; qtd: number; linhas: number[] }
+    {
+      sku_id: string
+      local_id: string
+      lote_produto_id: string | null
+      qtd: number
+      linhas: number[]
+    }
   >()
   for (const it of params.itens) {
     if (it.sinal !== '-') continue
-    const key = `${it.sku_id}|${it.local_id}`
+    const loteId = lotePorLinha.get(it.linha) || it.lote_produto_id || null
+    const key = `${it.sku_id}|${it.local_id}|${loteId || ''}`
     const cur = demandaNeg.get(key) || {
       sku_id: it.sku_id,
       local_id: it.local_id,
+      lote_produto_id: loteId,
       qtd: 0,
       linhas: [] as number[],
     }
@@ -436,15 +557,12 @@ export async function processarLoteAjuste(
   }
 
   for (const dem of demandaNeg.values()) {
-    const { data: saldoRow } = await client
-      .from('est_saldos')
-      .select('quantidade')
-      .eq('empresa_id', params.empresa_id)
-      .eq('sku_id', dem.sku_id)
-      .eq('local_id', dem.local_id)
-      .maybeSingle()
-
-    const saldoDisponivel = Number(saldoRow?.quantidade || 0)
+    const saldoDisponivel = await saldoSkuLocal(client, {
+      empresa_id: params.empresa_id,
+      sku_id: dem.sku_id,
+      local_id: dem.local_id,
+      lote_produto_id: dem.lote_produto_id,
+    })
     if (saldoDisponivel < dem.qtd) {
       const sku = skuMap.get(dem.sku_id) as { codigo?: string } | undefined
       const local = localMap.get(dem.local_id) as { codigo?: string } | undefined
@@ -491,6 +609,7 @@ export async function processarLoteAjuste(
     sinal: it.sinal === '+' ? 'positivo' : 'negativo',
     quantidade: it.quantidade,
     justificativa: it.justificativa.trim(),
+    lote_produto_id: lotePorLinha.get(it.linha) ?? it.lote_produto_id ?? null,
     status: 'ok',
     created_at: agora,
     updated_at: agora,
@@ -499,7 +618,7 @@ export async function processarLoteAjuste(
   const { data: itensGravados, error: errItens } = await client
     .from('est_ajuste_itens')
     .insert(rowsItens)
-    .select('id, linha, sku_id, local_id, sinal, quantidade, justificativa')
+    .select('id, linha, sku_id, local_id, sinal, quantidade, justificativa, lote_produto_id')
 
   if (errItens || !itensGravados) {
     await client
@@ -536,6 +655,7 @@ export async function processarLoteAjuste(
       p_motivo: motivoTexto,
       p_usuario_id: params.usuario_id || null,
       p_permitir_saldo_negativo: false,
+      p_lote_produto_id: it.lote_produto_id ?? null,
     })
 
     const parsed = parseMovimentoAtomicoResult(rpcRes, rpcErr)
@@ -596,6 +716,7 @@ export interface ItemRemessaInput {
   sku_id: string
   local_origem_id: string
   quantidade_enviada: number
+  lote_produto_id?: string | null
 }
 
 export async function gerarNumeroRemessa(
@@ -687,7 +808,7 @@ export async function processarLoteRemessa(
       .in('id', localIds),
     client
       .from('cad_skus')
-      .select('id, codigo, ativo, controla_estoque')
+      .select('id, codigo, ativo, controla_estoque, controla_lote')
       .eq('empresa_id', params.empresa_id)
       .in('id', skuIds),
   ])
@@ -711,7 +832,7 @@ export async function processarLoteRemessa(
       | { codigo: string; ativo: boolean; eh_terceiros?: boolean }
       | undefined
     const sku = skuMap.get(it.sku_id) as
-      | { codigo: string; ativo: boolean; controla_estoque: boolean }
+      | { codigo: string; ativo: boolean; controla_estoque: boolean; controla_lote?: boolean }
       | undefined
     if (!local?.ativo) {
       return {
@@ -741,18 +862,33 @@ export async function processarLoteRemessa(
         mensagem: `Linha ${it.linha}: o SKU ${sku.codigo} não controla estoque.`,
       }
     }
+    if (sku.controla_lote && !it.lote_produto_id) {
+      return {
+        sucesso: false,
+        codigo: 'LOTE_OBRIGATORIO',
+        mensagem: `Linha ${it.linha}: o SKU ${sku.codigo} exige lote produto.`,
+      }
+    }
   }
 
-  // Agrega demanda por SKU × local
+  // Agrega demanda por SKU × local × lote
   const demanda = new Map<
     string,
-    { sku_id: string; local_id: string; qtd: number; linhas: number[] }
+    {
+      sku_id: string
+      local_id: string
+      lote_produto_id: string | null
+      qtd: number
+      linhas: number[]
+    }
   >()
   for (const it of params.itens) {
-    const key = `${it.sku_id}|${it.local_origem_id}`
+    const loteId = it.lote_produto_id || null
+    const key = `${it.sku_id}|${it.local_origem_id}|${loteId || ''}`
     const cur = demanda.get(key) || {
       sku_id: it.sku_id,
       local_id: it.local_origem_id,
+      lote_produto_id: loteId,
       qtd: 0,
       linhas: [] as number[],
     }
@@ -762,15 +898,12 @@ export async function processarLoteRemessa(
   }
 
   for (const dem of demanda.values()) {
-    const { data: saldoRow } = await client
-      .from('est_saldos')
-      .select('quantidade')
-      .eq('empresa_id', params.empresa_id)
-      .eq('sku_id', dem.sku_id)
-      .eq('local_id', dem.local_id)
-      .maybeSingle()
-
-    const saldoDisponivel = Number(saldoRow?.quantidade || 0)
+    const saldoDisponivel = await saldoSkuLocal(client, {
+      empresa_id: params.empresa_id,
+      sku_id: dem.sku_id,
+      local_id: dem.local_id,
+      lote_produto_id: dem.lote_produto_id,
+    })
     if (saldoDisponivel < dem.qtd) {
       const sku = skuMap.get(dem.sku_id) as { codigo?: string } | undefined
       const local = localMap.get(dem.local_id) as { codigo?: string } | undefined
@@ -834,6 +967,7 @@ export async function processarLoteRemessa(
     quantidade_retornada: 0,
     status_item: 'em_poder',
     observacao: null,
+    lote_produto_id: it.lote_produto_id || null,
     created_at: agora,
     updated_at: agora,
   }))
@@ -841,7 +975,7 @@ export async function processarLoteRemessa(
   const { data: itensGravados, error: errItens } = await client
     .from('est_remessa_itens')
     .insert(rowsItens)
-    .select('id, sku_id, local_origem_id, quantidade_enviada')
+    .select('id, sku_id, local_origem_id, quantidade_enviada, lote_produto_id')
 
   if (errItens || !itensGravados) {
     await client
@@ -870,6 +1004,7 @@ export async function processarLoteRemessa(
       p_motivo: motivoLabel,
       p_usuario_id: params.usuario_id || null,
       p_permitir_saldo_negativo: false,
+      p_lote_produto_id: it.lote_produto_id ?? null,
     })
 
     const parsed = parseMovimentoAtomicoResult(rpcRes, rpcErr)
@@ -965,7 +1100,7 @@ export async function processarLiquidacaoRemessa(
   const { data: item } = await client
     .from('est_remessa_itens')
     .select(
-      'id, sku_id, local_origem_id, quantidade_enviada, quantidade_retornada, quantidade_baixada, movimento_saida_id'
+      'id, sku_id, local_origem_id, quantidade_enviada, quantidade_retornada, quantidade_baixada, movimento_saida_id, lote_produto_id'
     )
     .eq('empresa_id', empresa_id)
     .eq('id', item_id)
@@ -1075,16 +1210,30 @@ export async function processarLiquidacaoRemessa(
     }
   }
 
-  const { data: saldoTerc } = await client
-    .from('est_saldos_poder_terceiros')
-    .select('quantidade')
-    .eq('empresa_id', empresa_id)
-    .eq('pessoa_id', remessa.destinatario_pessoa_id)
-    .eq('sku_id', skuEnviado)
-    .eq('remessa_id', remessa.id)
-    .maybeSingle()
-
-  const saldoTercQtd = Number(saldoTerc?.quantidade || 0)
+  let saldoTercQtd = 0
+  if (item.lote_produto_id) {
+    const { data: saldoTerc } = await client
+      .from('est_saldos_poder_terceiros')
+      .select('quantidade')
+      .eq('empresa_id', empresa_id)
+      .eq('pessoa_id', remessa.destinatario_pessoa_id)
+      .eq('sku_id', skuEnviado)
+      .eq('remessa_id', remessa.id)
+      .eq('lote_produto_id', item.lote_produto_id)
+      .maybeSingle()
+    saldoTercQtd = Number(saldoTerc?.quantidade || 0)
+  } else {
+    const { data: saldoTerc } = await client
+      .from('est_saldos_poder_terceiros')
+      .select('quantidade')
+      .eq('empresa_id', empresa_id)
+      .eq('pessoa_id', remessa.destinatario_pessoa_id)
+      .eq('sku_id', skuEnviado)
+      .eq('remessa_id', remessa.id)
+      .is('lote_produto_id', null)
+      .maybeSingle()
+    saldoTercQtd = Number(saldoTerc?.quantidade || 0)
+  }
   if (saldoTercQtd + 1e-9 < totalFechaPoder) {
     return {
       sucesso: false,
@@ -1123,6 +1272,7 @@ export async function processarLiquidacaoRemessa(
       }${observacao ? ` — ${observacao}` : ''}`,
       p_usuario_id: usuario_id || null,
       p_permitir_saldo_negativo: false,
+      p_lote_produto_id: item.lote_produto_id ?? null,
     }
     if (!mesmoSku || qtdFechaPoder !== qtdRetorno) {
       rpcArgs.p_sku_poder_id = skuEnviado
@@ -1168,6 +1318,7 @@ export async function processarLiquidacaoRemessa(
       }`,
       p_usuario_id: usuario_id || null,
       p_permitir_saldo_negativo: false,
+      p_lote_produto_id: item.lote_produto_id ?? null,
     })
     const parsed = parseMovimentoAtomicoResult(rpcRes, rpcErr)
     if (!parsed.ok || !parsed.movimentoId) {
@@ -1266,6 +1417,7 @@ export interface ItemTransferenciaInput {
   sku_id: string
   quantidade: number
   observacao?: string | null
+  lote_produto_id?: string | null
 }
 
 export interface TransferenciaLoteInput {
@@ -1357,14 +1509,17 @@ export async function processarLoteTransferencia(params: {
     }
   }
 
-  const skuIds = itens.map((i) => i.sku_id)
-  if (new Set(skuIds).size !== skuIds.length) {
+  const skuLoteKeys = itens.map((i) => `${i.sku_id}|${i.lote_produto_id || ''}`)
+  if (new Set(skuLoteKeys).size !== skuLoteKeys.length) {
     return {
       sucesso: false,
       codigo: 'SKU_DUPLICADO',
-      mensagem: 'Não é permitido repetir o mesmo SKU no lote. Some as quantidades em uma linha.',
+      mensagem:
+        'Não é permitido repetir o mesmo SKU (e lote) no lote. Some as quantidades em uma linha.',
     }
   }
+
+  const skuIds = itens.map((i) => i.sku_id)
 
   for (const it of itens) {
     if (!it.sku_id) {
@@ -1406,7 +1561,7 @@ export async function processarLoteTransferencia(params: {
 
   const { data: skusRows } = await client
     .from('cad_skus')
-    .select('id, codigo, nome, unidade_estoque, controla_estoque, ativo')
+    .select('id, codigo, nome, unidade_estoque, controla_estoque, controla_lote, ativo')
     .eq('empresa_id', empresa_id)
     .in('id', skuIds)
 
@@ -1416,6 +1571,7 @@ export async function processarLoteTransferencia(params: {
     nome: string
     unidade_estoque: string
     controla_estoque: boolean
+    controla_lote?: boolean
     ativo: boolean
   }
   const skuMap = new Map(((skusRows || []) as SkuRow[]).map((s) => [s.id, s]))
@@ -1436,16 +1592,20 @@ export async function processarLoteTransferencia(params: {
         mensagem: `Linha ${it.linha}: o SKU ${sku.codigo} não controla estoque.`,
       }
     }
+    if (sku.controla_lote && !it.lote_produto_id) {
+      return {
+        sucesso: false,
+        codigo: 'LOTE_OBRIGATORIO',
+        mensagem: `Linha ${it.linha}: o SKU ${sku.codigo} exige lote produto.`,
+      }
+    }
 
-    const { data: saldoOrigemRow } = await client
-      .from('est_saldos')
-      .select('quantidade')
-      .eq('empresa_id', empresa_id)
-      .eq('sku_id', it.sku_id)
-      .eq('local_id', local_origem_id)
-      .maybeSingle()
-
-    const saldoDisponivel = Number(saldoOrigemRow?.quantidade || 0)
+    const saldoDisponivel = await saldoSkuLocal(client, {
+      empresa_id,
+      sku_id: it.sku_id,
+      local_id: local_origem_id,
+      lote_produto_id: it.lote_produto_id || null,
+    })
     if (saldoDisponivel < it.quantidade) {
       return {
         sucesso: false,
@@ -1492,6 +1652,7 @@ export async function processarLoteTransferencia(params: {
     sku_id: it.sku_id,
     quantidade: it.quantidade,
     observacao: it.observacao?.trim() || null,
+    lote_produto_id: it.lote_produto_id || null,
     status: 'ok',
     created_at: agora,
     updated_at: agora,
@@ -1500,7 +1661,7 @@ export async function processarLoteTransferencia(params: {
   const { data: itensGravados, error: errItens } = await client
     .from('est_transferencia_itens')
     .insert(rowsItens)
-    .select('id, linha, sku_id, quantidade, observacao')
+    .select('id, linha, sku_id, quantidade, observacao, lote_produto_id')
 
   if (errItens || !itensGravados) {
     await client
@@ -1519,6 +1680,7 @@ export async function processarLoteTransferencia(params: {
     sku_id: string
     quantidade: number
     observacao: string | null
+    lote_produto_id: string | null
   }
   const itensOk = itensGravados as ItemGravado[]
 
@@ -1545,6 +1707,7 @@ export async function processarLoteTransferencia(params: {
         p_motivo: motivoLinha,
         p_usuario_id: usuario_id || null,
         p_permitir_saldo_negativo: false,
+        p_lote_produto_id: it.lote_produto_id ?? null,
       }
     )
 

@@ -2,7 +2,10 @@
 
 Status: **congeladas para implementação** · W0 · 11/09/2026  
 Checkpoint: `checkpoint/pre-core-2026-09-11`  
-Roadmap: [roadmap-plataforma-entitlements.md](./roadmap-plataforma-entitlements.md)
+Roadmap: [roadmap-plataforma-entitlements.md](./roadmap-plataforma-entitlements.md)  
+Índice: [README.md](../README.md)
+
+> **Fonte de verdade do menu/gates:** o inventário vivo de rotas → addon/RBAC está no código (`src/app/(app)/cockpit/cockpit-nav.ts` e guards de página). Este documento fixa o **porquê**; não duplicar lista de hrefs aqui.
 
 ## 1. Plataforma
 

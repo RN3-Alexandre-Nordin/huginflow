@@ -53,7 +53,7 @@ export default async function LeadsPage(props: { searchParams: Promise<{ q?: str
   const { data: leads } = await query
 
   return (
-    <div className="space-y-6 pb-20 font-sans">
+    <div data-testid="pessoas-page" className="space-y-6 pb-20 font-sans">
       <div className="flex items-center justify-between gap-4">
         <p className="text-sm text-gray-400 font-medium">Cadastro mestre com papéis (lead, cliente, fornecedor…).</p>
         {canCreate && (

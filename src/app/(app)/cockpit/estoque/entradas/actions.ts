@@ -228,6 +228,11 @@ export async function criarEntradaNfeXmlAction(data: {
   nfe_xml_nome?: string
   /** sku_id resolvido na UI (após de-para / cadastro rápido) */
   skuOverrides?: Record<number, string>
+  /** Completar rastro ausente no XML quando SKU controla lote */
+  loteOverrides?: Record<
+    number,
+    { numero_lote?: string; data_validade?: string; data_fabricacao?: string }
+  >
 }) {
   const me = await getMyProfile()
   const isSuperAdmin = me?.role_global === 'superadmin'
@@ -259,14 +264,20 @@ export async function criarEntradaNfeXmlAction(data: {
 
   const supabase = await createClient()
 
-  const itens: ItemEntradaInput[] = parsed.itens.map((it) => ({
-    linha: it.linha,
-    codigo_parceiro: it.codigo_parceiro,
-    sku_id: data.skuOverrides?.[it.linha] || null,
-    unidade_origem: it.unidade_origem,
-    quantidade_origem: it.quantidade_origem,
-    justificativa: data.justificativaGeral || 'Entrada importada via XML NF-e',
-  }))
+  const itens: ItemEntradaInput[] = parsed.itens.map((it) => {
+    const ov = data.loteOverrides?.[it.linha]
+    return {
+      linha: it.linha,
+      codigo_parceiro: it.codigo_parceiro,
+      sku_id: data.skuOverrides?.[it.linha] || null,
+      unidade_origem: it.unidade_origem,
+      quantidade_origem: it.quantidade_origem,
+      justificativa: data.justificativaGeral || 'Entrada importada via XML NF-e',
+      numero_lote: ov?.numero_lote?.trim() || it.numero_lote || null,
+      data_validade: ov?.data_validade?.trim() || it.data_validade || null,
+      data_fabricacao: ov?.data_fabricacao?.trim() || it.data_fabricacao || null,
+    }
+  })
 
   const params: LoteEntradaInput = {
     empresa_id: empresaId,
