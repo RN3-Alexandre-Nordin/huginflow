@@ -3,12 +3,12 @@
 > **Runbook operacional de subida para produção.**  
 > Pacotes SQL, changelog e checklists pré-prod: [MIGRACAO-SUPABASE.md](../MIGRACAO-SUPABASE.md).  
 > Índice: [README.md](../README.md).  
-> **Data de Compilação:** 13 de Setembro de 2026 (atualizado 16/09 — migrations 17–**27**)  
+> **Data de Compilação:** 13 de Setembro de 2026 (atualizado 30/09 — migrations 17–**41**)  
 > **Ambiente Origem (DEV):** `vujqukqsfwmoezwyuoum` ([huginflow-dev](https://supabase.com/dashboard/project/vujqukqsfwmoezwyuoum))  
 > **Ambiente Destino (PROD):** `zmypzexefjbovuknjlid` ([huginflow-prod](https://supabase.com/dashboard/project/zmypzexefjbovuknjlid))  
 > **Branch de Trabalho:** `develop` | **Branch de Produção:** `main`  
 > **VPS Produção:** Docker Swarm em `vps.rn3.tec.br` / Portainer / Traefik  
-> **Status do código (16/09):** SQL homologado em DEV até `202609161910_crm_thread_sla_writers` · **PROD: aguardando pedido explícito**
+> **Status do código (30/09):** SQL homologado em DEV até `202609301700_compras_fase4_caixas` (Compras Fases 1–4 concluídas) · **PROD: aguardando pedido explícito**
 
 ---
 
@@ -53,6 +53,8 @@ Este cutover consolida **grandes ondas** de evolução do sistema desenvolvidas 
    - Formalização da regra de proibição de "tripas verticais compridas" de campos empilhados (`.cursor/rules/ui-design-system-abas.mdc`).
    - Refatoração da tela de Configurações de Estoque (`/cockpit/estoque/configuracao`) para a arquitetura canônica de abas (`Importação NF-e`, `Requisições Internas` e `Fluxo de Aprovação`).
 7. **Performance SaaS:** regra `.cursor/rules/saas-performance.mdc` (agregar no Postgres, paginar, índice com `empresa_id`).
+8. **Estoque lote/validade (18/09):** `est_lotes_produto`, flags `controla_lote`/`exige_validade`, FEFO sugerido, grão dual no saldo/cardex. Cutover **28**.
+9. **Addon Compras Fases 1–4 (26–30/09), concluídas em DEV:** solicitação, pedido via planilha, alçada com dois valores, cotação/PDF, editar, cancelar com motivo, receber e conferência por caixa. Cutover **29–41**. A Fase 5 (nota) ainda não entra neste cutover. O arquivo `202609301600_compras_fase4_notas` já está no DEV e fica de fora desta lista.
 
 ---
 
@@ -104,8 +106,22 @@ As migrations devem ser executadas **estritamente na ordem numérica indicada**,
 | **25** | `supabase/migrations/202609161800_est_rpc_relatorios.sql` | Relatórios SaaS: RPC `est_rpc_relatorio` (filtros/`GROUP BY`/paginação no Postgres). | `SELECT routine_name FROM information_schema.routines WHERE routine_name = 'est_rpc_relatorio';` |
 | **26** | `supabase/migrations/202609161900_crm_rpc_relatorio.sql` | BI Workflow+Omni: RPC `crm_rpc_relatorio` (14 slugs). | `SELECT routine_name FROM information_schema.routines WHERE routine_name = 'crm_rpc_relatorio';` |
 | **27** | `supabase/migrations/202609161910_crm_thread_sla_writers.sql` | Triggers SLA thread (FRT, handover, closed, message_count). | `SELECT tgname FROM pg_trigger WHERE tgname LIKE 'trg_crm_%thread%';` |
+| **28** | `supabase/migrations/202609181800_estoque_lote_produto_validade.sql` | Lote produto + validade: `est_lotes_produto`, flags SKU, `lote_produto_id` em saldos/cardex/itens, RPC `p_lote_produto_id`. | `SELECT to_regclass('public.est_lotes_produto');` · `SELECT column_name FROM information_schema.columns WHERE table_name = 'cad_skus' AND column_name = 'controla_lote';` |
+| **29** | `supabase/migrations/202609261400_compras_fase1_solicitar.sql` | Addon Compras Fase 1: registry `compras`; `com_config`/`com_solicitacoes`/`com_pedidos`/`com_pedido_aprovacoes` + RLS. | `SELECT 1 FROM addon_registry WHERE codigo = 'compras';` · `SELECT to_regclass('public.com_pedidos');` |
+| **30** | `supabase/migrations/202609261500_compras_pessoa_solicitante.sql` | Solicitante e comprador como pessoa (`crm_leads`). | `SELECT column_name FROM information_schema.columns WHERE table_name = 'com_solicitacoes' AND column_name = 'solicitante_pessoa_id';` |
+| **31** | `supabase/migrations/202609261600_compras_cad_servicos.sql` | Catálogo `cad_servicos` e `servico_id` nos itens. | `SELECT to_regclass('public.cad_servicos');` |
+| **32** | `supabase/migrations/202609261700_cad_servicos_rbac_servicos.sql` | RLS de serviços no slug `servicos`. | `SELECT policyname FROM pg_policies WHERE policyname = 'cad_servicos_select';` |
+| **33** | `supabase/migrations/202609261800_compras_fase2_cotacao.sql` | **Fase 2 concluída:** cotação, propostas e `com_pedidos.cotacao_id`. | `SELECT to_regclass('public.com_cotacoes');` · `SELECT column_name FROM information_schema.columns WHERE table_name = 'com_pedidos' AND column_name = 'cotacao_id';` |
+| **34** | `supabase/migrations/202609261900_compras_solicitacoes_update_rls.sql` | UPDATE de solicitação. | `SELECT policyname FROM pg_policies WHERE policyname = 'com_solicitacoes_update';` |
+| **35** | `supabase/migrations/202609261910_compras_solicitacoes_delete_rls.sql` | DELETE de solicitação. | `SELECT policyname FROM pg_policies WHERE policyname = 'com_solicitacoes_delete';` |
+| **36** | `supabase/migrations/202609261920_compras_solicitacao_status_atendida.sql` | Status `atendida` na solicitação. | `SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname = 'com_solicitacoes_status_check';` |
+| **37** | `supabase/migrations/202609261930_compras_cotacoes_delete_rls.sql` | DELETE de cotação. | `SELECT policyname FROM pg_policies WHERE policyname = 'com_cotacoes_delete';` |
+| **38** | `supabase/migrations/202609291600_compras_fase3_pedido.sql` | **Fase 3 concluída:** cancelar, receber; `com_recebimentos`. | `SELECT to_regclass('public.com_recebimentos');` · `SELECT column_name FROM information_schema.columns WHERE table_name = 'com_pedidos' AND column_name = 'cancelamento_motivo';` |
+| **39** | `supabase/migrations/202609291610_compras_fase3_pedido_rls.sql` | RLS de conferência e reabertura de alçada. | `SELECT policyname FROM pg_policies WHERE policyname = 'com_pedido_aprovacoes_delete';` |
+| **40** | `supabase/migrations/202609301500_compras_alcada_dois_valores.sql` | Alçada: até `nivel1_teto` sem aprovação; acima de `nivel2_a_partir`, segunda alçada. | `SELECT column_name FROM information_schema.columns WHERE table_name = 'com_config' AND column_name = 'nivel2_a_partir';` |
+| **41** | `supabase/migrations/202609301700_compras_fase4_caixas.sql` | **Fase 4 concluída:** conferência por caixa (`com_caixas`, código `CX-######`, RPC `com_abrir_caixa`). Desligada por padrão. | `SELECT to_regclass('public.com_caixas');` · `SELECT routine_name FROM information_schema.routines WHERE routine_name = 'com_abrir_caixa';` |
 
-> **Observação:** 01–08 = Onda Cadastros · 09–10 + 12–19 = Onda Estoque · 11 = Funis · **20 = Cockpit templates** · **21–23 = Planilha requisição** · **24 = Família SKU** · **25 = Relatórios estoque RPC** · **26–27 = BI Workflow/Omni**. Em **DEV** as migrations até **27** já foram aplicadas via MCP. **PROD:** só com pedido explícito.
+> **Observação:** 01–08 = Onda Cadastros · 09–10 + 12–19 = Onda Estoque · 11 = Funis · **20 = Cockpit templates** · **21–23 = Planilha requisição** · **24 = Família SKU** · **25 = Relatórios estoque RPC** · **26–27 = BI Workflow/Omni** · **28 = Lote/validade** · **29–32 = Compras Fase 1** · **33–37 = Compras Fase 2 (concluída)** · **38–39 = Compras Fase 3 (concluída)** · **40 = alçada com dois valores** · **41 = Compras Fase 4 (concluída)**. Em **DEV** as migrations até **41** já foram aplicadas. **PROD:** só com pedido explícito. A Fase 5 (nota) e o arquivo `202609301600_compras_fase4_notas` ainda não entram nesta lista.
 
 ---
 
@@ -175,7 +191,7 @@ As migrations devem ser executadas **estritamente na ordem numérica indicada**,
 ### Etapa 2: Aplicação do Banco de Dados (Supabase Prod)
 *Somente executar com o OK formal do responsável.*
 1. Abrir o SQL Editor do Supabase Prod.
-2. Executar as migrations de **01 a 27** na ordem da Seção 4.
+2. Executar as migrations de **01 a 41** na ordem da Seção 4.
 3. Validar queries pós-execução (addons, cadastros, famílias SKU, 15+ tabelas estoque, RPCs, colunas remessa/aprovação/planilha, `grupos_acesso.cockpit_template`, `crm_leads.codigo_externo`, funis `ativo`).
 4. **Validar RPCs de relatórios:**
    ```sql
@@ -228,3 +244,5 @@ As migrations devem ser executadas **estritamente na ordem numérica indicada**,
 | `v0.2.1` | 2026-09-11 | Alexandre Nordin | Em DEV | Regras estritas de governança Git e spec remessas. |
 | **`v0.3.0`** | **2026-09-13** | **Alexandre Nordin** | **Em DEV (GitHub `develop`)** | Estoque Fase 4.1 + remessa multi-local/liquidação (SKU diferente + baixa) + empresas/funis/abas. Smoke 14/09; cutover prod sob pedido explícito. |
 | `v0.3.x` | 2026-09-15/16 | Alexandre Nordin | Em DEV | Locais BRANCO/TERCEIROS + Cardex dual; aprovação req.; cockpit_template; planilha req; famílias SKU; **relatórios estoque (`est_rpc_relatorio`)** + **BI workflow/omni (`crm_rpc_relatorio` + SLA writers)**. Incluir migrations **17–27** no go-live. |
+| `v0.5.0` | 2026-09-18/26 | Alexandre Nordin | Em DEV | Lote/validade FEFO (cutover **28**) + **Compras Fase 1** solicitação/pedido Excel/alçada (cutover **29–32**). PROD só com OK explícito. |
+| `v0.5.x` | 2026-09-29/30 | Alexandre Nordin | Em DEV | **Compras Fase 2 concluída** (cotação, cutover **33–37**) + **Fase 3 concluída** (editar, cancelar, receber, cutover **38–39**) + alçada com dois valores (cutover **40**) + **Fase 4 concluída** (conferência por caixa, cutover **41**). PROD só com OK explícito. |

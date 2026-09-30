@@ -6,6 +6,8 @@ export interface PermissionModule {
   actions: { slug: string; label: string; icon: any }[]
   /** Addon técnico necessário para exibir na matriz do tenant (além da categoria). */
   requiredAddon?: string
+  /** Exibe se qualquer um destes addons estiver ligado (ex.: serviços em compras e, depois, vendas). */
+  requiredAddonsAny?: string[]
   /** Subseção dentro da aba Estoque. */
   estoqueSection?: 'hub' | 'movimentacoes' | 'requisicoes' | 'consultas'
   /** Não aparece na matriz de grupos (gate fora do RBAC). */
@@ -85,7 +87,7 @@ export const PERMISSION_CATEGORIES: PermissionCategory[] = [
     hint: 'Funis, pessoas, omni e cadastros do processo',
     color: '#80B828',
     showInGroupsMatrix: true,
-    requiredAddonsAny: ['workflow', 'omni', 'cadastros', 'crm'],
+    requiredAddonsAny: ['workflow', 'omni', 'cadastros', 'crm', 'compras'],
     modules: [
       {
         slug: 'crm',
@@ -120,6 +122,18 @@ export const PERMISSION_CATEGORIES: PermissionCategory[] = [
       {
         slug: 'skus',
         label: 'SKUs (produtos/serviços)',
+        actions: [
+          { slug: 'view', label: 'Ver', icon: Eye },
+          { slug: 'create', label: 'Criar', icon: Plus },
+          { slug: 'edit', label: 'Editar', icon: Pencil },
+          { slug: 'delete', label: 'Excluir', icon: Trash2 },
+        ],
+      },
+      {
+        slug: 'servicos',
+        label: 'Serviços (catálogo)',
+        // Hoje: Compras. Depois: incluir 'vendas' — mesmo cadastro mestre.
+        requiredAddonsAny: ['compras'],
         actions: [
           { slug: 'view', label: 'Ver', icon: Eye },
           { slug: 'create', label: 'Criar', icon: Plus },
@@ -350,6 +364,84 @@ export const PERMISSION_CATEGORIES: PermissionCategory[] = [
       },
     ],
   },
+  {
+    id: 'compras',
+    label: 'Compras',
+    hint: 'Solicitações, pedidos, recebimento e alçada',
+    color: '#F59E0B',
+    showInGroupsMatrix: true,
+    requiredAddon: 'compras',
+    modules: [
+      {
+        slug: 'compras',
+        label: 'Compras Geral / Hub',
+        actions: [{ slug: 'view', label: 'Ver', icon: Eye }],
+      },
+      {
+        slug: 'compras_solicitacoes',
+        label: 'Solicitações',
+        actions: [
+          { slug: 'view', label: 'Ver', icon: Eye },
+          { slug: 'create', label: 'Criar', icon: Plus },
+          { slug: 'edit', label: 'Editar', icon: Pencil },
+          { slug: 'delete', label: 'Excluir', icon: Trash2 },
+        ],
+      },
+      {
+        slug: 'compras_pedidos',
+        label: 'Pedidos',
+        actions: [
+          { slug: 'view', label: 'Ver', icon: Eye },
+          { slug: 'create', label: 'Criar / Importar', icon: Plus },
+          { slug: 'edit', label: 'Editar', icon: Pencil },
+        ],
+      },
+      {
+        slug: 'compras_aprovacao',
+        label: 'Aprovação de Pedidos',
+        actions: [
+          { slug: 'view', label: 'Ver', icon: Eye },
+          { slug: 'edit', label: 'Aprovar / Recusar', icon: Pencil },
+        ],
+      },
+      {
+        slug: 'compras_cotacoes',
+        label: 'Cotações',
+        actions: [
+          { slug: 'view', label: 'Ver', icon: Eye },
+          { slug: 'create', label: 'Criar', icon: Plus },
+          { slug: 'edit', label: 'Editar / Confirmar', icon: Pencil },
+          { slug: 'delete', label: 'Excluir', icon: Trash2 },
+        ],
+      },
+      {
+        slug: 'compras_conferencia',
+        label: 'Recebimento / Conferência',
+        actions: [
+          { slug: 'view', label: 'Ver', icon: Eye },
+          { slug: 'create', label: 'Iniciar conferência', icon: Plus },
+          { slug: 'edit', label: 'Conferir / Divergência', icon: Pencil },
+        ],
+      },
+      {
+        slug: 'compras_notas',
+        label: 'Notas de Entrada',
+        actions: [
+          { slug: 'view', label: 'Ver', icon: Eye },
+          { slug: 'create', label: 'Lançar', icon: Plus },
+          { slug: 'edit', label: 'Confirmar / Gerar entrada', icon: Pencil },
+        ],
+      },
+      {
+        slug: 'compras_config',
+        label: 'Configuração de Compras',
+        actions: [
+          { slug: 'view', label: 'Ver', icon: Eye },
+          { slug: 'edit', label: 'Editar', icon: Pencil },
+        ],
+      },
+    ],
+  },
 ]
 
 export const ESTOQUE_MATRIX_SECTIONS = [
@@ -391,6 +483,10 @@ function moduleVisibleForAddons(
   if (module.hideFromGroupsMatrix) return false
   if (module.requiredAddon && !addonEnabled(empresaAddons, module.requiredAddon)) {
     return false
+  }
+  if (module.requiredAddonsAny?.length) {
+    if (!empresaAddons) return false
+    if (!module.requiredAddonsAny.some((c) => empresaAddons[c] === true)) return false
   }
   return true
 }

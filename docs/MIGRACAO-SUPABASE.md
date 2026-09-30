@@ -12,9 +12,9 @@
 **Última migration no prod (intencional):** pacote até `test_runs`/Analytics BI via MCP em 2026-09-06.  
 **Gate prod (combinado 2026-09-11):** aplicar SQL/código em produção **somente** com pedido explícito do responsável. Até lá: documentar e homologar em DEV.
 
-**Última migration no dev:** `202609181800_estoque_lote_produto_validade` (lote produto + FEFO; além de `crm_thread_sla_writers`, `crm_rpc_relatorio`, `est_rpc_relatorios`, famílias SKU, planilha req, cockpit_template, aprovação e pacote estoque/cadastros).
+**Última migration no dev:** `202609301700_compras_fase4_caixas` (conferência por caixa; Fase 4 concluída).
 
-**Pendente em prod (além do changelog ⏳):** Fases 3–5 agente (`202609071530` … `202609072045`) + pacotes Cadastros C1–C8 + Estoque E1–E17. Não aplicar sem backup, smoke e autorização explícita.
+**Pendente em prod (além do changelog ⏳):** Fases 3–5 agente (`202609071530` … `202609072045`) + pacotes Cadastros C1–C8 + Estoque E1–E17 + **lote/validade** + **compras Fases 1–4** (cutover **29–41**). Não aplicar sem backup, smoke e autorização explícita.
 
 **Gerar bundle SQL consolidado:**
 
@@ -30,7 +30,21 @@ node scripts/supabase/prod-deploy/build-bundle.mjs
 
 | Data | Migration / alteração | Dev | Prod | Arquivo | Notas |
 |------|----------------------|-----|------|---------|-------|
-| 2026-09-18 | `estoque_lote_produto_validade` | ✅ | ⏳ | `supabase/migrations/202609181800_estoque_lote_produto_validade.sql` | `est_lotes_produto`, flags SKU, `lote_produto_id` em saldos/movimentos/itens, RPC `p_lote_produto_id`, FEFO config |
+| 2026-09-30 | `compras_fase4_caixas` | ✅ | ⏳ | `supabase/migrations/202609301700_compras_fase4_caixas.sql` | `com_caixas`, código `CX-######`, RPC `com_abrir_caixa`; cutover **41**. Fase 4 concluída em DEV |
+| 2026-09-30 | `compras_fase4_notas` | ✅ | ⏳ | `supabase/migrations/202609301600_compras_fase4_notas.sql` | Adiantamento da Fase 5 (`com_notas`). Sem item de cutover até essa fase |
+| 2026-09-30 | `compras_alcada_dois_valores` | ✅ | ⏳ | `supabase/migrations/202609301500_compras_alcada_dois_valores.sql` | `com_config.nivel2_a_partir`; teto 1 = sem alçada até o valor; cutover **40** |
+| 2026-09-29 | `compras_fase3_pedido_rls` | ✅ | ⏳ | `supabase/migrations/202609291610_compras_fase3_pedido_rls.sql` | UPDATE pedido na conferência; DELETE de alçada ao reabrir; cutover **39** |
+| 2026-09-29 | `compras_fase3_pedido` | ✅ | ⏳ | `supabase/migrations/202609291600_compras_fase3_pedido.sql` | Status cancelado/recebido; `com_recebimentos`; cutover **38**. Fase 3 concluída em DEV |
+| 2026-09-26 | `compras_cotacoes_delete_rls` | ✅ | ⏳ | `supabase/migrations/202609261930_compras_cotacoes_delete_rls.sql` | DELETE da cotação; cutover **37** |
+| 2026-09-26 | `compras_solicitacao_status_atendida` | ✅ | ⏳ | `supabase/migrations/202609261920_compras_solicitacao_status_atendida.sql` | Status `atendida` na solicitação; cutover **36** |
+| 2026-09-26 | `compras_solicitacoes_delete_rls` | ✅ | ⏳ | `supabase/migrations/202609261910_compras_solicitacoes_delete_rls.sql` | DELETE da solicitação; cutover **35** |
+| 2026-09-26 | `compras_solicitacoes_update_rls` | ✅ | ⏳ | `supabase/migrations/202609261900_compras_solicitacoes_update_rls.sql` | UPDATE da solicitação; cutover **34** |
+| 2026-09-26 | `compras_fase2_cotacao` | ✅ | ⏳ | `supabase/migrations/202609261800_compras_fase2_cotacao.sql` | `com_cotacoes` + propostas; `com_pedidos.cotacao_id`; cutover **33**. Fase 2 concluída em DEV |
+| 2026-09-26 | `compras_fase1_solicitar` | ✅ | ⏳ | `supabase/migrations/202609261400_compras_fase1_solicitar.sql` | Addon `compras`; `com_config`/`com_solicitacoes`/`com_pedidos`/`com_pedido_aprovacoes` + RLS; cutover **29** |
+| 2026-09-26 | `compras_pessoa_solicitante` | ✅ | ⏳ | `supabase/migrations/202609261500_compras_pessoa_solicitante.sql` | `solicitante_pessoa_id` / `comprador_pessoa_id`; cutover **30** |
+| 2026-09-26 | `compras_cad_servicos` | ✅ | ⏳ | `supabase/migrations/202609261600_compras_cad_servicos.sql` | `cad_servicos`; `servico_id` nos itens; pedido `rascunho`; cutover **31** |
+| 2026-09-26 | `cad_servicos_rbac_servicos` | ✅ | ⏳ | `supabase/migrations/202609261700_cad_servicos_rbac_servicos.sql` | RLS slug `servicos` (mestre compra/venda); cutover **32** |
+| 2026-09-18 | `estoque_lote_produto_validade` | ✅ | ⏳ | `supabase/migrations/202609181800_estoque_lote_produto_validade.sql` | `est_lotes_produto`, flags SKU, `lote_produto_id` em saldos/movimentos/itens, RPC `p_lote_produto_id`, FEFO config; cutover **28** |
 | 2026-09-16 | `crm_thread_sla_writers` | ✅ | ⏳ | `supabase/migrations/202609161910_crm_thread_sla_writers.sql` | Triggers FRT/handover/closed_at + message_count; cutover **27** |
 | 2026-09-16 | `crm_rpc_relatorio` | ✅ | ⏳ | `supabase/migrations/202609161900_crm_rpc_relatorio.sql` | BI omni+workflow RPC (14 slugs); cutover **26** |
 | 2026-09-16 | `est_rpc_relatorios` | ✅ | ⏳ | `supabase/migrations/202609161800_est_rpc_relatorios.sql` | RPC `est_rpc_relatorio` (11 slugs, agregação+paginação); cutover **25** |
@@ -178,7 +192,7 @@ Spec: [desenvolvimento-modulo-estoque.md](./specs-aplicadas/desenvolvimento-modu
 
 **Gate:** homologação completa em DEV + **pedido explícito** do responsável. **Nada em produção.**
 
-> Ordem no cutover: [CUTOVER-PROD-SET-2026.md](./specs-a-aplicar/CUTOVER-PROD-SET-2026.md) Seção 4 — itens **17–27** (após remessa 16; **25**=relatórios estoque · **26–27**=BI workflow/omni).
+> Ordem no cutover: [CUTOVER-PROD-SET-2026.md](./specs-a-aplicar/CUTOVER-PROD-SET-2026.md) Seção 4 — itens **17–41** (após remessa 16; **25**=relatórios estoque · **26–27**=BI workflow/omni · **29–41**=Compras Fases 1–4).
 
 **Checklist pré-prod Estoque**
 

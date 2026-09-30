@@ -16,6 +16,7 @@
 | Qualquer feature / fase | [specs-aplicadas/plano-desenvolvimento-fases.md](./specs-aplicadas/plano-desenvolvimento-fases.md) |
 | Addon, menu, gate, RBAC | [specs-aplicadas/plataforma-entitlements-decisoes.md](./specs-aplicadas/plataforma-entitlements-decisoes.md) · [roadmap](./specs-aplicadas/roadmap-plataforma-entitlements.md) |
 | Estoque | [specs-aplicadas/desenvolvimento-modulo-estoque.md](./specs-aplicadas/desenvolvimento-modulo-estoque.md) |
+| Compras | Plano Cursor **Addon Compras** (guia única; fases 1–4 concluídas; próxima é a nota) |
 | Relatórios / BI | [specs-aplicadas/planejamento-modulo-relatorios-bi.md](./specs-aplicadas/planejamento-modulo-relatorios-bi.md) |
 | Bifrost (chamados SSO) | [specs-aplicadas/bifrost-embed.md](./specs-aplicadas/bifrost-embed.md) |
 

@@ -1,0 +1,18 @@
+---
+description: Códigos/números de negócio sempre automáticos (prefixo + sequencial por empresa)
+alwaysApply: true
+---
+
+# Códigos e números automáticos (LEI)
+
+Em **todo** cadastro ou documento novo do Hugin Flow:
+
+1. **Não peça código/número manual** ao usuário no create (nem placeholder “digite o código”).
+2. **Gere no servidor** ao abrir o rascunho ou ao gravar, com isolamento por `empresa_id`.
+3. **Formato canônico:** `PREFIXO` + sequencial com zeros à esquerda (ex.: `SRV-0001`, `SOL-20260926-0001`).
+   - Preferir sequencial **por empresa** (e, se fizer sentido, por dia: `DOC-YYYYMMDD-####`).
+4. **UI:** mostre o código já gerado (somente leitura). Em edição, o código **não muda**.
+5. **Colisão:** trave com `UNIQUE (empresa_id, codigo|numero)` e, se necessário, regenere/retente.
+6. Reaproveite helpers do domínio (`src/lib/**/numeros.ts` ou equivalente) — não invente outro padrão por tela.
+
+Exemplos já no projeto: `SOL-`/`PC-` (compras), `ENT-`/`REQ-` (estoque), `SRV-` (serviços).
