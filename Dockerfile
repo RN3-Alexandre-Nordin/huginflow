@@ -65,8 +65,8 @@ RUN chown nextjs:nodejs .next
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
-# Manual do usuário (lido em runtime por /api/ajuda/* — fora do bundle traced)
-COPY --from=builder --chown=nextjs:nodejs /app/docs/manual-usuario-huginflow.html ./docs/manual-usuario-huginflow.html
+# Manuais HTML (lidos em runtime por /api/ajuda/* — fora do bundle traced)
+COPY --from=builder --chown=nextjs:nodejs /app/docs/manuais ./docs/manuais
 COPY --from=builder --chown=nextjs:nodejs /app/docs/manual ./docs/manual
 
 USER nextjs

@@ -7,20 +7,24 @@ import {
   SKU_FORM_SECTIONS,
   SKU_NATUREZAS,
   SKU_TIPOS,
-  SKU_UNIDADES,
   type SkuFormSectionId,
   type SkuRecord,
 } from '@/lib/skus/constants'
+import UmCombobox from '@/components/skus/UmCombobox'
 
 const inputCls =
   'w-full bg-[#0A0A0A] border border-[#ffffff12] focus:border-[#2BAADF] rounded-xl px-4 py-2.5 text-sm text-white outline-none transition-all placeholder-gray-600 focus:ring-1 focus:ring-[#2BAADF]/30'
 
 type PessoaOpt = { id: string; nome: string | null; papeis?: string[] | null }
+type FamiliaOpt = { id: string; codigo: string; nome: string }
 
 type Props = {
   mode: 'create' | 'edit'
   sku?: SkuRecord | null
   pessoas: PessoaOpt[]
+  familias?: FamiliaOpt[]
+  /** UMs já usadas na empresa (sugestões internas). */
+  knownUnits?: string[]
   action: (formData: FormData) => Promise<{ error?: string } | void>
   cancelHref: string
   submitLabel: string
@@ -47,19 +51,21 @@ function Field({
   )
 }
 
-function UmSelect({ name, defaultValue }: { name: string; defaultValue: string }) {
-  const val = defaultValue || 'UN'
-  const options = SKU_UNIDADES.includes(val as (typeof SKU_UNIDADES)[number])
-    ? SKU_UNIDADES
-    : ([val, ...SKU_UNIDADES] as string[])
+function UmSelect({
+  name,
+  defaultValue,
+  knownUnits = [],
+}: {
+  name: string
+  defaultValue: string
+  knownUnits?: string[]
+}) {
   return (
-    <select name={name} defaultValue={val} className={`${inputCls} appearance-none`}>
-      {options.map((u) => (
-        <option key={u} value={u}>
-          {u}
-        </option>
-      ))}
-    </select>
+    <UmCombobox
+      name={name}
+      defaultValue={defaultValue || 'UN'}
+      extraOptions={[defaultValue || '', ...knownUnits]}
+    />
   )
 }
 
@@ -67,12 +73,16 @@ export default function SkuForm({
   mode,
   sku,
   pessoas,
+  familias = [],
+  knownUnits = [],
   action,
   cancelHref,
   submitLabel,
 }: Props) {
   const [section, setSection] = useState<SkuFormSectionId>('identidade')
   const [tipo, setTipo] = useState(sku?.tipo === 'servico' ? 'servico' : 'produto')
+  const [controlaLote, setControlaLote] = useState(sku?.controla_lote === true)
+  const [controlaSerie, setControlaSerie] = useState(sku?.controla_serie === true)
 
   const [state, formAction, isPending] = useActionState(
     async (_prev: { error?: string } | null, formData: FormData) => {
@@ -202,6 +212,32 @@ export default function SkuForm({
                     placeholder="Ex.: PROD-001"
                   />
                 </Field>
+                <Field label="Família">
+                  <select
+                    name="familia_id"
+                    defaultValue={v('familia_id')}
+                    className={`${inputCls} appearance-none`}
+                  >
+                    <option value="">— Sem família —</option>
+                    {familias.map((f) => (
+                      <option key={f.id} value={f.id}>
+                        {f.codigo} · {f.nome}
+                      </option>
+                    ))}
+                  </select>
+                  {familias.length === 0 && (
+                    <p className="text-[10px] text-gray-500 mt-1">
+                      Cadastre em{' '}
+                      <Link
+                        href="/cockpit/cadastros/sku-familias"
+                        className="text-[#2BAADF] hover:underline"
+                      >
+                        Famílias de SKU
+                      </Link>
+                      .
+                    </p>
+                  )}
+                </Field>
                 <Field label="Código de barras">
                   <input name="codigo_barras" defaultValue={v('codigo_barras')} className={inputCls} />
                 </Field>
@@ -235,11 +271,12 @@ export default function SkuForm({
 
             <div className={section === 'unidades' ? 'space-y-5' : 'hidden'} role="tabpanel">
               <p className="rounded-xl border border-[#2BAADF]/15 bg-[#2BAADF]/5 px-3 py-2 text-xs text-gray-400">
-                Conversões de unidade (genéricas ou por SKU) ficam em{' '}
+                Digite ou escolha uma UM. Códigos novos (ex.: FARDO) são salvos neste SKU — sem
+                cadastro separado. Conversões ficam em{' '}
                 <Link href="/cockpit/cadastros/conversoes-um" className="text-[#2BAADF] hover:underline">
-                  SKUs → Conversões UM
+                  Conversões UM
                 </Link>
-                . De-para com cliente/fornecedor em{' '}
+                ; de-para com parceiro em{' '}
                 <Link href="/cockpit/cadastros/sku-depara" className="text-[#2BAADF] hover:underline">
                   De-para SKU
                 </Link>
@@ -247,13 +284,25 @@ export default function SkuForm({
               </p>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                 <Field label="UM venda" required>
-                  <UmSelect name="unidade_venda" defaultValue={v('unidade_venda', 'UN')} />
+                  <UmSelect
+                    name="unidade_venda"
+                    defaultValue={v('unidade_venda', 'UN')}
+                    knownUnits={knownUnits}
+                  />
                 </Field>
                 <Field label="UM compra" required>
-                  <UmSelect name="unidade_compra" defaultValue={v('unidade_compra', 'UN')} />
+                  <UmSelect
+                    name="unidade_compra"
+                    defaultValue={v('unidade_compra', 'UN')}
+                    knownUnits={knownUnits}
+                  />
                 </Field>
                 <Field label="UM estoque" required>
-                  <UmSelect name="unidade_estoque" defaultValue={v('unidade_estoque', 'UN')} />
+                  <UmSelect
+                    name="unidade_estoque"
+                    defaultValue={v('unidade_estoque', 'UN')}
+                    knownUnits={knownUnits}
+                  />
                 </Field>
               </div>
             </div>
@@ -261,10 +310,32 @@ export default function SkuForm({
             <div className={section === 'comercial' ? 'space-y-5' : 'hidden'} role="tabpanel">
               <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                 <Field label="Preço de venda">
-                  <input name="preco_venda" defaultValue={v('preco_venda')} className={inputCls} />
+                  <div className="relative">
+                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-gray-500">
+                      R$
+                    </span>
+                    <input
+                      name="preco_venda"
+                      inputMode="decimal"
+                      defaultValue={v('preco_venda')}
+                      className={`${inputCls} pl-10`}
+                      placeholder="0,00"
+                    />
+                  </div>
                 </Field>
                 <Field label="Preço de custo">
-                  <input name="preco_custo" defaultValue={v('preco_custo')} className={inputCls} />
+                  <div className="relative">
+                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-gray-500">
+                      R$
+                    </span>
+                    <input
+                      name="preco_custo"
+                      inputMode="decimal"
+                      defaultValue={v('preco_custo')}
+                      className={`${inputCls} pl-10`}
+                      placeholder="0,00"
+                    />
+                  </div>
                 </Field>
                 <Field label="Moeda">
                   <input name="moeda" defaultValue={v('moeda', 'BRL')} className={inputCls} />
@@ -292,6 +363,54 @@ export default function SkuForm({
                     />
                     Controla estoque (quantidades na UM de estoque)
                   </label>
+                </Field>
+                <Field label="Lote / validade" className="md:col-span-2">
+                  <div className="space-y-2">
+                    <label className="inline-flex items-center gap-2 text-sm text-gray-300">
+                      <input
+                        type="checkbox"
+                        name="controla_lote"
+                        checked={controlaLote}
+                        onChange={(e) => {
+                          setControlaLote(e.target.checked)
+                          if (e.target.checked) setControlaSerie(false)
+                        }}
+                        className="rounded border-[#ffffff30] text-[#2BAADF] focus:ring-[#2BAADF]/40"
+                      />
+                      Controla lote (batch) nas movimentações
+                    </label>
+                    {controlaLote && (
+                      <label className="inline-flex items-center gap-2 text-sm text-gray-300 pl-6">
+                        <input
+                          type="checkbox"
+                          name="exige_validade"
+                          defaultChecked={sku?.exige_validade !== false}
+                          className="rounded border-[#ffffff30] text-[#2BAADF] focus:ring-[#2BAADF]/40"
+                        />
+                        Exige data de validade no lote
+                      </label>
+                    )}
+                    <p className="text-[10px] text-gray-500">
+                      Com lote ativo, entradas e saídas passam a exigir número do lote (e validade, se marcada).
+                      Lote e série não convivem no mesmo SKU.
+                    </p>
+                    <label className="inline-flex items-center gap-2 text-sm text-gray-300">
+                      <input
+                        type="checkbox"
+                        name="controla_serie"
+                        checked={controlaSerie}
+                        onChange={(e) => {
+                          setControlaSerie(e.target.checked)
+                          if (e.target.checked) setControlaLote(false)
+                        }}
+                        className="rounded border-[#ffffff30] text-[#2BAADF] focus:ring-[#2BAADF]/40"
+                      />
+                      Controla série (uma unidade por número)
+                    </label>
+                    <p className="text-[10px] text-gray-500">
+                      O saldo que já existe sem série fica bloqueado até o inventário em Estoque → Séries.
+                    </p>
+                  </div>
                 </Field>
                 <Field label="Ponto de reposição">
                   <input

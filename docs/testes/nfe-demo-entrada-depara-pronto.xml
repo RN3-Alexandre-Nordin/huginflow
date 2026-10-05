@@ -1,0 +1,281 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  DEMO ENTRADA NF-e — Hugin Flow / Monte Sinai Atacado (DEV)
+  Cenário B: FORNECEDOR + DE-PARA JÁ CONFIGURADOS (caminho feliz)
+
+  Tenant: Monte Sinai Atacado — CNPJ 82.838.204/0001-60
+
+  Emitente JÁ cadastrado (Pessoas + papel fornecedor):
+    DISTRIBUIDORA BETA TESTE LTDA — CNPJ 99.888.777/0001-66
+    pessoa_id DEV: eb406bc8-2e6e-4fc6-aa27-4f57d65366ac
+
+  De-para JÁ existentes (cad_sku_depara):
+    BT-AGUA500SG  → AGUA-044  (Água Mineral sem Gás 500ml) · UN
+    BT-HEIN330    → CERV-001  (Cerveja Heineken Long Neck 330ml) · UN
+    BT-REDLBL1L   → DEST-011  (Whisky Red Label 1L) · UN
+
+  Na tela /cockpit/estoque/entradas/xml o fluxo esperado:
+    1) Fornecedor reconhecido automaticamente
+    2) 3 linhas com SKU resolvido via de-para
+    3) Confirmar entrada → cardex + saldo (Regra de Ouro)
+
+  Upload: Cockpit → Estoque → Entradas → Importar XML
+  Data demo: 2026-09-18
+
+  Se o Beta tiver sido apagado do tenant, recriar Pessoa + 3 de-paras
+  antes da apresentação (ver comentários acima).
+-->
+<nfeProc versao="4.00" xmlns="http://www.portalfiscal.inf.br/nfe">
+  <NFe xmlns="http://www.portalfiscal.inf.br/nfe">
+    <infNFe Id="NFe35260999888777000166550010000009011123456781" versao="4.00">
+      <ide>
+        <cUF>35</cUF>
+        <cNF>90011123</cNF>
+        <natOp>Venda de mercadoria</natOp>
+        <mod>55</mod>
+        <serie>1</serie>
+        <nNF>901</nNF>
+        <dhEmi>2026-09-18T10:45:00-03:00</dhEmi>
+        <tpNF>1</tpNF>
+        <idDest>1</idDest>
+        <cMunFG>3550308</cMunFG>
+        <tpImp>1</tpImp>
+        <tpEmis>1</tpEmis>
+        <cDV>1</cDV>
+        <tpAmb>2</tpAmb>
+        <finNFe>1</finNFe>
+        <indFinal>0</indFinal>
+        <indPres>1</indPres>
+        <procEmi>0</procEmi>
+        <verProc>HuginFlow-DEMO-1.0</verProc>
+      </ide>
+      <emit>
+        <CNPJ>99888777000166</CNPJ>
+        <xNome>DISTRIBUIDORA BETA TESTE LTDA</xNome>
+        <xFant>Beta Teste Distribuidora</xFant>
+        <enderEmit>
+          <xLgr>Rua dos Testes</xLgr>
+          <nro>1000</nro>
+          <xCpl>Galpao 3</xCpl>
+          <xBairro>Centro</xBairro>
+          <cMun>3550308</cMun>
+          <xMun>Sao Paulo</xMun>
+          <UF>SP</UF>
+          <CEP>01001000</CEP>
+          <cPais>1058</cPais>
+          <xPais>Brasil</xPais>
+          <fone>1133334444</fone>
+        </enderEmit>
+        <IE>123456789012</IE>
+        <CRT>3</CRT>
+      </emit>
+      <dest>
+        <CNPJ>82838204000160</CNPJ>
+        <xNome>Monte Sinai Atacado</xNome>
+        <enderDest>
+          <xLgr>Avenida das Nacoes Unidas</xLgr>
+          <nro>14221</nro>
+          <xCpl>Edificio Tower A 12 Andar</xCpl>
+          <xBairro>Vila Gertrudes</xBairro>
+          <cMun>3550308</cMun>
+          <xMun>Sao Paulo</xMun>
+          <UF>SP</UF>
+          <CEP>04794000</CEP>
+          <cPais>1058</cPais>
+          <xPais>Brasil</xPais>
+        </enderDest>
+        <indIEDest>1</indIEDest>
+        <IE>112223334445</IE>
+      </dest>
+
+      <det nItem="1">
+        <prod>
+          <cProd>BT-AGUA500SG</cProd>
+          <cEAN>SEM GTIN</cEAN>
+          <xProd>Agua Mineral sem Gas 500ml</xProd>
+          <NCM>22011000</NCM>
+          <CFOP>5102</CFOP>
+          <uCom>UN</uCom>
+          <qCom>48.0000</qCom>
+          <vUnCom>1.8500000000</vUnCom>
+          <vProd>88.80</vProd>
+          <cEANTrib>SEM GTIN</cEANTrib>
+          <uTrib>UN</uTrib>
+          <qTrib>48.0000</qTrib>
+          <vUnTrib>1.8500000000</vUnTrib>
+          <indTot>1</indTot>
+        </prod>
+        <imposto>
+          <ICMS>
+            <ICMS00>
+              <orig>0</orig>
+              <CST>00</CST>
+              <modBC>3</modBC>
+              <vBC>88.80</vBC>
+              <pICMS>18.00</pICMS>
+              <vICMS>15.98</vICMS>
+            </ICMS00>
+          </ICMS>
+          <PIS>
+            <PISAliq>
+              <CST>01</CST>
+              <vBC>88.80</vBC>
+              <pPIS>1.65</pPIS>
+              <vPIS>1.47</vPIS>
+            </PISAliq>
+          </PIS>
+          <COFINS>
+            <COFINSAliq>
+              <CST>01</CST>
+              <vBC>88.80</vBC>
+              <pCOFINS>7.60</pCOFINS>
+              <vCOFINS>6.75</vCOFINS>
+            </COFINSAliq>
+          </COFINS>
+        </imposto>
+      </det>
+
+      <det nItem="2">
+        <prod>
+          <cProd>BT-HEIN330</cProd>
+          <cEAN>SEM GTIN</cEAN>
+          <xProd>Cerveja Heineken Long Neck 330ml</xProd>
+          <NCM>22030000</NCM>
+          <CFOP>5102</CFOP>
+          <uCom>UN</uCom>
+          <qCom>60.0000</qCom>
+          <vUnCom>4.9000000000</vUnCom>
+          <vProd>294.00</vProd>
+          <cEANTrib>SEM GTIN</cEANTrib>
+          <uTrib>UN</uTrib>
+          <qTrib>60.0000</qTrib>
+          <vUnTrib>4.9000000000</vUnTrib>
+          <indTot>1</indTot>
+        </prod>
+        <imposto>
+          <ICMS>
+            <ICMS00>
+              <orig>0</orig>
+              <CST>00</CST>
+              <modBC>3</modBC>
+              <vBC>294.00</vBC>
+              <pICMS>18.00</pICMS>
+              <vICMS>52.92</vICMS>
+            </ICMS00>
+          </ICMS>
+          <PIS>
+            <PISAliq>
+              <CST>01</CST>
+              <vBC>294.00</vBC>
+              <pPIS>1.65</pPIS>
+              <vPIS>4.85</vPIS>
+            </PISAliq>
+          </PIS>
+          <COFINS>
+            <COFINSAliq>
+              <CST>01</CST>
+              <vBC>294.00</vBC>
+              <pCOFINS>7.60</pCOFINS>
+              <vCOFINS>22.34</vCOFINS>
+            </COFINSAliq>
+          </COFINS>
+        </imposto>
+      </det>
+
+      <det nItem="3">
+        <prod>
+          <cProd>BT-REDLBL1L</cProd>
+          <cEAN>SEM GTIN</cEAN>
+          <xProd>Whisky Red Label 1L</xProd>
+          <NCM>22083020</NCM>
+          <CFOP>5102</CFOP>
+          <uCom>UN</uCom>
+          <qCom>8.0000</qCom>
+          <vUnCom>89.9000000000</vUnCom>
+          <vProd>719.20</vProd>
+          <cEANTrib>SEM GTIN</cEANTrib>
+          <uTrib>UN</uTrib>
+          <qTrib>8.0000</qTrib>
+          <vUnTrib>89.9000000000</vUnTrib>
+          <indTot>1</indTot>
+        </prod>
+        <imposto>
+          <ICMS>
+            <ICMS00>
+              <orig>0</orig>
+              <CST>00</CST>
+              <modBC>3</modBC>
+              <vBC>719.20</vBC>
+              <pICMS>18.00</pICMS>
+              <vICMS>129.46</vICMS>
+            </ICMS00>
+          </ICMS>
+          <PIS>
+            <PISAliq>
+              <CST>01</CST>
+              <vBC>719.20</vBC>
+              <pPIS>1.65</pPIS>
+              <vPIS>11.87</vPIS>
+            </PISAliq>
+          </PIS>
+          <COFINS>
+            <COFINSAliq>
+              <CST>01</CST>
+              <vBC>719.20</vBC>
+              <pCOFINS>7.60</pCOFINS>
+              <vCOFINS>54.66</vCOFINS>
+            </COFINSAliq>
+          </COFINS>
+        </imposto>
+      </det>
+
+      <total>
+        <ICMSTot>
+          <vBC>1102.00</vBC>
+          <vICMS>198.36</vICMS>
+          <vICMSDeson>0.00</vICMSDeson>
+          <vFCP>0.00</vFCP>
+          <vBCST>0.00</vBCST>
+          <vST>0.00</vST>
+          <vFCPST>0.00</vFCPST>
+          <vFCPSTRet>0.00</vFCPSTRet>
+          <vProd>1102.00</vProd>
+          <vFrete>0.00</vFrete>
+          <vSeg>0.00</vSeg>
+          <vDesc>0.00</vDesc>
+          <vII>0.00</vII>
+          <vIPI>0.00</vIPI>
+          <vIPIDevol>0.00</vIPIDevol>
+          <vPIS>18.19</vPIS>
+          <vCOFINS>83.75</vCOFINS>
+          <vOutro>0.00</vOutro>
+          <vNF>1102.00</vNF>
+        </ICMSTot>
+      </total>
+      <transp>
+        <modFrete>9</modFrete>
+      </transp>
+      <pag>
+        <detPag>
+          <tPag>01</tPag>
+          <vPag>1102.00</vPag>
+        </detPag>
+      </pag>
+      <infAdic>
+        <infCpl>DEMO Hugin Flow — fornecedor e de-para ja configurados (caminho feliz).</infCpl>
+      </infAdic>
+    </infNFe>
+  </NFe>
+  <protNFe versao="4.00">
+    <infProt>
+      <tpAmb>2</tpAmb>
+      <verAplic>SP_NFE_PL_008i2</verAplic>
+      <chNFe>35260999888777000166550010000009011123456781</chNFe>
+      <dhRecbto>2026-09-18T10:46:00-03:00</dhRecbto>
+      <nProt>135260000009011</nProt>
+      <digVal>abcdefghijklmnopqrstuvwxyz012=</digVal>
+      <cStat>100</cStat>
+      <xMotivo>Autorizado o uso da NF-e</xMotivo>
+    </infProt>
+  </protNFe>
+</nfeProc>

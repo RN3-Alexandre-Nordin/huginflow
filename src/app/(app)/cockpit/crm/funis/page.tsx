@@ -4,6 +4,7 @@ import { Search, Plus, Filter, RotateCcw, LayoutTemplate, Briefcase, EyeOff, Shi
 import BackTextButton from '@/components/BackTextButton'
 import { getMyProfile } from "@/app/(app)/cockpit/actions"
 import { hasPermission } from "@/utils/permissions"
+import FunilRowActions from "@/components/crm/FunilRowActions"
 
 export const metadata = { title: "Funis | HuginFlow CRM" }
 
@@ -34,11 +35,24 @@ export default async function FunisPage(props: {
 
   const canCreate = hasPermission(me, 'funis', 'create')
   const canEdit = hasPermission(me, 'funis', 'edit')
+  const canDelete = hasPermission(me, 'funis', 'delete')
 
   const searchParams = await props.searchParams
   const query = typeof searchParams.q === 'string' ? searchParams.q : ""
+  const statusParam = typeof searchParams.status === 'string' ? searchParams.status : 'ativos'
+  const activeStatus = ['ativos', 'inativos', 'todos'].includes(statusParam) ? statusParam : 'ativos'
 
   const supabase = await createClient()
+
+  // Contagem para os badges de filtro
+  let countsQuery = supabase.from("pipelines").select("ativo")
+  if (me?.role_global !== 'superadmin') {
+    countsQuery = countsQuery.eq('empresa_id', me?.empresa_id ?? '')
+  }
+  const { data: allPipesCount } = await countsQuery
+  const countAtivos = (allPipesCount || []).filter((p) => p.ativo !== false).length
+  const countInativos = (allPipesCount || []).filter((p) => p.ativo === false).length
+  const countTodos = (allPipesCount || []).length
 
   let supabaseQuery = supabase
     .from("pipelines")
@@ -47,6 +61,7 @@ export default async function FunisPage(props: {
        nome, 
        descricao, 
        is_public, 
+       ativo,
        created_at,
        crm_cards (id, finalizado),
        pipeline_stages (id)
@@ -55,6 +70,13 @@ export default async function FunisPage(props: {
 
   if (me?.role_global !== 'superadmin') {
     supabaseQuery = supabaseQuery.eq('empresa_id', me?.empresa_id ?? '')
+  }
+
+  // Filtro de status: por padrão oculta inativos e mostra apenas ativos
+  if (activeStatus === 'ativos') {
+    supabaseQuery = supabaseQuery.or('ativo.is.null,ativo.eq.true')
+  } else if (activeStatus === 'inativos') {
+    supabaseQuery = supabaseQuery.eq('ativo', false)
   }
 
   if (query) {
@@ -83,22 +105,80 @@ export default async function FunisPage(props: {
 
       {/* Tabela de Pipelines / Board List */}
       <div className="bg-[#111111] border border-[#ffffff0a] rounded-2xl overflow-hidden shadow-2xl">
-        {/* Filtros Internos Simples */}
-        <div className="p-4 border-b border-[#ffffff0a] flex items-center justify-between gap-4">
-           <div className="relative w-full max-w-sm">
-             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-               <Search className="h-4 w-4 text-gray-500" />
-             </div>
-             <form action="/cockpit/crm/funis" method="GET">
-                <input
-                  type="text"
-                  name="q"
-                  defaultValue={query}
-                  placeholder="Buscar por nome do funil..."
-                  className="block w-full pl-10 pr-3 py-2 border border-[#ffffff10] rounded-lg leading-5 bg-[#0A0A0A] text-gray-300 placeholder-gray-500 focus:outline-none focus:border-[#2BAADF] focus:ring-1 focus:ring-[#2BAADF] sm:text-sm transition-colors"
-                />
-             </form>
-           </div>
+        {/* Filtros Internos: Busca + Filtro de Status Ativos/Inativos/Todos */}
+        <div className="p-4 border-b border-[#ffffff0a] flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+          <div className="relative w-full max-w-sm">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <Search className="h-4 w-4 text-gray-500" />
+            </div>
+            <form action="/cockpit/crm/funis" method="GET">
+              <input type="hidden" name="status" value={activeStatus} />
+              <input
+                type="text"
+                name="q"
+                defaultValue={query}
+                placeholder="Buscar por nome do funil..."
+                className="block w-full pl-10 pr-3 py-2 border border-[#ffffff10] rounded-xl leading-5 bg-[#0A0A0A] text-gray-300 placeholder-gray-500 focus:outline-none focus:border-[#2BAADF] focus:ring-1 focus:ring-[#2BAADF] text-xs transition-colors"
+              />
+            </form>
+          </div>
+
+          {/* Filtro de Status Ativos / Inativos / Todos */}
+          <div className="flex items-center gap-1 bg-[#0A0A0A] p-1 rounded-xl border border-[#ffffff10] text-xs self-start sm:self-auto">
+            <Link
+              href={`/cockpit/crm/funis?status=ativos${query ? `&q=${encodeURIComponent(query)}` : ''}`}
+              className={`px-3 py-1.5 rounded-lg font-semibold transition-all flex items-center gap-1.5 ${
+                activeStatus === 'ativos'
+                  ? 'bg-[#2BAADF]/20 text-[#2BAADF] border border-[#2BAADF]/30 shadow-sm'
+                  : 'text-gray-400 hover:text-white border border-transparent'
+              }`}
+            >
+              Ativos
+              <span
+                className={`rounded-full px-1.5 py-0.2 text-[10px] font-bold ${
+                  activeStatus === 'ativos' ? 'bg-[#2BAADF]/20 text-[#2BAADF]' : 'bg-white/5 text-gray-500'
+                }`}
+              >
+                {countAtivos}
+              </span>
+            </Link>
+
+            <Link
+              href={`/cockpit/crm/funis?status=inativos${query ? `&q=${encodeURIComponent(query)}` : ''}`}
+              className={`px-3 py-1.5 rounded-lg font-semibold transition-all flex items-center gap-1.5 ${
+                activeStatus === 'inativos'
+                  ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30 shadow-sm'
+                  : 'text-gray-400 hover:text-white border border-transparent'
+              }`}
+            >
+              Inativos
+              <span
+                className={`rounded-full px-1.5 py-0.2 text-[10px] font-bold ${
+                  activeStatus === 'inativos' ? 'bg-amber-500/20 text-amber-400' : 'bg-white/5 text-gray-500'
+                }`}
+              >
+                {countInativos}
+              </span>
+            </Link>
+
+            <Link
+              href={`/cockpit/crm/funis?status=todos${query ? `&q=${encodeURIComponent(query)}` : ''}`}
+              className={`px-3 py-1.5 rounded-lg font-semibold transition-all flex items-center gap-1.5 ${
+                activeStatus === 'todos'
+                  ? 'bg-white/10 text-white border border-white/20 shadow-sm'
+                  : 'text-gray-400 hover:text-white border border-transparent'
+              }`}
+            >
+              Todos
+              <span
+                className={`rounded-full px-1.5 py-0.2 text-[10px] font-bold ${
+                  activeStatus === 'todos' ? 'bg-white/20 text-white' : 'bg-white/5 text-gray-500'
+                }`}
+              >
+                {countTodos}
+              </span>
+            </Link>
+          </div>
         </div>
 
         {error && (
@@ -106,78 +186,115 @@ export default async function FunisPage(props: {
         )}
 
         {!pipelines?.length ? (
-           <div className="p-24 text-center">
-             <div className="w-20 h-20 rounded-full bg-[#ffffff03] border border-[#ffffff05] flex items-center justify-center mx-auto mb-6">
-               <LayoutTemplate className="w-10 h-10 text-gray-800 opacity-20" />
-             </div>
-             <p className="text-white font-bold text-xl">{query ? 'Nenhum funil encontrado.' : 'Sua Organização não possui Funis.'}</p>
-             <p className="text-gray-500 text-sm mt-2 max-w-sm mx-auto font-medium">
-               {query ? 'Utilize outros termos para buscar seu processo comercial.' : 'Comece criando um funil de "Vendas Ativas" ou "Suporte" clicando no botão acima.'}
-             </p>
-             {query && (
-               <Link href="/cockpit/crm/funis" className="text-[#2BAADF] hover:text-white text-sm font-bold mt-4 inline-block transition-colors uppercase tracking-widest">Limpar Busca</Link>
-             )}
-           </div>
+          <div className="p-24 text-center">
+            <div className="w-20 h-20 rounded-full bg-[#ffffff03] border border-[#ffffff05] flex items-center justify-center mx-auto mb-6">
+              <LayoutTemplate className="w-10 h-10 text-gray-800 opacity-20" />
+            </div>
+            <p className="text-white font-bold text-xl">
+              {query
+                ? 'Nenhum funil encontrado para a busca.'
+                : activeStatus === 'inativos'
+                ? 'Nenhum funil inativo encontrado.'
+                : 'Sua Organização não possui Funis.'}
+            </p>
+            <p className="text-gray-500 text-sm mt-2 max-w-sm mx-auto font-medium">
+              {query
+                ? 'Utilize outros termos para buscar seu processo comercial.'
+                : activeStatus === 'inativos'
+                ? 'Funis com histórico que forem inativados aparecerão aqui.'
+                : 'Comece criando um funil clicando no botão "Novo Funil" acima.'}
+            </p>
+            {(query || activeStatus !== 'ativos') && (
+              <Link
+                href="/cockpit/crm/funis"
+                className="text-[#2BAADF] hover:text-white text-sm font-bold mt-4 inline-block transition-colors uppercase tracking-widest"
+              >
+                Limpar Filtros
+              </Link>
+            )}
+          </div>
         ) : (
-           <div className="divide-y divide-[#ffffff05]">
-              {pipelines.map(pipe => {
-                 const totalCards = Array.isArray(pipe.crm_cards)
-                   ? pipe.crm_cards.filter((c: { finalizado?: boolean | null }) => c.finalizado !== true).length
-                   : 0
-                 const totalStages = Array.isArray(pipe.pipeline_stages) ? pipe.pipeline_stages.length : 0
+          <div className="divide-y divide-[#ffffff05]">
+            {pipelines.map((pipe) => {
+              const isAtivo = pipe.ativo !== false
+              const totalCardsAtivos = Array.isArray(pipe.crm_cards)
+                ? pipe.crm_cards.filter((c: { finalizado?: boolean | null }) => c.finalizado !== true).length
+                : 0
+              const totalCardsAll = Array.isArray(pipe.crm_cards) ? pipe.crm_cards.length : 0
+              const totalStages = Array.isArray(pipe.pipeline_stages) ? pipe.pipeline_stages.length : 0
 
-                 return (
-                    <div
-                      key={pipe.id}
-                      data-testid="funil-row"
-                      data-pipeline-id={pipe.id}
-                      className="p-6 flex items-center justify-between hover:bg-[#ffffff02] transition-all group border-l-2 border-transparent hover:border-[#2BAADF]"
-                    >
-                       <div className="flex-1 min-w-0 pr-4">
-                          <div className="flex items-center gap-3">
-                             <h3 className="text-base font-bold text-white truncate group-hover:text-[#2BAADF] transition-colors">{pipe.nome}</h3>
-                             {pipe.is_public ? (
-                                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest bg-green-500/10 text-green-400 border border-green-500/20">
-                                   Público
-                                </span>
-                             ) : (
-                                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest bg-[#2BAADF]/10 text-[#2BAADF] border border-[#2BAADF]/20 font-sans">
-                                   Restrito
-                                </span>
-                             )}
-                          </div>
-                          <p className="text-sm text-gray-500 mt-1 line-clamp-1 font-medium">{pipe.descricao || "Funil sem descrição detalhada."}</p>
-                          
-                          <div className="mt-3 flex items-center gap-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">
-                             <span className="flex items-center gap-1.5"><RotateCcw className="w-3 h-3 text-[#2BAADF]/50" /> {totalStages} Etapa(s)</span>
-                             <span className="opacity-30">|</span>
-                             <span className="flex items-center gap-1.5"><Briefcase className="w-3 h-3 text-orange-500/50" /> {totalCards} Card(s) Ativos</span>
-                          </div>
-                       </div>
-                       
-                       <div className="flex items-center justify-end gap-3 shrink-0 opacity-0 group-hover:opacity-100 transition-all transform translate-x-2 group-hover:translate-x-0">
-                          {canEdit && (
-                            <Link 
-                              href={`/cockpit/crm/funis/${pipe.id}/editar`}
-                              className="p-2.5 text-gray-500 hover:text-white hover:bg-[#ffffff05] rounded-xl transition-all border border-transparent hover:border-[#ffffff10]"
-                              title="Configurar Fluxo"
-                            >
-                               <PenSquare className="w-4.5 h-4.5" />
-                            </Link>
-                          )}
-                          
-                          <Link 
-                            href={`/cockpit/crm/funis/${pipe.id}`}
-                            data-testid="funil-abrir-kanban"
-                            className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest bg-[#ffffff05] text-white border border-[#ffffff10] hover:bg-white hover:text-black transition-all shadow-xl"
-                          >
-                             Abrir Kanban
-                          </Link>
-                       </div>
+              return (
+                <div
+                  key={pipe.id}
+                  data-testid="funil-row"
+                  data-pipeline-id={pipe.id}
+                  className={`p-6 flex items-center justify-between hover:bg-[#ffffff02] transition-all group border-l-2 ${
+                    isAtivo
+                      ? 'border-transparent hover:border-[#2BAADF]'
+                      : 'border-amber-500/30 bg-amber-500/[0.01] opacity-80 hover:opacity-100'
+                  }`}
+                >
+                  <div className="flex-1 min-w-0 pr-4">
+                    <div className="flex items-center gap-3">
+                      <h3
+                        className={`text-base font-bold truncate transition-colors ${
+                          isAtivo ? 'text-white group-hover:text-[#2BAADF]' : 'text-gray-300'
+                        }`}
+                      >
+                        {pipe.nome}
+                      </h3>
+
+                      {!isAtivo && (
+                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest bg-amber-500/10 text-amber-400 border border-amber-500/20 font-sans">
+                          Inativo
+                        </span>
+                      )}
+
+                      {pipe.is_public ? (
+                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest bg-green-500/10 text-green-400 border border-green-500/20">
+                          Público
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest bg-[#2BAADF]/10 text-[#2BAADF] border border-[#2BAADF]/20 font-sans">
+                          Restrito
+                        </span>
+                      )}
                     </div>
-                 )
-              })}
-           </div>
+                    <p className="text-sm text-gray-500 mt-1 line-clamp-1 font-medium">
+                      {pipe.descricao || 'Funil sem descrição detalhada.'}
+                    </p>
+
+                    <div className="mt-3 flex items-center gap-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">
+                      <span className="flex items-center gap-1.5">
+                        <RotateCcw className="w-3 h-3 text-[#2BAADF]/50" /> {totalStages} Etapa(s)
+                      </span>
+                      <span className="opacity-30">|</span>
+                      <span className="flex items-center gap-1.5">
+                        <Briefcase className="w-3 h-3 text-orange-500/50" /> {totalCardsAtivos} Card(s) Ativos
+                      </span>
+                      {totalCardsAll > totalCardsAtivos && (
+                        <>
+                          <span className="opacity-30">|</span>
+                          <span className="text-gray-600 font-normal">
+                            {totalCardsAll} total no histórico
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  <FunilRowActions
+                    pipelineId={pipe.id}
+                    pipelineNome={pipe.nome}
+                    ativo={isAtivo}
+                    totalCards={totalCardsAll}
+                    canEdit={canEdit}
+                    canDelete={canDelete}
+                  />
+                </div>
+              )
+            })}
+          </div>
         )}
       </div>
     </div>

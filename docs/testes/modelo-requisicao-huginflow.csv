@@ -1,0 +1,5 @@
+codigo_origem,sistema_origem,requisitante_documento,requisitante_nome,sku_codigo,quantidade,observacao
+REQ-EXT-1001,planilha,10008710961,Ricardo Mendes Oliveira,AGUA-044,24,Reposição semanal — água sem gás
+REQ-EXT-1001,planilha,10008710961,Ricardo Mendes Oliveira,CERV-001,12,Evento interno
+REQ-EXT-1002,planilha,10017421845,Patricia Souza Lima,AGUA-045,36,Kit recepção
+REQ-EXT-1002,planilha,10017421845,Patricia Souza Lima,AGUA-048,6,

@@ -4,9 +4,9 @@ import { useRouter } from 'next/navigation'
 import { ArrowLeft } from 'lucide-react'
 import { goBack } from '@/lib/navigation/goBack'
 
-const DEFAULT_ICON_CLASS = 'w-5 h-5'
+const DEFAULT_ICON_CLASS = 'h-5 w-5'
 const DEFAULT_BUTTON_CLASS =
-  'p-2 rounded-lg bg-[#ffffff05] hover:bg-[#ffffff0a] text-gray-400 hover:text-white transition-colors'
+  'inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#ffffff10] bg-[#ffffff05] text-gray-400 transition-colors hover:bg-[#ffffff10] hover:text-white'
 
 export type BackButtonProps = {
   fallbackHref?: string

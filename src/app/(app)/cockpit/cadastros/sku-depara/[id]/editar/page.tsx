@@ -1,5 +1,3 @@
-import { Link2 } from 'lucide-react'
-import BackButton from '@/components/BackButton'
 import { createClient } from '@/utils/supabase/server'
 import { getMyProfile } from '@/app/(app)/cockpit/actions'
 import { notFound } from 'next/navigation'
@@ -33,14 +31,8 @@ export default async function EditarSkuDeparaPage(props: {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 pb-20">
-      <div className="flex items-center gap-4">
-        <BackButton fallbackHref="/cockpit/cadastros/sku-depara" />
-        <div>
-          <h2 className="flex items-center gap-3 text-2xl font-bold text-white">
-            <Link2 className="h-6 w-6 text-[#2BAADF]" />
-            Editar de-para
-          </h2>
-        </div>
+      <div>
+        <h2 className="text-2xl font-bold text-white">Editar de-para</h2>
       </div>
       <SkuDeparaForm
         skus={skus || []}
@@ -48,7 +40,7 @@ export default async function EditarSkuDeparaPage(props: {
         initial={row}
         cancelHref="/cockpit/cadastros/sku-depara"
         submitLabel="Salvar"
-        action={(fd) => updateSkuDepara(id, fd)}
+        action={updateSkuDepara.bind(null, id)}
       />
     </div>
   )

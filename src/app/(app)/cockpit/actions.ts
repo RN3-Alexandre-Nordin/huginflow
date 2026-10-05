@@ -29,6 +29,10 @@ export async function createEmpresa(formData: FormData) {
       website: formData.get('website') as string || null,
       endereco: formData.get('endereco') as string || null,
       cidade: (formData.get('cidade') as string) || null,
+      financeiro_nome: (formData.get('financeiro_nome') as string) || null,
+      financeiro_email: (formData.get('financeiro_email') as string) || null,
+      financeiro_telefone: (formData.get('financeiro_telefone') as string) || null,
+      financeiro_chave_pix: (formData.get('financeiro_chave_pix') as string) || null,
       ramo_atividade: formData.get('ramo_atividade') as string || null,
       responsavel_nome: formData.get('responsavel_nome') as string || null,
       responsavel_cargo: formData.get('responsavel_cargo') as string || null,
@@ -83,6 +87,10 @@ export async function updateEmpresa(empresaId: string, formData: FormData) {
       website: formData.get('website') as string || null,
       endereco: formData.get('endereco') as string || null,
       cidade: (formData.get('cidade') as string) || null,
+      financeiro_nome: (formData.get('financeiro_nome') as string) || null,
+      financeiro_email: (formData.get('financeiro_email') as string) || null,
+      financeiro_telefone: (formData.get('financeiro_telefone') as string) || null,
+      financeiro_chave_pix: (formData.get('financeiro_chave_pix') as string) || null,
       ramo_atividade: formData.get('ramo_atividade') as string || null,
       responsavel_nome: formData.get('responsavel_nome') as string || null,
       responsavel_cargo: formData.get('responsavel_cargo') as string || null,
@@ -104,8 +112,27 @@ export async function updateEmpresa(empresaId: string, formData: FormData) {
     return { error: error.message }
   }
 
+  // Persistência unificada de Addons se o payload estiver presente e for superadmin
+  const rawAddonsPayload = formData.get('addons_payload') as string | null
+  if (rawAddonsPayload && me?.role_global === 'superadmin') {
+    try {
+      const parsed = JSON.parse(rawAddonsPayload)
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        const { normalizeAddonUpdates, upsertEmpresaAddonLines } = await import('@/lib/addons/entitlements')
+        const normalized = normalizeAddonUpdates(parsed)
+        if (normalized.length > 0) {
+          await upsertEmpresaAddonLines(empresaId, normalized, supabaseAdmin, me.id)
+        }
+      }
+    } catch (addonsErr) {
+      console.error('Erro ao persistir addons na atualização da empresa', addonsErr)
+    }
+  }
+
   revalidatePath('/cockpit/empresas')
   revalidatePath(`/cockpit/empresas/${empresaId}/editar`)
+  revalidatePath('/cockpit')
+  revalidatePath('/cockpit/estoque')
   redirect(`/cockpit/empresas/${empresaId}/editar`)
 }
 
@@ -237,6 +264,8 @@ export async function createGrupoAcesso(formData: FormData) {
   const descricao = formData.get('descricao') as string
   const is_admin = formData.get('is_admin') === 'true'
   const permissoesStr = formData.get('permissoes') as string
+  const { parseCockpitTemplate } = await import('@/lib/cockpit/templates')
+  const cockpit_template = parseCockpitTemplate(formData.get('cockpit_template'))
   
   // Se for admin, ignora o que veio do front e gera o JSON completo
   const permissoes = is_admin 
@@ -267,7 +296,7 @@ export async function createGrupoAcesso(formData: FormData) {
   const supabaseAdmin = createAdminClient()
   const { error } = await supabaseAdmin
     .from('grupos_acesso')
-    .insert([{ nome, descricao, empresa_id, permissoes, is_admin }])
+    .insert([{ nome, descricao, empresa_id, permissoes, is_admin, cockpit_template }])
 
   if (error) {
     console.error("Erro ao criar grupo", error)
@@ -283,6 +312,8 @@ export async function updateGrupoAcesso(id: string, formData: FormData) {
   const descricao = formData.get('descricao') as string
   const is_admin = formData.get('is_admin') === 'true'
   const permissoesStr = formData.get('permissoes') as string
+  const { parseCockpitTemplate } = await import('@/lib/cockpit/templates')
+  const cockpit_template = parseCockpitTemplate(formData.get('cockpit_template'))
   
   // Se for admin, ignora o que veio do front e gera o JSON completo
   const permissoes = is_admin 
@@ -313,7 +344,7 @@ export async function updateGrupoAcesso(id: string, formData: FormData) {
   const supabaseAdmin = createAdminClient()
   const { error } = await supabaseAdmin
     .from('grupos_acesso')
-    .update({ nome, descricao, empresa_id, permissoes, is_admin })
+    .update({ nome, descricao, empresa_id, permissoes, is_admin, cockpit_template })
     .eq('id', id)
 
   if (error) {

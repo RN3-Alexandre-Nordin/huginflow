@@ -5,7 +5,7 @@ import { prepareHelpHtml } from '@/lib/ajuda-html'
 
 export async function GET() {
   const raw = readFileSync(
-    join(process.cwd(), 'docs/treinamento-operadores.html'),
+    join(process.cwd(), 'docs/manuais/treinamento-operadores.html'),
     'utf8',
   )
   const html = prepareHelpHtml(raw)

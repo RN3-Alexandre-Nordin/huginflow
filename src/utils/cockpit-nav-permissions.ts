@@ -35,5 +35,15 @@ export function buildCockpitNavPermissions(
     canViewModule(user, "leads") ||
     hasPermission(user, "cards", "edit")
 
+  // Slugs derivados para relatórios e consultas de estoque
+  perms.estoque_saldos =
+    perms.estoque_saldos ||
+    canViewModule(user, "estoque") ||
+    canViewModule(user, "estoque_relatorios")
+  perms.estoque_cardex =
+    perms.estoque_cardex ||
+    canViewModule(user, "estoque") ||
+    canViewModule(user, "estoque_relatorios")
+
   return perms
 }

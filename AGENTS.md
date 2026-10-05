@@ -3,3 +3,18 @@
 
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
+
+## Git: `develop` ≠ `main` (absoluto)
+
+- **Commits / versionamento:** sempre em **`develop`** (ou feature). Nunca em `main`.
+- **`main` = produção** (deploy VPS). Só com ordem explícita do responsável.
+- Antes de qualquer `git commit` / `git push`: `.cursor/rules/git-main-e-producao.mdc` + `.cursorrules` §9.
+
+## Performance SaaS
+
+Antes de listagens/agregações: `.cursor/rules/saas-performance.mdc`. Estoque: `docs/specs-aplicadas/desenvolvimento-modulo-estoque.md` §2.1.
+
+## Documentação canônica
+
+Índice: `docs/README.md`. Specs em DEV: `docs/specs-aplicadas/`. Pendências/cutover: `docs/specs-a-aplicar/`. Antes de feature/cutover/homolog, ler o canônico do domínio (fases, entitlements, estoque, BI, MIGRACAO).
+

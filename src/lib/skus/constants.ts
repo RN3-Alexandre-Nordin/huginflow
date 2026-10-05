@@ -11,10 +11,16 @@ export const SKU_NATUREZAS = [
   { value: 'servico', label: 'Serviço' },
 ] as const
 
+/** Sugestões comuns — a UI permite digitar qualquer código novo (ex.: FARDO, FD, SC). */
 export const SKU_UNIDADES = [
   'UN',
   'PC',
   'CX',
+  'FARDO',
+  'FD',
+  'PCT',
+  'SC',
+  'BDJ',
   'KG',
   'G',
   'L',
@@ -33,7 +39,7 @@ export const SKU_FORM_SECTIONS = [
   { id: 'identidade', label: 'Identidade', hint: 'Código, tipo e descrição' },
   { id: 'unidades', label: 'Unidades', hint: 'UM venda, compra e estoque' },
   { id: 'comercial', label: 'Comercial', hint: 'Preços e moeda' },
-  { id: 'estoque', label: 'Estoque', hint: 'Reposição, mínimos e fornecedor' },
+  { id: 'estoque', label: 'Estoque', hint: 'Reposição, lote/validade e fornecedor' },
   { id: 'fiscal', label: 'Fiscal', hint: 'Legado · PIS/COFINS · Reforma' },
 ] as const
 
@@ -47,6 +53,7 @@ export type SkuRecord = {
   descricao?: string | null
   tipo?: SkuTipo | null
   natureza?: string | null
+  familia_id?: string | null
   codigo_barras?: string | null
   unidade_venda?: string | null
   unidade_compra?: string | null
@@ -55,6 +62,9 @@ export type SkuRecord = {
   preco_custo?: number | string | null
   moeda?: string | null
   controla_estoque?: boolean | null
+  controla_lote?: boolean | null
+  controla_serie?: boolean | null
+  exige_validade?: boolean | null
   ponto_reposicao?: number | string | null
   estoque_minimo?: number | string | null
   estoque_maximo?: number | string | null
@@ -131,15 +141,24 @@ export function skuPayloadFromForm(formData: FormData) {
     descricao: str(formData, 'descricao'),
     tipo,
     natureza: str(formData, 'natureza'),
+    familia_id: str(formData, 'familia_id'),
     codigo_barras: str(formData, 'codigo_barras'),
-    unidade_venda: (str(formData, 'unidade_venda') || 'UN').toUpperCase(),
-    unidade_compra: (str(formData, 'unidade_compra') || 'UN').toUpperCase(),
-    unidade_estoque: (str(formData, 'unidade_estoque') || 'UN').toUpperCase(),
+    unidade_venda: normalizeUnidadeCodigo(str(formData, 'unidade_venda')) || 'UN',
+    unidade_compra: normalizeUnidadeCodigo(str(formData, 'unidade_compra')) || 'UN',
+    unidade_estoque: normalizeUnidadeCodigo(str(formData, 'unidade_estoque')) || 'UN',
     preco_venda: num(formData, 'preco_venda'),
     preco_custo: num(formData, 'preco_custo'),
     moeda: str(formData, 'moeda') || 'BRL',
     controla_estoque:
       formData.get('controla_estoque') === 'on' || formData.get('controla_estoque') === 'true',
+    controla_lote:
+      formData.get('controla_lote') === 'on' || formData.get('controla_lote') === 'true',
+    controla_serie:
+      formData.get('controla_serie') === 'on' || formData.get('controla_serie') === 'true',
+    exige_validade:
+      formData.get('controla_lote') === 'on' || formData.get('controla_lote') === 'true'
+        ? formData.get('exige_validade') === 'on' || formData.get('exige_validade') === 'true'
+        : false,
     ponto_reposicao: num(formData, 'ponto_reposicao'),
     estoque_minimo: num(formData, 'estoque_minimo'),
     estoque_maximo: num(formData, 'estoque_maximo'),
@@ -182,9 +201,65 @@ export function skuPayloadFromForm(formData: FormData) {
   }
 }
 
+/** Normaliza código de UM: maiúsculas, sem espaços, máx. 12 chars. */
+export function normalizeUnidadeCodigo(raw: string | null | undefined): string {
+  return (raw || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '')
+    .slice(0, 12)
+}
+
+/** UMs já usadas em SKUs da empresa — sugestões internas, sem tabela de cadastro. */
+export function collectUnidadesFromSkus(
+  rows: Array<{
+    unidade_venda?: string | null
+    unidade_compra?: string | null
+    unidade_estoque?: string | null
+  }>,
+): string[] {
+  const set = new Set<string>()
+  for (const row of rows) {
+    for (const raw of [row.unidade_venda, row.unidade_compra, row.unidade_estoque]) {
+      const u = normalizeUnidadeCodigo(raw)
+      if (u) set.add(u)
+    }
+  }
+  return Array.from(set).sort()
+}
+
+/** UMs já usadas em conversões — complementa o catálogo interno de sugestões. */
+export function collectUnidadesFromConversoes(
+  rows: Array<{
+    unidade_origem?: string | null
+    unidade_destino?: string | null
+  }>,
+): string[] {
+  const set = new Set<string>()
+  for (const row of rows) {
+    for (const raw of [row.unidade_origem, row.unidade_destino]) {
+      const u = normalizeUnidadeCodigo(raw)
+      if (u) set.add(u)
+    }
+  }
+  return Array.from(set).sort()
+}
+
+/** Junta listas de UMs conhecidas (SKU + conversões + extras). */
+export function mergeKnownUnidades(...lists: Array<string[] | undefined>): string[] {
+  const set = new Set<string>()
+  for (const list of lists) {
+    for (const raw of list || []) {
+      const u = normalizeUnidadeCodigo(raw)
+      if (u) set.add(u)
+    }
+  }
+  return Array.from(set).sort()
+}
+
 export function conversaoPayloadFromForm(formData: FormData) {
-  const origem = (str(formData, 'unidade_origem') || '').toUpperCase()
-  const destino = (str(formData, 'unidade_destino') || '').toUpperCase()
+  const origem = normalizeUnidadeCodigo(str(formData, 'unidade_origem'))
+  const destino = normalizeUnidadeCodigo(str(formData, 'unidade_destino'))
   const fator = num(formData, 'fator_conversao')
   const skuRaw = str(formData, 'sku_id')
   return {

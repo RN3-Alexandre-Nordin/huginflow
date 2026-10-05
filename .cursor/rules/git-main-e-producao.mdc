@@ -1,0 +1,40 @@
+---
+description: develop vs main — commits só em develop; NUNCA tocar em main sem ordem explícita
+alwaysApply: true
+---
+
+# Git: `develop` ≠ `main` (LEI ABSOLUTA — 2026-09-11)
+
+## Separação obrigatória
+
+| Branch | Papel | Agente pode? |
+|--------|--------|----------------|
+| **`develop`** | Trabalho diário, features, versionamento (`v0.x.y`) | **Sim** — commit aqui (e feature branches) |
+| **`main`** | Produção · push dispara **deploy VPS** (`deploy-prod`) | **NUNCA** checkout/commit/push/merge **sem frase explícita** do responsável |
+
+## Fluxo padrão (sempre)
+
+1. Trabalhar em **`develop`** (ou `feature/*` a partir de `develop`).
+2. **Commit** em `develop` / feature + bump SemVer quando fizer sentido (`package.json` + tag `vX.Y.Z` **na develop**, não na main).
+3. **Push** de `develop` / feature **só com OK explícito** (“pode dar push na develop”).
+4. **`main`:** só o responsável autoriza (“pode mergear/pushar em main” / “pode publicar produção”). Agente **não** completa sozinho até `main`.
+
+## Proibido
+
+- Commit ou push em **`main`** (mesmo se o usuário disser “salva no GitHub” / “versiona” / “faz rollback” genérico — **confirmar** se é `main` ou `develop`).
+- Assumir que salvar trabalho = atualizar `main`.
+- Fazer `git checkout main` + reset/revert/commit para “organizar” o dia — isso **apaga o working tree de develop** e parece “voltar DEV”.
+- Após qualquer operação em `main` (só se autorizado): **voltar imediatamente** para `develop` e confirmar `git branch` / `git status`.
+
+## Versionamento
+
+- Tags SemVer (`v0.1.0`, `v0.2.0`, …) marcam releases de **código**; criar/atualizar tag no commit de **`develop`** (ou release branch), **nunca** como desculpa para push em `main`.
+- `vMAJOR.MINOR.PATCH` — MINOR = feature; PATCH = fix/docs.
+
+## Produção (banco)
+
+- SQL / migration / MCP Supabase **prod**: gate separado — só com pedido explícito.
+
+## Em dúvida
+
+**PARAR.** Perguntar: *“Isso é na develop ou na main (produção)?”*

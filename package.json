@@ -1,6 +1,6 @@
 {
   "name": "huginflow",
-  "version": "0.2.0",
+  "version": "0.7.0",
   "private": true,
   "scripts": {
     "dev": "next dev --webpack",
@@ -28,6 +28,10 @@
     "test:agent:scripts:phase3": "node scripts/agent/phase3-scripts.mjs",
     "test:agent:scripts:phase4": "node scripts/agent/phase4-scripts.mjs",
     "test:agent:scripts:phase5": "node scripts/agent/phase5-scripts.mjs",
+    "test:agent:scripts:cadastros": "node scripts/agent/phase-cadastros-scripts.mjs",
+    "test:agent:scripts:phase6": "node scripts/agent/phase6-scripts.mjs",
+    "test:agent:scripts:compras": "node scripts/agent/compras-scripts.mjs",
+    "test:unit:estoque": "node --test src/lib/estoque/cardex-filters.test.mjs src/lib/estoque/alocar-lotes-fefo.test.mjs src/lib/estoque/parser-nfe-xml.test.mjs",
     "test:agent:prod-smoke": "node scripts/agent/run-agent-prod-smoke.mjs"
   },
   "dependencies": {
@@ -39,6 +43,7 @@
     "@tanstack/react-query": "^5.96.2",
     "date-fns": "^4.1.0",
     "dotenv": "^17.4.1",
+    "fast-xml-parser": "^5.11.1",
     "html2pdf.js": "^0.14.0",
     "jose": "^6.2.12",
     "lucide-react": "^1.7.0",
@@ -46,7 +51,9 @@
     "openai": "^6.45.0",
     "pdf-parse": "^1.1.1",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "tesseract.js": "^7.0.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",

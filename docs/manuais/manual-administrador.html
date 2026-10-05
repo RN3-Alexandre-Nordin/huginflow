@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Hugin Flow — Manual do Administrador</title>
+  <style>
+    :root {
+      --bg: #0f1419; --surface: #1a2332; --surface2: #243044; --text: #e7ecf3;
+      --muted: #9aa8bc; --accent: #2baadf; --green: #3dd68c; --orange: #f97316;
+      --warn: #ffb020; --border: #2d3a4f; --code-bg: #121820; --step: #80b828;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; color-scheme: dark; }
+    body { margin: 0; font-family: "Segoe UI", system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; font-size: 15px; }
+    .layout { display: grid; grid-template-columns: 280px 1fr; min-height: 100vh; }
+    @media (max-width: 960px) { .layout { grid-template-columns: 1fr; } .toc { position: static; height: auto; } }
+    .toc { position: sticky; top: 0; height: 100vh; overflow-y: auto; background: var(--surface); border-right: 1px solid var(--border); padding: 1.25rem 1rem 2rem; scrollbar-width: thin; }
+    .toc-logo { font-size: 1.05rem; font-weight: 800; margin-bottom: 0.2rem; }
+    .toc-sub { font-size: 0.72rem; color: var(--muted); margin-bottom: 1rem; line-height: 1.4; }
+    .toc nav a { display: block; padding: 0.38rem 0.6rem; font-size: 0.8rem; color: var(--muted); text-decoration: none; border-radius: 6px; border-left: 2px solid transparent; margin-bottom: 0.1rem; }
+    .toc nav a:hover { color: var(--text); background: rgba(255,255,255,0.04); }
+    .toc .section-label { font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 0.85rem 0 0.35rem 0.6rem; }
+    .content { padding: 2rem 2rem 5rem; max-width: 920px; }
+    header.doc-header { border-bottom: 1px solid var(--border); padding-bottom: 1.5rem; margin-bottom: 2rem; }
+    h1 { font-size: 1.85rem; margin: 0 0 0.5rem; font-weight: 900; letter-spacing: -0.02em; }
+    .subtitle { color: var(--muted); margin: 0; font-size: 1rem; max-width: 44rem; }
+    .meta { margin-top: 1rem; font-size: 0.85rem; color: var(--muted); }
+    h2 { font-size: 1.28rem; margin: 2.75rem 0 0.85rem; padding-bottom: 0.35rem; border-bottom: 2px solid var(--accent); color: var(--accent); scroll-margin-top: 1rem; }
+    h3 { font-size: 1.02rem; margin: 1.6rem 0 0.65rem; color: var(--text); }
+    p { margin: 0.45rem 0 0.9rem; }
+    a { color: var(--accent); }
+    ul, ol { margin: 0.45rem 0 0.9rem; padding-left: 1.35rem; }
+    li { margin: 0.3rem 0; }
+    code { font-family: Consolas, monospace; font-size: 0.86em; background: var(--code-bg); padding: 0.1em 0.35em; border-radius: 4px; color: var(--accent); }
+    .alert { border-radius: 8px; padding: 0.85rem 1rem; margin: 1rem 0; border-left: 4px solid var(--warn); background: rgba(255,176,32,0.08); font-size: 0.9rem; }
+    .alert.info { border-left-color: var(--accent); background: rgba(43,170,223,0.08); }
+    .alert.ok { border-left-color: var(--green); background: rgba(61,214,140,0.08); }
+    .alert.danger { border-left-color: #ef4444; background: rgba(239,68,68,0.08); }
+    .badge { display: inline-block; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; padding: 0.18rem 0.5rem; border-radius: 4px; margin-right: 0.35rem; }
+    .badge-op { background: rgba(43,170,223,0.15); color: var(--accent); }
+    .badge-admin { background: rgba(249,115,22,0.15); color: var(--orange); }
+    .badge-sa { background: rgba(147,51,234,0.15); color: #a78bfa; }
+    .procedure { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.2rem 1.4rem; margin: 1.1rem 0; }
+    .procedure-title { font-weight: 700; font-size: 0.94rem; margin: 0 0 0.85rem; display: flex; align-items: center; gap: 0.5rem; }
+    .procedure-title span { background: var(--step); color: #0a0a0a; width: 1.45rem; height: 1.45rem; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 0.72rem; font-weight: 800; flex-shrink: 0; }
+    .steps { list-style: none; padding: 0; margin: 0; counter-reset: step; }
+    .steps li { counter-increment: step; padding: 0.6rem 0 0.6rem 2.45rem; position: relative; border-bottom: 1px solid var(--border); font-size: 0.94rem; }
+    .steps li:last-child { border-bottom: none; }
+    .steps li::before { content: counter(step); position: absolute; left: 0; top: 0.6rem; width: 1.55rem; height: 1.55rem; background: var(--surface2); border: 1px solid var(--border); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.72rem; font-weight: 700; color: var(--accent); }
+    .steps li .hint { display: block; margin-top: 0.35rem; font-size: 0.84rem; color: var(--muted); }
+    table { width: 100%; border-collapse: collapse; margin: 0.85rem 0 1.1rem; font-size: 0.88rem; }
+    th, td { border: 1px solid var(--border); padding: 0.55rem 0.7rem; text-align: left; vertical-align: top; }
+    th { background: var(--surface2); font-weight: 600; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+    tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+    .card-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin: 1rem 0; }
+    @media (max-width: 640px) { .card-grid { grid-template-columns: 1fr; } }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 0.9rem 1rem; font-size: 0.88rem; }
+    .card strong { display: block; margin-bottom: 0.25rem; color: var(--text); }
+    .flow-box { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1rem 1.25rem; margin: 1rem 0; font-size: 0.88rem; line-height: 1.75; font-family: Consolas, monospace; color: var(--muted); white-space: pre-wrap; }
+    .checklist { list-style: none; padding: 0; margin: 0.75rem 0; }
+    .checklist li { padding: 0.35rem 0 0.35rem 1.65rem; position: relative; font-size: 0.9rem; }
+    .checklist li::before { content: "☐"; position: absolute; left: 0; color: var(--accent); }
+    figure.screenshot { margin: 1.1rem 0 1.4rem; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: #0a0a0a; max-width: 640px; }
+    figure.screenshot img { display: block; width: 100%; height: auto; }
+    figure.screenshot figcaption { padding: 0.55rem 0.9rem; font-size: 0.8rem; color: var(--muted); background: var(--surface); border-top: 1px solid var(--border); }
+    footer { margin-top: 3rem; padding-top: 1.25rem; border-top: 1px solid var(--border); font-size: 0.82rem; color: var(--muted); }
+    @media print { .toc { display: none; } .layout { display: block; } }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <aside class="toc">
+      <div class="toc-logo">Hugin Flow</div>
+      <div class="toc-sub">Manual do Administrador<br />Governança do tenant</div>
+      <nav>
+        <div class="section-label">Comece aqui</div>
+        <a href="#sobre">Sobre este manual</a>
+        <a href="#papeis">Papéis e responsabilidades</a>
+        <a href="#acesso">Login e hub Administração</a>
+        <div class="section-label">Governança</div>
+        <a href="#empresas">Cadastro da empresa</a>
+        <a href="#departamentos">Departamentos</a>
+        <a href="#grupos">Grupos e permissões</a>
+        <a href="#usuarios">Usuários</a>
+        <div class="section-label">Canais e módulos</div>
+        <a href="#canais">Canais (WhatsApp)</a>
+        <a href="#addons">Addons e módulos</a>
+        <a href="#outros-manuais">Outros manuais</a>
+        <div class="section-label">Apoio</div>
+        <a href="#onboarding">Checklist de onboarding</a>
+        <a href="#problemas">Problemas comuns</a>
+        <a href="#links">Links úteis</a>
+      </nav>
+    </aside>
+
+    <main class="content">
+      <header class="doc-header">
+        <h1>Manual do Administrador</h1>
+        <p class="subtitle">
+          Operações de governança do tenant: empresa, departamentos, grupos de acesso,
+          usuários, canais e o que o admin configura para a equipe operar.
+        </p>
+        <p class="meta">
+          Público: <span class="badge badge-admin">Admin</span> da empresa ·
+          Notas <span class="badge badge-sa">Superadmin</span> RN3 ·
+          Menu <strong>?</strong> → Manuais → Manual do administrador · Rev. set/2026
+        </p>
+      </header>
+
+      <div class="alert info">
+        Este manual <strong>não</strong> cobre atendimento do dia a dia (WhatsApp com cliente,
+        cards, chat interno). Para isso use o <strong>Treinamento do operador</strong>.
+        Operações de estoque estão no <strong>Manual de Estoque</strong>.
+      </div>
+
+      <h2 id="sobre">1. Sobre este manual</h2>
+      <p>
+        O administrador da empresa é responsável por liberar o Cockpit corretamente:
+        quem entra, o que cada grupo pode fazer e a estrutura (empresa / departamentos).
+        Sem essa base, operadores ficam sem menu, com “Acesso Interditado” ou sem canal.
+      </p>
+      <div class="flow-box">Ordem sugerida:
+1. Conferir / editar cadastro da Empresa
+2. Criar Departamentos (se usar organograma / omni por depto)
+3. Criar Grupos de Acesso + matriz de permissões
+4. Criar Usuários e vincular ao grupo
+5. Conectar Canais (WhatsApp) e validar addons com a RN3</div>
+
+      <h2 id="papeis">2. Papéis e responsabilidades</h2>
+      <table>
+        <thead>
+          <tr><th>Papel</th><th>Escopo</th><th>Neste manual</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="badge badge-admin">Admin</span></td>
+            <td>Gestor da <strong>própria empresa</strong></td>
+            <td>Empresas (editar), departamentos, grupos, usuários, canais</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-sa">Superadmin</span></td>
+            <td>Plataforma RN3 (todas as empresas)</td>
+            <td>Criar tenants, addons, financeiro — indicado onde couber</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-op">Operador</span></td>
+            <td>Atendimento / operação no dia a dia</td>
+            <td>Fora deste manual → Treinamento do operador</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        Além do <em>papel global</em>, o que o usuário vê é definido pelo
+        <strong>grupo de acesso</strong> (matriz Ver / Criar / Editar / Excluir por módulo).
+        Um admin típico usa um grupo administrador ou permissões amplas nos módulos de Administração.
+      </p>
+
+      <h2 id="acesso">3. Login e hub Administração</h2>
+      <div class="procedure">
+        <p class="procedure-title"><span>1</span> Entrar e abrir Administração</p>
+        <ol class="steps">
+          <li>Acesse <code>https://app.huginflow.com/login</code> (ou o ambiente DEV) com o e-mail de admin.</li>
+          <li>No menu lateral, abra <strong>Administração</strong> (<code>/cockpit/administracao</code>).
+            <span class="hint">Cards: Empresas, Usuários, Grupos de Acesso, Departamentos.</span>
+          </li>
+          <li>Se o item não aparecer, seu grupo não tem permissão em <code>empresas</code>,
+            <code>usuarios</code>, <code>grupos</code> ou <code>departamentos</code> — peça a outro admin ou à RN3.</li>
+        </ol>
+      </div>
+      <figure class="screenshot">
+        <img src="manual/img/01-login.png" alt="Tela de login"
+             onerror="this.closest('figure').remove()" />
+        <figcaption>Login do Cockpit — use a conta de administrador da empresa.</figcaption>
+      </figure>
+
+      <h2 id="empresas">4. Cadastro da empresa</h2>
+      <p>
+        Rota: <code>/cockpit/empresas</code>.
+        <span class="badge badge-admin">Admin</span> edita os dados da própria empresa.
+        <span class="badge badge-sa">Superadmin</span> lista, cria e gerencia todos os tenants.
+      </p>
+      <div class="procedure">
+        <p class="procedure-title"><span>2</span> Conferir / editar a empresa</p>
+        <ol class="steps">
+          <li>Em <strong>Administração → Empresas</strong>, abra o cadastro da sua conta.</li>
+          <li>Atualize razão social / nome fantasia, documento, status (ativo) e demais dados cadastrais.</li>
+          <li>Salve. Dados incorretos afetam contratos, NFe e identificação nos manuais de operação.</li>
+        </ol>
+      </div>
+      <div class="alert">
+        <strong>Criar nova empresa</strong> (tenant) é operação de plataforma —
+        <span class="badge badge-sa">Superadmin</span> em <strong>Empresas → Nova</strong>.
+        Admin de tenant não cria outra empresa.
+      </div>
+
+      <h2 id="departamentos">5. Departamentos</h2>
+      <p>
+        Rota: <code>/cockpit/departamentos</code>.
+        Organograma interno (ex.: Comercial, Suprimentos). No Omnichannel, o isolamento por
+        departamento depende dessa estrutura.
+      </p>
+      <div class="procedure">
+        <p class="procedure-title"><span>3</span> Criar departamento</p>
+        <ol class="steps">
+          <li>Abra <strong>Administração → Departamentos → Novo</strong>.</li>
+          <li>Informe nome e descrição.</li>
+          <li>Salve. Associe usuários e funis/canais conforme a política da empresa.</li>
+        </ol>
+      </div>
+
+      <h2 id="grupos">6. Grupos de acesso e permissões</h2>
+      <p>
+        Rota: <code>/cockpit/grupos</code>.
+        A matriz é a <strong>fonte de verdade</strong> do que cada equipe vê e faz.
+        Esconder botão na tela não basta — o backend usa a mesma matriz.
+      </p>
+      <div class="procedure">
+        <p class="procedure-title"><span>4</span> Criar ou editar um grupo</p>
+        <ol class="steps">
+          <li>Abra <strong>Grupos de Acesso → Novo</strong> (ou edite um existente).</li>
+          <li>Defina o nome (ex.: “Operadores Comercial”, “Almoxarifado”, “Administradores”).</li>
+          <li>Na matriz, marque por módulo as ações necessárias:
+            <strong>Ver / Criar / Editar / Excluir</strong> (e ações específicas quando existirem).
+            <span class="hint">Abas típicas: Administração, CRM/Workflow, Omni, Estoque, Cadastros — conforme addons da empresa.</span>
+          </li>
+          <li>Opcional: marque o grupo como <strong>administrador</strong> se ele deve ter poderes amplos no tenant.</li>
+          <li>Salve. Em seguida associe usuários a esse grupo.</li>
+        </ol>
+      </div>
+      <div class="card-grid">
+        <div class="card">
+          <strong>Administração</strong>
+          Empresas, Departamentos, Usuários, Grupos — liberar só para quem governa o tenant.
+        </div>
+        <div class="card">
+          <strong>Operação</strong>
+          Funis, Pessoas, Canais, Omni Chat, Estoque, Cadastros — conforme o papel de cada equipe.
+        </div>
+      </div>
+      <div class="alert danger">
+        Não dê <code>edit</code>/<code>delete</code> de Grupos e Usuários a operadores comuns.
+        Um erro na matriz pode abrir ou fechar módulos inteiros para a empresa.
+      </div>
+      <h3>Boas práticas de matriz</h3>
+      <ul>
+        <li>Comece pelo mínimo (Ver) e acrescente Criar/Editar conforme o processo.</li>
+        <li>Separe grupos por função (atendimento × estoque × gestão), não um único grupo “todos”.</li>
+        <li>Depois de mudar permissões, peça ao usuário para <strong>sair e entrar de novo</strong> se o menu parecer desatualizado.</li>
+        <li>Módulos de addons desligados não aparecem (ou não devem ser liberados) — combine com a RN3.</li>
+      </ul>
+
+      <h2 id="usuarios">7. Usuários</h2>
+      <p>
+        Rota: <code>/cockpit/usuarios</code>.
+        Contas que acessam o Cockpit. Todo usuário deve ter <strong>empresa</strong>,
+        <strong>grupo de acesso</strong> e status ativo.
+      </p>
+      <div class="procedure">
+        <p class="procedure-title"><span>5</span> Criar usuário</p>
+        <ol class="steps">
+          <li>Abra <strong>Usuários → Novo Usuário</strong>.</li>
+          <li>Preencha nome completo, e-mail e senha inicial (peça troca no primeiro acesso se a política exigir).</li>
+          <li>Selecione o <strong>grupo de acesso</strong> já criado.
+            <span class="hint">Admin de tenant fica na própria empresa. Superadmin pode escolher a empresa destino.</span>
+          </li>
+          <li>Opcional: telefone, endereço e demais dados cadastrais.</li>
+          <li>Salve e envie as credenciais pelo canal seguro da empresa.</li>
+        </ol>
+      </div>
+      <div class="procedure">
+        <p class="procedure-title"><span>6</span> Editar, desativar ou trocar grupo</p>
+        <ol class="steps">
+          <li>Na lista, abra o usuário.</li>
+          <li>Altere grupo, dados ou marque como inativo (remove o acesso sem apagar histórico).</li>
+          <li>Salve. Confirme com o usuário se o menu esperado apareceu.</li>
+        </ol>
+      </div>
+      <div class="alert">
+        E-mail é a chave de login. Evite reutilizar e-mails entre empresas. Em caso de bloqueio
+        de autenticação, use redefinição de senha / suporte RN3.
+      </div>
+
+      <h2 id="canais">8. Canais (WhatsApp) — configuração admin</h2>
+      <p>
+        Conectar o número oficial é tipicamente tarefa de admin (módulo <strong>Canais</strong> / Omni).
+        Operadores usam o chat depois que o canal está <strong>Ativo</strong>.
+      </p>
+      <div class="procedure">
+        <p class="procedure-title"><span>7</span> Nova conexão WhatsApp</p>
+        <ol class="steps">
+          <li>Menu <strong>Omni → Canais</strong> (ou Canais Inbound).</li>
+          <li><strong>+ Nova Conexão</strong> → categoria WhatsApp → provedor Evolution API.</li>
+          <li>Nomeie o canal (ex.: “WhatsApp Comercial”) e inicie a conexão.</li>
+          <li>Escaneie o QR no celular: WhatsApp → Aparelhos conectados → Conectar aparelho.</li>
+          <li>Confirme status <strong>Ativo</strong>. Ative o Agente HuginFlow no card se a empresa usar IA.</li>
+        </ol>
+      </div>
+      <figure class="screenshot">
+        <img src="manual/img/03-wizard-whatsapp.png" alt="Assistente WhatsApp"
+             onerror="this.closest('figure').remove()" />
+        <figcaption>Assistente de nova conexão WhatsApp (QR Code).</figcaption>
+      </figure>
+      <div class="alert ok">
+        Reconexão: no card desconectado use <strong>Estabelecer conexão</strong> e escaneie um novo QR.
+        Evite o mesmo número em outro aparelho ao mesmo tempo.
+      </div>
+
+      <h2 id="addons">9. Addons e módulos</h2>
+      <p>
+        Módulos comerciais (Workflow, Omni, Estoque, Cadastros…) são ligados por
+        <strong>addon</strong> na empresa. Sem addon, o menu some mesmo com permissão na matriz.
+      </p>
+      <ul>
+        <li><span class="badge badge-admin">Admin</span> — confere com a RN3 quais addons estão contratados; ajusta grupos para os módulos liberados.</li>
+        <li><span class="badge badge-sa">Superadmin</span> — tela <strong>Addons</strong> (<code>/cockpit/addons</code>) para entitlements por empresa. Financeiro/Contratos são exclusivos RN3.</li>
+      </ul>
+      <div class="alert info">
+        Se a equipe “não vê Estoque / Funis / Chat”, verifique nesta ordem:
+        (1) addon ligado · (2) permissão Ver no grupo · (3) usuário ativo no grupo certo.
+      </div>
+
+      <h2 id="outros-manuais">10. Onde está o restante da documentação</h2>
+      <table>
+        <thead>
+          <tr><th>Manual</th><th>Para quem</th><th>Conteúdo</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Treinamento do operador</strong></td>
+            <td>Atendimento</td>
+            <td>WhatsApp, cards, chat interno, menções</td>
+          </tr>
+          <tr>
+            <td><strong>Manual de Estoque</strong></td>
+            <td>Operadores / gestores de materiais</td>
+            <td>Entradas, requisições, remessas, saldos</td>
+          </tr>
+          <tr>
+            <td><strong>Este manual</strong></td>
+            <td>Admin do tenant</td>
+            <td>Empresa, usuários, permissões, canais</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2 id="onboarding">11. Checklist de onboarding (admin)</h2>
+      <ul class="checklist">
+        <li>Cadastro da empresa revisado e ativo</li>
+        <li>Departamentos criados (se a operação usar)</li>
+        <li>Grupos definidos (admin + operadores por função)</li>
+        <li>Matriz de permissões conferida (sem excesso)</li>
+        <li>Usuários criados, ativos e no grupo certo</li>
+        <li>Canal WhatsApp conectado (status Ativo)</li>
+        <li>Addons contratados alinhados com a RN3</li>
+        <li>Operadores treinados com o guia do operador / estoque</li>
+      </ul>
+
+      <h2 id="problemas">12. Problemas comuns (visão admin)</h2>
+      <table>
+        <thead>
+          <tr><th>Sintoma</th><th>O que verificar</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Usuário com “Acesso Interditado”</td>
+            <td>Grupo → matriz do módulo · addon da empresa · usuário ativo</td>
+          </tr>
+          <tr>
+            <td>Menu Administração não aparece</td>
+            <td>Permissões <code>empresas</code> / <code>usuarios</code> / <code>grupos</code> / <code>departamentos</code></td>
+          </tr>
+          <tr>
+            <td>Não consigo criar usuário</td>
+            <td>Permissão Convidar/Criar em Usuários · e-mail único · senha válida</td>
+          </tr>
+          <tr>
+            <td>Grupo sem módulos de Estoque na matriz</td>
+            <td>Addon <code>estoque</code> desligado — tratar com a RN3</td>
+          </tr>
+          <tr>
+            <td>QR / canal não conecta</td>
+            <td>Atualizar QR · Evolution online · suporte RN3 se persistir</td>
+          </tr>
+          <tr>
+            <td>Financeiro / Contratos / Addons</td>
+            <td>Telas RN3 (<span class="badge badge-sa">Superadmin</span>) — esperado que admin de tenant não veja</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2 id="links">13. Links úteis</h2>
+      <ul>
+        <li>Produção: <a href="https://app.huginflow.com/login" target="_blank" rel="noopener">app.huginflow.com/login</a></li>
+        <li>Hub Administração: <code>/cockpit/administracao</code></li>
+        <li>Central de ajuda no app: ícone <strong>?</strong> → Chamados / Manuais</li>
+      </ul>
+
+      <footer>
+        Hugin Flow · Manual do Administrador · set/2026 ·
+        Operação diária: Treinamento do operador · Materiais: Manual de Estoque ·
+        Suporte: Central de ajuda → Chamados
+      </footer>
+    </main>
+  </div>
+</body>
+</html>

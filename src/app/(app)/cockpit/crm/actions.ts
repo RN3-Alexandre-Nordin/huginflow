@@ -22,6 +22,7 @@ import { generateCardHandoverSummary, type HandoverUrgencia } from '@/lib/crm/ca
 import { SessionPersistenceService } from '@/lib/omnichannel/SessionPersistenceService'
 import { ChatThreadService } from '@/lib/omnichannel/ChatThreadService'
 import { isDeptSessionsEnabled } from '@/lib/omnichannel/dept-sessions-constants'
+import type { DeletePipelineResult } from '@/lib/crm/pipeline-actions-types'
 
 export async function createPipeline(formData: FormData) {
   try {
@@ -753,22 +754,162 @@ export async function updatePipeline(formData: FormData) {
   redirect('/cockpit/crm/funis')
 }
 
-export async function deletePipeline(formData: FormData) {
+export async function deletePipelineAction(pipelineId: string): Promise<DeletePipelineResult> {
   const me = await getMyProfile()
   if (!hasPermission(me, 'funis', 'delete')) {
     return { error: 'Sem permissão para excluir funis.' }
   }
 
-  const id = formData.get('id') as string
+  if (!pipelineId) {
+    return { error: 'ID do funil não informado.' }
+  }
+
   const supabase = await createClient()
 
-  const { error } = await supabase.from('pipelines').delete().eq('id', id)
+  // 1. Busca o pipeline e valida tenant
+  let pipeQuery = supabase
+    .from('pipelines')
+    .select('id, nome, empresa_id, ativo')
+    .eq('id', pipelineId)
+
+  if (me?.role_global !== 'superadmin') {
+    pipeQuery = pipeQuery.eq('empresa_id', me?.empresa_id ?? '')
+  }
+
+  const { data: pipeline, error: pipeErr } = await pipeQuery.maybeSingle()
+  if (pipeErr || !pipeline) {
+    return { error: 'Funil não encontrado ou sem permissão de acesso.' }
+  }
+
+  // 2. Verifica se o funil possui cards (qualquer card, aberto ou finalizado)
+  const { count: cardsCount, error: countErr } = await supabase
+    .from('crm_cards')
+    .select('id', { count: 'exact', head: true })
+    .eq('pipeline_id', pipelineId)
+
+  if (countErr) {
+    return { error: `Erro ao verificar cards do funil: ${countErr.message}` }
+  }
+
+  const hasCards = (cardsCount ?? 0) > 0
+
+  // 3. Caso possua cards: a exclusão vira inativação (soft delete)
+  if (hasCards) {
+    const { error: inactErr } = await supabase
+      .from('pipelines')
+      .update({ ativo: false })
+      .eq('id', pipelineId)
+
+    if (inactErr) {
+      return { error: `Erro ao inativar funil: ${inactErr.message}` }
+    }
+
+    revalidatePath('/cockpit/crm/funis')
+    revalidatePath(`/cockpit/crm/funis/${pipelineId}`)
+    return {
+      success: true,
+      action: 'inactivated',
+      cardsCount: cardsCount ?? 0,
+      message: `O funil "${pipeline.nome}" possui ${cardsCount} card(s) e foi inativado para preservar o histórico.`,
+    }
+  }
+
+  // 4. Caso NÃO possua cards: exclusão física completa (funil + estágios + regras de acesso)
+  // Limpa vínculos em est_config se houver
+  await supabase
+    .from('est_config')
+    .update({ aprovacao_funil_id: null, aprovacao_estagio_id: null })
+    .eq('aprovacao_funil_id', pipelineId)
+
+  // Remove permissões de grupos no funil
+  await supabase
+    .from('pipeline_grupo_acesso')
+    .delete()
+    .eq('pipeline_id', pipelineId)
+
+  // Remove estágios e suas permissões
+  const { data: stages } = await supabase
+    .from('pipeline_stages')
+    .select('id')
+    .eq('pipeline_id', pipelineId)
+
+  if (stages && stages.length > 0) {
+    const stageIds = stages.map((s) => s.id)
+    await supabase
+      .from('pipeline_stage_grupo_acesso')
+      .delete()
+      .in('stage_id', stageIds)
+
+    await supabase
+      .from('pipeline_stages')
+      .delete()
+      .eq('pipeline_id', pipelineId)
+  }
+
+  // Remove o próprio pipeline
+  const { error: delErr } = await supabase
+    .from('pipelines')
+    .delete()
+    .eq('id', pipelineId)
+
+  if (delErr) {
+    console.error('Erro ao excluir pipeline fisicamente:', delErr)
+    return { error: delErr.message }
+  }
+
+  revalidatePath('/cockpit/crm/funis')
+  return {
+    success: true,
+    action: 'deleted',
+    cardsCount: 0,
+    message: `O funil "${pipeline.nome}" e todas as suas etapas foram excluídos definitivamente.`,
+  }
+}
+
+export async function togglePipelineStatusAction(
+  pipelineId: string,
+  novoAtivo: boolean
+): Promise<{ success?: boolean; error?: string; message?: string }> {
+  const me = await getMyProfile()
+  if (!hasPermission(me, 'funis', 'edit') && !hasPermission(me, 'funis', 'delete')) {
+    return { error: 'Sem permissão para alterar o status do funil.' }
+  }
+
+  if (!pipelineId) {
+    return { error: 'ID do funil não informado.' }
+  }
+
+  const supabase = await createClient()
+
+  let updateQuery = supabase
+    .from('pipelines')
+    .update({ ativo: novoAtivo })
+    .eq('id', pipelineId)
+
+  if (me?.role_global !== 'superadmin') {
+    updateQuery = updateQuery.eq('empresa_id', me?.empresa_id ?? '')
+  }
+
+  const { error } = await updateQuery
 
   if (error) {
-    console.error("Erro ao excluir pipeline", error)
     return { error: error.message }
   }
 
+  revalidatePath('/cockpit/crm/funis')
+  revalidatePath(`/cockpit/crm/funis/${pipelineId}`)
+  return {
+    success: true,
+    message: novoAtivo ? 'Funil reativado com sucesso!' : 'Funil inativado com sucesso!',
+  }
+}
+
+export async function deletePipeline(formData: FormData) {
+  const id = formData.get('id') as string
+  const res = await deletePipelineAction(id)
+  if (res.error) {
+    return { error: res.error }
+  }
   revalidatePath('/cockpit/crm/funis')
   redirect('/cockpit/crm/funis')
 }
@@ -982,6 +1123,7 @@ export async function getTransferablePipelines() {
     .from('pipelines')
     .select('id, nome, pipeline_stages(id, nome, ordem)')
     .eq('empresa_id', me.empresa_id)
+    .or('ativo.is.null,ativo.eq.true')
     .order('nome')
 
   if (error) return { error: error.message }

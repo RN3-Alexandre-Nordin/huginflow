@@ -94,7 +94,7 @@ Secrets **Bifrost** (runtime no `deploy-prod` → Swarm):
 
 O workflow também fixa em prod: `BIFROST_URL` / `BIFROST_ORIGIN` = `https://bifrost.rn3.tec.br`, `BIFROST_SISTEMA_ORIGEM=hugin_flow`.
 
-Detalhes: [bifrost-embed.md](./bifrost-embed.md).
+Detalhes: [bifrost-embed.md](./specs-aplicadas/bifrost-embed.md).
 
 ### 3. VPS — authorized_keys
 

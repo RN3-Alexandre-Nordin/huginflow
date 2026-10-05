@@ -1,5 +1,3 @@
-import { Landmark } from 'lucide-react'
-import BackButton from '@/components/BackButton'
 import { createClient } from '@/utils/supabase/server'
 import { getMyProfile } from '@/app/(app)/cockpit/actions'
 import AtivoForm from '@/components/ativos/AtivoForm'
@@ -43,15 +41,11 @@ export default async function NovoAtivoPage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 pb-20">
-      <div className="flex items-center gap-4">
-        <BackButton fallbackHref="/cockpit/cadastros/ativos" />
-        <div>
-          <h2 className="flex items-center gap-3 text-2xl font-bold text-white">
-            <Landmark className="h-6 w-6 text-[#2BAADF]" />
-            Novo ativo
-          </h2>
-          <p className="mt-1 text-sm text-gray-400">Cadastro patrimonial com vínculo à fórmula de depreciação.</p>
-        </div>
+      <div>
+        <h2 className="text-2xl font-bold text-white">Novo ativo</h2>
+        <p className="mt-1 text-sm text-gray-400">
+          Cadastro patrimonial com vínculo à fórmula de depreciação.
+        </p>
       </div>
       <AtivoForm
         mode="create"

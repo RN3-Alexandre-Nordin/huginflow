@@ -1,0 +1,284 @@
+import { XMLParser } from 'fast-xml-parser'
+
+export interface NfeXmlItem {
+  linha: number
+  codigo_parceiro: string
+  descricao_parceiro: string
+  unidade_origem: string
+  quantidade_origem: number
+  valor_unitario: number
+  valor_total: number
+  ncm?: string
+  cest?: string
+  codigo_barras?: string
+  unidade_tributavel?: string
+  quantidade_tributavel?: number
+  /** Rastro (lote/validade) quando presente na NF-e */
+  numero_lote?: string | null
+  data_validade?: string | null
+  data_fabricacao?: string | null
+  cfop?: string
+  n_serie?: string
+  impostos?: Record<string, number>
+}
+
+export interface NfeXmlEmitente {
+  cnpj?: string
+  cpf?: string
+  nome?: string
+  nome_fantasia?: string
+  ie?: string
+  im?: string
+  telefone?: string
+  cep?: string
+  logradouro?: string
+  numero?: string
+  complemento?: string
+  bairro?: string
+  cidade?: string
+  uf?: string
+  pais?: string
+}
+
+export interface NfeXmlParsed {
+  sucesso: boolean
+  erro?: string
+  chaveNfe?: string
+  numeroNfe?: string
+  serie?: string
+  emissaoEm?: string
+  /** @deprecated use emitente.cnpj || emitente.cpf */
+  fornecedorCnpj?: string
+  /** @deprecated use emitente.nome */
+  fornecedorNome?: string
+  emitente?: NfeXmlEmitente
+  frete?: number
+  impostos?: Record<string, number>
+  itens: NfeXmlItem[]
+}
+
+function str(v: unknown): string {
+  if (v == null) return ''
+  return String(v).trim()
+}
+
+function digits(v: unknown): string {
+  return str(v).replace(/\D/g, '')
+}
+
+function num(v: unknown): number {
+  const n = parseFloat(str(v).replace(',', '.'))
+  return Number.isFinite(n) ? n : 0
+}
+
+/** Normaliza data NF-e (AAAA-MM-DD ou AAAAMMDD) para ISO date. */
+function nfeDate(v: unknown): string | null {
+  const raw = str(v)
+  if (!raw) return null
+  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10)
+  if (/^\d{8}$/.test(raw)) {
+    return `${raw.slice(0, 4)}-${raw.slice(4, 6)}-${raw.slice(6, 8)}`
+  }
+  const d = new Date(raw)
+  if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10)
+  return null
+}
+
+function series(v: unknown): string | undefined {
+  if (Array.isArray(v)) {
+    const joined = v.map(str).filter(Boolean).join(', ')
+    return joined || undefined
+  }
+  return str(v) || undefined
+}
+
+/** Guarda os valores de imposto que já vêm no XML. Não calcula tributo. */
+function coletarImpostos(node: unknown): Record<string, number> | undefined {
+  const out: Record<string, number> = {}
+  function walk(n: unknown) {
+    if (!n || typeof n !== 'object') return
+    if (Array.isArray(n)) {
+      n.forEach(walk)
+      return
+    }
+    for (const [key, value] of Object.entries(n as Record<string, unknown>)) {
+      if (/^v[A-Z]/.test(key) && (typeof value === 'string' || typeof value === 'number')) {
+        const amount = num(value)
+        if (amount) out[key] = (out[key] || 0) + amount
+      } else if (value && typeof value === 'object') {
+        walk(value)
+      }
+    }
+  }
+  walk(node)
+  return Object.keys(out).length ? out : undefined
+}
+
+function extractRastro(prod: Record<string, unknown>): {
+  numero_lote: string | null
+  data_validade: string | null
+  data_fabricacao: string | null
+} {
+  const raw = prod.rastro
+  if (!raw) {
+    return { numero_lote: null, data_validade: null, data_fabricacao: null }
+  }
+  const list = Array.isArray(raw) ? raw : [raw]
+  const first = (list[0] || {}) as Record<string, unknown>
+  return {
+    numero_lote: str(first.nLote) || null,
+    data_validade: nfeDate(first.dVal),
+    data_fabricacao: nfeDate(first.dFab),
+  }
+}
+
+/**
+ * Faz o parsing estrito e seguro de um XML de NF-e (SEFAZ 3.10 / 4.00)
+ */
+export function parseNfeXml(xmlString: string): NfeXmlParsed {
+  if (!xmlString || typeof xmlString !== 'string' || xmlString.trim().length === 0) {
+    return {
+      sucesso: false,
+      erro: 'Conteúdo XML vazio ou inválido.',
+      itens: [],
+    }
+  }
+
+  try {
+    const parser = new XMLParser({
+      ignoreAttributes: false,
+      attributeNamePrefix: '@_',
+      trimValues: true,
+      parseTagValue: false,
+    })
+
+    const parsedObj = parser.parse(xmlString)
+
+    const nfeProc = parsedObj.nfeProc || parsedObj['soapenv:Envelope']?.['soapenv:Body']?.nfeProc
+    const nfe = nfeProc?.NFe || parsedObj.NFe || parsedObj
+
+    const infNFe = nfe?.infNFe
+    if (!infNFe) {
+      return {
+        sucesso: false,
+        erro: 'O XML informado não possui a estrutura padrão de NF-e (nó infNFe ausente).',
+        itens: [],
+      }
+    }
+
+    let chaveNfe = ''
+    if (infNFe['@_Id']) {
+      chaveNfe = String(infNFe['@_Id']).replace(/^NFe/i, '').trim()
+    } else if (nfeProc?.protNFe?.infProt?.chNFe) {
+      chaveNfe = String(nfeProc.protNFe.infProt.chNFe).trim()
+    }
+
+    const ide = infNFe.ide || {}
+    const numeroNfe = ide.nNF ? str(ide.nNF) : undefined
+    const serie = ide.serie ? str(ide.serie) : undefined
+    const emissaoEmRaw = ide.dhEmi || ide.dEmi
+    let emissaoEm: string | undefined
+    if (emissaoEmRaw) {
+      const dataIso = new Date(String(emissaoEmRaw))
+      if (!isNaN(dataIso.getTime())) {
+        emissaoEm = dataIso.toISOString()
+      }
+    }
+
+    const emit = infNFe.emit || {}
+    const ender = emit.enderEmit || {}
+    const cnpj = digits(emit.CNPJ) || undefined
+    const cpf = digits(emit.CPF) || undefined
+    const fornecedorDocumento = cnpj || cpf
+
+    const emitente: NfeXmlEmitente = {
+      cnpj,
+      cpf,
+      nome: str(emit.xNome) || undefined,
+      nome_fantasia: str(emit.xFant) || undefined,
+      ie: str(emit.IE) || undefined,
+      im: str(emit.IM) || undefined,
+      telefone: digits(ender.fone) || undefined,
+      cep: digits(ender.CEP) || undefined,
+      logradouro: str(ender.xLgr) || undefined,
+      numero: str(ender.nro) || undefined,
+      complemento: str(ender.xCpl) || undefined,
+      bairro: str(ender.xBairro) || undefined,
+      cidade: str(ender.xMun) || undefined,
+      uf: str(ender.UF) || undefined,
+      pais: str(ender.xPais) || 'Brasil',
+    }
+
+    const rawDet = infNFe.det
+    const detList: unknown[] = Array.isArray(rawDet) ? rawDet : rawDet ? [rawDet] : []
+
+    if (detList.length === 0) {
+      return {
+        sucesso: false,
+        erro: 'A NF-e informada não possui itens de produto (<det>).',
+        itens: [],
+      }
+    }
+
+    const itens: NfeXmlItem[] = []
+
+    for (let index = 0; index < detList.length; index++) {
+      const d = detList[index] as Record<string, unknown>
+      const prod = (d.prod || {}) as Record<string, unknown>
+      const linha = d['@_nItem'] ? Number(d['@_nItem']) : index + 1
+
+      const ean = str(prod.cEAN)
+      const eanTrib = str(prod.cEANTrib)
+      const codigoBarras =
+        ean && ean !== 'SEM GTIN' ? ean : eanTrib && eanTrib !== 'SEM GTIN' ? eanTrib : undefined
+
+      const rastro = extractRastro(prod)
+
+      itens.push({
+        linha,
+        codigo_parceiro: str(prod.cProd) || `ITEM-${linha}`,
+        descricao_parceiro: str(prod.xProd),
+        unidade_origem: str(prod.uCom).toUpperCase() || 'UN',
+        quantidade_origem: num(prod.qCom),
+        valor_unitario: num(prod.vUnCom),
+        valor_total: num(prod.vProd),
+        ncm: str(prod.NCM) || undefined,
+        cest: str(prod.CEST) || undefined,
+        codigo_barras: codigoBarras,
+        unidade_tributavel: str(prod.uTrib).toUpperCase() || undefined,
+        quantidade_tributavel: prod.qTrib != null ? num(prod.qTrib) : undefined,
+        numero_lote: rastro.numero_lote,
+        data_validade: rastro.data_validade,
+        data_fabricacao: rastro.data_fabricacao,
+        cfop: str(prod.CFOP) || undefined,
+        n_serie: series(prod.nSerie),
+        impostos: coletarImpostos(d.imposto),
+      })
+    }
+
+    const totais = ((infNFe.total || {}) as Record<string, unknown>).ICMSTot as
+      | Record<string, unknown>
+      | undefined
+
+    return {
+      sucesso: true,
+      chaveNfe: chaveNfe || undefined,
+      numeroNfe,
+      serie,
+      emissaoEm,
+      fornecedorCnpj: fornecedorDocumento || undefined,
+      fornecedorNome: emitente.nome || emitente.nome_fantasia,
+      emitente,
+      frete: num(totais?.vFrete),
+      impostos: coletarImpostos(totais),
+      itens,
+    }
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Arquivo corrompido ou formato não suportado.'
+    return {
+      sucesso: false,
+      erro: `Erro ao interpretar XML da NF-e: ${message}`,
+      itens: [],
+    }
+  }
+}

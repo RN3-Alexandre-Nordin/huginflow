@@ -1,7 +1,7 @@
 import { createClient } from "@/utils/supabase/server"
 import Link from "next/link"
 import BackTextButton from '@/components/BackTextButton'
-import { ShieldCheck, Plus, Building2, Pencil, RotateCcw, Lock, ShieldAlert } from "lucide-react"
+import { ShieldCheck, Plus, Building2, Pencil, RotateCcw, Lock } from "lucide-react"
 import SearchFilters from "./SearchFilters"
 import { getMyProfile } from "@/app/(app)/cockpit/actions"
 import { hasPermission } from "@/utils/permissions"
@@ -120,57 +120,56 @@ export default async function GruposAcessoPage(props: {
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
           {groups.map((group) => (
             <div
               key={group.id}
-              className="bg-[#111111] border border-[#ffffff0a] rounded-2xl p-6 hover:border-[#2BAADF]/30 transition-all group relative overflow-hidden shadow-lg border-l-2 border-l-transparent hover:border-l-[#2BAADF]"
+              className="bg-[#111111] border border-[#ffffff0a] rounded-xl px-3.5 py-3 hover:border-[#2BAADF]/30 transition-all group relative overflow-hidden"
             >
-              <div className="absolute -top-12 -right-12 w-24 h-24 rounded-full bg-[#2BAADF]/5 blur-2xl group-hover:bg-[#2BAADF]/10 transition-all pointer-events-none" />
-              
-              <div className="flex flex-col h-full">
-                <div className="flex items-start justify-between gap-4 mb-5">
-                  <div className="w-12 h-12 rounded-xl bg-[#2BAADF]/10 border border-[#2BAADF]/20 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform shadow-inner">
-                    <ShieldCheck className="w-6 h-6 text-[#2BAADF]" />
-                  </div>
-                  {canEdit && (
-                    <Link
-                      href={`/cockpit/grupos/${group.id}/editar`}
-                      className="p-2.5 rounded-xl bg-[#ffffff03] hover:bg-[#ffffff0a] text-gray-500 hover:text-white transition-all border border-[#ffffff0a] group-hover:border-[#ffffff20]"
-                    >
-                      <Pencil className="w-4.5 h-4.5" />
-                    </Link>
-                  )}
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-lg bg-[#2BAADF]/10 border border-[#2BAADF]/20 flex items-center justify-center flex-shrink-0">
+                  <ShieldCheck className="w-4 h-4 text-[#2BAADF]" />
                 </div>
 
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-bold text-white text-lg group-hover:text-[#2BAADF] transition-colors line-clamp-1">
-                      {group.nome}
-                    </h3>
-                    {group.is_admin && (
-                      <span className="flex items-center gap-1 text-[8px] font-black uppercase tracking-widest bg-red-500/10 text-red-500 px-2 py-0.5 rounded border border-red-500/20">
-                        Admin
-                      </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <h3 className="font-semibold text-white text-sm group-hover:text-[#2BAADF] transition-colors truncate">
+                          {group.nome}
+                        </h3>
+                        {group.is_admin && (
+                          <span className="text-[8px] font-black uppercase tracking-widest bg-red-500/10 text-red-500 px-1.5 py-0.5 rounded border border-red-500/20 shrink-0">
+                            Admin
+                          </span>
+                        )}
+                      </div>
+                      {isSuperAdmin && (
+                        <p className="text-[10px] text-[#2BAADF]/90 mt-0.5 inline-flex items-center gap-1 truncate max-w-full">
+                          <Building2 className="w-3 h-3 opacity-60 shrink-0" />
+                          <span className="truncate">{group.empresas?.nome}</span>
+                        </p>
+                      )}
+                    </div>
+                    {canEdit && (
+                      <Link
+                        href={`/cockpit/grupos/${group.id}/editar`}
+                        className="p-1.5 rounded-lg text-gray-500 hover:text-white hover:bg-[#ffffff0a] transition-all shrink-0"
+                        title="Editar grupo"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </Link>
                     )}
                   </div>
-                  {isSuperAdmin && (
-                    <p className="text-[10px] text-[#2BAADF] uppercase tracking-wider font-black mt-2 inline-flex items-center gap-1.5 bg-[#2BAADF]/5 px-2 py-1 rounded-lg border border-[#2BAADF]/10">
-                      <Building2 className="w-3 h-3 opacity-50" />
-                      {group.empresas?.nome}
-                    </p>
-                  )}
-                  <p className="text-sm text-gray-500 mt-4 font-medium line-clamp-2 min-h-[2.5rem] leading-relaxed">
-                    {group.descricao || "Sem descrição disponível."}
-                  </p>
-                </div>
 
-                <div className="mt-6 pt-5 border-t border-[#ffffff05] flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-gray-600">
-                  <div className="flex items-center gap-2">
-                    <Lock className="w-3.5 h-3.5 text-[#2BAADF]/40" />
-                    {Object.keys(group.permissoes || {}).length} Módulos
+                  <p className="text-[11px] text-gray-500 mt-1 line-clamp-1">
+                    {group.descricao || 'Sem descrição'}
+                  </p>
+
+                  <div className="mt-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-gray-600">
+                    <Lock className="w-3 h-3 text-[#2BAADF]/40" />
+                    {Object.keys(group.permissoes || {}).length} módulos
                   </div>
-                  <span className="text-gray-800">#{group.id.slice(0, 8).toUpperCase()}</span>
                 </div>
               </div>
             </div>

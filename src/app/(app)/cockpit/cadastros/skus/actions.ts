@@ -28,6 +28,9 @@ export async function createSku(formData: FormData) {
   const payload = skuPayloadFromForm(formData)
   if (!payload.codigo) return { error: 'Informe o código (SKU).' }
   if (!payload.nome) return { error: 'Informe o nome.' }
+  if (payload.controla_lote && payload.controla_serie) {
+    return { error: 'Lote e série não convivem no mesmo SKU.' }
+  }
 
   const empresaId = await resolveEmpresaId(me, formData)
   if (!empresaId) return { error: 'Empresa não identificada.' }
@@ -55,10 +58,37 @@ export async function updateSku(id: string, formData: FormData) {
   const payload = skuPayloadFromForm(formData)
   if (!payload.codigo) return { error: 'Informe o código (SKU).' }
   if (!payload.nome) return { error: 'Informe o nome.' }
+  if (payload.controla_lote && payload.controla_serie) {
+    return { error: 'Lote e série não convivem no mesmo SKU.' }
+  }
 
   const supabase = await createClient()
   const empresaId = await resolveEmpresaId(me, formData)
   if (!empresaId) return { error: 'Empresa não identificada.' }
+
+  if (payload.controla_serie) {
+    const { count } = await supabase
+      .from('est_saldos')
+      .select('id', { count: 'exact', head: true })
+      .eq('empresa_id', empresaId)
+      .eq('sku_id', id)
+      .not('lote_produto_id', 'is', null)
+      .neq('quantidade', 0)
+    if (count) {
+      return { error: 'Este SKU tem saldo por lote. Série e lote não convivem no mesmo item.' }
+    }
+  }
+  if (payload.controla_lote) {
+    const { count } = await supabase
+      .from('est_series')
+      .select('id', { count: 'exact', head: true })
+      .eq('empresa_id', empresaId)
+      .eq('sku_id', id)
+      .neq('situacao', 'baixada')
+    if (count) {
+      return { error: 'Este SKU já tem série em estoque ou em terceiro.' }
+    }
+  }
 
   let query = supabase
     .from('cad_skus')

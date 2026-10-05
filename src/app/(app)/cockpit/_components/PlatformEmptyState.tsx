@@ -1,6 +1,6 @@
 import { Boxes } from 'lucide-react'
 
-/** Home quando a empresa não tem workflow nem omni habilitados. */
+/** Home quando a empresa não tem workflow, omni nem estoque habilitados. */
 export default function PlatformEmptyState({ empresaNome }: { empresaNome?: string | null }) {
   return (
     <div
@@ -17,10 +17,10 @@ export default function PlatformEmptyState({ empresaNome }: { empresaNome?: stri
         {empresaNome ? (
           <>
             <span className="text-white font-medium">{empresaNome}</span> ainda não tem
-            Workflow ou Omni habilitados.
+            Workflow, Omni ou Estoque habilitados.
           </>
         ) : (
-          <>Sua empresa ainda não tem Workflow ou Omni habilitados.</>
+          <>Sua empresa ainda não tem Workflow, Omni ou Estoque habilitados.</>
         )}{' '}
         Os cadastros da plataforma continuam disponíveis no menu. Peça à RN3 para ligar os
         addons desejados.
