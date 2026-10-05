@@ -1,4 +1,4 @@
-/** Executa scripts das Fases 1–6 e consolida scripts-summary.json. */
+/** Executa scripts das Fases 1–6 e de Compras, e consolida scripts-summary.json. */
 import { spawn } from 'child_process'
 import { existsSync, readFileSync, writeFileSync } from 'fs'
 import { dirname, resolve } from 'path'
@@ -38,6 +38,7 @@ const phaseCadCode = await run('scripts/agent/phase-cadastros-scripts.mjs')
 const phase4Code = await run('scripts/agent/phase4-scripts.mjs')
 const phase5Code = await run('scripts/agent/phase5-scripts.mjs')
 const phase6Code = await run('scripts/agent/phase6-scripts.mjs')
+const comprasCode = await run('scripts/agent/compras-scripts.mjs')
 const cases = [
   ...readCases('scripts-summary.json'),
   ...readCases('phase2-scripts-summary.json'),
@@ -46,6 +47,7 @@ const cases = [
   ...readCases('phase4-scripts-summary.json'),
   ...readCases('phase5-scripts-summary.json'),
   ...readCases('phase6-scripts-summary.json'),
+  ...readCases('compras-scripts-summary.json'),
 ]
 const passed = cases.filter((item) => item.status === 'passed').length
 const failed = cases.filter((item) => item.status === 'failed').length
@@ -66,6 +68,7 @@ if (
   phase4Code !== 0 ||
   phase5Code !== 0 ||
   phase6Code !== 0 ||
+  comprasCode !== 0 ||
   failed > 0
 ) {
   process.exit(1)

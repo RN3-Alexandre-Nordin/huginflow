@@ -16,6 +16,7 @@ import LotePicker, {
   expandirItensPorAlocacaoLote,
   type AlocacaoLoteFefo,
 } from '@/components/estoque/LotePicker'
+import CampoSerie from '@/components/estoque/CampoSerie'
 import { criarRetiradaAction } from '../actions'
 import type { ItemRetiradaInput } from '@/lib/estoque/operacoes-avancadas'
 
@@ -25,6 +26,7 @@ interface SkuOption {
   nome: string
   unidade_estoque: string
   controla_lote?: boolean
+  controla_serie?: boolean
 }
 
 interface LocalOption {
@@ -49,6 +51,7 @@ interface RowItem {
   quantidade: string
   justificativa: string
   alocacoes: AlocacaoLoteFefo[]
+  serie_id: string
 }
 
 function parseQtd(raw: string): number {
@@ -78,6 +81,7 @@ export default function RetiradaForm({
       quantidade: '1',
       justificativa: '',
       alocacoes: [],
+      serie_id: '',
     },
   ])
 
@@ -96,6 +100,7 @@ export default function RetiradaForm({
         quantidade: '1',
         justificativa: '',
         alocacoes: [],
+        serie_id: '',
       },
     ])
   }
@@ -146,6 +151,19 @@ export default function RetiradaForm({
 
     for (const r of rows) {
       const sku = skus.find((s) => s.id === r.sku_id)
+      if (sku?.controla_serie) {
+        if (!r.serie_id) {
+          setFeedback({
+            tipo: 'erro',
+            texto: `SKU ${sku.codigo}: identifique a série. O saldo sem série fica bloqueado.`,
+          })
+          return
+        }
+        if (parseQtd(r.quantidade) !== 1) {
+          setFeedback({ tipo: 'erro', texto: `SKU ${sku.codigo}: cada série é uma unidade.` })
+          return
+        }
+      }
       if (!sku?.controla_lote) continue
       const alocs = (r.alocacoes || []).filter((a) => Number(a.quantidade) > 0 && a.lote_produto_id)
       if (alocs.length === 0) {
@@ -179,6 +197,7 @@ export default function RetiradaForm({
               local_id: r.local_id,
               quantidade: parseQtd(r.quantidade),
               justificativa: r.justificativa.trim(),
+              serie_id: sku?.controla_serie ? r.serie_id || null : null,
             },
           }
         })
@@ -291,6 +310,7 @@ export default function RetiradaForm({
               {rows.map((row, idx) => {
                 const skuSelected = skus.find((s) => s.id === row.sku_id)
                 const controlaLote = Boolean(skuSelected?.controla_lote)
+                const controlaSerie = Boolean(skuSelected?.controla_serie)
                 const qtdNum = parseQtd(row.quantidade)
 
                 return (
@@ -306,7 +326,7 @@ export default function RetiradaForm({
                           options={skus.map((s) => ({
                             value: s.id,
                             label: `${s.codigo} - ${s.nome} (${s.unidade_estoque})${
-                              s.controla_lote ? ' · lote' : ''
+                              s.controla_lote ? ' · lote' : s.controla_serie ? ' · série' : ''
                             }`,
                             searchText: `${s.codigo} ${s.nome}`,
                           }))}
@@ -361,6 +381,19 @@ export default function RetiradaForm({
                         )}
                       </td>
                     </tr>
+                    {controlaSerie && row.sku_id && row.local_id && (
+                      <tr className="bg-[#0a0e14]/80">
+                        <td />
+                        <td colSpan={5} className="px-3 pb-3">
+                          <CampoSerie
+                            skuId={row.sku_id}
+                            localId={row.local_id}
+                            value={row.serie_id}
+                            onChange={(serie_id) => updateRow(idx, { serie_id })}
+                          />
+                        </td>
+                      </tr>
+                    )}
                     {controlaLote && empresaId && Number.isFinite(qtdNum) && qtdNum > 0 && (
                       <tr className="bg-[#0a0e14]/80">
                         <td />

@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import { divergenciaPreco, divergenciaQuantidade } from '@/lib/compras/divergencia'
 import PedidoWizard from '../../PedidoWizard'
 import { registrarRecebimento } from '../../actions'
 
@@ -10,6 +11,7 @@ type Item = {
   descricao: string
   unidade: string
   pedido: number
+  preco: number
   recebido: number
 }
 
@@ -29,6 +31,34 @@ function parseQty(raw: string) {
   return Number.isFinite(n) ? n : 0
 }
 
+function parseMoney(raw: string) {
+  const s = String(raw ?? '').trim()
+  if (!s) return NaN
+  const n = s.includes(',') ? Number(s.replace(/\./g, '').replace(',', '.')) : Number(s)
+  return Number.isFinite(n) ? n : NaN
+}
+
+function maskMoney(raw: string) {
+  const digits = raw.replace(/\D/g, '').slice(0, 12)
+  if (!digits) return ''
+  return (Number(digits) / 100).toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })
+}
+
+function formatMoney(n: number) {
+  return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+}
+
+function formatPreco(n: number) {
+  if (!Number.isFinite(n)) return ''
+  return n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+const cell =
+  'h-8 w-full rounded-lg border border-[#ffffff14] bg-[#0A0A0A] px-2 text-sm text-white outline-none focus:border-[#2BAADF]/50'
+
 export default function ReceberPedidoForm({
   pedidoId,
   numero,
@@ -41,7 +71,11 @@ export default function ReceberPedidoForm({
   const router = useRouter()
   const [passo, setPasso] = useState<StepId>('conferencia')
   const [linhas, setLinhas] = useState(
-    itens.map((item) => ({ id: item.id, quantidade: '', divergencia: '' })),
+    itens.map((item) => ({
+      id: item.id,
+      quantidade: '',
+      precoNota: formatPreco(item.preco),
+    })),
   )
   const [observacao, setObservacao] = useState('')
   const [erro, setErro] = useState<string | null>(null)
@@ -50,11 +84,15 @@ export default function ReceberPedidoForm({
   const conferidos = itens
     .map((item, index) => {
       const quantidade = parseQty(linhas[index]?.quantidade || '')
+      const precoNota = parseMoney(linhas[index]?.precoNota || '')
       return {
         ...item,
         quantidade,
-        divergencia: linhas[index]?.divergencia.trim() || '',
+        precoNota,
         saldo: item.pedido - item.recebido,
+        divergenciaQuantidade: divergenciaQuantidade(quantidade, item.pedido),
+        divergenciaPreco: Number.isFinite(precoNota) ? divergenciaPreco(precoNota, item.preco) : 0,
+        total: quantidade > 0 && Number.isFinite(precoNota) ? quantidade * precoNota : 0,
       }
     })
     .filter((item) => item.quantidade > 0)
@@ -70,6 +108,11 @@ export default function ReceberPedidoForm({
       setErro(`A quantidade de “${estouro.descricao}” passa do saldo.`)
       return
     }
+    const semPreco = conferidos.find((item) => !(item.precoNota >= 0))
+    if (semPreco) {
+      setErro(`Informe o preço unitário da nota de “${semPreco.descricao}”.`)
+      return
+    }
     setPasso('revisao')
   }
 
@@ -77,6 +120,12 @@ export default function ReceberPedidoForm({
     setErro(null)
     if (!conferidos.length) {
       setErro('Informe a quantidade recebida de ao menos um item.')
+      setPasso('conferencia')
+      return
+    }
+    const semPreco = conferidos.find((item) => !(item.precoNota >= 0))
+    if (semPreco) {
+      setErro(`Informe o preço unitário da nota de “${semPreco.descricao}”.`)
       setPasso('conferencia')
       return
     }
@@ -89,7 +138,7 @@ export default function ReceberPedidoForm({
         linhas.map((linha) => ({
           pedido_item_id: linha.id,
           quantidade: parseQty(linha.quantidade),
-          divergencia: linha.divergencia.trim() || null,
+          preco_nota: parseMoney(linha.precoNota),
         })),
       ),
     )
@@ -121,56 +170,99 @@ export default function ReceberPedidoForm({
       pending={pending}
     >
       {passo === 'conferencia' ? (
-        <div className="space-y-4" role="tabpanel">
-          <div className="space-y-3">
-            {itens.map((item, index) => {
-              const saldo = item.pedido - item.recebido
-              const linha = linhas[index]
-              return (
-                <div
-                  key={item.id}
-                  className="grid gap-2 rounded-xl border border-[#ffffff08] bg-[#0A0A0A]/50 p-3 sm:grid-cols-12"
-                >
-                  <div className="sm:col-span-5">
-                    <p className="truncate text-sm text-white" title={item.descricao}>
-                      {item.descricao}
-                    </p>
-                    <p className="text-[11px] text-gray-500">
-                      pedido {qtyLabel(item.pedido)} {item.unidade} · saldo {qtyLabel(saldo)}
-                    </p>
-                  </div>
-                  <input
-                    value={linha?.quantidade || ''}
-                    onChange={(e) => {
-                      const next = [...linhas]
-                      next[index] = { ...next[index], quantidade: e.target.value }
-                      setLinhas(next)
-                    }}
-                    inputMode="decimal"
-                    placeholder="Qtd recebida"
-                    className="rounded-xl border border-[#ffffff14] bg-[#0A0A0A] px-3 py-2 text-sm text-white sm:col-span-3"
-                  />
-                  <input
-                    value={linha?.divergencia || ''}
-                    onChange={(e) => {
-                      const next = [...linhas]
-                      next[index] = { ...next[index], divergencia: e.target.value }
-                      setLinhas(next)
-                    }}
-                    placeholder="Divergência"
-                    className="rounded-xl border border-[#ffffff14] bg-[#0A0A0A] px-3 py-2 text-sm text-white sm:col-span-4"
-                  />
-                </div>
-              )
-            })}
+        <div className="space-y-3" role="tabpanel">
+          <div className="overflow-x-auto rounded-xl border border-[#ffffff08]">
+            <table className="w-full min-w-[52rem] text-left text-sm">
+              <thead className="text-[10px] uppercase tracking-wide text-gray-500">
+                <tr>
+                  <th className="px-2 py-1.5 font-medium">Item</th>
+                  <th className="px-2 py-1.5 font-medium">Qtd pedido</th>
+                  <th className="px-2 py-1.5 font-medium">Preço pedido</th>
+                  <th className="px-2 py-1.5 font-medium">Preço nota</th>
+                  <th className="px-2 py-1.5 font-medium">Qtd recebida</th>
+                  <th className="px-2 py-1.5 font-medium">Div. qtd</th>
+                  <th className="px-2 py-1.5 font-medium">Div. preço</th>
+                  <th className="px-2 py-1.5 text-right font-medium">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {itens.map((item, index) => {
+                  const saldo = item.pedido - item.recebido
+                  const linha = linhas[index]
+                  const qtd = parseQty(linha?.quantidade || '')
+                  const precoNota = parseMoney(linha?.precoNota || '')
+                  const total = qtd > 0 && Number.isFinite(precoNota) ? qtd * precoNota : 0
+                  const divQtd = qtd > 0 ? divergenciaQuantidade(qtd, item.pedido) : null
+                  const divPreco =
+                    qtd > 0 && Number.isFinite(precoNota) ? divergenciaPreco(precoNota, item.preco) : null
+                  return (
+                    <tr key={item.id} className="border-t border-[#ffffff08]">
+                      <td className="max-w-[14rem] px-2 py-1">
+                        <p className="truncate text-sm text-white" title={item.descricao}>
+                          {item.descricao}
+                        </p>
+                        <p className="text-[10px] leading-tight text-gray-500">
+                          saldo {qtyLabel(saldo)} {item.unidade}
+                        </p>
+                      </td>
+                      <td className="whitespace-nowrap px-2 py-1 text-gray-300">
+                        {qtyLabel(item.pedido)} {item.unidade}
+                      </td>
+                      <td className="whitespace-nowrap px-2 py-1 text-gray-300">
+                        {formatMoney(item.preco)}
+                      </td>
+                      <td className="px-2 py-1">
+                        <input
+                          aria-label="Preço unitário da nota"
+                          inputMode="numeric"
+                          value={linha?.precoNota || ''}
+                          onChange={(e) => {
+                            const next = [...linhas]
+                            next[index] = { ...next[index], precoNota: maskMoney(e.target.value) }
+                            setLinhas(next)
+                          }}
+                          className={`${cell} w-28 text-right`}
+                        />
+                      </td>
+                      <td className="px-2 py-1">
+                        <input
+                          aria-label="Quantidade recebida"
+                          value={linha?.quantidade || ''}
+                          onChange={(e) => {
+                            const next = [...linhas]
+                            next[index] = { ...next[index], quantidade: e.target.value }
+                            setLinhas(next)
+                          }}
+                          inputMode="decimal"
+                          className={`${cell} w-24`}
+                        />
+                      </td>
+                      <td
+                        className={`whitespace-nowrap px-2 py-1 ${divQtd ? 'text-amber-300' : 'text-gray-400'}`}
+                      >
+                        {divQtd == null ? '—' : `${qtyLabel(divQtd)} ${item.unidade}`}
+                      </td>
+                      <td
+                        className={`whitespace-nowrap px-2 py-1 ${divPreco ? 'text-amber-300' : 'text-gray-400'}`}
+                      >
+                        {divPreco == null ? '—' : formatMoney(divPreco)}
+                      </td>
+                      <td className="whitespace-nowrap px-2 py-1 text-right font-medium text-white">
+                        {formatMoney(total)}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
           </div>
           <label className="block text-sm text-gray-300">
             Observação da conferência
             <textarea
-              rows={3}
+              rows={2}
               value={observacao}
               onChange={(e) => setObservacao(e.target.value)}
-              className="mt-1 w-full rounded-xl border border-[#ffffff14] bg-[#0A0A0A] px-3 py-2 text-sm text-white outline-none focus:border-[#2BAADF]/50"
+              className="mt-1 w-full rounded-lg border border-[#ffffff14] bg-[#0A0A0A] px-2 py-1.5 text-sm text-white outline-none focus:border-[#2BAADF]/50"
             />
           </label>
         </div>
@@ -199,19 +291,31 @@ export default function ReceberPedidoForm({
             <table className="w-full text-left text-sm">
               <thead className="text-xs uppercase tracking-wide text-gray-500">
                 <tr>
-                  <th className="px-4 py-2">Item</th>
-                  <th className="px-4 py-2">Receber</th>
-                  <th className="px-4 py-2">Divergência</th>
+                  <th className="px-3 py-1.5">Item</th>
+                  <th className="px-3 py-1.5">Qtd pedido</th>
+                  <th className="px-3 py-1.5">Preço nota</th>
+                  <th className="px-3 py-1.5">Receber</th>
+                  <th className="px-3 py-1.5">Div. qtd</th>
+                  <th className="px-3 py-1.5">Div. preço</th>
+                  <th className="px-3 py-1.5 text-right">Total</th>
                 </tr>
               </thead>
               <tbody>
                 {conferidos.map((item) => (
                   <tr key={item.id} className="border-t border-[#ffffff08]">
-                    <td className="px-4 py-2 text-white">{item.descricao}</td>
-                    <td className="px-4 py-2 text-gray-300">
+                    <td className="px-3 py-1 text-white">{item.descricao}</td>
+                    <td className="px-3 py-1 text-gray-300">
+                      {qtyLabel(item.pedido)} {item.unidade}
+                    </td>
+                    <td className="px-3 py-1 text-gray-300">{formatMoney(item.precoNota)}</td>
+                    <td className="px-3 py-1 text-gray-300">
                       {qtyLabel(item.quantidade)} {item.unidade}
                     </td>
-                    <td className="px-4 py-2 text-gray-300">{item.divergencia || '—'}</td>
+                    <td className="px-3 py-1 text-gray-300">
+                      {qtyLabel(item.divergenciaQuantidade)} {item.unidade}
+                    </td>
+                    <td className="px-3 py-1 text-gray-300">{formatMoney(item.divergenciaPreco)}</td>
+                    <td className="px-3 py-1 text-right text-white">{formatMoney(item.total)}</td>
                   </tr>
                 ))}
               </tbody>

@@ -17,12 +17,13 @@ export function parsePedidoCsv(csv) {
   const iQtd = idx('quantidade')
   const iUn = idx('unidade')
   const iPreco = idx('preco')
+  const iCodigoFornecedor = idx('codigo_fornecedor')
 
   if ([iNumero, iFornecedor, iItem, iQtd].some((i) => i < 0)) {
     return {
       linhas: [],
       erros: [
-        'Cabeçalho obrigatório: numero, fornecedor, item, quantidade. Opcionais: previsao, tipo, unidade, preco.',
+        'Cabeçalho obrigatório: numero, fornecedor, item, quantidade. Opcionais: previsao, tipo, unidade, preco, codigo_fornecedor.',
       ],
     }
   }
@@ -60,6 +61,8 @@ export function parsePedidoCsv(csv) {
       quantidade,
       unidade: (iUn >= 0 && cells[iUn]) || 'UN',
       preco: iPreco >= 0 ? num(cells[iPreco]) : 0,
+      codigoFornecedor:
+        iCodigoFornecedor >= 0 ? String(cells[iCodigoFornecedor] || '').trim() : '',
     })
   })
   return { linhas, erros }

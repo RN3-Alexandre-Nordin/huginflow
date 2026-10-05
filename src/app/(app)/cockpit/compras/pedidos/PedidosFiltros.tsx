@@ -5,25 +5,41 @@ export default function PedidosFiltros({
   fornecedores,
   solicitantes,
   statusOpcoes,
+  tipoOpcoes,
+  motivoOpcoes,
   fornecedor,
   data,
   solicitante,
   status,
+  busca = '',
+  tipo = '',
+  motivo = '',
   limparHref = '/cockpit/compras/pedidos',
   rotuloData = 'Data do pedido',
+  rotuloBusca = 'Número',
 }: {
   fornecedores: Array<{ id: string; nome: string }>
-  solicitantes: Array<{ id: string; nome: string }>
+  solicitantes?: Array<{ id: string; nome: string }>
   statusOpcoes: Array<{ id: string; label: string }>
+  tipoOpcoes?: Array<{ id: string; label: string }>
+  motivoOpcoes?: Array<{ id: string; label: string }>
   fornecedor: string
   data: string
-  solicitante: string
+  solicitante?: string
   status: string
+  busca?: string
+  tipo?: string
+  motivo?: string
   limparHref?: string
   rotuloData?: string
+  rotuloBusca?: string
 }) {
   return (
-    <form method="get" className="grid gap-3 rounded-2xl border border-[#ffffff0a] bg-[#111111] p-4 sm:grid-cols-2 lg:grid-cols-6">
+    <form method="get" className="grid gap-3 rounded-2xl border border-[#ffffff0a] bg-[#111111] p-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+      <label className="block text-xs text-gray-400">
+        {rotuloBusca}
+        <input name="q" defaultValue={busca} placeholder="Trecho do número" className={inputClass} />
+      </label>
       <label className="block text-xs text-gray-400">
         Fornecedor
         <select name="fornecedor" defaultValue={fornecedor} className={inputClass}>
@@ -39,17 +55,45 @@ export default function PedidosFiltros({
         {rotuloData}
         <input type="date" name="data" defaultValue={data} className={inputClass} />
       </label>
-      <label className="block text-xs text-gray-400">
-        Solicitante
-        <select name="solicitante" defaultValue={solicitante} className={inputClass}>
-          <option value="">Todos</option>
-          {solicitantes.map((item) => (
-            <option key={item.id} value={item.id}>
-              {item.nome}
-            </option>
-          ))}
-        </select>
-      </label>
+      {solicitantes ? (
+        <label className="block text-xs text-gray-400">
+          Solicitante
+          <select name="solicitante" defaultValue={solicitante || ''} className={inputClass}>
+            <option value="">Todos</option>
+            {solicitantes.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.nome}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
+      {tipoOpcoes?.length ? (
+        <label className="block text-xs text-gray-400">
+          Tipo
+          <select name="tipo" defaultValue={tipo} className={inputClass}>
+            <option value="">Todos</option>
+            {tipoOpcoes.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
+      {motivoOpcoes?.length ? (
+        <label className="block text-xs text-gray-400">
+          Motivo
+          <select name="motivo" defaultValue={motivo} className={inputClass}>
+            <option value="">Todos</option>
+            {motivoOpcoes.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
       <label className="block text-xs text-gray-400">
         Status
         <select name="status" defaultValue={status} className={inputClass}>

@@ -2,7 +2,8 @@ import Link from 'next/link'
 import { Eye, Lock, Pencil } from 'lucide-react'
 import { getMyProfile } from '@/app/(app)/cockpit/actions'
 import BackTextButton from '@/components/BackTextButton'
-import { TIPO_COMPRA_LABEL, type TipoCompra } from '@/lib/compras/tipos'
+import { dataFiltroIso, diaIntervalo, textoFiltro, UUID_FILTRO } from '@/lib/compras/filtros-lista'
+import { TIPO_COMPRA_LABEL, tipoCompraValido, type TipoCompra } from '@/lib/compras/tipos'
 import { empresaHasAddon } from '@/lib/addons/entitlements'
 import { hasPermission } from '@/utils/permissions'
 import { createClient } from '@/utils/supabase/server'
@@ -18,18 +19,10 @@ const STATUS_LABEL: Record<string, string> = {
   cancelada: 'Cancelada',
 }
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-
 function fmtData(iso: string | null | undefined) {
   if (!iso) return '—'
   const d = iso.length === 10 ? `${iso}T12:00:00` : iso
   return new Date(d).toLocaleDateString('pt-BR')
-}
-
-function diaLista(isoDate: string) {
-  const inicio = new Date(`${isoDate}T00:00:00-03:00`)
-  const fim = new Date(inicio.getTime() + 24 * 60 * 60 * 1000)
-  return { inicio: inicio.toISOString(), fim: fim.toISOString() }
 }
 
 type CotacaoRow = {
@@ -45,7 +38,14 @@ type CotacaoRow = {
 export default async function CotacoesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ fornecedor?: string; data?: string; solicitante?: string; status?: string }>
+  searchParams: Promise<{
+    fornecedor?: string
+    data?: string
+    solicitante?: string
+    status?: string
+    q?: string
+    tipo?: string
+  }>
 }) {
   const filtros = await searchParams
   const me = await getMyProfile()
@@ -68,10 +68,12 @@ export default async function CotacoesPage({
   }
 
   const supabase = await createClient()
-  const fornecedorId = UUID.test(filtros.fornecedor || '') ? filtros.fornecedor! : ''
-  const solicitanteId = UUID.test(filtros.solicitante || '') ? filtros.solicitante! : ''
+  const fornecedorId = UUID_FILTRO.test(filtros.fornecedor || '') ? filtros.fornecedor! : ''
+  const solicitanteId = UUID_FILTRO.test(filtros.solicitante || '') ? filtros.solicitante! : ''
   const statusFiltro = filtros.status && STATUS_LABEL[filtros.status] ? filtros.status : ''
-  const dataFiltro = /^\d{4}-\d{2}-\d{2}$/.test(filtros.data || '') ? filtros.data! : ''
+  const dataFiltro = dataFiltroIso(filtros.data)
+  const busca = textoFiltro(filtros.q)
+  const tipoFiltro = filtros.tipo && tipoCompraValido(filtros.tipo) ? filtros.tipo : ''
 
   let cotacaoIdsFornecedor: string[] | null = null
   if (fornecedorId) {
@@ -130,9 +132,11 @@ export default async function CotacoesPage({
       .limit(50)
     if (statusFiltro) query = query.eq('status', statusFiltro)
     if (dataFiltro) {
-      const dia = diaLista(dataFiltro)
+      const dia = diaIntervalo(dataFiltro)
       query = query.gte('created_at', dia.inicio).lt('created_at', dia.fim)
     }
+    if (busca) query = query.ilike('numero', `%${busca}%`)
+    if (tipoFiltro) query = query.eq('tipo', tipoFiltro)
     if (idsRestritos) query = query.in('id', idsRestritos)
     const res = await query
     data = (res.data || []) as CotacaoRow[]
@@ -184,10 +188,13 @@ export default async function CotacoesPage({
         fornecedores={fornecedores || []}
         solicitantes={solicitantes || []}
         statusOpcoes={Object.entries(STATUS_LABEL).map(([id, label]) => ({ id, label }))}
+        tipoOpcoes={Object.entries(TIPO_COMPRA_LABEL).map(([id, label]) => ({ id, label }))}
         fornecedor={fornecedorId}
         data={dataFiltro}
         solicitante={solicitanteId}
         status={statusFiltro}
+        busca={busca}
+        tipo={tipoFiltro}
         limparHref="/cockpit/compras/cotacoes"
         rotuloData="Data da cotação"
       />
@@ -294,14 +301,14 @@ export default async function CotacoesPage({
             {!data?.length && !error ? (
               <tr>
                 <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
-                  {fornecedorId || dataFiltro || solicitanteId || statusFiltro
+                  {fornecedorId || dataFiltro || solicitanteId || statusFiltro || busca || tipoFiltro
                     ? 'Nenhuma cotação com esses filtros.'
                     : 'Nenhuma cotação.'}{' '}
-                  {!fornecedorId && !dataFiltro && !solicitanteId && !statusFiltro && podeCriar ? (
+                  {!fornecedorId && !dataFiltro && !solicitanteId && !statusFiltro && !busca && !tipoFiltro && podeCriar ? (
                     <Link href="/cockpit/compras/cotacoes/novo" className="text-[#2BAADF]">
                       Nova cotação
                     </Link>
-                  ) : !fornecedorId && !dataFiltro && !solicitanteId && !statusFiltro ? (
+                  ) : !fornecedorId && !dataFiltro && !solicitanteId && !statusFiltro && !busca && !tipoFiltro ? (
                     'Sem permissão para criar.'
                   ) : null}
                 </td>

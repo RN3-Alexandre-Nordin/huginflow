@@ -13,6 +13,7 @@ import {
   XCircle,
 } from 'lucide-react'
 import LotePicker, { type AlocacaoLoteFefo } from '@/components/estoque/LotePicker'
+import CampoSerie from '@/components/estoque/CampoSerie'
 import {
   atenderRequisicaoAction,
   transicionarStatusRequisicaoAction,
@@ -30,6 +31,7 @@ export type ItemAtendimentoUi = {
   status_item: string
   local_id: string | null
   controla_lote?: boolean
+  controla_serie?: boolean
 }
 
 type SaldoProp = { sku_id: string; local_id: string; quantidade: number }
@@ -71,6 +73,7 @@ export default function AtendimentoPanel({
   const [alocacoesPorItem, setAlocacoesPorItem] = useState<
     Record<string, AlocacaoLoteFefo[]>
   >({})
+  const [seriesPorItem, setSeriesPorItem] = useState<Record<string, string[]>>({})
 
   const pendentes = useMemo(
     () => itens.filter((i) => Number(i.quantidade_pendente) > 0 && i.status_item !== 'pulado'),
@@ -169,13 +172,26 @@ export default function AtendimentoPanel({
       }
       alocsPayload[it.item_id] = alocs
     }
+    for (const it of itensAtender) {
+      const origem = pendentes.find((p) => p.id === it.item_id)
+      if (!origem?.controla_serie) continue
+      const series = seriesPorItem[it.item_id] || []
+      if (series.length !== it.quantidade) {
+        setFeedback({
+          tipo: 'erro',
+          texto: `SKU ${origem.sku_codigo}: marque uma série para cada unidade (${it.quantidade}).`,
+        })
+        return
+      }
+    }
 
     startTransition(async () => {
       const res = await atenderRequisicaoAction(
         requisicaoId,
         localBaixaId,
         itensAtender.map(({ item_id, quantidade }) => ({ item_id, quantidade })),
-        Object.keys(alocsPayload).length > 0 ? alocsPayload : null
+        Object.keys(alocsPayload).length > 0 ? alocsPayload : null,
+        seriesPorItem
       )
       if ('error' in res) {
         setFeedback({ tipo: 'erro', texto: res.error || 'Erro desconhecido.' })
@@ -372,6 +388,7 @@ export default function AtendimentoPanel({
                 const parcialSaldo = !semSaldo && saldo < Number(it.quantidade_pendente)
                 const qtdNum = parseFloat((qtds[it.id] || '0').replace(',', '.'))
                 const controlaLote = Boolean(it.controla_lote)
+                const controlaSerie = Boolean(it.controla_serie)
 
                 return (
                   <li key={it.id} className="space-y-3 px-5 py-3.5">
@@ -452,6 +469,25 @@ export default function AtendimentoPanel({
                       )}
                     </div>
 
+                    {controlaSerie && localBaixaId && (
+                      <div className="px-1">
+                        <CampoSerie
+                          skuId={it.sku_id}
+                          localId={it.local_id || localBaixaId}
+                          varios
+                          selecionadas={seriesPorItem[it.id] || []}
+                          onToggle={(serieId, marcado) =>
+                            setSeriesPorItem((prev) => {
+                              const atual = prev[it.id] || []
+                              const proximas = marcado
+                                ? [...atual, serieId]
+                                : atual.filter((id) => id !== serieId)
+                              return { ...prev, [it.id]: proximas }
+                            })
+                          }
+                        />
+                      </div>
+                    )}
                     {controlaLote &&
                       empresaId &&
                       localBaixaId &&

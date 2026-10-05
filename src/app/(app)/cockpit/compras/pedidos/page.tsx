@@ -1,8 +1,9 @@
 import Link from 'next/link'
-import { Ban, Eye, Lock, Package, Pencil } from 'lucide-react'
+import { Ban, Boxes, Eye, Lock, Package, Pencil } from 'lucide-react'
 import { getMyProfile } from '@/app/(app)/cockpit/actions'
 import BackTextButton from '@/components/BackTextButton'
-import { TIPO_COMPRA_LABEL, type TipoCompra } from '@/lib/compras/tipos'
+import { dataFiltroIso, diaIntervalo, textoFiltro, UUID_FILTRO } from '@/lib/compras/filtros-lista'
+import { TIPO_COMPRA_LABEL, tipoCompraValido, type TipoCompra } from '@/lib/compras/tipos'
 import {
   PEDIDO_STATUS_LABEL,
   pedidoEditavel,
@@ -14,14 +15,6 @@ import { createClient } from '@/utils/supabase/server'
 import PedidosFiltros from './PedidosFiltros'
 
 export const metadata = { title: 'Pedidos de compra | HuginFlow' }
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-
-function diaPedido(isoDate: string) {
-  const inicio = new Date(`${isoDate}T00:00:00-03:00`)
-  const fim = new Date(inicio.getTime() + 24 * 60 * 60 * 1000)
-  return { inicio: inicio.toISOString(), fim: fim.toISOString() }
-}
 
 function nomeEmbed(value: { nome?: string } | { nome?: string }[] | null | undefined) {
   if (!value) return ''
@@ -41,7 +34,14 @@ function solicitanteEmbed(cotacao: unknown) {
 export default async function PedidosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ fornecedor?: string; data?: string; solicitante?: string; status?: string }>
+  searchParams: Promise<{
+    fornecedor?: string
+    data?: string
+    solicitante?: string
+    status?: string
+    q?: string
+    tipo?: string
+  }>
 }) {
   const filtros = await searchParams
   const me = await getMyProfile()
@@ -64,13 +64,15 @@ export default async function PedidosPage({
   }
 
   const supabase = await createClient()
-  const fornecedorId = UUID.test(filtros.fornecedor || '') ? filtros.fornecedor! : ''
-  const solicitanteId = UUID.test(filtros.solicitante || '') ? filtros.solicitante! : ''
+  const fornecedorId = UUID_FILTRO.test(filtros.fornecedor || '') ? filtros.fornecedor! : ''
+  const solicitanteId = UUID_FILTRO.test(filtros.solicitante || '') ? filtros.solicitante! : ''
   const statusFiltro =
     filtros.status && filtros.status !== 'rascunho' && PEDIDO_STATUS_LABEL[filtros.status]
       ? filtros.status
       : ''
-  const dataFiltro = /^\d{4}-\d{2}-\d{2}$/.test(filtros.data || '') ? filtros.data! : ''
+  const dataFiltro = dataFiltroIso(filtros.data)
+  const busca = textoFiltro(filtros.q)
+  const tipoFiltro = filtros.tipo && tipoCompraValido(filtros.tipo) ? filtros.tipo : ''
 
   let cotacaoIds: string[] | null = null
   if (solicitanteId) {
@@ -121,16 +123,18 @@ export default async function PedidosPage({
     if (fornecedorId) query = query.eq('fornecedor_id', fornecedorId)
     if (statusFiltro) query = query.eq('status', statusFiltro)
     if (dataFiltro) {
-      const dia = diaPedido(dataFiltro)
+      const dia = diaIntervalo(dataFiltro)
       query = query.gte('created_at', dia.inicio).lt('created_at', dia.fim)
     }
+    if (busca) query = query.ilike('numero', `%${busca}%`)
+    if (tipoFiltro) query = query.eq('tipo', tipoFiltro)
     if (cotacaoIds) query = query.in('cotacao_id', cotacaoIds)
     const res = await query
     data = res.data as typeof data
     error = res.error
   }
 
-  const [{ data: fornecedores }, { data: solicitantes }] = await Promise.all([
+  const [{ data: fornecedores }, { data: solicitantes }, { data: configCaixa }] = await Promise.all([
     supabase
       .from('crm_leads')
       .select('id, nome')
@@ -147,7 +151,13 @@ export default async function PedidosPage({
       .contains('papeis', ['funcionario'])
       .order('nome')
       .limit(500),
+    supabase
+      .from('com_config')
+      .select('recebimento_por_caixa')
+      .eq('empresa_id', me!.empresa_id)
+      .maybeSingle(),
   ])
+  const porCaixa = Boolean(configCaixa?.recebimento_por_caixa)
 
   const podeImportar = isSuper || hasPermission(me, 'compras_pedidos', 'create')
   const podeEditar = isSuper || hasPermission(me, 'compras_pedidos', 'edit')
@@ -188,10 +198,13 @@ export default async function PedidosPage({
         statusOpcoes={Object.entries(PEDIDO_STATUS_LABEL)
           .filter(([id]) => id !== 'rascunho')
           .map(([id, label]) => ({ id, label }))}
+        tipoOpcoes={Object.entries(TIPO_COMPRA_LABEL).map(([id, label]) => ({ id, label }))}
         fornecedor={fornecedorId}
         data={dataFiltro}
         solicitante={solicitanteId}
         status={statusFiltro}
+        busca={busca}
+        tipo={tipoFiltro}
       />
       {error ? <p className="text-sm text-red-400">{error.message}</p> : null}
       <div className="overflow-hidden rounded-2xl border border-[#ffffff0a]">
@@ -277,6 +290,15 @@ export default async function PedidosPage({
                           <Package className="h-4 w-4" />
                         </Link>
                       ) : null}
+                      {porCaixa && (podeConferir || (podeReceber && row.status === 'recebido')) ? (
+                        <Link
+                          href={`/cockpit/compras/pedidos/${row.id}/caixas`}
+                          title="Receber por caixa"
+                          className="rounded-lg p-2 text-gray-400 hover:bg-[#ffffff08] hover:text-[#2BAADF]"
+                        >
+                          <Boxes className="h-4 w-4" />
+                        </Link>
+                      ) : null}
                     </div>
                   </td>
                 </tr>
@@ -285,7 +307,7 @@ export default async function PedidosPage({
             {!data?.length ? (
               <tr>
                 <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
-                  {fornecedorId || dataFiltro || solicitanteId || statusFiltro
+                  {fornecedorId || dataFiltro || solicitanteId || statusFiltro || busca || tipoFiltro
                     ? 'Nenhum pedido com esses filtros.'
                     : 'Nenhum pedido. Lance um pedido ou importe a planilha.'}
                 </td>

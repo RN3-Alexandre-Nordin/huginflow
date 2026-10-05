@@ -1,6 +1,7 @@
 import { validarLoteEntrada } from './validacao-entrada'
 import { parseMovimentoAtomicoResult } from './rpc-movimento'
 import { resolverOuCriarLoteProduto } from './lotes-produto'
+import { listarNumerosSerie } from './series'
 import type { LoteEntradaInput } from './tipos'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -106,6 +107,7 @@ export async function processarLoteEntrada(
     fator_conversao: it.fator_conversao,
     justificativa: it.justificativa,
     numero_lote: it.numero_lote ?? null,
+    numero_serie: it.numero_serie ?? null,
     data_validade: it.data_validade ?? null,
     data_fabricacao: it.data_fabricacao ?? null,
     lote_produto_id: it.lote_produto_id ?? null,
@@ -146,16 +148,20 @@ export async function processarLoteEntrada(
         .map((i) => i.sku_id as string)
     ),
   ]
-  const skuFlags = new Map<string, { controla_lote: boolean; exige_validade: boolean }>()
+  const skuFlags = new Map<
+    string,
+    { controla_lote: boolean; controla_serie: boolean; exige_validade: boolean }
+  >()
   if (skuIdsOk.length > 0) {
     const { data: skusFlags } = await client
       .from('cad_skus')
-      .select('id, controla_lote, exige_validade')
+      .select('id, controla_lote, controla_serie, exige_validade')
       .eq('empresa_id', params.empresa_id)
       .in('id', skuIdsOk)
     for (const s of skusFlags || []) {
       skuFlags.set(s.id, {
         controla_lote: Boolean(s.controla_lote),
+        controla_serie: Boolean(s.controla_serie),
         exige_validade: Boolean(s.exige_validade),
       })
     }
@@ -177,6 +183,7 @@ export async function processarLoteEntrada(
 
     const flags = skuFlags.get(item.sku_id) || {
       controla_lote: false,
+      controla_serie: false,
       exige_validade: false,
     }
     let loteProdutoId: string | null = item.lote_produto_id || null
@@ -233,42 +240,57 @@ export async function processarLoteEntrada(
       : params.observacao || `Entrada ${numero}`
 
     try {
-      const { data: rpcRes, error: rpcErr } = await client.rpc(
-        'est_registrar_movimento_atomico',
-        {
-          p_empresa_id: params.empresa_id,
-          p_tipo: 'entrada',
-          p_sku_id: item.sku_id,
-          p_local_id: params.local_id,
-          p_quantidade: qtd,
-          p_documento: params.documento || numero,
-          p_pessoa_id: params.pessoa_id,
-          p_origem: params.origem,
-          p_lote_entrada_id: loteId,
-          p_motivo: motivo,
-          p_usuario_id: params.usuario_id || null,
-          p_permitir_saldo_negativo: false,
-          p_lote_produto_id: loteProdutoId,
-        },
-      )
+      const numeros = flags.controla_serie ? listarNumerosSerie(item.numero_serie) : []
+      const chamadas = flags.controla_serie
+        ? numeros.map((numero) => ({ quantidade: 1, numero_serie: numero }))
+        : [{ quantidade: qtd, numero_serie: null as string | null }]
+      let movimentoId: string | null = null
+      let falha: string | null = null
 
-      const parsed = parseMovimentoAtomicoResult(rpcRes, rpcErr)
-      if (!parsed.ok) {
-        itensComFalhaExecucao.push(`Linha ${item.linha}: ${parsed.mensagem}`)
+      for (const chamada of chamadas) {
+        const { data: rpcRes, error: rpcErr } = await client.rpc(
+          'est_registrar_movimento_atomico',
+          {
+            p_empresa_id: params.empresa_id,
+            p_tipo: 'entrada',
+            p_sku_id: item.sku_id,
+            p_local_id: params.local_id,
+            p_quantidade: chamada.quantidade,
+            p_documento: params.documento || numero,
+            p_pessoa_id: params.pessoa_id,
+            p_origem: params.origem,
+            p_lote_entrada_id: loteId,
+            p_motivo: chamada.numero_serie ? `${motivo} · série ${chamada.numero_serie}` : motivo,
+            p_usuario_id: params.usuario_id || null,
+            p_permitir_saldo_negativo: false,
+            p_lote_produto_id: loteProdutoId,
+            p_numero_serie: chamada.numero_serie,
+          },
+        )
+        const parsed = parseMovimentoAtomicoResult(rpcRes, rpcErr)
+        if (!parsed.ok) {
+          falha = parsed.mensagem || 'Falha na efetivação do saldo/cardex.'
+          break
+        }
+        movimentoId = parsed.movimentoId ?? null
+      }
+
+      if (falha) {
+        itensComFalhaExecucao.push(`Linha ${item.linha}: ${falha}`)
         await client
           .from('est_entrada_itens')
           .update({
             status: 'erro',
             erro_codigo: 'MOVIMENTO_FALHOU',
-            erro_mensagem: parsed.mensagem || 'Falha na efetivação do saldo/cardex.',
+            erro_mensagem: falha,
           })
           .eq('id', item.id)
       } else {
         movimentosEfetivados++
-        if (parsed.movimentoId) {
+        if (movimentoId) {
           await client
             .from('est_entrada_itens')
-            .update({ movimento_id: parsed.movimentoId })
+            .update({ movimento_id: movimentoId })
             .eq('id', item.id)
         }
       }

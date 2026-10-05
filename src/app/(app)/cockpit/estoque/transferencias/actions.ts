@@ -55,7 +55,8 @@ export async function listarSkusComSaldoNoLocalAction(localId: string) {
         unidade_estoque,
         ativo,
         controla_estoque,
-        controla_lote
+        controla_lote,
+        controla_serie
       )
     `
     )
@@ -72,6 +73,7 @@ export async function listarSkusComSaldoNoLocalAction(localId: string) {
       unidade_estoque: string
       saldo: number
       controla_lote: boolean
+      controla_serie: boolean
     }
   >()
 
@@ -84,6 +86,7 @@ export async function listarSkusComSaldoNoLocalAction(localId: string) {
       ativo: boolean
       controla_estoque: boolean
       controla_lote?: boolean
+      controla_serie?: boolean
     } | null
     if (!sku?.ativo || !sku.controla_estoque) continue
     const prev = agg.get(sku.id)
@@ -98,6 +101,7 @@ export async function listarSkusComSaldoNoLocalAction(localId: string) {
         unidade_estoque: sku.unidade_estoque,
         saldo: qtd,
         controla_lote: Boolean(sku.controla_lote),
+        controla_serie: Boolean(sku.controla_serie),
       })
     }
   }

@@ -29,11 +29,11 @@ export default async function ComprasConfigPage() {
   }
 
   const supabase = await createClient()
-  const [{ data: config }, { data: grupos }] = await Promise.all([
+  const [{ data: config }, { data: grupos }, { data: locais }] = await Promise.all([
     supabase
       .from('com_config')
       .select(
-        'aprovacao_ativa, nivel1_grupo_id, nivel1_teto, nivel2_grupo_id, nivel2_a_partir, recebimento_por_caixa, caixa_proximo',
+        'aprovacao_ativa, nivel1_grupo_id, nivel1_teto, nivel2_grupo_id, nivel2_a_partir, recebimento_por_caixa, caixa_proximo, recebimento_importados, importados_limpeza, importados_agenda, impressora_etiqueta, local_entrada_id',
       )
       .eq('empresa_id', me!.empresa_id)
       .maybeSingle(),
@@ -42,6 +42,11 @@ export default async function ComprasConfigPage() {
       .select('id, nome')
       .eq('empresa_id', me!.empresa_id)
       .order('nome'),
+    supabase
+      .from('cad_locais_estoque')
+      .select('id, codigo, nome')
+      .eq('empresa_id', me!.empresa_id)
+      .order('codigo'),
   ])
 
   const canEdit = isSuper || hasPermission(me, 'compras_config', 'edit')
@@ -55,7 +60,7 @@ export default async function ComprasConfigPage() {
         </p>
       </div>
       {canEdit ? (
-        <ComprasConfigForm grupos={grupos || []} config={config} />
+        <ComprasConfigForm grupos={grupos || []} locais={locais || []} config={config} />
       ) : (
         <p className="text-sm text-gray-400">Somente leitura. Sem permissão para editar.</p>
       )}

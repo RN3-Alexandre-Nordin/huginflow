@@ -3,6 +3,8 @@
 import { revalidatePath } from 'next/cache'
 import { getMyProfile } from '@/app/(app)/cockpit/actions'
 import { empresaHasAddon } from '@/lib/addons/entitlements'
+import { divergenciaQuantidade } from '@/lib/compras/divergencia'
+import { espelharPedidoFunil } from '@/lib/compras/espelhar-funil'
 import { hasPermission } from '@/utils/permissions'
 import { createClient } from '@/utils/supabase/server'
 
@@ -83,7 +85,7 @@ export async function buscarCaixa(codigo: string) {
 
 export async function lerCaixa(input: {
   caixaId: string
-  itens: Array<{ pedido_item_id: string; quantidade: number; divergencia: string }>
+  itens: Array<{ pedido_item_id: string; quantidade: number }>
 }) {
   const { error, me } = await gate()
   if (error || !me) return { error: error || 'Sem permissão.' }
@@ -158,7 +160,11 @@ export async function lerCaixa(input: {
       recebimento_id: rec.id,
       pedido_item_id: linha.pedido_item_id,
       quantidade: linha.quantidade,
-      divergencia: linha.divergencia.trim() || null,
+      divergencia_quantidade: divergenciaQuantidade(
+        linha.quantidade,
+        pedidoQtd.get(linha.pedido_item_id) || 0,
+      ),
+      divergencia_preco: null,
     })),
   )
   if (itemErr) return { error: itemErr.message }
@@ -169,7 +175,6 @@ export async function lerCaixa(input: {
       caixa_id: caixa.id,
       pedido_item_id: linha.pedido_item_id,
       quantidade: linha.quantidade,
-      divergencia: linha.divergencia.trim() || null,
     })),
   )
   if (caixaItemErr) return { error: caixaItemErr.message }
@@ -198,6 +203,7 @@ export async function lerCaixa(input: {
     .eq('id', pedido.id)
     .eq('empresa_id', me.empresa_id)
   if (upErr) return { error: upErr.message }
+  await espelharPedidoFunil(supabase, pedido.id)
 
   revalidate(pedido.id, caixa.id)
   return { ok: true as const }

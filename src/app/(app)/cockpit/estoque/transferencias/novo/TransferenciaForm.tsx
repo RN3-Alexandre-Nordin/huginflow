@@ -15,6 +15,7 @@ import {
   XCircle,
 } from 'lucide-react'
 import SearchableSelect from '@/components/SearchableSelect'
+import CampoSerie from '@/components/estoque/CampoSerie'
 import LotePicker, {
   expandirItensPorAlocacaoLote,
   type AlocacaoLoteFefo,
@@ -40,6 +41,7 @@ interface SkuComSaldo {
   unidade_estoque: string
   saldo: number
   controla_lote?: boolean
+  controla_serie?: boolean
 }
 
 interface RowItem {
@@ -47,6 +49,7 @@ interface RowItem {
   sku_id: string
   quantidade: string
   alocacoes: AlocacaoLoteFefo[]
+  serie_id: string
 }
 
 interface Props {
@@ -77,7 +80,7 @@ export function TransferenciaForm({
   const [carregandoSkus, setCarregandoSkus] = useState(false)
 
   const [rows, setRows] = useState<RowItem[]>([
-    { id: 'row-1', sku_id: '', quantidade: '1', alocacoes: [] },
+    { id: 'row-1', sku_id: '', quantidade: '1', alocacoes: [], serie_id: '' },
   ])
 
   const [feedback, setFeedback] = useState<{
@@ -138,7 +141,7 @@ export function TransferenciaForm({
   function addRow() {
     setRows((prev) => [
       ...prev,
-      { id: `row-${Date.now()}`, sku_id: '', quantidade: '1', alocacoes: [] },
+      { id: `row-${Date.now()}`, sku_id: '', quantidade: '1', alocacoes: [], serie_id: '' },
     ])
   }
 
@@ -206,7 +209,8 @@ export function TransferenciaForm({
     }
 
     const skuSet = new Set(rows.map((r) => r.sku_id))
-    if (skuSet.size !== rows.length) {
+    const temSerie = rows.some((r) => skuMap.get(r.sku_id)?.controla_serie)
+    if (!temSerie && skuSet.size !== rows.length) {
       setFeedback({
         tipo: 'erro',
         texto: 'SKU duplicado no lote. Use uma linha por SKU.',
@@ -240,6 +244,19 @@ export function TransferenciaForm({
     }
 
     for (const r of parsed) {
+      if (skuMap.get(r.sku_id)?.controla_serie) {
+        if (!r.serie_id) {
+          setFeedback({
+            tipo: 'erro',
+            texto: `SKU ${skuMap.get(r.sku_id)?.codigo || ''}: identifique a série. O saldo sem série fica bloqueado.`,
+          })
+          return
+        }
+        if (r.qtd !== 1) {
+          setFeedback({ tipo: 'erro', texto: 'Cada série é uma unidade.' })
+          return
+        }
+      }
       if (!r.controla_lote) continue
       const alocs = (r.alocacoes || []).filter((a) => Number(a.quantidade) > 0 && a.lote_produto_id)
       if (alocs.length === 0) {
@@ -268,6 +285,7 @@ export function TransferenciaForm({
             base: {
               sku_id: r.sku_id,
               quantidade: r.qtd,
+              serie_id: skuMap.get(r.sku_id)?.controla_serie ? r.serie_id || null : null,
             },
           }))
         )
@@ -456,6 +474,7 @@ export function TransferenciaForm({
                 const saldoBaixo =
                   saldo !== null && Number.isFinite(qtd) && qtd > saldo
                 const controlaLote = Boolean(sku?.controla_lote)
+                const controlaSerie = Boolean(sku?.controla_serie)
 
                 return (
                   <Fragment key={row.id}>
@@ -527,6 +546,18 @@ export function TransferenciaForm({
                         </button>
                       </td>
                     </tr>
+                    {controlaSerie && row.sku_id && localOrigemId && (
+                      <tr className="bg-[#0c1016]">
+                        <td colSpan={4} className="px-4 pb-3">
+                          <CampoSerie
+                            skuId={row.sku_id}
+                            localId={localOrigemId}
+                            value={row.serie_id}
+                            onChange={(serie_id) => updateRow(index, { serie_id })}
+                          />
+                        </td>
+                      </tr>
+                    )}
                     {controlaLote &&
                       empresaId &&
                       localOrigemId &&

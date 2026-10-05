@@ -7,6 +7,7 @@ import { cancelarNota, confirmarNota } from '../actions'
 export default function NotaAcoes({ notaId, status }: { notaId: string; status: string }) {
   const router = useRouter()
   const [erro, setErro] = useState<string | null>(null)
+  const [aviso, setAviso] = useState<string | null>(null)
   const [pending, start] = useTransition()
   if (status !== 'rascunho') return null
 
@@ -18,6 +19,8 @@ export default function NotaAcoes({ notaId, status }: { notaId: string; status: 
         setErro(res.error)
         return
       }
+      const aviso = 'aviso' in res && typeof res.aviso === 'string' ? res.aviso : null
+      if (aviso) setAviso(aviso)
       router.refresh()
     })
   }
@@ -41,6 +44,7 @@ export default function NotaAcoes({ notaId, status }: { notaId: string; status: 
         Cancelar rascunho
       </button>
       {erro ? <p className="text-sm text-red-300">{erro}</p> : null}
+      {aviso ? <p className="text-sm text-amber-300">{aviso}</p> : null}
     </div>
   )
 }

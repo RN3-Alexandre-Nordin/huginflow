@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { getMyProfile } from '@/app/(app)/cockpit/actions'
 import { empresaHasAddon } from '@/lib/addons/entitlements'
+import { espelharPedidoFunil } from '@/lib/compras/espelhar-funil'
 import { gerarNumeroCotacao, gerarNumeroPedido } from '@/lib/compras/numeros'
 import { niveisExigidos, type ComConfig, type TipoCompra } from '@/lib/compras/tipos'
 import { hasPermission } from '@/utils/permissions'
@@ -506,6 +507,7 @@ export async function confirmarCotacao(formData: FormData) {
       })),
     )
     if (itemErr) return { error: itemErr.message }
+    await espelharPedidoFunil(supabase, pedido.id)
     pedidosCriados.push(pedido.id)
   }
 

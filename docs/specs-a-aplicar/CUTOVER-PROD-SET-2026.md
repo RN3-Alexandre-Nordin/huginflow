@@ -3,12 +3,12 @@
 > **Runbook operacional de subida para produção.**  
 > Pacotes SQL, changelog e checklists pré-prod: [MIGRACAO-SUPABASE.md](../MIGRACAO-SUPABASE.md).  
 > Índice: [README.md](../README.md).  
-> **Data de Compilação:** 13 de Setembro de 2026 (atualizado 30/09 — migrations 17–**41**)  
+> **Data de Compilação:** 13 de Setembro de 2026 (atualizado 05/10 — migrations 17–**52**)  
 > **Ambiente Origem (DEV):** `vujqukqsfwmoezwyuoum` ([huginflow-dev](https://supabase.com/dashboard/project/vujqukqsfwmoezwyuoum))  
 > **Ambiente Destino (PROD):** `zmypzexefjbovuknjlid` ([huginflow-prod](https://supabase.com/dashboard/project/zmypzexefjbovuknjlid))  
 > **Branch de Trabalho:** `develop` | **Branch de Produção:** `main`  
 > **VPS Produção:** Docker Swarm em `vps.rn3.tec.br` / Portainer / Traefik  
-> **Status do código (30/09):** SQL homologado em DEV até `202609301700_compras_fase4_caixas` (Compras Fases 1–4 concluídas) · **PROD: aguardando pedido explícito**
+> **Status (05/10):** cutover **01–52** aplicado no banco de produção (`compras_nota_item_update`). Addons `estoque` e `compras` desligados até um admin habilitar por empresa. Código deste pacote sobe na `main` como `v0.7.0`.
 
 ---
 
@@ -54,7 +54,7 @@ Este cutover consolida **grandes ondas** de evolução do sistema desenvolvidas 
    - Refatoração da tela de Configurações de Estoque (`/cockpit/estoque/configuracao`) para a arquitetura canônica de abas (`Importação NF-e`, `Requisições Internas` e `Fluxo de Aprovação`).
 7. **Performance SaaS:** regra `.cursor/rules/saas-performance.mdc` (agregar no Postgres, paginar, índice com `empresa_id`).
 8. **Estoque lote/validade (18/09):** `est_lotes_produto`, flags `controla_lote`/`exige_validade`, FEFO sugerido, grão dual no saldo/cardex. Cutover **28**.
-9. **Addon Compras Fases 1–4 (26–30/09), concluídas em DEV:** solicitação, pedido via planilha, alçada com dois valores, cotação/PDF, editar, cancelar com motivo, receber e conferência por caixa. Cutover **29–41**. A Fase 5 (nota) ainda não entra neste cutover. O arquivo `202609301600_compras_fase4_notas` já está no DEV e fica de fora desta lista.
+9. **Addon Compras Fases 1–9 (26/09–05/10), concluídas em DEV:** solicitação, pedido via planilha, alçada com dois valores, cotação/PDF, editar, cancelar com motivo, receber, conferência por caixa, recebimento de importados, nota de entrada (XML, impostos, frete, custo da última compra), devolução ao fornecedor, pré-título, funis espelho, série unitária no estoque, relatórios só de leitura e alteração da linha da nota. Cutover **29–52**. Condição de pagamento não entra neste pacote. O arquivo `202609301600_compras_fase4_notas` é o item **43**: a data do arquivo fica entre a alçada e as caixas, e em produção ele entra depois do item 42.
 
 ---
 
@@ -120,8 +120,19 @@ As migrations devem ser executadas **estritamente na ordem numérica indicada**,
 | **39** | `supabase/migrations/202609291610_compras_fase3_pedido_rls.sql` | RLS de conferência e reabertura de alçada. | `SELECT policyname FROM pg_policies WHERE policyname = 'com_pedido_aprovacoes_delete';` |
 | **40** | `supabase/migrations/202609301500_compras_alcada_dois_valores.sql` | Alçada: até `nivel1_teto` sem aprovação; acima de `nivel2_a_partir`, segunda alçada. | `SELECT column_name FROM information_schema.columns WHERE table_name = 'com_config' AND column_name = 'nivel2_a_partir';` |
 | **41** | `supabase/migrations/202609301700_compras_fase4_caixas.sql` | **Fase 4 concluída:** conferência por caixa (`com_caixas`, código `CX-######`, RPC `com_abrir_caixa`). Desligada por padrão. | `SELECT to_regclass('public.com_caixas');` · `SELECT routine_name FROM information_schema.routines WHERE routine_name = 'com_abrir_caixa';` |
+| **42** | `supabase/migrations/202610041400_compras_recebimento_importados.sql` | Recebimento de importados: `codigo_fornecedor` e `com_importado_leituras`. A caixa `CX-` permanece. | `SELECT column_name FROM information_schema.columns WHERE table_name = 'com_pedidos' AND column_name = 'codigo_fornecedor';` · `SELECT to_regclass('public.com_importado_leituras');` |
+| **43** | `supabase/migrations/202609301600_compras_fase4_notas.sql` | **Fase 5, base:** `com_notas` e `com_nota_itens`. Arquivo datado antes das caixas; aplicar nesta posição. | `SELECT to_regclass('public.com_notas');` · `SELECT to_regclass('public.com_nota_itens');` |
+| **44** | `supabase/migrations/202610041600_compras_fase5_nota.sql` | **Fase 5 concluída:** frete, impostos, CFOP, centro de custo, custo da última compra e local padrão da entrada. | `SELECT column_name FROM information_schema.columns WHERE table_name = 'com_notas' AND column_name = 'frete';` · `SELECT to_regclass('public.com_sku_custo_ultima');` |
+| **45** | `supabase/migrations/202610041700_compras_recebimento_preco_nota.sql` | Preço unitário da nota na conferência manual (`com_recebimento_itens.preco_nota`). | `SELECT column_name FROM information_schema.columns WHERE table_name = 'com_recebimento_itens' AND column_name = 'preco_nota';` |
+| **46** | `supabase/migrations/202610041800_compras_divergencia_qtd_preco.sql` | Divergência calculada: quantidade recebida − pedido e preço da nota − preço do pedido. Remove o texto livre. | `SELECT column_name FROM information_schema.columns WHERE table_name = 'com_recebimento_itens' AND column_name = 'divergencia_quantidade';` |
+| **47** | `supabase/migrations/202610041900_compras_fase6_devolucoes.sql` | **Fase 6 concluída:** documento de devolução ao fornecedor (`com_devolucoes`), motivo SKU trocado, avaria ou outro. Sem NF-e, título ou saldo. | `SELECT to_regclass('public.com_devolucoes');` · `SELECT to_regclass('public.com_devolucao_itens');` |
+| **48** | `supabase/migrations/202610042000_compras_devolucao_motivo_outro.sql` | Motivo `outro` na linha da devolução. | `SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname = 'com_devolucao_itens_motivo_check';` |
+| **49** | `supabase/migrations/202610042100_compras_fase7_contador_funis.sql` | **Fase 7 concluída:** pré-título da nota confirmada (`com_pre_titulos`) e funis que espelham aprovação e recebimento. Sem título a pagar. | `SELECT to_regclass('public.com_pre_titulos');` · `SELECT proname FROM pg_proc WHERE proname = 'com_espelhar_funil_pedido';` |
+| **50** | `supabase/migrations/202610042200_estoque_serie_unitaria.sql` | **Fase 8 concluída:** série unitária. Saldo sem série não sai até o inventário. | `SELECT to_regclass('public.est_series');` · `SELECT proname FROM pg_proc WHERE proname = 'est_atribuir_serie_saldo';` |
+| **51** | `supabase/migrations/202610051200_compras_fase9_relatorios.sql` | **Fase 9 concluída:** relatórios só de leitura (`com_rpc_relatorio`). | `SELECT proname FROM pg_proc WHERE proname = 'com_rpc_relatorio';` |
+| **52** | `supabase/migrations/202610051400_compras_nota_item_update.sql` | Linha da nota pode ser alterada. A confirmação grava o frete rateado. | `SELECT polname FROM pg_policy p JOIN pg_class c ON c.oid = p.polrelid WHERE c.relname = 'com_nota_itens' AND polname = 'com_nota_itens_update';` |
 
-> **Observação:** 01–08 = Onda Cadastros · 09–10 + 12–19 = Onda Estoque · 11 = Funis · **20 = Cockpit templates** · **21–23 = Planilha requisição** · **24 = Família SKU** · **25 = Relatórios estoque RPC** · **26–27 = BI Workflow/Omni** · **28 = Lote/validade** · **29–32 = Compras Fase 1** · **33–37 = Compras Fase 2 (concluída)** · **38–39 = Compras Fase 3 (concluída)** · **40 = alçada com dois valores** · **41 = Compras Fase 4 (concluída)**. Em **DEV** as migrations até **41** já foram aplicadas. **PROD:** só com pedido explícito. A Fase 5 (nota) e o arquivo `202609301600_compras_fase4_notas` ainda não entram nesta lista.
+> **Observação:** 01–08 = Onda Cadastros · 09–10 + 12–19 = Onda Estoque · 11 = Funis · **20 = Cockpit templates** · **21–23 = Planilha requisição** · **24 = Família SKU** · **25 = Relatórios estoque RPC** · **26–27 = BI Workflow/Omni** · **28 = Lote/validade** · **29–32 = Compras Fase 1** · **33–37 = Compras Fase 2 (concluída)** · **38–39 = Compras Fase 3 (concluída)** · **40 = alçada com dois valores** · **41 = Compras Fase 4 (concluída)** · **42 = recebimento de importados** · **43–44 = Compras Fase 5 (nota, concluída)** · **45 = preço da nota na conferência** · **46 = divergência de quantidade e de preço** · **47 = Compras Fase 6 (devolução, concluída)** · **48 = motivo Outro** · **49 = Compras Fase 7 (pré-título e funis, concluída)** · **50 = série unitária (Fase 8, concluída)** · **51 = relatórios de compras (Fase 9, concluída)** · **52 = alteração da linha da nota**. Em **DEV** e em **PROD** as migrations até **52** foram aplicadas (produção em 05/10/2026). O item 43 usa o arquivo `202609301600`, anterior ao 41; a ordem de execução é a numeração, não a data do nome.
 
 ---
 
@@ -136,6 +147,11 @@ As migrations devem ser executadas **estritamente na ordem numérica indicada**,
   - `src/app/(app)/cockpit/relatorios/**` (hub + `[slug]`).
   - `src/components/relatorios/**` (`BiReportFiltersForm`, `BiReportExportBar`).
   - `src/lib/relatorios/**` (catalog 14 slugs, queries → `crm_rpc_relatorio`, format).
+- **Compras — relatórios (Fase 9):**
+  - `src/app/(app)/cockpit/compras/relatorios/**` (hub + `[slug]`).
+  - `src/components/compras/relatorios/ReportFiltersForm.tsx`.
+  - `src/lib/compras/relatorios/**` (catalog 9 slugs → `com_rpc_relatorio`).
+  - Permissão `compras_relatorios` (só Ver) em `src/constants/permissions.ts`.
 - **Cockpit templates (home):**
   - `src/lib/cockpit/templates.ts`
   - `src/app/(app)/cockpit/_components/EstoqueOperatorDashboard.tsx`
@@ -174,13 +190,18 @@ As migrations devem ser executadas **estritamente na ordem numérica indicada**,
 [ETAPA 0: SMOKE DEV] ──> [ETAPA 1: PREPARAÇÃO] ──> [ETAPA 2: BANCO PROD] ──> [ETAPA 3: GIT & DEPLOY] ──> [ETAPA 4: SMOKE PROD]
 ```
 
-### Etapa 0: Smoke em DEV (14/09 — antes de qualquer prod)
+### Etapa 0: Smoke em DEV (antes de qualquer prod)
 1. Remessa multi-local + obs de lote + geração `REM-…`.
 2. Retorno mesmo SKU; retorno com SKU diferente (industrialização); baixa definitiva parcial fechando lote.
 3. Conferir Cardex (`remessa_saida` / `remessa_retorno` / `remessa_baixa`) e saldos / poder de terceiros.
 4. Transferência lote, entradas, retiradas e requisições (regressão rápida).
 5. **Relatórios Estoque:** `/cockpit/estoque/relatorios` — abrir `valor-estoque` e `consumo-doh`; filtros + paginação; Excel/PDF; RPC `est_rpc_relatorio` retorna `rows`/`resumo` (`total_count`).
 6. **Relatórios Workflow/Omni:** `/cockpit/relatorios` — abrir `omni-fila`, `omni-sla`, `wf-receita`, `wf-gargalos`; permissão `relatorios.view`; RPC `crm_rpc_relatorio`; triggers SLA (nova msg → `first_response_at` / handover → `handover_at`).
+7. **Relatórios Compras:** `/cockpit/compras/relatorios` — abrir `compras-por-tipo` e `a-chegar`; paginação de 50; RPC `com_rpc_relatorio` retorna `rows`/`resumo` (`total_count`). Permissão `compras_relatorios.view`.
+8. **Série unitária:** `/cockpit/estoque/series`. SKU com `controla_serie` não sai sem número.
+9. **Linha da nota:** confirmar uma nota produtiva e ver `com_nota_itens.frete_rateado` gravado. Sem a política do item **52**, o banco aceita o comando e não altera a linha.
+
+**Já executado em DEV em 05/10/2026, antes desta subida:** `SCR-EST-*` 15/15 e `SCR-COM-F1` a `SCR-COM-F9` 9/9. A tela de séries está na suíte de interface; o clique no navegador ainda não foi feito neste ambiente.
 
 ### Etapa 1: Preparação e Janela de Manutenção
 1. Agendar janela de baixo tráfego (ou notificar equipe de operações).
@@ -189,15 +210,20 @@ As migrations devem ser executadas **estritamente na ordem numérica indicada**,
 3. Garantir `develop` com smoke verde e `npx tsc --noEmit` limpo.
 
 ### Etapa 2: Aplicação do Banco de Dados (Supabase Prod)
-*Somente executar com o OK formal do responsável.*
+**Executado em 05/10/2026** (pedido explícito). As 52 migrations entraram na ordem da Seção 4. O item 43 é o arquivo `202609301600`, mesmo sendo mais antigo que o 41. Conferido: `est_movimentos`, `est_series`, `com_pedidos`, `com_notas`, política `com_nota_itens_update`, `est_registrar_movimento_atomico` (25 argumentos) e `com_rpc_relatorio`.
+
+Registro do que foi feito:
 1. Abrir o SQL Editor do Supabase Prod.
-2. Executar as migrations de **01 a 41** na ordem da Seção 4.
+2. Executar as migrations de **01 a 52** na ordem da Seção 4. O item 43 é o arquivo `202609301600`, mesmo sendo mais antigo que o 41.
 3. Validar queries pós-execução (addons, cadastros, famílias SKU, 15+ tabelas estoque, RPCs, colunas remessa/aprovação/planilha, `grupos_acesso.cockpit_template`, `crm_leads.codigo_externo`, funis `ativo`).
 4. **Validar RPCs de relatórios:**
    ```sql
    SELECT routine_name FROM information_schema.routines
-   WHERE routine_name IN ('est_rpc_relatorio', 'crm_rpc_relatorio');
+   WHERE routine_name IN ('est_rpc_relatorio', 'crm_rpc_relatorio', 'com_rpc_relatorio');
    SELECT tgname FROM pg_trigger WHERE tgname LIKE 'trg_crm_%thread%';
+   SELECT polname FROM pg_policy p
+   JOIN pg_class c ON c.oid = p.polrelid
+   WHERE c.relname = 'com_nota_itens' AND polname = 'com_nota_itens_update';
    ```
 
 ### Etapa 3: Git, Versionamento e Deploy VPS
@@ -218,6 +244,8 @@ As migrations devem ser executadas **estritamente na ordem numérica indicada**,
 - Estoque: locais, entrada, remessa envio/retorno/baixa, cardex, saldos, aprovação de requisição, **import planilha** (receber / receber+baixar).
 - **Relatórios Estoque** (`estoque_relatorios.view`): hub + 1–2 slugs Wave 1 com filtros/export.
 - **Relatórios BI** (`relatorios.view` + addon workflow): hub omni + workflow; fila/SLA e receita/gargalos.
+- **Relatórios Compras** (`compras_relatorios.view`): hub + `compras-por-tipo` e `a-chegar`; RPC `com_rpc_relatorio`.
+- **Série:** `/cockpit/estoque/series`. **Nota:** frete rateado persistido na linha (`com_nota_itens_update`).
 - Configuração estoque em abas; home `/cockpit` com template Omni vs Estoque conforme grupo.
 - Entitlement workflow nas requisições (card Kanban); addon `estoque_req_adapter_atc` se cliente ATC.
 
@@ -245,4 +273,6 @@ As migrations devem ser executadas **estritamente na ordem numérica indicada**,
 | **`v0.3.0`** | **2026-09-13** | **Alexandre Nordin** | **Em DEV (GitHub `develop`)** | Estoque Fase 4.1 + remessa multi-local/liquidação (SKU diferente + baixa) + empresas/funis/abas. Smoke 14/09; cutover prod sob pedido explícito. |
 | `v0.3.x` | 2026-09-15/16 | Alexandre Nordin | Em DEV | Locais BRANCO/TERCEIROS + Cardex dual; aprovação req.; cockpit_template; planilha req; famílias SKU; **relatórios estoque (`est_rpc_relatorio`)** + **BI workflow/omni (`crm_rpc_relatorio` + SLA writers)**. Incluir migrations **17–27** no go-live. |
 | `v0.5.0` | 2026-09-18/26 | Alexandre Nordin | Em DEV | Lote/validade FEFO (cutover **28**) + **Compras Fase 1** solicitação/pedido Excel/alçada (cutover **29–32**). PROD só com OK explícito. |
-| `v0.5.x` | 2026-09-29/30 | Alexandre Nordin | Em DEV | **Compras Fase 2 concluída** (cotação, cutover **33–37**) + **Fase 3 concluída** (editar, cancelar, receber, cutover **38–39**) + alçada com dois valores (cutover **40**) + **Fase 4 concluída** (conferência por caixa, cutover **41**). PROD só com OK explícito. |
+| `v0.5.x` | 2026-09-29/30 | Alexandre Nordin | Em DEV | **Compras Fase 2 concluída** (cotação, cutover **33–37**) + **Fase 3 concluída** (editar, cancelar, receber, cutover **38–39**) + alçada com dois valores (cutover **40**) + **Fase 4 concluída** (conferência por caixa, cutover **41**) + importados (cutover **42**). PROD só com OK explícito. |
+| `v0.6.0` | 2026-10-04 | Alexandre Nordin | Em DEV | **Compras Fase 5 concluída** (nota, XML, impostos, frete, custo da última compra, cutover **43–44**). PROD só com OK explícito. |
+| **`v0.7.0`** | **2026-10-05** | **Alexandre Nordin** | **Em produção** | Conferência com preço e divergência (cutover **45–46**), **Fase 6** devolução (**47–48**), **Fase 7** pré-título e funis (**49**), **Fase 8** série unitária (**50**), **Fase 9** relatórios só de leitura (`com_rpc_relatorio`, **51**), alteração da linha da nota para gravar o frete rateado (**52**). SQL **01–52** no banco de produção. Addons `estoque` e `compras` desligados. |

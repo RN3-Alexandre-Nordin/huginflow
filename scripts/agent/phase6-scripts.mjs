@@ -294,6 +294,7 @@ async function createSku(client, me, opts = {}) {
       unidade_estoque: 'UN',
       controla_estoque: true,
       controla_lote: Boolean(opts.controla_lote),
+      controla_serie: Boolean(opts.controla_serie),
       exige_validade: opts.exige_validade !== false,
       ativo: true,
     })
@@ -330,6 +331,7 @@ async function cleanupSkuChain(admin, empresaId, skuId, movimentoDoc) {
     await admin.from('est_saldos').delete().eq('empresa_id', empresaId).eq('sku_id', skuId)
     await admin.from('est_movimentos').delete().eq('empresa_id', empresaId).eq('sku_id', skuId)
     await admin.from('est_lotes_produto').delete().eq('empresa_id', empresaId).eq('sku_id', skuId)
+    await admin.from('est_series').delete().eq('empresa_id', empresaId).eq('sku_id', skuId)
     await admin.from('cad_skus').delete().eq('id', skuId).eq('empresa_id', empresaId)
   }
 }
@@ -675,25 +677,86 @@ async function scrLoteFefoRemessa(client, me, admin, locais) {
   }
 }
 
-/** Placeholder: série unitária ainda fora do kernel (controla_serie). */
-async function scrSerie(admin) {
-  const { error } = await admin.from('cad_skus').select('controla_serie').limit(1)
-  if (error) {
-    const msg = String(error.message || '')
+/** Série unitária: uma peça, saldo antigo bloqueado. */
+async function scrSerie(client, me, admin, locais) {
+  const { error: probeErr } = await admin.from('cad_skus').select('controla_serie').limit(1)
+  if (probeErr) {
+    const msg = String(probeErr.message || '')
     if (
       msg.includes('controla_serie') ||
       msg.includes('does not exist') ||
-      error.code === '42703' ||
-      error.code === 'PGRST204'
+      probeErr.code === '42703' ||
+      probeErr.code === 'PGRST204'
     ) {
       skipCase('controla_serie ainda não no schema — série unitária fora do MVP lote/validade')
     }
     throw new Error(`probe controla_serie: ${msg}`)
   }
-  // Coluna existe: kernel série chegou — falta implementar o case completo
-  throw new Error(
-    'controla_serie detectado no schema: implementar SCR-EST-SERIE (grão sku×local×série) neste script'
-  )
+
+  const doc = `${marker}-SER`
+  let skuId = ''
+  try {
+    skuId = await createSku(client, me, { controla_serie: true, controla_lote: false })
+
+    const semSerie = await client.rpc('est_registrar_movimento_atomico', {
+      p_empresa_id: me.empresa_id,
+      p_tipo: 'entrada',
+      p_sku_id: skuId,
+      p_local_id: locais.branco.id,
+      p_quantidade: 1,
+      p_documento: `${doc}-SEM`,
+      p_usuario_id: me.id,
+    })
+    const semParsed = parseRpc(semSerie.data, semSerie.error)
+    if (semParsed.ok) throw new Error('entrada sem série deveria falhar')
+
+    const entrada = await client.rpc('est_registrar_movimento_atomico', {
+      p_empresa_id: me.empresa_id,
+      p_tipo: 'entrada',
+      p_sku_id: skuId,
+      p_local_id: locais.branco.id,
+      p_quantidade: 1,
+      p_documento: doc,
+      p_usuario_id: me.id,
+      p_numero_serie: `SN-${doc.slice(-6)}`,
+    })
+    const entradaParsed = parseRpc(entrada.data, entrada.error)
+    if (!entradaParsed.ok) throw new Error(entradaParsed.message || 'entrada de série falhou')
+
+    const saidaSolta = await client.rpc('est_registrar_movimento_atomico', {
+      p_empresa_id: me.empresa_id,
+      p_tipo: 'saida',
+      p_sku_id: skuId,
+      p_local_id: locais.branco.id,
+      p_quantidade: 1,
+      p_documento: `${doc}-OUT`,
+      p_usuario_id: me.id,
+    })
+    const saidaParsed = parseRpc(saidaSolta.data, saidaSolta.error)
+    if (saidaParsed.ok) throw new Error('saída sem série deveria falhar')
+
+    const { error: saldoAntigoErr } = await admin.from('est_saldos').insert({
+      empresa_id: me.empresa_id,
+      sku_id: skuId,
+      local_id: locais.branco.id,
+      quantidade: 1,
+    })
+    if (saldoAntigoErr) throw new Error(`saldo sem série: ${saldoAntigoErr.message}`)
+
+    const bloqueio = await client.rpc('est_registrar_movimento_atomico', {
+      p_empresa_id: me.empresa_id,
+      p_tipo: 'saida',
+      p_sku_id: skuId,
+      p_local_id: locais.branco.id,
+      p_quantidade: 1,
+      p_documento: `${doc}-BLOQ`,
+      p_usuario_id: me.id,
+    })
+    const bloqueioParsed = parseRpc(bloqueio.data, bloqueio.error)
+    if (bloqueioParsed.ok) throw new Error('saldo sem série não pode sair')
+  } finally {
+    await cleanupSkuChain(admin, me.empresa_id, skuId, doc)
+  }
 }
 
 async function scrSaldo(client, me, admin, locais) {
@@ -1276,7 +1339,7 @@ async function main() {
     await runCase('SCR-EST-CAR-01', () => scrCardex(client, me, admin, locais))
     await runCase('SCR-EST-LOTE-01', () => scrLote(client, me, admin, locais))
     await runCase('SCR-EST-LOTE-02', () => scrLoteFefoRemessa(client, me, admin, locais))
-    await runCase('SCR-EST-SERIE-01', () => scrSerie(admin))
+    await runCase('SCR-EST-SERIE-01', () => scrSerie(client, me, admin, locais))
 
     await client.auth.signOut()
   } catch (error) {

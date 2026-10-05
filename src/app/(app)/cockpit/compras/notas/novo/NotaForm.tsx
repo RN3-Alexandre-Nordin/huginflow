@@ -14,6 +14,11 @@ type ItemPedido = {
   quantidade: string
   unidade: string
   preco: string
+  precoPedido?: string
+  cfop?: string
+  centroCusto?: string
+  nSerie?: string
+  impostos?: Record<string, number> | null
 }
 
 export type PedidoNotaOption = {
@@ -75,7 +80,7 @@ export default function NotaForm({
   pedidoInicial?: string
 }) {
   const router = useRouter()
-  const [passo, setPasso] = useState<StepId>('pedido')
+  const [passo, setPasso] = useState<StepId>(pedidoInicial ? 'nota' : 'pedido')
   const [pedidoId, setPedidoId] = useState(pedidoInicial || '')
   const [numeroNf, setNumeroNf] = useState('')
   const [serie, setSerie] = useState('1')
@@ -85,7 +90,20 @@ export default function NotaForm({
   const [origem, setOrigem] = useState<'manual' | 'xml'>('manual')
   const [emitenteDocumento, setEmitenteDocumento] = useState('')
   const [emitenteNome, setEmitenteNome] = useState('')
-  const [itens, setItens] = useState<ItemPedido[]>([])
+  const [frete, setFrete] = useState('')
+  const [vencimento, setVencimento] = useState('')
+  const [impostos, setImpostos] = useState<Record<string, number> | null>(null)
+  const [itens, setItens] = useState<ItemPedido[]>(() => {
+    const next = pedidos.find((p) => p.id === pedidoInicial)
+    return (next?.itens || []).map((item) => ({
+      ...item,
+      preco: formatPreco(item.preco),
+      precoPedido: item.preco,
+      cfop: '',
+      centroCusto: '',
+      nSerie: '',
+    }))
+  })
   const [erro, setErro] = useState<string | null>(null)
   const [pending, start] = useTransition()
 
@@ -113,6 +131,10 @@ export default function NotaForm({
       (next?.itens || []).map((item) => ({
         ...item,
         preco: formatPreco(item.preco),
+        precoPedido: item.preco,
+        cfop: '',
+        centroCusto: '',
+        nSerie: '',
       })),
     )
     setOrigem('manual')
@@ -173,6 +195,9 @@ export default function NotaForm({
         serie,
         chave,
         data_emissao: emissao,
+        vencimento,
+        frete: numero(frete) || 0,
+        impostos,
         observacao,
         origem,
         emitente_documento: emitenteDocumento,
@@ -184,6 +209,13 @@ export default function NotaForm({
           quantidade: numero(i.quantidade),
           unidade: i.unidade,
           preco_unitario: numero(i.preco),
+          preco_pedido: Number.isFinite(numero(i.precoPedido || ''))
+            ? numero(i.precoPedido || '')
+            : null,
+          cfop: i.cfop || null,
+          centro_custo: i.centroCusto || null,
+          n_serie: i.nSerie || null,
+          impostos: i.impostos || null,
         })),
       })
       if ('error' in res && res.error) {
@@ -225,12 +257,15 @@ export default function NotaForm({
 
       {passo === 'nota' ? (
         <div className="grid gap-3 sm:grid-cols-2" role="tabpanel">
-          <label className="block text-sm text-gray-300 sm:col-span-2">
-            XML da NF-e
+          <label className="block rounded-xl border border-dashed border-[#2BAADF]/40 bg-[#2BAADF]/5 px-4 py-3 text-sm text-gray-200 sm:col-span-2">
+            Arquivo XML da NF-e
+            <span className="mt-0.5 block text-xs text-gray-500">
+              Escolha o XML deste pedido. Número, série, chave e itens são preenchidos a partir dele.
+            </span>
             <input
               type="file"
               accept=".xml,text/xml,application/xml"
-              className="mt-1 block w-full text-xs text-gray-400"
+              className="mt-2 block w-full text-sm text-gray-300 file:mr-3 file:rounded-lg file:border-0 file:bg-[#2BAADF] file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-white"
               onChange={(e) => {
                 const file = e.target.files?.[0]
                 if (!file) return
@@ -248,10 +283,26 @@ export default function NotaForm({
                     setNumeroNf(res.numero ?? '')
                     setSerie(res.serie || '1')
                     setChave(res.chave ?? '')
-                    setEmissao(res.data_emissao ?? '')
+                    setEmissao((res.data_emissao ?? '').slice(0, 10))
+                    setFrete(formatPreco(String(res.frete || 0)))
+                    setImpostos(res.impostos)
                     setOrigem('xml')
                     setEmitenteDocumento(res.emitente_documento ?? '')
                     setEmitenteNome(res.emitente_nome ?? '')
+                    if (res.itens?.length && res.itens.length === itens.length) {
+                      setItens(
+                        itens.map((item, index) => {
+                          const xml = res.itens[index]
+                          return {
+                            ...item,
+                            preco: formatPreco(String(xml.preco)),
+                            cfop: xml.cfop,
+                            nSerie: xml.n_serie,
+                            impostos: xml.impostos,
+                          }
+                        }),
+                      )
+                    }
                   })
                 }
                 reader.readAsText(file)
@@ -281,6 +332,24 @@ export default function NotaForm({
               type="date"
               value={emissao}
               onChange={(e) => setEmissao(e.target.value)}
+              className={field}
+            />
+          </label>
+          <label className="block text-sm text-gray-300">
+            Frete
+            <input
+              inputMode="numeric"
+              value={frete}
+              onChange={(e) => setFrete(maskPreco(e.target.value))}
+              className={field}
+            />
+          </label>
+          <label className="block text-sm text-gray-300">
+            Vencimento
+            <input
+              type="date"
+              value={vencimento}
+              onChange={(e) => setVencimento(e.target.value)}
               className={field}
             />
           </label>
@@ -335,6 +404,46 @@ export default function NotaForm({
               <p className="text-right text-sm font-semibold text-white sm:col-span-2">
                 {money((numero(item.quantidade) || 0) * (numero(item.preco) || 0))}
               </p>
+              {item.precoPedido &&
+              Math.abs((numero(item.preco) || 0) - (numero(item.precoPedido) || 0)) > 0.005 ? (
+                <p className="text-xs text-amber-300 sm:col-span-12">
+                  Preço diferente do pedido ({formatPreco(item.precoPedido)}). A nota pode ser
+                  confirmada.
+                </p>
+              ) : null}
+              <input
+                aria-label="CFOP"
+                placeholder="CFOP"
+                value={item.cfop || ''}
+                onChange={(e) => {
+                  const next = [...itens]
+                  next[index] = { ...item, cfop: e.target.value }
+                  setItens(next)
+                }}
+                className="h-8 rounded-lg border border-[#ffffff14] bg-[#0A0A0A] px-2 text-sm text-white sm:col-span-2"
+              />
+              <input
+                aria-label="Centro de custo"
+                placeholder="Centro de custo"
+                value={item.centroCusto || ''}
+                onChange={(e) => {
+                  const next = [...itens]
+                  next[index] = { ...item, centroCusto: e.target.value }
+                  setItens(next)
+                }}
+                className="h-8 rounded-lg border border-[#ffffff14] bg-[#0A0A0A] px-2 text-sm text-white sm:col-span-4"
+              />
+              <input
+                aria-label="Número de série"
+                placeholder="Série do XML"
+                value={item.nSerie || ''}
+                onChange={(e) => {
+                  const next = [...itens]
+                  next[index] = { ...item, nSerie: e.target.value }
+                  setItens(next)
+                }}
+                className="h-8 rounded-lg border border-[#ffffff14] bg-[#0A0A0A] px-2 text-sm text-white sm:col-span-6"
+              />
             </div>
           ))}
         </div>
@@ -344,9 +453,11 @@ export default function NotaForm({
         <div className="space-y-3 text-sm" role="tabpanel">
           <p className="text-white">
             NF {numeroNf}/{serie} · {pedido?.fornecedorNome} · {money(valor)}
+            {numero(frete) > 0 ? ` · frete ${money(numero(frete))}` : ''}
           </p>
           <p className="text-xs text-gray-500">
-            Confirmar grava a nota. A entrada de estoque fica para a fase seguinte.
+            Material produtivo entra no local padrão da configuração. Serviço e consumo só gravam a
+            nota. Se o SKU controla série, cada número vira uma unidade no estoque.
           </p>
           <button
             type="button"

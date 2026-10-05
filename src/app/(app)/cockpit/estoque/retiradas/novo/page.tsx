@@ -39,7 +39,7 @@ export default async function NovaRetiradaPage() {
 
   let skusQuery = supabase
     .from('cad_skus')
-    .select('id, codigo, nome, unidade_estoque, controla_lote')
+    .select('id, codigo, nome, unidade_estoque, controla_lote, controla_serie')
     .eq('ativo', true)
     .eq('controla_estoque', true)
     .order('codigo')

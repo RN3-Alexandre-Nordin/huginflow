@@ -632,8 +632,8 @@ export const TEST_CATALOG: Record<string, TestCatalogEntry> = {
     id: 'SCR-EST-SERIE-01',
     area: 'Estoque / Série unitária',
     expectativa:
-      'Placeholder até controla_serie no kernel; skip se coluna ausente.',
-    passos: 'Probe cad_skus.controla_serie; skip ou implementa grão série.',
+      'SKU controla_serie: entrada sem número falha; entrada de 1 série sobe o grão; saída sem série falha; saldo sem série não sai.',
+    passos: 'Cria SKU seriado; bloqueia entrada sem série; entrada SN-1; saída sem série; saldo antigo bloqueado.',
   },
   'UI-EST-LOTE-01': {
     id: 'UI-EST-LOTE-01',
@@ -651,8 +651,62 @@ export const TEST_CATALOG: Record<string, TestCatalogEntry> = {
   'UI-EST-SERIE-01': {
     id: 'UI-EST-SERIE-01',
     area: 'Estoque / Série UI',
-    expectativa: 'Reservado para controla_serie (fora do MVP lote).',
-    passos: 'Skip até flag/UI de série unitária existir.',
+    expectativa: 'Estoque → Séries abre o inventário da série unitária, sem acesso interditado.',
+    passos: 'Abre /cockpit/estoque/series e confere o título Séries.',
+  },
+  'SCR-COM-F1-01': {
+    id: 'SCR-COM-F1-01',
+    area: 'Compras / Fase 1 Solicitar',
+    expectativa: 'Solicitação produtiva nasce com número SOL- do dia e item no tenant.',
+    passos: 'Cria solicitação e item; tipo inválido é recusado; apaga a fixture.',
+  },
+  'SCR-COM-F2-01': {
+    id: 'SCR-COM-F2-01',
+    area: 'Compras / Fase 2 Pedir',
+    expectativa: 'Cotação elege um fornecedor e a aprovação do pedido registra quem decidiu.',
+    passos: 'Cotação, proposta, pedido e com_pedido_aprovacoes; quarto fornecedor é recusado.',
+  },
+  'SCR-COM-F3-01': {
+    id: 'SCR-COM-F3-01',
+    area: 'Compras / Fase 3 Conferir',
+    expectativa: 'Recebimento parcial grava falta (recebido − pedido) e status recebido_parcial.',
+    passos: 'Pedido aprovado; recebe menos que o pedido; confere divergencia_quantidade.',
+  },
+  'SCR-COM-F4-01': {
+    id: 'SCR-COM-F4-01',
+    area: 'Compras / Fase 4 Caixa e importados',
+    expectativa: 'CX- é da caixa; o código do fornecedor é outra leitura. O recebimento comum continua.',
+    passos: 'Liga as duas formas, abre caixa, grava leitura e um recebimento comum; restaura o setup.',
+  },
+  'SCR-COM-F5-01': {
+    id: 'SCR-COM-F5-01',
+    area: 'Compras / Fase 5 Nota',
+    expectativa: 'Preço diferente marca aviso; frete entra no custo da última compra. Serviço não move saldo.',
+    passos: 'Nota produtiva com frete e aviso_preco; nota de serviço sem cardex.',
+  },
+  'SCR-COM-F6-01': {
+    id: 'SCR-COM-F6-01',
+    area: 'Compras / Fase 6 Devolução',
+    expectativa: 'Devolução aceita trocado, avaria ou outro e não gera movimento de estoque.',
+    passos: 'Grava DEV- com motivo outro; motivo fora da lista falha; cardex do SKU segue vazio.',
+  },
+  'SCR-COM-F7-01': {
+    id: 'SCR-COM-F7-01',
+    area: 'Compras / Fase 7 Pré-título',
+    expectativa: 'Nota confirmada gera um pré-título PT- aguardando AP. A segunda chamada não duplica.',
+    passos: 'com_gravar_pre_titulo duas vezes; status aguardando_ap; sem título financeiro.',
+  },
+  'SCR-COM-F8-01': {
+    id: 'SCR-COM-F8-01',
+    area: 'Compras / Fase 8 Série na nota',
+    expectativa: 'A quantidade da nota só entra no estoque se houver uma série por unidade.',
+    passos: 'Grava uma série, completa a segunda na linha e só então entra no estoque; saldo sem série não sai.',
+  },
+  'SCR-COM-F9-01': {
+    id: 'SCR-COM-F9-01',
+    area: 'Compras / Fase 9 Relatórios',
+    expectativa: 'Os nove relatórios devolvem página e resumo. Slug inválido e outra empresa são recusados.',
+    passos: 'com_rpc_relatorio nos 9 slugs, com a fixture do dia visível no resumo.',
   },
 }
 

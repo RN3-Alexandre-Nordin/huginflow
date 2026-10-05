@@ -1,5 +1,4 @@
 import Link from 'next/link'
-import { notFound } from 'next/navigation'
 import { Lock } from 'lucide-react'
 import { getMyProfile } from '@/app/(app)/cockpit/actions'
 import BackTextButton from '@/components/BackTextButton'
@@ -44,7 +43,18 @@ export default async function LerCaixaPage({
     .select('recebimento_por_caixa')
     .eq('empresa_id', me!.empresa_id)
     .maybeSingle()
-  if (!config?.recebimento_por_caixa) notFound()
+  if (!config?.recebimento_por_caixa) {
+    return (
+      <div className="space-y-3">
+        <p className="text-sm text-gray-300">
+          O recebimento por caixa está desligado. Ligue em Compras, Configuração, aba Recebimento.
+        </p>
+        <Link href={`/cockpit/compras/pedidos/${id}`} className="text-sm text-[#2BAADF]">
+          Voltar ao pedido
+        </Link>
+      </div>
+    )
+  }
 
   const { data: caixa } = await supabase
     .from('com_caixas')
@@ -53,7 +63,28 @@ export default async function LerCaixaPage({
     .eq('pedido_id', id)
     .eq('empresa_id', me!.empresa_id)
     .maybeSingle()
-  if (!caixa || caixa.status === 'cancelada') notFound()
+  if (!caixa) {
+    return (
+      <div className="space-y-3">
+        <p className="text-sm text-gray-300">Caixa não encontrada neste pedido.</p>
+        <Link href={`/cockpit/compras/pedidos/${id}/caixas`} className="text-sm text-[#2BAADF]">
+          Voltar às caixas
+        </Link>
+      </div>
+    )
+  }
+  if (caixa.status === 'cancelada') {
+    return (
+      <div className="space-y-3">
+        <p className="text-sm text-gray-300">
+          Esta caixa foi cancelada. O número não volta a ser usado.
+        </p>
+        <Link href={`/cockpit/compras/pedidos/${id}/caixas`} className="text-sm text-[#2BAADF]">
+          Voltar às caixas
+        </Link>
+      </div>
+    )
+  }
 
   const { data: pedido } = await supabase
     .from('com_pedidos')
@@ -79,7 +110,7 @@ export default async function LerCaixaPage({
 
   const { data: daCaixa } = await supabase
     .from('com_caixa_itens')
-    .select('pedido_item_id, quantidade, divergencia')
+    .select('pedido_item_id, quantidade')
     .eq('caixa_id', caixa.id)
     .eq('empresa_id', me!.empresa_id)
 
@@ -99,8 +130,8 @@ export default async function LerCaixaPage({
       descricao: item.descricao,
       unidade: item.unidade,
       saldo,
+      pedida: Number(item.quantidade),
       quantidade: lido ? String(lido.quantidade) : '',
-      divergencia: lido?.divergencia || '',
     }
   })
 

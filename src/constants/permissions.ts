@@ -433,6 +433,28 @@ export const PERMISSION_CATEGORIES: PermissionCategory[] = [
         ],
       },
       {
+        slug: 'compras_devolucoes',
+        label: 'Devoluções ao fornecedor',
+        actions: [
+          { slug: 'view', label: 'Ver', icon: Eye },
+          { slug: 'create', label: 'Criar', icon: Plus },
+          { slug: 'edit', label: 'Confirmar / Cancelar', icon: Pencil },
+        ],
+      },
+      {
+        slug: 'compras_exportacao',
+        label: 'Pré-títulos e planilha',
+        actions: [
+          { slug: 'view', label: 'Ver / Exportar', icon: Eye },
+          { slug: 'edit', label: 'Dispensar', icon: Pencil },
+        ],
+      },
+      {
+        slug: 'compras_relatorios',
+        label: 'Relatórios de Compras',
+        actions: [{ slug: 'view', label: 'Ver', icon: Eye }],
+      },
+      {
         slug: 'compras_config',
         label: 'Configuração de Compras',
         actions: [

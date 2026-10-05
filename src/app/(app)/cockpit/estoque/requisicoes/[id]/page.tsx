@@ -94,7 +94,7 @@ export default async function EstoqueRequisicaoDetalhesPage({ params }: PageProp
     .select(
       `
       *,
-      cad_skus (id, codigo, nome, unidade_estoque, controla_lote),
+      cad_skus (id, codigo, nome, unidade_estoque, controla_lote, controla_serie),
       cad_locais_estoque (id, codigo, nome)
     `
     )
@@ -149,6 +149,7 @@ export default async function EstoqueRequisicaoDetalhesPage({ params }: PageProp
       nome?: string
       unidade_estoque?: string
       controla_lote?: boolean
+      controla_serie?: boolean
     } | null
     return {
       id: it.id as string,
@@ -162,6 +163,7 @@ export default async function EstoqueRequisicaoDetalhesPage({ params }: PageProp
       status_item: String(it.status_item || 'pendente'),
       local_id: (it.local_id as string | null) || null,
       controla_lote: Boolean(sku?.controla_lote),
+      controla_serie: Boolean(sku?.controla_serie),
     }
   })
 

@@ -7,7 +7,7 @@ O que já está live em DEV fica em [`../specs-aplicadas/`](../specs-aplicadas/)
 
 | Doc | Situação |
 |-----|----------|
-| [CUTOVER-PROD-SET-2026.md](./CUTOVER-PROD-SET-2026.md) | Runbook go-live · **PROD aguardando pedido explícito** |
+| [CUTOVER-PROD-SET-2026.md](./CUTOVER-PROD-SET-2026.md) | Runbook go-live · migrations **01–52** aplicadas em PROD em 05/10/2026 |
 | [integracao-estoque-workflow-ia.md](./integracao-estoque-workflow-ia.md) | Playbook DEV em blocos (Ondas 0–4) · seed Estoque + Workflow opcional · **a implementar** |
 | [desenvolvimento-addon-crm.md](./desenvolvimento-addon-crm.md) | Addon CRM · inventário + playbook P0–P3 (doc único) · **a aplicar** |
 | [estoque-lote-validade.md](./estoque-lote-validade.md) | Lote/batch + validade · migration `202609181800_estoque_lote_produto_validade` (DEV) · FEFO lib + UIs |
@@ -18,7 +18,7 @@ Extraídos do mapa de fases / roadmap — implementar ou documentar aqui quando 
 
 | Item | Origem | Notas |
 |------|--------|-------|
-| Pacotes SQL Cadastros + Estoque + BI + Entitlements em **PROD** | MIGRACAO / CUTOVER | Só com OK explícito |
+| Pacotes SQL Cadastros + Estoque + BI + Entitlements em **PROD** | MIGRACAO / CUTOVER | Aplicados em 05/10/2026 (cutover 01–52). Addons estoque e compras desligados |
 | Homolog / 3 verdes Fase 6 Estoque (UI mutável operacional) | agente-testes · Estoque F4 | Scripts smoke ✅; UI entrada/req/remessa ainda parcial |
 | Export consumido de estoque | Estoque F4.5 | Parcial — export massivo ⏳ |
 | Sessão 7 — Ponte faturamento SaaS (entitlement ↔ contratos) W9 | Roadmap entitlements | Depois do core |

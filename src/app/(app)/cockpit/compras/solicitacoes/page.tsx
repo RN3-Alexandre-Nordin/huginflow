@@ -3,7 +3,8 @@ import { Lock, Pencil } from 'lucide-react'
 import { getMyProfile } from '@/app/(app)/cockpit/actions'
 import BackTextButton from '@/components/BackTextButton'
 import ExcluirSolicitacaoButton from './ExcluirSolicitacaoButton'
-import { TIPO_COMPRA_LABEL, type TipoCompra } from '@/lib/compras/tipos'
+import { dataFiltroIso, diaIntervalo, textoFiltro, UUID_FILTRO } from '@/lib/compras/filtros-lista'
+import { TIPO_COMPRA_LABEL, tipoCompraValido, type TipoCompra } from '@/lib/compras/tipos'
 import { empresaHasAddon } from '@/lib/addons/entitlements'
 import { hasPermission } from '@/utils/permissions'
 import { createClient } from '@/utils/supabase/server'
@@ -17,14 +18,6 @@ const STATUS_LABEL: Record<string, string> = {
   cancelada: 'Cancelada',
 }
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-
-function diaLista(isoDate: string) {
-  const inicio = new Date(`${isoDate}T00:00:00-03:00`)
-  const fim = new Date(inicio.getTime() + 24 * 60 * 60 * 1000)
-  return { inicio: inicio.toISOString(), fim: fim.toISOString() }
-}
-
 function nomeEmbed(value: { nome?: string } | { nome?: string }[] | null | undefined) {
   if (!value) return ''
   return Array.isArray(value) ? value[0]?.nome || '' : value.nome || ''
@@ -33,7 +26,14 @@ function nomeEmbed(value: { nome?: string } | { nome?: string }[] | null | undef
 export default async function SolicitacoesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ fornecedor?: string; data?: string; solicitante?: string; status?: string }>
+  searchParams: Promise<{
+    fornecedor?: string
+    data?: string
+    solicitante?: string
+    status?: string
+    q?: string
+    tipo?: string
+  }>
 }) {
   const filtros = await searchParams
   const me = await getMyProfile()
@@ -56,10 +56,12 @@ export default async function SolicitacoesPage({
   }
 
   const supabase = await createClient()
-  const fornecedorId = UUID.test(filtros.fornecedor || '') ? filtros.fornecedor! : ''
-  const solicitanteId = UUID.test(filtros.solicitante || '') ? filtros.solicitante! : ''
+  const fornecedorId = UUID_FILTRO.test(filtros.fornecedor || '') ? filtros.fornecedor! : ''
+  const solicitanteId = UUID_FILTRO.test(filtros.solicitante || '') ? filtros.solicitante! : ''
   const statusFiltro = filtros.status && STATUS_LABEL[filtros.status] ? filtros.status : ''
-  const dataFiltro = /^\d{4}-\d{2}-\d{2}$/.test(filtros.data || '') ? filtros.data! : ''
+  const dataFiltro = dataFiltroIso(filtros.data)
+  const busca = textoFiltro(filtros.q)
+  const tipoFiltro = filtros.tipo && tipoCompraValido(filtros.tipo) ? filtros.tipo : ''
 
   let idsFornecedor: string[] | null = null
   if (fornecedorId) {
@@ -110,9 +112,11 @@ export default async function SolicitacoesPage({
     else query = query.neq('status', 'rascunho')
     if (solicitanteId) query = query.eq('solicitante_pessoa_id', solicitanteId)
     if (dataFiltro) {
-      const dia = diaLista(dataFiltro)
+      const dia = diaIntervalo(dataFiltro)
       query = query.gte('created_at', dia.inicio).lt('created_at', dia.fim)
     }
+    if (busca) query = query.ilike('numero', `%${busca}%`)
+    if (tipoFiltro) query = query.eq('tipo', tipoFiltro)
     if (idsFornecedor) query = query.in('id', idsFornecedor)
     const res = await query
     data = (res.data || []) as NonNullable<typeof data>
@@ -177,10 +181,13 @@ export default async function SolicitacoesPage({
         fornecedores={fornecedores || []}
         solicitantes={solicitantes || []}
         statusOpcoes={Object.entries(STATUS_LABEL).map(([id, label]) => ({ id, label }))}
+        tipoOpcoes={Object.entries(TIPO_COMPRA_LABEL).map(([id, label]) => ({ id, label }))}
         fornecedor={fornecedorId}
         data={dataFiltro}
         solicitante={solicitanteId}
         status={statusFiltro}
+        busca={busca}
+        tipo={tipoFiltro}
         limparHref="/cockpit/compras/solicitacoes"
         rotuloData="Data da solicitação"
       />
@@ -253,7 +260,7 @@ export default async function SolicitacoesPage({
             {!data?.length ? (
               <tr>
                 <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
-                  {fornecedorId || dataFiltro || solicitanteId || statusFiltro
+                  {fornecedorId || dataFiltro || solicitanteId || statusFiltro || busca || tipoFiltro
                     ? 'Nenhuma solicitação com esses filtros.'
                     : 'Nenhuma solicitação.'}
                 </td>

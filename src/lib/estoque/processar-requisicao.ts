@@ -330,6 +330,8 @@ export async function atenderRequisicao(
     itens?: Array<{ item_id: string; quantidade: number }>
     /** Override FEFO: item_id → alocações manuais por lote. */
     alocacoes_por_item?: Record<string, AlocacaoLoteFefo[]> | null
+    /** item_id → série de cada unidade atendida. */
+    series_por_item?: Record<string, string[]> | null
     /** Sobrescreve `est_config.req_saldo_insuficiente_modo` (ex.: auto-planilha força parcial). */
     modo_saldo?: string | null
   },
@@ -399,7 +401,7 @@ export async function atenderRequisicao(
   // 3. Carrega itens pendentes da requisição
   let itensQuery = client
     .from('est_requisicao_itens')
-    .select('*, cad_skus (id, codigo, nome, controla_lote)')
+    .select('*, cad_skus (id, codigo, nome, controla_lote, controla_serie)')
     .eq('requisicao_id', requisicao_id)
     .gt('quantidade_pendente', 0)
 
@@ -499,12 +501,14 @@ export async function atenderRequisicao(
     const skuInfo = item.cad_skus as {
       codigo?: string
       nome?: string
-      controla_lote?: boolean
-    } | null
-    const controlaLote = Boolean(skuInfo?.controla_lote)
-    const saldoDisponivel = await saldoDisponivelItem(item.sku_id, locId, controlaLote)
+        controla_lote?: boolean
+        controla_serie?: boolean
+      } | null
+      const controlaLote = Boolean(skuInfo?.controla_lote)
+      const controlaSerie = Boolean(skuInfo?.controla_serie)
+      const saldoDisponivel = await saldoDisponivelItem(item.sku_id, locId, controlaLote)
 
-    let qtdParaBaixar = 0
+      let qtdParaBaixar = 0
 
     if (overrides) {
       const pedidaOp = overrides.get(item.id) || 0
@@ -548,8 +552,25 @@ export async function atenderRequisicao(
       continue
     }
 
+    const seriesItem = controlaSerie
+      ? (params.series_por_item?.[item.id] || []).filter(Boolean)
+      : []
+    if (controlaSerie && seriesItem.length !== qtdParaBaixar) {
+      return {
+        sucesso: false,
+        mensagem: `SKU ${skuInfo?.codigo || ''}: informe uma série para cada unidade (${qtdParaBaixar}). O saldo sem série não sai.`,
+      }
+    }
+
     let alocacoes: AlocacaoLoteFefo[] = []
-    if (controlaLote) {
+    if (controlaSerie) {
+      alocacoes = seriesItem.map(() => ({
+        lote_produto_id: '',
+        numero_lote: '',
+        data_validade: null,
+        quantidade: 1,
+      }))
+    } else if (controlaLote) {
       const overrideAloc = alocacoesOverride?.[item.id]
       if (overrideAloc?.length) {
         alocacoes = overrideAloc.filter((a) => a.quantidade > 0 && a.lote_produto_id)
@@ -612,7 +633,8 @@ export async function atenderRequisicao(
     }
 
     let qtdEfetivada = 0
-    for (const aloc of alocacoes) {
+    for (let indice = 0; indice < alocacoes.length; indice++) {
+      const aloc = alocacoes[indice]
       const qtdAloc = Number(aloc.quantidade)
       if (!Number.isFinite(qtdAloc) || qtdAloc <= 0) continue
 
@@ -623,7 +645,7 @@ export async function atenderRequisicao(
           p_tipo: 'saida',
           p_sku_id: item.sku_id,
           p_local_id: locId,
-          p_quantidade: qtdAloc,
+          p_quantidade: controlaSerie ? 1 : qtdAloc,
           p_documento: req.numero,
           p_pessoa_id: req.requisitante_pessoa_id,
           p_origem: 'requisicao',
@@ -634,6 +656,7 @@ export async function atenderRequisicao(
           p_usuario_id: usuario_id || null,
           p_permitir_saldo_negativo: false,
           p_lote_produto_id: controlaLote ? aloc.lote_produto_id : null,
+          p_serie_id: controlaSerie ? seriesItem[indice] : null,
         }
       )
 

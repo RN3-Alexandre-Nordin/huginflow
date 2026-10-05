@@ -9,12 +9,12 @@
 | **Dev** | `vujqukqsfwmoezwyuoum` | [huginflow-dev](https://supabase.com/dashboard/project/vujqukqsfwmoezwyuoum) | `evo-dev.rn3.tec.br` |
 | **Prod** | `zmypzexefjbovuknjlid` | [huginflow-prod](https://supabase.com/dashboard/project/zmypzexefjbovuknjlid) | `evo.rn3.tec.br` |
 
-**Última migration no prod (intencional):** pacote até `test_runs`/Analytics BI via MCP em 2026-09-06.  
-**Gate prod (combinado 2026-09-11):** aplicar SQL/código em produção **somente** com pedido explícito do responsável. Até lá: documentar e homologar em DEV.
+**Última migration no prod:** `compras_nota_item_update` (cutover **01–52**), aplicada em 05/10/2026 via MCP. Os addons `estoque` e `compras` nasceram desligados: cada empresa liga o seu.  
+**Gate prod (combinado 2026-09-11):** aplicar SQL/código em produção **somente** com pedido explícito do responsável.
 
-**Última migration no dev:** `202609301700_compras_fase4_caixas` (conferência por caixa; Fase 4 concluída).
+**Última migration no dev:** `202610051400_compras_nota_item_update` (alteração da linha da nota).
 
-**Pendente em prod (além do changelog ⏳):** Fases 3–5 agente (`202609071530` … `202609072045`) + pacotes Cadastros C1–C8 + Estoque E1–E17 + **lote/validade** + **compras Fases 1–4** (cutover **29–41**). Não aplicar sem backup, smoke e autorização explícita.
+**Pendente em prod (além do changelog ⏳):** Fases 3–5 do agente (`202609071530` … `202609072045`) e as linhas do changelog que continuam ⏳. O cutover **01–52** (cadastros, estoque, BI, lote e compras Fases 1–9) já está no banco de produção.
 
 **Gerar bundle SQL consolidado:**
 
@@ -30,47 +30,57 @@ node scripts/supabase/prod-deploy/build-bundle.mjs
 
 | Data | Migration / alteração | Dev | Prod | Arquivo | Notas |
 |------|----------------------|-----|------|---------|-------|
-| 2026-09-30 | `compras_fase4_caixas` | ✅ | ⏳ | `supabase/migrations/202609301700_compras_fase4_caixas.sql` | `com_caixas`, código `CX-######`, RPC `com_abrir_caixa`; cutover **41**. Fase 4 concluída em DEV |
-| 2026-09-30 | `compras_fase4_notas` | ✅ | ⏳ | `supabase/migrations/202609301600_compras_fase4_notas.sql` | Adiantamento da Fase 5 (`com_notas`). Sem item de cutover até essa fase |
-| 2026-09-30 | `compras_alcada_dois_valores` | ✅ | ⏳ | `supabase/migrations/202609301500_compras_alcada_dois_valores.sql` | `com_config.nivel2_a_partir`; teto 1 = sem alçada até o valor; cutover **40** |
-| 2026-09-29 | `compras_fase3_pedido_rls` | ✅ | ⏳ | `supabase/migrations/202609291610_compras_fase3_pedido_rls.sql` | UPDATE pedido na conferência; DELETE de alçada ao reabrir; cutover **39** |
-| 2026-09-29 | `compras_fase3_pedido` | ✅ | ⏳ | `supabase/migrations/202609291600_compras_fase3_pedido.sql` | Status cancelado/recebido; `com_recebimentos`; cutover **38**. Fase 3 concluída em DEV |
-| 2026-09-26 | `compras_cotacoes_delete_rls` | ✅ | ⏳ | `supabase/migrations/202609261930_compras_cotacoes_delete_rls.sql` | DELETE da cotação; cutover **37** |
-| 2026-09-26 | `compras_solicitacao_status_atendida` | ✅ | ⏳ | `supabase/migrations/202609261920_compras_solicitacao_status_atendida.sql` | Status `atendida` na solicitação; cutover **36** |
-| 2026-09-26 | `compras_solicitacoes_delete_rls` | ✅ | ⏳ | `supabase/migrations/202609261910_compras_solicitacoes_delete_rls.sql` | DELETE da solicitação; cutover **35** |
-| 2026-09-26 | `compras_solicitacoes_update_rls` | ✅ | ⏳ | `supabase/migrations/202609261900_compras_solicitacoes_update_rls.sql` | UPDATE da solicitação; cutover **34** |
-| 2026-09-26 | `compras_fase2_cotacao` | ✅ | ⏳ | `supabase/migrations/202609261800_compras_fase2_cotacao.sql` | `com_cotacoes` + propostas; `com_pedidos.cotacao_id`; cutover **33**. Fase 2 concluída em DEV |
-| 2026-09-26 | `compras_fase1_solicitar` | ✅ | ⏳ | `supabase/migrations/202609261400_compras_fase1_solicitar.sql` | Addon `compras`; `com_config`/`com_solicitacoes`/`com_pedidos`/`com_pedido_aprovacoes` + RLS; cutover **29** |
-| 2026-09-26 | `compras_pessoa_solicitante` | ✅ | ⏳ | `supabase/migrations/202609261500_compras_pessoa_solicitante.sql` | `solicitante_pessoa_id` / `comprador_pessoa_id`; cutover **30** |
-| 2026-09-26 | `compras_cad_servicos` | ✅ | ⏳ | `supabase/migrations/202609261600_compras_cad_servicos.sql` | `cad_servicos`; `servico_id` nos itens; pedido `rascunho`; cutover **31** |
-| 2026-09-26 | `cad_servicos_rbac_servicos` | ✅ | ⏳ | `supabase/migrations/202609261700_cad_servicos_rbac_servicos.sql` | RLS slug `servicos` (mestre compra/venda); cutover **32** |
-| 2026-09-18 | `estoque_lote_produto_validade` | ✅ | ⏳ | `supabase/migrations/202609181800_estoque_lote_produto_validade.sql` | `est_lotes_produto`, flags SKU, `lote_produto_id` em saldos/movimentos/itens, RPC `p_lote_produto_id`, FEFO config; cutover **28** |
-| 2026-09-16 | `crm_thread_sla_writers` | ✅ | ⏳ | `supabase/migrations/202609161910_crm_thread_sla_writers.sql` | Triggers FRT/handover/closed_at + message_count; cutover **27** |
-| 2026-09-16 | `crm_rpc_relatorio` | ✅ | ⏳ | `supabase/migrations/202609161900_crm_rpc_relatorio.sql` | BI omni+workflow RPC (14 slugs); cutover **26** |
-| 2026-09-16 | `est_rpc_relatorios` | ✅ | ⏳ | `supabase/migrations/202609161800_est_rpc_relatorios.sql` | RPC `est_rpc_relatorio` (11 slugs, agregação+paginação); cutover **25** |
-| 2026-09-16 | `cad_sku_familias` | ✅ | ⏳ | `supabase/migrations/202609161700_cad_sku_familias.sql` | Famílias SKU + `familia_id`; cutover **24**; seed Monte Sinai DEV |
-| 2026-09-16 | `est_config_req_planilha_auto_atender` | ✅ | ⏳ | `supabase/migrations/202609161600_est_config_req_planilha_auto_atender.sql` | Import planilha: receber+baixar vs só receber; cutover **23** |
-| 2026-09-16 | `est_requisicoes_rastreio_origem` | ✅ | ⏳ | `supabase/migrations/202609161500_est_requisicoes_rastreio_origem.sql` | `codigo_origem`/`sistema_origem`/`requisitante_nome_origem` + unique; cutover **22** |
-| 2026-09-16 | `crm_leads_codigo_externo_req_adapter_atc` | ✅ | ⏳ | `supabase/migrations/202609161400_crm_leads_codigo_externo_req_adapter_atc.sql` | `codigo_externo` + addon `estoque_req_adapter_atc`; cutover **21** |
-| 2026-09-16 | `grupos_acesso_cockpit_template` | ✅ | ⏳ | `supabase/migrations/202609161200_grupos_acesso_cockpit_template.sql` | Home pronta: `cockpit_template` (`auto` \| `atendente_omni` \| `operador_estoque`); cutover **20** |
-| 2026-09-15 | `est_req_aprovacao_parametros` | ✅ | ⏳ | `supabase/migrations/202609152000_est_req_aprovacao_parametros.sql` | Aprovação interna req.; `req_aprovacao_*` + auditoria; cutover **19** |
-| 2026-09-15 | `est_remessa_cardex_dual_terceiros` | ✅ | ⏳ | `supabase/migrations/202609151910_est_remessa_cardex_dual_terceiros.sql` | Dual Cardex próprio↔TERCEIROS; tipos `remessa_entrada_terceiros` / `remessa_saida_terceiros`; poder por `remessa_id`; rebuild + backfill |
-| 2026-09-15 | `est_locais_padrao_branco_terceiros` | ✅ | ⏳ | `supabase/migrations/202609151900_est_locais_padrao_branco_terceiros.sql` | `eh_terceiros`; RPC `est_garantir_locais_padrao`; trigger ao criar empresa + backfill BRANCO/TERCEIROS |
-| 2026-09-13 | `est_remessa_baixa_e_retorno_sku` | ✅ | ⏳ | `supabase/migrations/202609131800_est_remessa_baixa_e_retorno_sku.sql` | `quantidade_baixada`; tipo `remessa_baixa`; retorno com `sku_poder_id` / `quantidade_poder` |
-| 2026-09-13 | `est_remessa_item_local_obs_lote` | ✅ | ⏳ | `supabase/migrations/202609131700_est_remessa_item_local_obs_lote.sql` | Local de saída por item + `observacao` no lote de remessa |
-| 2026-09-12 | `empresas_contato_financeiro` | ✅ | ⏳ | `supabase/migrations/202609121200_empresas_contato_financeiro.sql` | Adiciona colunas `financeiro_nome`, `financeiro_email`, `financeiro_telefone`, `financeiro_chave_pix` na tabela `public.empresas` |
-| 2026-09-13 | `est_transferencia_lotes` | ✅ | ⏳ | `supabase/migrations/202609131600_est_transferencia_lotes.sql` | Lotes multi-SKU de transferência + FK Cardex |
-| 2026-09-13 | `fix_rpc_saldo_decremento_check` | ✅ | ⏳ | `supabase/migrations/202609131500_fix_rpc_saldo_decremento_check.sql` | Fix RPC: decremento via UPDATE (evita `est_saldos_quantidade_check` em transferência/saída) |
-| 2026-09-12 | `estoque_rpcs_movimento_e_batch` | ✅ | ⏳ | `supabase/migrations/202609121100_estoque_rpcs_movimento_e_batch.sql` | RPC atômica `est_registrar_movimento_atomico` (REGRA DE OURO Cardex+Saldo) + batch de reconciliação `est_reconstruir_saldos_from_cardex` |
-| 2026-09-12 | `estoque_modulo_tabelas_rls` | ✅ | ⏳ | `supabase/migrations/202609121000_estoque_modulo_tabelas_rls.sql` | Módulo Estoque Fase 4.1: 15 tabelas (`cad_locais_estoque`, `est_config`, `est_saldos`, `est_saldos_poder_terceiros`, `est_movimentos`, lotes/itens de entrada, retirada, ajuste, remessa terceiros, requisições) + 60 policies RLS por tenant/RBAC |
+| 2026-10-05 | `compras_nota_item_update` | ✅ | ✅ | `supabase/migrations/202610051400_compras_nota_item_update.sql` | Política de UPDATE em `com_nota_itens`. A confirmação passa a gravar o frete rateado. Cutover **52** |
+| 2026-10-05 | `compras_fase9_relatorios` | ✅ | ✅ | `supabase/migrations/202610051200_compras_fase9_relatorios.sql` | Relatórios só de leitura (`com_rpc_relatorio`). Permissão `compras_relatorios`. Cutover **51**. Fase 9 concluída em DEV |
+| 2026-10-04 | `estoque_serie_unitaria` | ✅ | ✅ | `supabase/migrations/202610042200_estoque_serie_unitaria.sql` | Série unitária no estoque. Saldo sem série bloqueado até o inventário. Cutover **50**. Fase 8 concluída em DEV |
+| 2026-10-04 | `compras_fase7_contador_funis` | ✅ | ✅ | `supabase/migrations/202610042100_compras_fase7_contador_funis.sql` | Pré-título `PT-` da nota confirmada e funis que só espelham o pedido. Sem título a pagar. Cutover **49**. Fase 7 concluída em DEV |
+| 2026-10-04 | `compras_devolucao_motivo_outro` | ✅ | ✅ | `supabase/migrations/202610042000_compras_devolucao_motivo_outro.sql` | Motivo `outro` na linha da devolução, além de SKU trocado e avaria. Cutover **48** |
+| 2026-10-04 | `compras_fase6_devolucoes` | ✅ | ✅ | `supabase/migrations/202610041900_compras_fase6_devolucoes.sql` | Documento de devolução (`DEV-`) por SKU trocado, avaria ou outro. Sem NF-e, título ou saldo. Cutover **47**. Fase 6 concluída em DEV |
+| 2026-10-04 | `compras_divergencia_qtd_preco` | ✅ | ✅ | `supabase/migrations/202610041800_compras_divergencia_qtd_preco.sql` | Substitui o texto de divergência por quantidade recebida − pedido e preço da nota − preço do pedido. Cutover **46** |
+| 2026-10-04 | `compras_recebimento_preco_nota` | ✅ | ✅ | `supabase/migrations/202610041700_compras_recebimento_preco_nota.sql` | Preço unitário da nota na linha da conferência manual. Cutover **45** |
+| 2026-10-04 | `compras_fase5_nota` | ✅ | ✅ | `supabase/migrations/202610041600_compras_fase5_nota.sql` | Frete, impostos, CFOP, centro de custo, custo da última compra e local padrão da entrada. Cutover **44**. Fase 5 concluída em DEV |
+| 2026-10-04 | `compras_recebimento_importados` | ✅ | ✅ | `supabase/migrations/202610041400_compras_recebimento_importados.sql` | Código do fornecedor e leituras da etiqueta. Não altera a caixa `CX-`. Cutover **42** |
+| 2026-09-30 | `compras_fase4_caixas` | ✅ | ✅ | `supabase/migrations/202609301700_compras_fase4_caixas.sql` | `com_caixas`, código `CX-######`, RPC `com_abrir_caixa`; cutover **41**. Fase 4 concluída em DEV |
+| 2026-09-30 | `compras_fase4_notas` | ✅ | ✅ | `supabase/migrations/202609301600_compras_fase4_notas.sql` | Tabelas `com_notas` / `com_nota_itens`. Arquivo datado entre a alçada e as caixas; em prod entra como cutover **43**, depois do item 42 |
+| 2026-09-30 | `compras_alcada_dois_valores` | ✅ | ✅ | `supabase/migrations/202609301500_compras_alcada_dois_valores.sql` | `com_config.nivel2_a_partir`; teto 1 = sem alçada até o valor; cutover **40** |
+| 2026-09-29 | `compras_fase3_pedido_rls` | ✅ | ✅ | `supabase/migrations/202609291610_compras_fase3_pedido_rls.sql` | UPDATE pedido na conferência; DELETE de alçada ao reabrir; cutover **39** |
+| 2026-09-29 | `compras_fase3_pedido` | ✅ | ✅ | `supabase/migrations/202609291600_compras_fase3_pedido.sql` | Status cancelado/recebido; `com_recebimentos`; cutover **38**. Fase 3 concluída em DEV |
+| 2026-09-26 | `compras_cotacoes_delete_rls` | ✅ | ✅ | `supabase/migrations/202609261930_compras_cotacoes_delete_rls.sql` | DELETE da cotação; cutover **37** |
+| 2026-09-26 | `compras_solicitacao_status_atendida` | ✅ | ✅ | `supabase/migrations/202609261920_compras_solicitacao_status_atendida.sql` | Status `atendida` na solicitação; cutover **36** |
+| 2026-09-26 | `compras_solicitacoes_delete_rls` | ✅ | ✅ | `supabase/migrations/202609261910_compras_solicitacoes_delete_rls.sql` | DELETE da solicitação; cutover **35** |
+| 2026-09-26 | `compras_solicitacoes_update_rls` | ✅ | ✅ | `supabase/migrations/202609261900_compras_solicitacoes_update_rls.sql` | UPDATE da solicitação; cutover **34** |
+| 2026-09-26 | `compras_fase2_cotacao` | ✅ | ✅ | `supabase/migrations/202609261800_compras_fase2_cotacao.sql` | `com_cotacoes` + propostas; `com_pedidos.cotacao_id`; cutover **33**. Fase 2 concluída em DEV |
+| 2026-09-26 | `compras_fase1_solicitar` | ✅ | ✅ | `supabase/migrations/202609261400_compras_fase1_solicitar.sql` | Addon `compras`; `com_config`/`com_solicitacoes`/`com_pedidos`/`com_pedido_aprovacoes` + RLS; cutover **29** |
+| 2026-09-26 | `compras_pessoa_solicitante` | ✅ | ✅ | `supabase/migrations/202609261500_compras_pessoa_solicitante.sql` | `solicitante_pessoa_id` / `comprador_pessoa_id`; cutover **30** |
+| 2026-09-26 | `compras_cad_servicos` | ✅ | ✅ | `supabase/migrations/202609261600_compras_cad_servicos.sql` | `cad_servicos`; `servico_id` nos itens; pedido `rascunho`; cutover **31** |
+| 2026-09-26 | `cad_servicos_rbac_servicos` | ✅ | ✅ | `supabase/migrations/202609261700_cad_servicos_rbac_servicos.sql` | RLS slug `servicos` (mestre compra/venda); cutover **32** |
+| 2026-09-18 | `estoque_lote_produto_validade` | ✅ | ✅ | `supabase/migrations/202609181800_estoque_lote_produto_validade.sql` | `est_lotes_produto`, flags SKU, `lote_produto_id` em saldos/movimentos/itens, RPC `p_lote_produto_id`, FEFO config; cutover **28** |
+| 2026-09-16 | `crm_thread_sla_writers` | ✅ | ✅ | `supabase/migrations/202609161910_crm_thread_sla_writers.sql` | Triggers FRT/handover/closed_at + message_count; cutover **27** |
+| 2026-09-16 | `crm_rpc_relatorio` | ✅ | ✅ | `supabase/migrations/202609161900_crm_rpc_relatorio.sql` | BI omni+workflow RPC (14 slugs); cutover **26** |
+| 2026-09-16 | `est_rpc_relatorios` | ✅ | ✅ | `supabase/migrations/202609161800_est_rpc_relatorios.sql` | RPC `est_rpc_relatorio` (11 slugs, agregação+paginação); cutover **25** |
+| 2026-09-16 | `cad_sku_familias` | ✅ | ✅ | `supabase/migrations/202609161700_cad_sku_familias.sql` | Famílias SKU + `familia_id`; cutover **24**; seed Monte Sinai DEV |
+| 2026-09-16 | `est_config_req_planilha_auto_atender` | ✅ | ✅ | `supabase/migrations/202609161600_est_config_req_planilha_auto_atender.sql` | Import planilha: receber+baixar vs só receber; cutover **23** |
+| 2026-09-16 | `est_requisicoes_rastreio_origem` | ✅ | ✅ | `supabase/migrations/202609161500_est_requisicoes_rastreio_origem.sql` | `codigo_origem`/`sistema_origem`/`requisitante_nome_origem` + unique; cutover **22** |
+| 2026-09-16 | `crm_leads_codigo_externo_req_adapter_atc` | ✅ | ✅ | `supabase/migrations/202609161400_crm_leads_codigo_externo_req_adapter_atc.sql` | `codigo_externo` + addon `estoque_req_adapter_atc`; cutover **21** |
+| 2026-09-16 | `grupos_acesso_cockpit_template` | ✅ | ✅ | `supabase/migrations/202609161200_grupos_acesso_cockpit_template.sql` | Home pronta: `cockpit_template` (`auto` \| `atendente_omni` \| `operador_estoque`); cutover **20** |
+| 2026-09-15 | `est_req_aprovacao_parametros` | ✅ | ✅ | `supabase/migrations/202609152000_est_req_aprovacao_parametros.sql` | Aprovação interna req.; `req_aprovacao_*` + auditoria; cutover **19** |
+| 2026-09-15 | `est_remessa_cardex_dual_terceiros` | ✅ | ✅ | `supabase/migrations/202609151910_est_remessa_cardex_dual_terceiros.sql` | Dual Cardex próprio↔TERCEIROS; tipos `remessa_entrada_terceiros` / `remessa_saida_terceiros`; poder por `remessa_id`; rebuild + backfill |
+| 2026-09-15 | `est_locais_padrao_branco_terceiros` | ✅ | ✅ | `supabase/migrations/202609151900_est_locais_padrao_branco_terceiros.sql` | `eh_terceiros`; RPC `est_garantir_locais_padrao`; trigger ao criar empresa + backfill BRANCO/TERCEIROS |
+| 2026-09-13 | `est_remessa_baixa_e_retorno_sku` | ✅ | ✅ | `supabase/migrations/202609131800_est_remessa_baixa_e_retorno_sku.sql` | `quantidade_baixada`; tipo `remessa_baixa`; retorno com `sku_poder_id` / `quantidade_poder` |
+| 2026-09-13 | `est_remessa_item_local_obs_lote` | ✅ | ✅ | `supabase/migrations/202609131700_est_remessa_item_local_obs_lote.sql` | Local de saída por item + `observacao` no lote de remessa |
+| 2026-09-12 | `empresas_contato_financeiro` | ✅ | ✅ | `supabase/migrations/202609121200_empresas_contato_financeiro.sql` | Adiciona colunas `financeiro_nome`, `financeiro_email`, `financeiro_telefone`, `financeiro_chave_pix` na tabela `public.empresas` |
+| 2026-09-13 | `est_transferencia_lotes` | ✅ | ✅ | `supabase/migrations/202609131600_est_transferencia_lotes.sql` | Lotes multi-SKU de transferência + FK Cardex |
+| 2026-09-13 | `fix_rpc_saldo_decremento_check` | ✅ | ✅ | `supabase/migrations/202609131500_fix_rpc_saldo_decremento_check.sql` | Fix RPC: decremento via UPDATE (evita `est_saldos_quantidade_check` em transferência/saída) |
+| 2026-09-12 | `estoque_rpcs_movimento_e_batch` | ✅ | ✅ | `supabase/migrations/202609121100_estoque_rpcs_movimento_e_batch.sql` | RPC atômica `est_registrar_movimento_atomico` (REGRA DE OURO Cardex+Saldo) + batch de reconciliação `est_reconstruir_saldos_from_cardex` |
+| 2026-09-12 | `estoque_modulo_tabelas_rls` | ✅ | ✅ | `supabase/migrations/202609121000_estoque_modulo_tabelas_rls.sql` | Módulo Estoque Fase 4.1: 15 tabelas (`cad_locais_estoque`, `est_config`, `est_saldos`, `est_saldos_poder_terceiros`, `est_movimentos`, lotes/itens de entrada, retirada, ajuste, remessa terceiros, requisições) + 60 policies RLS por tenant/RBAC |
 | 2026-09-11 | Rollback SQL precoce Cadastros | — | ✅ desfeito | MCP `rollback_premature_cadastros_wave_parcial` | Removeu `addon_registry`/`empresa_addons` + colunas Pessoas; limpou `schema_migrations` das duas entries precoces |
-| 2026-09-11 | `cad_ativos_departamento_cc` | ✅ | ⏳ | `supabase/migrations/202609111900_cad_ativos_departamento_cc.sql` | CC = `departamento_id`; drop `centro_custo` texto. Locais estoque **fora** (addon `estoque`) |
-| 2026-09-11 | `cad_ativos_patrimonio` | ✅ | ⏳ | `supabase/migrations/202609111800_cad_ativos_patrimonio.sql` | `cad_ativos` + stub fórmulas; greenfield já com `departamento_id` |
-| 2026-09-11 | `cad_skus_reforma_fiscal` | ✅ | ⏳ | `supabase/migrations/202609111700_cad_skus_reforma_fiscal.sql` | IBS/CBS/IS + NBS |
-| 2026-09-11 | `cad_sku_conversao_generica` | ✅ | ⏳ | `supabase/migrations/202609111600_cad_sku_conversao_generica.sql` | `sku_id` nullable |
-| 2026-09-11 | `cad_skus_mestre_unidades_depara` | ✅ | ⏳ | `supabase/migrations/202609111500_cad_skus_mestre_unidades_depara.sql` | SKU + UM + de-para |
-| 2026-09-11 | `crm_leads_pessoas_campos` | ✅ | ⏳ | `supabase/migrations/202609111400_crm_leads_pessoas_campos.sql` | Homologar DEV; cutover só com pedido explícito |
-| 2026-09-11 | `plataforma_addon_entitlements` | ✅ | ⏳ | `supabase/migrations/202609111200_plataforma_addon_entitlements.sql` | Homologar DEV; cutover só com pedido explícito |
+| 2026-09-11 | `cad_ativos_departamento_cc` | ✅ | ✅ | `supabase/migrations/202609111900_cad_ativos_departamento_cc.sql` | CC = `departamento_id`; drop `centro_custo` texto. Locais estoque **fora** (addon `estoque`) |
+| 2026-09-11 | `cad_ativos_patrimonio` | ✅ | ✅ | `supabase/migrations/202609111800_cad_ativos_patrimonio.sql` | `cad_ativos` + stub fórmulas; greenfield já com `departamento_id` |
+| 2026-09-11 | `cad_skus_reforma_fiscal` | ✅ | ✅ | `supabase/migrations/202609111700_cad_skus_reforma_fiscal.sql` | IBS/CBS/IS + NBS |
+| 2026-09-11 | `cad_sku_conversao_generica` | ✅ | ✅ | `supabase/migrations/202609111600_cad_sku_conversao_generica.sql` | `sku_id` nullable |
+| 2026-09-11 | `cad_skus_mestre_unidades_depara` | ✅ | ✅ | `supabase/migrations/202609111500_cad_skus_mestre_unidades_depara.sql` | SKU + UM + de-para |
+| 2026-09-11 | `crm_leads_pessoas_campos` | ✅ | ✅ | `supabase/migrations/202609111400_crm_leads_pessoas_campos.sql` | Homologar DEV; cutover só com pedido explícito |
+| 2026-09-11 | `plataforma_addon_entitlements` | ✅ | ✅ | `supabase/migrations/202609111200_plataforma_addon_entitlements.sql` | Homologar DEV; cutover só com pedido explícito |
 | 2026-09-07 | `phase5_analytics_rbac` | ✅ | ⏳ | `supabase/migrations/202609072045_phase5_analytics_rbac.sql` | RPCs Analytics exigem `relatorios.view` no backend |
 | 2026-09-07 | `phase5_omni_department_membership` | ✅ | ⏳ | `supabase/migrations/202609072030_phase5_omni_department_membership.sql` | Operador lê somente sua associação departamental same-tenant para ACL Omni |
 | 2026-09-07 | `phase5_isolation_analytics` | ✅ | ⏳ | `supabase/migrations/202609072000_phase5_isolation_analytics.sql` | `test_runs.organization_id`, hardening analytics/finance e filtros de departamento |
@@ -139,20 +149,20 @@ Código associado (sem SQL): documentos WhatsApp, ensurer, kanban data/hora, not
 
 **Homologação contínua:** [homologacao/agente-testes-plano.md](./homologacao/agente-testes-plano.md) · [homologacao/plano-homologacao-versao.md](./homologacao/plano-homologacao-versao.md).
 
-### Pacote Cadastros / entitlements (set/2026) — **NÃO aplicar até homologação DEV**
+### Pacote Cadastros / entitlements (set/2026) — aplicado em PROD em 05/10/2026
 
 Decisões: [plataforma-entitlements-decisoes.md](./specs-aplicadas/plataforma-entitlements-decisoes.md) §9 (CC = departamento; locais de estoque só no addon `estoque`).
 
 | # | ID | Arquivo | Prod |
 |---|-----|---------|------|
-| C1 | `plataforma_addon_entitlements` | `supabase/migrations/202609111200_plataforma_addon_entitlements.sql` | ⏳ |
-| C2 | `crm_leads_pessoas_campos` | `supabase/migrations/202609111400_crm_leads_pessoas_campos.sql` | ⏳ |
-| C3 | `cad_skus_mestre_unidades_depara` | `supabase/migrations/202609111500_cad_skus_mestre_unidades_depara.sql` | ⏳ |
-| C4 | `cad_sku_conversao_generica` | `supabase/migrations/202609111600_cad_sku_conversao_generica.sql` | ⏳ |
-| C5 | `cad_skus_reforma_fiscal` | `supabase/migrations/202609111700_cad_skus_reforma_fiscal.sql` | ⏳ |
-| C6 | `cad_ativos_patrimonio` | `supabase/migrations/202609111800_cad_ativos_patrimonio.sql` | ⏳ |
-| C7 | `cad_ativos_departamento_cc` | `supabase/migrations/202609111900_cad_ativos_departamento_cc.sql` | ⏳ |
-| C8 | `empresas_contato_financeiro` | `supabase/migrations/202609121200_empresas_contato_financeiro.sql` | ⏳ |
+| C1 | `plataforma_addon_entitlements` | `supabase/migrations/202609111200_plataforma_addon_entitlements.sql` | ✅ |
+| C2 | `crm_leads_pessoas_campos` | `supabase/migrations/202609111400_crm_leads_pessoas_campos.sql` | ✅ |
+| C3 | `cad_skus_mestre_unidades_depara` | `supabase/migrations/202609111500_cad_skus_mestre_unidades_depara.sql` | ✅ |
+| C4 | `cad_sku_conversao_generica` | `supabase/migrations/202609111600_cad_sku_conversao_generica.sql` | ✅ |
+| C5 | `cad_skus_reforma_fiscal` | `supabase/migrations/202609111700_cad_skus_reforma_fiscal.sql` | ✅ |
+| C6 | `cad_ativos_patrimonio` | `supabase/migrations/202609111800_cad_ativos_patrimonio.sql` | ✅ |
+| C7 | `cad_ativos_departamento_cc` | `supabase/migrations/202609111900_cad_ativos_departamento_cc.sql` | ✅ |
+| C8 | `empresas_contato_financeiro` | `supabase/migrations/202609121200_empresas_contato_financeiro.sql` | ✅ |
 
 **Gate:** bateria DEV verde + **pedido explícito** do responsável. **Fora deste pacote:** `cad_locais_estoque` / `local_padrao_id` (addon `estoque`).
 
@@ -163,36 +173,36 @@ Decisões: [plataforma-entitlements-decisoes.md](./specs-aplicadas/plataforma-en
 1. [ ] Smoke DEV (Pessoas, SKUs, Conversões UM, De-para, Ativos + select CC).
 2. [ ] Pedido explícito para cutover prod.
 3. [ ] Backup prod.
-4. [ ] Aplicar C1→C8 na ordem (MCP ou bundle).
+4. [x] Aplicar C1→C8 na ordem (MCP, 05/10/2026).
 5. [ ] Deploy código + smoke prod.
 
-### Pacote Estoque (set/2026) — **NÃO aplicar até homologação DEV**
+### Pacote Estoque (set/2026) — aplicado em PROD em 05/10/2026
 
 Spec: [desenvolvimento-modulo-estoque.md](./specs-aplicadas/desenvolvimento-modulo-estoque.md).
 
 | # | ID | Arquivo | Prod |
 |---|-----|---------|------|
-| E1 | `estoque_modulo_tabelas_rls` | `supabase/migrations/202609121000_estoque_modulo_tabelas_rls.sql` | ⏳ |
-| E2 | `estoque_rpcs_movimento_e_batch` | `supabase/migrations/202609121100_estoque_rpcs_movimento_e_batch.sql` | ⏳ |
-| E3 | `fix_rpc_saldo_decremento_check` | `supabase/migrations/202609131500_fix_rpc_saldo_decremento_check.sql` | ⏳ |
-| E4 | `est_transferencia_lotes` | `supabase/migrations/202609131600_est_transferencia_lotes.sql` | ⏳ |
-| E5 | `est_remessa_item_local_obs_lote` | `supabase/migrations/202609131700_est_remessa_item_local_obs_lote.sql` | ⏳ |
-| E6 | `est_remessa_baixa_e_retorno_sku` | `supabase/migrations/202609131800_est_remessa_baixa_e_retorno_sku.sql` | ⏳ |
-| E7 | `est_locais_padrao_branco_terceiros` | `supabase/migrations/202609151900_est_locais_padrao_branco_terceiros.sql` | ⏳ |
-| E8 | `est_remessa_cardex_dual_terceiros` | `supabase/migrations/202609151910_est_remessa_cardex_dual_terceiros.sql` | ⏳ |
-| E9 | `est_req_aprovacao_parametros` | `supabase/migrations/202609152000_est_req_aprovacao_parametros.sql` | ⏳ |
-| E10 | `grupos_acesso_cockpit_template` | `supabase/migrations/202609161200_grupos_acesso_cockpit_template.sql` | ⏳ |
-| E11 | `crm_leads_codigo_externo_req_adapter_atc` | `supabase/migrations/202609161400_crm_leads_codigo_externo_req_adapter_atc.sql` | ⏳ |
-| E12 | `est_requisicoes_rastreio_origem` | `supabase/migrations/202609161500_est_requisicoes_rastreio_origem.sql` | ⏳ |
-| E13 | `est_config_req_planilha_auto_atender` | `supabase/migrations/202609161600_est_config_req_planilha_auto_atender.sql` | ⏳ |
-| E14 | `cad_sku_familias` | `supabase/migrations/202609161700_cad_sku_familias.sql` | ⏳ |
-| E15 | `est_rpc_relatorios` | `supabase/migrations/202609161800_est_rpc_relatorios.sql` | ⏳ |
-| E16 | `crm_rpc_relatorio` | `supabase/migrations/202609161900_crm_rpc_relatorio.sql` | ⏳ |
-| E17 | `crm_thread_sla_writers` | `supabase/migrations/202609161910_crm_thread_sla_writers.sql` | ⏳ |
+| E1 | `estoque_modulo_tabelas_rls` | `supabase/migrations/202609121000_estoque_modulo_tabelas_rls.sql` | ✅ |
+| E2 | `estoque_rpcs_movimento_e_batch` | `supabase/migrations/202609121100_estoque_rpcs_movimento_e_batch.sql` | ✅ |
+| E3 | `fix_rpc_saldo_decremento_check` | `supabase/migrations/202609131500_fix_rpc_saldo_decremento_check.sql` | ✅ |
+| E4 | `est_transferencia_lotes` | `supabase/migrations/202609131600_est_transferencia_lotes.sql` | ✅ |
+| E5 | `est_remessa_item_local_obs_lote` | `supabase/migrations/202609131700_est_remessa_item_local_obs_lote.sql` | ✅ |
+| E6 | `est_remessa_baixa_e_retorno_sku` | `supabase/migrations/202609131800_est_remessa_baixa_e_retorno_sku.sql` | ✅ |
+| E7 | `est_locais_padrao_branco_terceiros` | `supabase/migrations/202609151900_est_locais_padrao_branco_terceiros.sql` | ✅ |
+| E8 | `est_remessa_cardex_dual_terceiros` | `supabase/migrations/202609151910_est_remessa_cardex_dual_terceiros.sql` | ✅ |
+| E9 | `est_req_aprovacao_parametros` | `supabase/migrations/202609152000_est_req_aprovacao_parametros.sql` | ✅ |
+| E10 | `grupos_acesso_cockpit_template` | `supabase/migrations/202609161200_grupos_acesso_cockpit_template.sql` | ✅ |
+| E11 | `crm_leads_codigo_externo_req_adapter_atc` | `supabase/migrations/202609161400_crm_leads_codigo_externo_req_adapter_atc.sql` | ✅ |
+| E12 | `est_requisicoes_rastreio_origem` | `supabase/migrations/202609161500_est_requisicoes_rastreio_origem.sql` | ✅ |
+| E13 | `est_config_req_planilha_auto_atender` | `supabase/migrations/202609161600_est_config_req_planilha_auto_atender.sql` | ✅ |
+| E14 | `cad_sku_familias` | `supabase/migrations/202609161700_cad_sku_familias.sql` | ✅ |
+| E15 | `est_rpc_relatorios` | `supabase/migrations/202609161800_est_rpc_relatorios.sql` | ✅ |
+| E16 | `crm_rpc_relatorio` | `supabase/migrations/202609161900_crm_rpc_relatorio.sql` | ✅ |
+| E17 | `crm_thread_sla_writers` | `supabase/migrations/202609161910_crm_thread_sla_writers.sql` | ✅ |
 
-**Gate:** homologação completa em DEV + **pedido explícito** do responsável. **Nada em produção.**
+**Aplicado em produção em 05/10/2026** junto com o cutover **01–52**. O addon `estoque` permanece desligado até um admin habilitar por empresa.
 
-> Ordem no cutover: [CUTOVER-PROD-SET-2026.md](./specs-a-aplicar/CUTOVER-PROD-SET-2026.md) Seção 4 — itens **17–41** (após remessa 16; **25**=relatórios estoque · **26–27**=BI workflow/omni · **29–41**=Compras Fases 1–4).
+> Ordem no cutover: [CUTOVER-PROD-SET-2026.md](./specs-a-aplicar/CUTOVER-PROD-SET-2026.md) Seção 4 — itens **17–52** (após remessa 16; **25**=relatórios estoque · **26–27**=BI workflow/omni · **29–42**=Compras Fases 1–4 · **43–44**=Fase 5 nota · **45**=preço da nota na conferência · **46**=divergência de quantidade e de preço · **47**=devolução ao fornecedor · **48**=motivo Outro · **49**=pré-título e funis espelho · **50**=série unitária · **51**=relatórios de compras · **52**=alteração da linha da nota). O arquivo do item 43 é `202609301600`, anterior às caixas; aplicar na ordem numerada.
 
 **Checklist pré-prod Estoque**
 
@@ -200,9 +210,9 @@ Spec: [desenvolvimento-modulo-estoque.md](./specs-aplicadas/desenvolvimento-modu
 2. [ ] Regra de Ouro (RPC atômica Cardex + Saldo).
 3. [ ] Relatórios: hub `/cockpit/estoque/relatorios` + `est_rpc_relatorio` (E15).
 4. [ ] Pedido explícito + backup prod.
-5. [ ] Aplicar E1–E17 na ordem; deploy front + smoke (planilha + hubs).
+5. [x] Aplicar E1–E17 na ordem (05/10/2026). Deploy do front segue com a `main`.
 
-### Pacote Relatórios — Estoque + Workflow/Omni (16/09) — DEV ✅ · PROD ⏳
+### Pacote Relatórios — Estoque + Workflow/Omni (16/09) — DEV ✅ · PROD ✅ (05/10/2026)
 
 > Padrão SaaS: agregação/`GROUP BY`/paginação no Postgres; UI só renderiza `{ rows, resumo }`. Spec BI: [planejamento-modulo-relatorios-bi.md](./specs-aplicadas/planejamento-modulo-relatorios-bi.md).
 
@@ -210,13 +220,17 @@ Spec: [desenvolvimento-modulo-estoque.md](./specs-aplicadas/desenvolvimento-modu
 |-----|------|-----|-----------|------------|
 | **Estoque** | `/cockpit/estoque/relatorios` | `est_rpc_relatorio` (11 slugs) | `estoque_relatorios.view` / `estoque.view` | E15 |
 | **BI Workflow + Omni** | `/cockpit/relatorios` | `crm_rpc_relatorio` (14 slugs) | `relatorios.view` + addon `workflow` | E16–E17 |
+| **Compras** | `/cockpit/compras/relatorios` | `com_rpc_relatorio` (9 slugs) | `compras_relatorios.view` | cutover **51** |
 
 **Pós-apply prod:**
 
 ```sql
 SELECT routine_name FROM information_schema.routines
-WHERE routine_name IN ('est_rpc_relatorio', 'crm_rpc_relatorio');
+WHERE routine_name IN ('est_rpc_relatorio', 'crm_rpc_relatorio', 'com_rpc_relatorio');
 SELECT tgname FROM pg_trigger WHERE tgname LIKE 'trg_crm_%thread%';
+SELECT polname FROM pg_policy p
+JOIN pg_class c ON c.oid = p.polrelid
+WHERE c.relname = 'com_nota_itens' AND polname = 'com_nota_itens_update';
 ```
 
 ### Sessão omnichannel — caminho único (código)

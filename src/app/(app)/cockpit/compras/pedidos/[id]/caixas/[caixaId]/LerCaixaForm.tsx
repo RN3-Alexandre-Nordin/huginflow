@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { code39Bars } from '@/lib/compras/code39'
+import { divergenciaQuantidade } from '@/lib/compras/divergencia'
 import { lerCaixa } from '../actions'
 
 type Item = {
@@ -10,8 +11,8 @@ type Item = {
   descricao: string
   unidade: string
   saldo: number
+  pedida: number
   quantidade: string
-  divergencia: string
 }
 
 export default function LerCaixaForm({
@@ -42,7 +43,6 @@ export default function LerCaixaForm({
         itens: itens.map((item) => ({
           pedido_item_id: item.id,
           quantidade: Number(String(item.quantidade).replace(',', '.')) || 0,
-          divergencia: item.divergencia,
         })),
       })
       if (res.error) {
@@ -85,7 +85,9 @@ export default function LerCaixaForm({
           >
             <div className="sm:col-span-5">
               <p className="truncate text-sm text-white">{item.descricao}</p>
-              <p className="text-[11px] text-gray-500">saldo {item.saldo} {item.unidade}</p>
+              <p className="text-[11px] text-gray-500">
+                pedido {item.pedida} {item.unidade} · saldo {item.saldo}
+              </p>
             </div>
             {aberta ? (
               <>
@@ -100,21 +102,15 @@ export default function LerCaixaForm({
                   placeholder="Qtd"
                   className="h-8 rounded-lg border border-[#ffffff14] bg-[#0A0A0A] px-2 text-sm text-white sm:col-span-2"
                 />
-                <input
-                  value={item.divergencia}
-                  onChange={(e) => {
-                    const next = [...itens]
-                    next[index] = { ...item, divergencia: e.target.value }
-                    setItens(next)
-                  }}
-                  placeholder="Divergência"
-                  className="h-8 rounded-lg border border-[#ffffff14] bg-[#0A0A0A] px-2 text-sm text-white sm:col-span-5"
-                />
+                <p className="text-sm text-gray-300 sm:col-span-5">
+                  {Number(String(item.quantidade).replace(',', '.')) > 0
+                    ? `Div. qtd ${divergenciaQuantidade(Number(String(item.quantidade).replace(',', '.')) || 0, item.pedida)} ${item.unidade}`
+                    : 'Div. qtd —'}
+                </p>
               </>
             ) : (
               <p className="text-sm text-gray-300 sm:col-span-7">
                 {item.quantidade ? `${item.quantidade} ${item.unidade}` : '—'}
-                {item.divergencia ? ` · ${item.divergencia}` : ''}
               </p>
             )}
           </div>

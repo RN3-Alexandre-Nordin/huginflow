@@ -17,6 +17,7 @@ import {
   Hash,
 } from 'lucide-react'
 import SearchableSelect from '@/components/SearchableSelect'
+import CampoSerie from '@/components/estoque/CampoSerie'
 import LotePicker, {
   expandirItensPorAlocacaoLote,
   type AlocacaoLoteFefo,
@@ -32,6 +33,7 @@ interface SkuOption {
   nome: string
   unidade_estoque: string
   controla_lote?: boolean
+  controla_serie?: boolean
 }
 
 interface PessoaOption {
@@ -70,6 +72,7 @@ interface RowItem {
   local_origem_id: string
   quantidade_enviada: string
   alocacoes: AlocacaoLoteFefo[]
+  serie_id: string
 }
 
 function saldoKey(skuId: string, localId: string) {
@@ -110,6 +113,7 @@ export default function RemessaForm({
       local_origem_id: defaultLocal,
       quantidade_enviada: '1',
       alocacoes: [],
+      serie_id: '',
     },
   ])
 
@@ -152,6 +156,7 @@ export default function RemessaForm({
         local_origem_id: defaultLocal,
         quantidade_enviada: '1',
         alocacoes: [],
+      serie_id: '',
       },
     ])
   }
@@ -212,6 +217,8 @@ export default function RemessaForm({
       qtd: parseQtd(r.quantidade_enviada),
       alocacoes: r.alocacoes,
       controla_lote: Boolean(skuMap.get(r.sku_id)?.controla_lote),
+      controla_serie: Boolean(skuMap.get(r.sku_id)?.controla_serie),
+      serie_id: r.serie_id,
     }))
 
     if (parsed.some((r) => !Number.isFinite(r.qtd) || r.qtd <= 0)) {
@@ -223,6 +230,19 @@ export default function RemessaForm({
     }
 
     for (const r of parsed) {
+      if (r.controla_serie) {
+        if (!r.serie_id) {
+          setFeedback({
+            tipo: 'erro',
+            texto: `SKU ${skuMap.get(r.sku_id)?.codigo || ''}: identifique a série que vai ao terceiro.`,
+          })
+          return
+        }
+        if (r.qtd !== 1) {
+          setFeedback({ tipo: 'erro', texto: 'Cada série é uma unidade.' })
+          return
+        }
+      }
       if (!r.controla_lote) continue
       const alocs = (r.alocacoes || []).filter((a) => Number(a.quantidade) > 0 && a.lote_produto_id)
       if (alocs.length === 0) {
@@ -279,6 +299,7 @@ export default function RemessaForm({
         local_origem_id: string
         quantidade: number
         lote_produto_id?: string | null
+        serie_id?: string | null
       }
       const itens = expandirItensPorAlocacaoLote<RemessaExpandBase>(
         parsed.map((r) => ({
@@ -288,6 +309,7 @@ export default function RemessaForm({
             sku_id: r.sku_id,
             local_origem_id: r.local_origem_id,
             quantidade: r.qtd,
+            serie_id: r.controla_serie ? r.serie_id || null : null,
           },
         }))
       ).map((it) => ({
@@ -296,6 +318,7 @@ export default function RemessaForm({
         local_origem_id: it.local_origem_id,
         quantidade_enviada: it.quantidade,
         lote_produto_id: it.lote_produto_id ?? null,
+        serie_id: it.serie_id ?? null,
       }))
 
       const res = await criarRemessaAction({
@@ -503,6 +526,7 @@ export default function RemessaForm({
                   Number.isFinite(qtd) &&
                   qtd > disponivel
                 const controlaLote = Boolean(skuSelected?.controla_lote)
+                const controlaSerie = Boolean(skuSelected?.controla_serie)
 
                 return (
                   <Fragment key={row.id}>
@@ -591,6 +615,19 @@ export default function RemessaForm({
                         )}
                       </td>
                     </tr>
+                    {controlaSerie && row.sku_id && row.local_origem_id && (
+                      <tr className="bg-[#0a0e14]/80">
+                        <td />
+                        <td colSpan={5} className="px-3 pb-3">
+                          <CampoSerie
+                            skuId={row.sku_id}
+                            localId={row.local_origem_id}
+                            value={row.serie_id}
+                            onChange={(serie_id) => updateRow(idx, { serie_id })}
+                          />
+                        </td>
+                      </tr>
+                    )}
                     {controlaLote &&
                       empresaId &&
                       Number.isFinite(qtd) &&

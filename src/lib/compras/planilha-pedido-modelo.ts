@@ -3,8 +3,8 @@ import * as XLSX from 'xlsx'
 /** Cabeçalho canônico da importação de pedidos (Fase 1). */
 export function buildModeloPedidoXlsx(): ArrayBuffer {
   const ws = XLSX.utils.aoa_to_sheet([
-    ['numero', 'fornecedor', 'previsao', 'tipo', 'item', 'quantidade', 'unidade', 'preco'],
-    ['PC-EXEMPLO-0001', 'Nome do fornecedor cadastrado', '2026-10-15', 'produtivo', 'CODIGO-DO-ITEM', 1, 'UN', 10],
+    ['numero', 'fornecedor', 'previsao', 'tipo', 'item', 'quantidade', 'unidade', 'preco', 'codigo_fornecedor'],
+    ['PC-EXEMPLO-0001', 'Nome do fornecedor cadastrado', '2026-10-15', 'produtivo', '1625-0055-40', 1, 'UN', 10, ''],
   ])
   ws['!cols'] = [
     { wch: 18 },

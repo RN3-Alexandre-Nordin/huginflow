@@ -3,6 +3,8 @@
 import { revalidatePath } from 'next/cache'
 import { getMyProfile } from '@/app/(app)/cockpit/actions'
 import { empresaHasAddon } from '@/lib/addons/entitlements'
+import { divergenciaPreco, divergenciaQuantidade } from '@/lib/compras/divergencia'
+import { espelharPedidoFunil } from '@/lib/compras/espelhar-funil'
 import { niveisExigidos, type ComConfig } from '@/lib/compras/tipos'
 import { hasPermission } from '@/utils/permissions'
 import { createClient } from '@/utils/supabase/server'
@@ -179,6 +181,7 @@ export async function atualizarPedido(formData: FormData) {
     if (delErr) return { error: delErr.message }
   }
 
+  await espelharPedidoFunil(supabase, pedidoId)
   revalidatePedido(pedidoId)
   return { ok: true as const, status }
 }
@@ -228,6 +231,7 @@ export async function cancelarPedido(formData: FormData) {
   if (upErr) return { error: upErr.message }
   if (!updated) return { error: 'Não foi possível cancelar o pedido.' }
 
+  await espelharPedidoFunil(supabase, pedidoId)
   revalidatePedido(pedidoId)
   return { ok: true as const }
 }
@@ -240,7 +244,11 @@ export async function registrarRecebimento(formData: FormData) {
   const observacao = String(formData.get('observacao') || '').trim() || null
   if (!pedidoId) return { error: 'Pedido inválido.' }
 
-  let linhas: Array<{ pedido_item_id: string; quantidade: number; divergencia: string | null }> = []
+  let linhas: Array<{
+    pedido_item_id: string
+    quantidade: number
+    preco_nota?: number | null
+  }> = []
   try {
     linhas = JSON.parse(String(formData.get('itens_json') || '[]'))
   } catch {
@@ -250,15 +258,6 @@ export async function registrarRecebimento(formData: FormData) {
   if (!recebendo.length) return { error: 'Informe a quantidade recebida de ao menos um item.' }
 
   const supabase = await createClient()
-  const { data: configCaixa } = await supabase
-    .from('com_config')
-    .select('recebimento_por_caixa')
-    .eq('empresa_id', me.empresa_id)
-    .maybeSingle()
-  if (configCaixa?.recebimento_por_caixa) {
-    return { error: 'Com a conferência por caixa ligada, o recebimento é a leitura da caixa.' }
-  }
-
   const { data: pedido } = await supabase
     .from('com_pedidos')
     .select('id, status')
@@ -272,10 +271,11 @@ export async function registrarRecebimento(formData: FormData) {
 
   const { data: itens } = await supabase
     .from('com_pedido_itens')
-    .select('id, quantidade')
+    .select('id, quantidade, preco_unitario')
     .eq('pedido_id', pedidoId)
     .eq('empresa_id', me.empresa_id)
   const pedidoQtd = new Map((itens || []).map((i) => [i.id, Number(i.quantidade)]))
+  const pedidoPreco = new Map((itens || []).map((i) => [i.id, Number(i.preco_unitario)]))
 
   let anteriores: Array<{ pedido_item_id: string; quantidade: number }> = []
   if (pedidoQtd.size > 0) {
@@ -303,6 +303,9 @@ export async function registrarRecebimento(formData: FormData) {
     if (linha.quantidade - saldo > 0.0001) {
       return { error: 'Quantidade recebida maior que o saldo do item.' }
     }
+    if (!(Number.isFinite(Number(linha.preco_nota)) && Number(linha.preco_nota) >= 0)) {
+      return { error: 'Informe o preço unitário da nota em cada item recebido.' }
+    }
   }
 
   const { data: rec, error: recErr } = await supabase
@@ -323,7 +326,15 @@ export async function registrarRecebimento(formData: FormData) {
       recebimento_id: rec.id,
       pedido_item_id: linha.pedido_item_id,
       quantidade: linha.quantidade,
-      divergencia: linha.divergencia?.trim() || null,
+      preco_nota: Number(linha.preco_nota),
+      divergencia_quantidade: divergenciaQuantidade(
+        linha.quantidade,
+        pedidoQtd.get(linha.pedido_item_id) || 0,
+      ),
+      divergencia_preco: divergenciaPreco(
+        Number(linha.preco_nota),
+        pedidoPreco.get(linha.pedido_item_id) || 0,
+      ),
     })),
   )
   if (itemErr) return { error: itemErr.message }
@@ -343,6 +354,7 @@ export async function registrarRecebimento(formData: FormData) {
     .eq('empresa_id', me.empresa_id)
   if (upErr) return { error: upErr.message }
 
+  await espelharPedidoFunil(supabase, pedidoId)
   revalidatePedido(pedidoId)
   revalidatePath(`/cockpit/compras/pedidos/${pedidoId}/receber`)
   return { ok: true as const, status }

@@ -1,6 +1,6 @@
 {
   "name": "huginflow",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "private": true,
   "scripts": {
     "dev": "next dev --webpack",
@@ -30,6 +30,7 @@
     "test:agent:scripts:phase5": "node scripts/agent/phase5-scripts.mjs",
     "test:agent:scripts:cadastros": "node scripts/agent/phase-cadastros-scripts.mjs",
     "test:agent:scripts:phase6": "node scripts/agent/phase6-scripts.mjs",
+    "test:agent:scripts:compras": "node scripts/agent/compras-scripts.mjs",
     "test:unit:estoque": "node --test src/lib/estoque/cardex-filters.test.mjs src/lib/estoque/alocar-lotes-fefo.test.mjs src/lib/estoque/parser-nfe-xml.test.mjs",
     "test:agent:prod-smoke": "node scripts/agent/run-agent-prod-smoke.mjs"
   },
@@ -51,6 +52,7 @@
     "pdf-parse": "^1.1.1",
     "react": "19.2.4",
     "react-dom": "19.2.4",
+    "tesseract.js": "^7.0.0",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {

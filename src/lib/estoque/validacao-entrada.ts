@@ -1,4 +1,5 @@
 import { resolveFatorConversao } from '@/lib/skus/resolve-conversao'
+import { seriesConferemComQuantidade } from './series'
 import type {
   EstCodigoErroEntrada,
   ItemEntradaInput,
@@ -217,6 +218,7 @@ export async function validarLoteEntrada(
       unidade_estoque: string
       controla_estoque: boolean
       controla_lote: boolean
+      controla_serie: boolean
       exige_validade: boolean
       ativo: boolean
     }
@@ -224,7 +226,7 @@ export async function validarLoteEntrada(
   if (todosSkuIds.length > 0) {
     const { data: skus } = await client
       .from('cad_skus')
-      .select('id, codigo, nome, unidade_estoque, controla_estoque, controla_lote, exige_validade, ativo')
+      .select('id, codigo, nome, unidade_estoque, controla_estoque, controla_lote, controla_serie, exige_validade, ativo')
       .eq('empresa_id', empresa_id)
       .in('id', todosSkuIds)
 
@@ -447,8 +449,36 @@ export async function validarLoteEntrada(
       continue
     }
 
-    // Item válido!
     const qtdEstoque = Math.round(qtdOrigem * fator * 10000) / 10000
+    const numeroSerie = item.numero_serie?.trim() || null
+    if (sku.controla_serie) {
+      const serie = seriesConferemComQuantidade(numeroSerie, qtdEstoque)
+      if (!serie.ok) {
+        resultadoItens.push({
+          linha: item.linha,
+          codigo_parceiro: codigoParceiroTrim,
+          sku_id: sku.id,
+          sku_codigo: sku.codigo,
+          sku_nome: sku.nome,
+          unidade_origem: umOrigem,
+          quantidade_origem: qtdOrigem,
+          unidade_estoque: umEstoque,
+          quantidade_estoque: qtdEstoque,
+          fator_conversao: fator,
+          justificativa: just,
+          numero_lote: numeroLote,
+          data_validade: dataValidade,
+          data_fabricacao: dataFabricacao,
+          lote_produto_id: loteProdutoId,
+          numero_serie: numeroSerie,
+          status: 'erro',
+          erro_codigo: 'SERIE_OBRIGATORIA',
+          erro_mensagem: `O SKU "${sku.codigo}" controla série. ${serie.mensagem}`,
+        })
+        continue
+      }
+    }
+
     resultadoItens.push({
       linha: item.linha,
       codigo_parceiro: codigoParceiroTrim,
@@ -465,6 +495,7 @@ export async function validarLoteEntrada(
       data_validade: dataValidade,
       data_fabricacao: dataFabricacao,
       lote_produto_id: loteProdutoId,
+      numero_serie: numeroSerie,
       status: 'ok',
       erro_codigo: null,
       erro_mensagem: null,

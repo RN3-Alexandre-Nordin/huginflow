@@ -41,7 +41,7 @@ export default async function NotaDetalhePage({ params }: { params: Promise<{ id
   const { data: nota } = await supabase
     .from('com_notas')
     .select(
-      'id, numero, serie, chave, data_emissao, valor_total, status, origem, observacao, pedido_id, pedido:com_pedidos!pedido_id(numero), fornecedor:crm_leads!fornecedor_id(nome)',
+      'id, numero, serie, chave, data_emissao, vencimento, frete, valor_total, status, origem, observacao, pedido_id, pedido:com_pedidos!pedido_id(numero), fornecedor:crm_leads!fornecedor_id(nome)',
     )
     .eq('id', id)
     .eq('empresa_id', me!.empresa_id)
@@ -51,7 +51,7 @@ export default async function NotaDetalhePage({ params }: { params: Promise<{ id
 
   const { data: itens } = await supabase
     .from('com_nota_itens')
-    .select('id, descricao, quantidade, unidade, preco_unitario')
+    .select('id, descricao, quantidade, unidade, preco_unitario, aviso_preco, cfop, centro_custo, n_serie')
     .eq('nota_id', nota.id)
     .eq('empresa_id', me!.empresa_id)
 
@@ -83,6 +83,9 @@ export default async function NotaDetalhePage({ params }: { params: Promise<{ id
             : '—'}
           {' · '}
           {Number(nota.valor_total).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+          {Number(nota.frete) > 0
+            ? ` · frete ${Number(nota.frete).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`
+            : ''}
           {' · '}
           {nota.origem === 'xml' ? 'XML' : 'Manual'}
         </p>
@@ -104,7 +107,17 @@ export default async function NotaDetalhePage({ params }: { params: Promise<{ id
               const total = Number(item.quantidade) * Number(item.preco_unitario)
               return (
                 <tr key={item.id} className="border-t border-[#ffffff08]">
-                  <td className="px-4 py-2 text-white">{item.descricao}</td>
+                  <td className="px-4 py-2 text-white">
+                    {item.descricao}
+                    {item.aviso_preco ? (
+                      <span className="mt-0.5 block text-xs text-amber-300">Preço diferente do pedido</span>
+                    ) : null}
+                    {item.cfop || item.centro_custo || item.n_serie ? (
+                      <span className="mt-0.5 block text-xs text-gray-500">
+                        {[item.cfop, item.centro_custo, item.n_serie].filter(Boolean).join(' · ')}
+                      </span>
+                    ) : null}
+                  </td>
                   <td className="px-4 py-2 text-gray-300">
                     {item.quantidade} {item.unidade}
                   </td>

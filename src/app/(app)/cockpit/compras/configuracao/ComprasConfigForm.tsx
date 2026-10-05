@@ -14,7 +14,7 @@ const SECTIONS = [
   {
     id: 'recebimento',
     label: 'Recebimento',
-    hint: 'Conferência por caixa, desligada por padrão',
+    hint: 'Caixa nossa ou recebimento de importados',
   },
 ] as const
 
@@ -23,9 +23,11 @@ const inputClass =
 
 export default function ComprasConfigForm({
   grupos,
+  locais,
   config,
 }: {
   grupos: Grupo[]
+  locais: { id: string; codigo: string; nome: string }[]
   config: {
     aprovacao_ativa: boolean
     nivel1_grupo_id: string | null
@@ -34,10 +36,17 @@ export default function ComprasConfigForm({
     nivel2_a_partir: number | null
     recebimento_por_caixa: boolean
     caixa_proximo: number
+    recebimento_importados: boolean
+    importados_limpeza: string
+    importados_agenda: string | null
+    impressora_etiqueta: string
+    local_entrada_id: string | null
   } | null
 }) {
   const [aba, setAba] = useState<(typeof SECTIONS)[number]['id']>('alcada')
   const [porCaixa, setPorCaixa] = useState(config?.recebimento_por_caixa ?? false)
+  const [importados, setImportados] = useState(config?.recebimento_importados ?? false)
+  const [limpeza, setLimpeza] = useState(config?.importados_limpeza || 'baixa_manual')
   const [erro, setErro] = useState<string | null>(null)
   const [ok, setOk] = useState(false)
   const [pending, start] = useTransition()
@@ -167,14 +176,81 @@ export default function ComprasConfigForm({
           Conferir por caixa
         </label>
         <p className="text-xs text-gray-500">
-          Desligado, a conferência continua item a item. Ligado, cada volume ganha um código
-          CX-######, distinto do EAN, com etiqueta e leitura da caixa.
+          Rotina à parte. Ligado, o pedido ganha o recebimento por caixa (código CX-######). O
+          recebimento manual e a nota em XML continuam disponíveis.
         </p>
         {porCaixa ? (
           <p className="font-mono text-sm text-[#2BAADF]">
             Próximo código: CX-{String(config?.caixa_proximo ?? 1).padStart(6, '0')}
           </p>
         ) : null}
+        <label className="flex items-center gap-2 text-sm text-gray-300">
+          <input
+            type="checkbox"
+            name="recebimento_importados"
+            checked={importados}
+            onChange={(e) => setImportados(e.target.checked)}
+            className="rounded border-[#ffffff30]"
+          />
+          Recebimento de importados
+        </label>
+        <p className="text-xs text-gray-500">
+          A planilha grava o código do fornecedor. A doca lê esse código na caixa. O recebimento
+          comum e a caixa CX continuam disponíveis.
+        </p>
+        {importados ? (
+          <div className="space-y-3">
+            <label className="block text-sm text-gray-300">
+              Limpeza do local temporário
+              <select
+                name="importados_limpeza"
+                value={limpeza}
+                onChange={(e) => setLimpeza(e.target.value)}
+                className={inputClass}
+              >
+                <option value="transferencia">Transferência de estoque</option>
+                <option value="baixa_manual">Baixa manual item a item</option>
+                <option value="baixa_agendada">Baixa automática agendada</option>
+              </select>
+            </label>
+            {limpeza === 'baixa_agendada' ? (
+              <label className="block text-sm text-gray-300">
+                Agenda
+                <select
+                  name="importados_agenda"
+                  defaultValue={config?.importados_agenda || 'diaria'}
+                  className={inputClass}
+                >
+                  <option value="diaria">Diária</option>
+                  <option value="semanal">Semanal</option>
+                  <option value="mensal">Mensal</option>
+                </select>
+              </label>
+            ) : null}
+            <p className="text-xs text-gray-500">
+              Impressora de etiqueta: {config?.impressora_etiqueta || 'prevista'}. O modelo fica em
+              aberto até a homologação.
+            </p>
+          </div>
+        ) : null}
+        <label className="block text-sm text-gray-300">
+          Local padrão da entrada
+          <select
+            name="local_entrada_id"
+            defaultValue={config?.local_entrada_id || ''}
+            className={inputClass}
+          >
+            <option value="">—</option>
+            {locais.map((local) => (
+              <option key={local.id} value={local.id}>
+                {local.codigo} · {local.nome}
+              </option>
+            ))}
+          </select>
+        </label>
+        <p className="text-xs text-gray-500">
+          A confirmação da nota de material produtivo gera a entrada neste local.
+        </p>
       </div>
       <div className="px-5 pb-2">
         {erro ? <p className="text-sm text-red-400">{erro}</p> : null}

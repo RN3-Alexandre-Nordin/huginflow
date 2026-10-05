@@ -82,6 +82,7 @@ export default function SkuForm({
   const [section, setSection] = useState<SkuFormSectionId>('identidade')
   const [tipo, setTipo] = useState(sku?.tipo === 'servico' ? 'servico' : 'produto')
   const [controlaLote, setControlaLote] = useState(sku?.controla_lote === true)
+  const [controlaSerie, setControlaSerie] = useState(sku?.controla_serie === true)
 
   const [state, formAction, isPending] = useActionState(
     async (_prev: { error?: string } | null, formData: FormData) => {
@@ -370,7 +371,10 @@ export default function SkuForm({
                         type="checkbox"
                         name="controla_lote"
                         checked={controlaLote}
-                        onChange={(e) => setControlaLote(e.target.checked)}
+                        onChange={(e) => {
+                          setControlaLote(e.target.checked)
+                          if (e.target.checked) setControlaSerie(false)
+                        }}
                         className="rounded border-[#ffffff30] text-[#2BAADF] focus:ring-[#2BAADF]/40"
                       />
                       Controla lote (batch) nas movimentações
@@ -388,6 +392,23 @@ export default function SkuForm({
                     )}
                     <p className="text-[10px] text-gray-500">
                       Com lote ativo, entradas e saídas passam a exigir número do lote (e validade, se marcada).
+                      Lote e série não convivem no mesmo SKU.
+                    </p>
+                    <label className="inline-flex items-center gap-2 text-sm text-gray-300">
+                      <input
+                        type="checkbox"
+                        name="controla_serie"
+                        checked={controlaSerie}
+                        onChange={(e) => {
+                          setControlaSerie(e.target.checked)
+                          if (e.target.checked) setControlaLote(false)
+                        }}
+                        className="rounded border-[#ffffff30] text-[#2BAADF] focus:ring-[#2BAADF]/40"
+                      />
+                      Controla série (uma unidade por número)
+                    </label>
+                    <p className="text-[10px] text-gray-500">
+                      O saldo que já existe sem série fica bloqueado até o inventário em Estoque → Séries.
                     </p>
                   </div>
                 </Field>

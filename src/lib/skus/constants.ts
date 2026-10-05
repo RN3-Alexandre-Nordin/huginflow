@@ -63,6 +63,7 @@ export type SkuRecord = {
   moeda?: string | null
   controla_estoque?: boolean | null
   controla_lote?: boolean | null
+  controla_serie?: boolean | null
   exige_validade?: boolean | null
   ponto_reposicao?: number | string | null
   estoque_minimo?: number | string | null
@@ -152,6 +153,8 @@ export function skuPayloadFromForm(formData: FormData) {
       formData.get('controla_estoque') === 'on' || formData.get('controla_estoque') === 'true',
     controla_lote:
       formData.get('controla_lote') === 'on' || formData.get('controla_lote') === 'true',
+    controla_serie:
+      formData.get('controla_serie') === 'on' || formData.get('controla_serie') === 'true',
     exige_validade:
       formData.get('controla_lote') === 'on' || formData.get('controla_lote') === 'true'
         ? formData.get('exige_validade') === 'on' || formData.get('exige_validade') === 'true'

@@ -247,7 +247,15 @@ test.describe('Estoque', () => {
     }
   })
 
-  test('[UI-EST-SERIE-01] Série unitária ainda fora do kernel — skip', async () => {
-    test.skip(true, 'controla_serie / UI de série unitária ainda não implementados (MVP = lote/batch)')
+  test('[UI-EST-SERIE-01] Tela de séries carrega', async ({ page }) => {
+    await setEstoqueEnabled(true)
+    await resetUi(page)
+    await ensureAuthenticated(page)
+
+    await page.goto('/cockpit/estoque/series', { waitUntil: 'domcontentloaded' })
+    await hideDevOverlays(page)
+    await expect(page).toHaveURL(/\/estoque\/series/)
+    await expect(page.getByRole('heading', { name: 'Séries' })).toBeVisible()
+    await expect(page.getByText(/Acesso Interditado/i)).toHaveCount(0)
   })
 })

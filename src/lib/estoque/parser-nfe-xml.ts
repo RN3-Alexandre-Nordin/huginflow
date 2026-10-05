@@ -17,6 +17,9 @@ export interface NfeXmlItem {
   numero_lote?: string | null
   data_validade?: string | null
   data_fabricacao?: string | null
+  cfop?: string
+  n_serie?: string
+  impostos?: Record<string, number>
 }
 
 export interface NfeXmlEmitente {
@@ -49,6 +52,8 @@ export interface NfeXmlParsed {
   /** @deprecated use emitente.nome */
   fornecedorNome?: string
   emitente?: NfeXmlEmitente
+  frete?: number
+  impostos?: Record<string, number>
   itens: NfeXmlItem[]
 }
 
@@ -77,6 +82,36 @@ function nfeDate(v: unknown): string | null {
   const d = new Date(raw)
   if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10)
   return null
+}
+
+function series(v: unknown): string | undefined {
+  if (Array.isArray(v)) {
+    const joined = v.map(str).filter(Boolean).join(', ')
+    return joined || undefined
+  }
+  return str(v) || undefined
+}
+
+/** Guarda os valores de imposto que já vêm no XML. Não calcula tributo. */
+function coletarImpostos(node: unknown): Record<string, number> | undefined {
+  const out: Record<string, number> = {}
+  function walk(n: unknown) {
+    if (!n || typeof n !== 'object') return
+    if (Array.isArray(n)) {
+      n.forEach(walk)
+      return
+    }
+    for (const [key, value] of Object.entries(n as Record<string, unknown>)) {
+      if (/^v[A-Z]/.test(key) && (typeof value === 'string' || typeof value === 'number')) {
+        const amount = num(value)
+        if (amount) out[key] = (out[key] || 0) + amount
+      } else if (value && typeof value === 'object') {
+        walk(value)
+      }
+    }
+  }
+  walk(node)
+  return Object.keys(out).length ? out : undefined
 }
 
 function extractRastro(prod: Record<string, unknown>): {
@@ -215,8 +250,15 @@ export function parseNfeXml(xmlString: string): NfeXmlParsed {
         numero_lote: rastro.numero_lote,
         data_validade: rastro.data_validade,
         data_fabricacao: rastro.data_fabricacao,
+        cfop: str(prod.CFOP) || undefined,
+        n_serie: series(prod.nSerie),
+        impostos: coletarImpostos(d.imposto),
       })
     }
+
+    const totais = ((infNFe.total || {}) as Record<string, unknown>).ICMSTot as
+      | Record<string, unknown>
+      | undefined
 
     return {
       sucesso: true,
@@ -227,6 +269,8 @@ export function parseNfeXml(xmlString: string): NfeXmlParsed {
       fornecedorCnpj: fornecedorDocumento || undefined,
       fornecedorNome: emitente.nome || emitente.nome_fantasia,
       emitente,
+      frete: num(totais?.vFrete),
+      impostos: coletarImpostos(totais),
       itens,
     }
   } catch (err: unknown) {

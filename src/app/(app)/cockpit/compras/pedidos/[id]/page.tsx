@@ -11,6 +11,8 @@ import {
   pedidoTemPdf,
 } from '@/lib/compras/pedido-status'
 import { observacaoDoPedido } from '@/lib/compras/pedido-observacao'
+import { pedidoPodeNota } from '@/lib/compras/nota-status'
+import { pedidoPodeDevolver } from '@/lib/compras/devolucao-status'
 import { empresaHasAddon } from '@/lib/addons/entitlements'
 import { hasPermission } from '@/utils/permissions'
 import { createClient } from '@/utils/supabase/server'
@@ -48,7 +50,7 @@ export default async function PedidoDetalhePage({
   const { data: pedido } = await supabase
     .from('com_pedidos')
     .select(
-      'id, numero, tipo, status, valor_total, previsao_chegada, origem, observacao, cotacao_id, cancelamento_motivo, cancelado_em, fornecedor:crm_leads!fornecedor_id(nome)',
+      'id, numero, codigo_fornecedor, tipo, status, valor_total, previsao_chegada, origem, observacao, cotacao_id, cancelamento_motivo, cancelado_em, fornecedor:crm_leads!fornecedor_id(nome)',
     )
     .eq('id', id)
     .eq('empresa_id', me!.empresa_id)
@@ -73,7 +75,7 @@ export default async function PedidoDetalhePage({
   const { data: recebimentos } = await supabase
     .from('com_recebimentos')
     .select(
-      'id, created_at, observacao, usuario:usuarios!usuario_id(nome), itens:com_recebimento_itens(pedido_item_id, quantidade, divergencia)',
+      'id, created_at, observacao, usuario:usuarios!usuario_id(nome), itens:com_recebimento_itens(pedido_item_id, quantidade, divergencia_quantidade, divergencia_preco)',
     )
     .eq('pedido_id', pedido.id)
     .eq('empresa_id', me!.empresa_id)
@@ -94,10 +96,11 @@ export default async function PedidoDetalhePage({
 
   const { data: configCaixa } = await supabase
     .from('com_config')
-    .select('recebimento_por_caixa')
+    .select('recebimento_por_caixa, recebimento_importados')
     .eq('empresa_id', me!.empresa_id)
     .maybeSingle()
   const porCaixa = Boolean(configCaixa?.recebimento_por_caixa)
+  const importados = Boolean(configCaixa?.recebimento_importados)
 
   const podeAprovar =
     pedido.status === 'aguardando_aprovacao' &&
@@ -157,12 +160,38 @@ export default async function PedidoDetalhePage({
               Cancelar
             </Link>
           ) : null}
-          {podeReceber && !porCaixa ? (
+          {podeReceber ? (
             <Link
               href={`/cockpit/compras/pedidos/${pedido.id}/receber`}
               className="rounded-xl bg-emerald-600/80 px-3 py-2 text-sm font-semibold text-white"
             >
               Receber
+            </Link>
+          ) : null}
+          {importados && pedido.codigo_fornecedor && (pedidoRecebivel(pedido.status) || pedido.status === 'recebido') ? (
+            <Link
+              href={`/cockpit/compras/importados/${pedido.id}`}
+              className="rounded-xl border border-emerald-500/40 px-3 py-2 text-sm font-semibold text-emerald-200"
+            >
+              Importados
+            </Link>
+          ) : null}
+          {(isSuper || hasPermission(me, 'compras_devolucoes', 'create')) &&
+          pedidoPodeDevolver(pedido.status) ? (
+            <Link
+              href={`/cockpit/compras/devolucoes/novo?pedido=${pedido.id}`}
+              className="rounded-xl border border-amber-500/40 px-3 py-2 text-sm font-semibold text-amber-200"
+            >
+              Devolver
+            </Link>
+          ) : null}
+          {(isSuper || hasPermission(me, 'compras_notas', 'create')) &&
+          pedidoPodeNota(pedido.status) ? (
+            <Link
+              href={`/cockpit/compras/notas/novo?pedido=${pedido.id}`}
+              className="rounded-xl border border-[#2BAADF]/40 px-3 py-2 text-sm font-semibold text-[#2BAADF]"
+            >
+              Nota
             </Link>
           ) : null}
           {porCaixa && (pedidoRecebivel(pedido.status) || pedido.status === 'recebido') ? (
@@ -291,14 +320,19 @@ export default async function PedidoDetalhePage({
               const nome = Array.isArray(u) ? u[0]?.nome : u?.nome
               const linhas = (rec.itens || []) as Array<{
                 quantidade: number
-                divergencia: string | null
+                divergencia_quantidade: number | null
+                divergencia_preco: number | null
               }>
               return (
                 <li key={rec.id}>
                   {new Date(rec.created_at).toLocaleString('pt-BR')} · {nome || '—'} ·{' '}
                   {linhas.length} item(ns)
                   {rec.observacao ? ` — ${rec.observacao}` : ''}
-                  {linhas.some((l) => l.divergencia) ? ' · com divergência' : ''}
+                  {linhas.some(
+                    (l) => Number(l.divergencia_quantidade) !== 0 || Number(l.divergencia_preco) !== 0,
+                  )
+                    ? ' · com divergência'
+                    : ''}
                 </li>
               )
             })}

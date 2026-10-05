@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import * as XLSX from 'xlsx'
 import { getMyProfile } from '@/app/(app)/cockpit/actions'
 import { empresaHasAddon } from '@/lib/addons/entitlements'
+import { espelharPedidoFunil } from '@/lib/compras/espelhar-funil'
 import { gerarNumeroPedido, gerarNumeroSolicitacao } from '@/lib/compras/numeros'
 import { niveisExigidos, tipoCompraValido, type ComConfig, type TipoCompra } from '@/lib/compras/tipos'
 import { parsePedidoCsv, type LinhaPedidoPlanilha } from '@/lib/compras/planilha-pedido'
@@ -511,6 +512,7 @@ export async function registrarPedido(formData: FormData) {
   const { error: itemErr } = await supabase.from('com_pedido_itens').insert(rows)
   if (itemErr) return { error: itemErr.message }
 
+  await espelharPedidoFunil(supabase, pedidoId)
   revalidatePath('/cockpit/compras/pedidos')
   return { ok: true, id: pedidoId, numero: pedido.numero as string }
 }
@@ -533,6 +535,12 @@ export async function importarPedidosPlanilha(formData: FormData) {
 
   const supabase = await createClient()
   const config = await lerConfig(supabase, me.empresa_id)
+  const { data: cfgImportados } = await supabase
+    .from('com_config')
+    .select('recebimento_importados')
+    .eq('empresa_id', me.empresa_id)
+    .maybeSingle()
+  const exigeCodigoFornecedor = Boolean(cfgImportados?.recebimento_importados)
   const grupos = agrupar(parsed.linhas)
   let criados = 0
 
@@ -551,6 +559,19 @@ export async function importarPedidosPlanilha(formData: FormData) {
       return { error: `Fornecedor não encontrado para o pedido ${numero}: ${fornecedorNome}` }
     }
 
+    const codigosFornecedor = new Set(
+      linhas.map((l) => (l.codigoFornecedor || '').trim()).filter(Boolean),
+    )
+    if (codigosFornecedor.size > 1) {
+      return { error: `Pedido ${numero} tem códigos de fornecedor diferentes.` }
+    }
+    const codigoFornecedor = [...codigosFornecedor][0] || null
+    if (exigeCodigoFornecedor && !codigoFornecedor) {
+      return {
+        error: `Pedido ${numero}: informe codigo_fornecedor. É o código impresso na caixa.`,
+      }
+    }
+
     const tipo = linhas[0].tipo
     const valor = linhas.reduce((s, l) => s + l.quantidade * l.preco, 0)
     const exigidos = niveisExigidos(config, valor)
@@ -561,6 +582,7 @@ export async function importarPedidosPlanilha(formData: FormData) {
       .insert({
         empresa_id: me.empresa_id,
         numero,
+        codigo_fornecedor: codigoFornecedor,
         fornecedor_id: fornecedor.id,
         previsao_chegada: linhas[0].previsao,
         tipo,
@@ -597,6 +619,7 @@ export async function importarPedidosPlanilha(formData: FormData) {
     }
     const { error: itemErr } = await supabase.from('com_pedido_itens').insert(itens)
     if (itemErr) return { error: itemErr.message }
+    await espelharPedidoFunil(supabase, pedido.id)
     criados += 1
   }
 
@@ -685,6 +708,7 @@ export async function decidirPedido(formData: FormData) {
     .eq('empresa_id', me.empresa_id)
   if (upErr) return { error: upErr.message }
 
+  await espelharPedidoFunil(supabase, pedidoId)
   revalidatePath(`/cockpit/compras/pedidos/${pedidoId}`)
   revalidatePath('/cockpit/compras/pedidos')
   return { ok: true }
@@ -719,6 +743,17 @@ export async function salvarConfigCompras(formData: FormData) {
   if (piso2 != null && !nivel2Grupo) return { error: 'Selecione o grupo da 2ª alçada.' }
   if (nivel2Grupo && piso2 == null) return { error: 'Informe o valor da 2ª alçada.' }
 
+  const limpezas = ['transferencia', 'baixa_manual', 'baixa_agendada']
+  const agendas = ['diaria', 'semanal', 'mensal']
+  const limpezaImportados = limpezas.includes(String(formData.get('importados_limpeza') || ''))
+    ? String(formData.get('importados_limpeza'))
+    : 'baixa_manual'
+  const agendaRaw = String(formData.get('importados_agenda') || '')
+  const agendaImportados = agendas.includes(agendaRaw) ? agendaRaw : null
+  if (limpezaImportados === 'baixa_agendada' && !agendaImportados) {
+    return { error: 'Escolha a agenda da baixa automática: diária, semanal ou mensal.' }
+  }
+
   const payload = {
     empresa_id: me.empresa_id,
     aprovacao_ativa: aprovacaoAtiva,
@@ -727,6 +762,11 @@ export async function salvarConfigCompras(formData: FormData) {
     nivel2_grupo_id: nivel2Grupo,
     nivel2_a_partir: piso2,
     recebimento_por_caixa: formData.get('recebimento_por_caixa') === 'on',
+    recebimento_importados: formData.get('recebimento_importados') === 'on',
+    importados_limpeza: limpezaImportados,
+    importados_agenda: limpezaImportados === 'baixa_agendada' ? agendaImportados : null,
+    impressora_etiqueta: 'prevista',
+    local_entrada_id: String(formData.get('local_entrada_id') || '') || null,
     updated_at: new Date().toISOString(),
   }
   const { error: upErr } = await supabase.from('com_config').upsert(payload, { onConflict: 'empresa_id' })

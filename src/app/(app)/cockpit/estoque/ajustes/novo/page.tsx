@@ -39,7 +39,7 @@ export default async function NovoAjustePage() {
 
   let skusQuery = supabase
     .from('cad_skus')
-    .select('id, codigo, nome, unidade_estoque, controla_lote, exige_validade')
+    .select('id, codigo, nome, unidade_estoque, controla_lote, controla_serie, exige_validade')
     .eq('ativo', true)
     .eq('controla_estoque', true)
     .order('codigo')

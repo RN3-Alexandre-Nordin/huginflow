@@ -1,6 +1,5 @@
 import { Lock } from 'lucide-react'
 import Link from 'next/link'
-import { notFound } from 'next/navigation'
 import { getMyProfile } from '@/app/(app)/cockpit/actions'
 import BackTextButton from '@/components/BackTextButton'
 import { empresaHasAddon } from '@/lib/addons/entitlements'
@@ -39,13 +38,6 @@ export default async function ReceberPedidoPage({
   }
 
   const supabase = await createClient()
-  const { data: configCaixa } = await supabase
-    .from('com_config')
-    .select('recebimento_por_caixa')
-    .eq('empresa_id', me.empresa_id)
-    .maybeSingle()
-  if (configCaixa?.recebimento_por_caixa) notFound()
-
   const { data: pedido } = await supabase
     .from('com_pedidos')
     .select('id, numero, status')
@@ -69,7 +61,7 @@ export default async function ReceberPedidoPage({
 
   const { data: itens } = await supabase
     .from('com_pedido_itens')
-    .select('id, descricao, quantidade, unidade')
+    .select('id, descricao, quantidade, unidade, preco_unitario')
     .eq('pedido_id', pedido.id)
     .eq('empresa_id', me.empresa_id)
     .order('descricao')
@@ -93,6 +85,7 @@ export default async function ReceberPedidoPage({
       descricao: item.descricao,
       unidade: item.unidade,
       pedido: Number(item.quantidade),
+      preco: Number(item.preco_unitario),
       recebido: recebido.get(item.id) || 0,
     }))
     .filter((item) => item.pedido - item.recebido > 0.0001)
@@ -104,9 +97,19 @@ export default async function ReceberPedidoPage({
           <p className="text-xs uppercase tracking-widest text-gray-500">Conferência</p>
           <h1 className="text-xl font-semibold text-white">{pedido.numero}</h1>
         </div>
-        <Link href={`/cockpit/compras/pedidos/${pedido.id}`} className="text-sm text-[#2BAADF]">
-          Voltar ao pedido
-        </Link>
+        <div className="flex items-center gap-4">
+          {isSuper || hasPermission(me, 'compras_notas', 'create') ? (
+            <Link
+              href={`/cockpit/compras/notas/novo?pedido=${pedido.id}`}
+              className="text-sm text-[#2BAADF]"
+            >
+              Subir XML deste pedido
+            </Link>
+          ) : null}
+          <Link href={`/cockpit/compras/pedidos/${pedido.id}`} className="text-sm text-[#2BAADF]">
+            Voltar ao pedido
+          </Link>
+        </div>
       </div>
       {abertos.length ? (
         <ReceberPedidoForm pedidoId={pedido.id} numero={pedido.numero} itens={abertos} />

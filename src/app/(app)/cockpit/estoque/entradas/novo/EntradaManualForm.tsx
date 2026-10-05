@@ -32,6 +32,7 @@ interface SkuOption {
   unidade_estoque: string
   unidade_compra?: string | null
   controla_lote?: boolean | null
+  controla_serie?: boolean | null
   exige_validade?: boolean | null
 }
 
@@ -63,6 +64,7 @@ interface FormRowItem {
   quantidade_origem: string
   justificativa: string
   numero_lote: string
+  numero_serie: string
   data_validade: string
   data_fabricacao: string
   validacao?: ItemEntradaValidado
@@ -96,6 +98,7 @@ export default function EntradaManualForm({
       quantidade_origem: '1',
       justificativa: '',
       numero_lote: '',
+      numero_serie: '',
       data_validade: '',
       data_fabricacao: '',
     },
@@ -118,6 +121,7 @@ export default function EntradaManualForm({
         quantidade_origem: '1',
         justificativa: '',
         numero_lote: '',
+        numero_serie: '',
         data_validade: '',
         data_fabricacao: '',
       },
@@ -158,6 +162,7 @@ export default function EntradaManualForm({
       quantidade_origem: parseFloat(r.quantidade_origem.replace(',', '.')) || 0,
       justificativa: r.justificativa?.trim() || null,
       numero_lote: r.numero_lote?.trim() || null,
+      numero_serie: r.numero_serie?.trim() || null,
       data_validade: r.data_validade?.trim() || null,
       data_fabricacao: r.data_fabricacao?.trim() || null,
     }))
@@ -418,7 +423,7 @@ export default function EntradaManualForm({
                 <th className="py-2.5 px-3 w-28">Cód. Fornecedor</th>
                 <th className="py-2.5 px-3 w-16">UM</th>
                 <th className="py-2.5 px-3 w-20">Qtd *</th>
-                <th className="py-2.5 px-3 w-28">Lote</th>
+                <th className="py-2.5 px-3 w-36">Lote / série</th>
                 <th className="py-2.5 px-3 w-28">Validade</th>
                 <th className="py-2.5 px-3 w-28">Fabricação</th>
                 <th className="py-2.5 px-3">Justificativa</th>
@@ -433,6 +438,7 @@ export default function EntradaManualForm({
                 const isOk = val?.status === 'ok'
                 const selectedSku = skus.find((s) => s.id === row.sku_id)
                 const controlaLote = Boolean(selectedSku?.controla_lote)
+                const controlaSerie = Boolean(selectedSku?.controla_serie)
                 const exigeValidade = Boolean(selectedSku?.exige_validade)
 
                 return (
@@ -492,7 +498,15 @@ export default function EntradaManualForm({
                     </td>
 
                     <td className="py-3 px-3">
-                      {controlaLote ? (
+                      {controlaSerie ? (
+                        <textarea
+                          value={row.numero_serie}
+                          onChange={(e) => updateRow(idx, { numero_serie: e.target.value })}
+                          placeholder="Uma série por unidade"
+                          rows={2}
+                          className="w-full bg-[#0d1218] border border-[#2BAADF]/30 rounded-lg px-2.5 py-1.5 text-xs text-white font-mono focus:outline-none focus:border-[#2BAADF]/60"
+                        />
+                      ) : controlaLote ? (
                         <input
                           type="text"
                           value={row.numero_lote}

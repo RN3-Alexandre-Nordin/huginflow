@@ -10,4 +10,5 @@ export type LinhaPedidoPlanilha = {
   quantidade: number
   unidade: string
   preco: number
+  codigoFornecedor: string
 }

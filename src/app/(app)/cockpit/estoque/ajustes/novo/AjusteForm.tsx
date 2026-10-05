@@ -12,6 +12,7 @@ import {
   XCircle,
 } from 'lucide-react'
 import SearchableSelect from '@/components/SearchableSelect'
+import CampoSerie from '@/components/estoque/CampoSerie'
 import LotePicker, {
   expandirItensPorAlocacaoLote,
   type AlocacaoLoteFefo,
@@ -28,6 +29,7 @@ interface SkuOption {
   nome: string
   unidade_estoque: string
   controla_lote?: boolean
+  controla_serie?: boolean
   exige_validade?: boolean
 }
 
@@ -56,6 +58,8 @@ interface RowItem {
   justificativa: string
   alocacoes: AlocacaoLoteFefo[]
   numero_lote: string
+  numero_serie: string
+  serie_id: string
   data_validade: string
   data_fabricacao: string
 }
@@ -90,6 +94,8 @@ export default function AjusteForm({
       justificativa: '',
       alocacoes: [],
       numero_lote: '',
+      numero_serie: '',
+      serie_id: '',
       data_validade: '',
       data_fabricacao: '',
     },
@@ -111,6 +117,8 @@ export default function AjusteForm({
       justificativa: '',
       alocacoes: [],
       numero_lote: '',
+      numero_serie: '',
+      serie_id: '',
       data_validade: '',
       data_fabricacao: '',
     }
@@ -170,6 +178,23 @@ export default function AjusteForm({
 
     for (const r of rows) {
       const sku = skus.find((s) => s.id === r.sku_id)
+      if (sku?.controla_serie) {
+        if (parseQtd(r.quantidade) !== 1) {
+          setFeedback({ tipo: 'erro', texto: `SKU ${sku.codigo}: cada série é uma unidade.` })
+          return
+        }
+        if (r.sinal === '+' && !r.numero_serie.trim()) {
+          setFeedback({ tipo: 'erro', texto: `SKU ${sku.codigo}: informe o número de série que entra.` })
+          return
+        }
+        if (r.sinal === '-' && !r.serie_id) {
+          setFeedback({
+            tipo: 'erro',
+            texto: `SKU ${sku.codigo}: identifique a série que sai. O saldo sem série fica bloqueado.`,
+          })
+          return
+        }
+      }
       if (!sku?.controla_lote) continue
       if (r.sinal === '-') {
         const alocs = (r.alocacoes || []).filter((a) => Number(a.quantidade) > 0 && a.lote_produto_id)
@@ -242,6 +267,8 @@ export default function AjusteForm({
             quantidade: qtd,
             lote_produto_id: null,
             numero_lote: controlaLote && r.sinal === '+' ? r.numero_lote.trim() : null,
+            numero_serie: sku?.controla_serie && r.sinal === '+' ? r.numero_serie.trim() : null,
+            serie_id: sku?.controla_serie && r.sinal === '-' ? r.serie_id || null : null,
             data_validade:
               controlaLote && r.sinal === '+' && r.data_validade ? r.data_validade : null,
             data_fabricacao:
@@ -357,6 +384,7 @@ export default function AjusteForm({
               {rows.map((row, idx) => {
                 const skuSelected = skus.find((s) => s.id === row.sku_id)
                 const controlaLote = Boolean(skuSelected?.controla_lote)
+                const controlaSerie = Boolean(skuSelected?.controla_serie)
                 const qtdNum = parseQtd(row.quantidade)
 
                 return (
@@ -466,6 +494,29 @@ export default function AjusteForm({
                         )}
                       </td>
                     </tr>
+                    {controlaSerie && row.sku_id && row.local_id && (
+                      <tr className="bg-[#0a0e14]/80">
+                        <td />
+                        <td colSpan={7} className="px-3 pb-3">
+                          {row.sinal === '+' ? (
+                            <input
+                              type="text"
+                              value={row.numero_serie}
+                              onChange={(e) => updateRow(idx, { numero_serie: e.target.value })}
+                              placeholder="Número de série que entra *"
+                              className="w-full max-w-sm bg-[#0d1218] border border-[#2BAADF]/30 rounded-lg px-2.5 py-1.5 text-xs text-white font-mono"
+                            />
+                          ) : (
+                            <CampoSerie
+                              skuId={row.sku_id}
+                              localId={row.local_id}
+                              value={row.serie_id}
+                              onChange={(serie_id) => updateRow(idx, { serie_id })}
+                            />
+                          )}
+                        </td>
+                      </tr>
+                    )}
                     {controlaLote && row.sinal === '-' && empresaId && Number.isFinite(qtdNum) && qtdNum > 0 && (
                       <tr className="bg-[#0a0e14]/80">
                         <td />

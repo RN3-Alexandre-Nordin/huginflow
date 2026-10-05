@@ -216,7 +216,8 @@ export async function atenderRequisicaoAction(
       quantidade: number
       saldo_disponivel?: number
     }>
-  > | null
+  > | null,
+  seriesPorItem?: Record<string, string[]> | null
 ) {
   const me = await getMyProfile()
   const isSuperAdmin = me?.role_global === 'superadmin'
@@ -244,6 +245,7 @@ export async function atenderRequisicaoAction(
       local_baixa_id: localBaixaId,
       itens,
       alocacoes_por_item: alocacoesPorItem || null,
+      series_por_item: seriesPorItem || null,
     },
     supabase
   )

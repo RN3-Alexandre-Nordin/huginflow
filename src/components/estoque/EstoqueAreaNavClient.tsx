@@ -9,6 +9,7 @@ import {
   ArrowUpRight,
   ArrowLeftRight,
   SlidersHorizontal,
+  Hash,
   Truck,
   ClipboardList,
   ShieldCheck,
@@ -61,6 +62,13 @@ const TABS: Array<{
     label: 'Ajustes',
     icon: SlidersHorizontal,
     match: (p) => p.startsWith('/cockpit/estoque/ajustes'),
+  },
+  {
+    href: '/cockpit/estoque/series',
+    label: 'Séries',
+    icon: Hash,
+    match: (p) => p.startsWith('/cockpit/estoque/series'),
+    activeIconClass: 'text-[#2BAADF]',
   },
   {
     href: '/cockpit/estoque/remessas',

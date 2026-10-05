@@ -16,6 +16,7 @@ export type EstCodigoErroEntrada =
   | 'JUSTIFICATIVA_OBRIGATORIA'
   | 'LOTE_OBRIGATORIO'
   | 'VALIDADE_OBRIGATORIA'
+  | 'SERIE_OBRIGATORIA'
 
 export interface ItemEntradaInput {
   linha: number
@@ -28,6 +29,8 @@ export interface ItemEntradaInput {
   data_validade?: string | null
   data_fabricacao?: string | null
   lote_produto_id?: string | null
+  /** Uma série por unidade. Vários números separados por vírgula ou quebra de linha. */
+  numero_serie?: string | null
 }
 
 export interface ItemEntradaValidado {
@@ -46,6 +49,7 @@ export interface ItemEntradaValidado {
   data_validade?: string | null
   data_fabricacao?: string | null
   lote_produto_id?: string | null
+  numero_serie?: string | null
   status: EstStatusItem
   erro_codigo: EstCodigoErroEntrada | null
   erro_mensagem: string | null

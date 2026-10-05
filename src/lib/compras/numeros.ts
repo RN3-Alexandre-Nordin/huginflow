@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 
-type TabelaNumero = 'com_solicitacoes' | 'com_pedidos' | 'com_cotacoes'
+type TabelaNumero = 'com_solicitacoes' | 'com_pedidos' | 'com_cotacoes' | 'com_devolucoes'
 
 async function proximoNumeroDoDia(
   client: SupabaseClient,
@@ -34,4 +34,8 @@ export function gerarNumeroPedido(empresaId: string, client: SupabaseClient) {
 
 export function gerarNumeroCotacao(empresaId: string, client: SupabaseClient) {
   return proximoNumeroDoDia(client, empresaId, 'com_cotacoes', 'COT')
+}
+
+export function gerarNumeroDevolucao(empresaId: string, client: SupabaseClient) {
+  return proximoNumeroDoDia(client, empresaId, 'com_devolucoes', 'DEV')
 }
