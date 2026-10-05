@@ -14,7 +14,7 @@ O Supabase mantém um **MCP oficial** (`https://mcp.supabase.com/mcp`) — não 
 | `supabase-huginflow-dev` | `vujqukqsfwmoezwyuoum` | Leitura + escrita | Migrations, schema, testes |
 | `supabase-huginflow-prod` | `zmypzexefjbovuknjlid` | Leitura + escrita |
 
-**Migrations em produção:** prefira `node scripts/supabase/prod-deploy/apply-bundle.mjs` (senha Postgres no `.env`). Para escrita via MCP em prod, use temporariamente `.cursor/mcp.prod-write.json.example` — veja seção abaixo.
+**Migrations em produção:** **somente com pedido explícito** do responsável (gate 2026-09-11). Preferir `node scripts/supabase/prod-deploy/apply-bundle.mjs` (senha Postgres no `.env`). Sem pedido: documentar o pacote e homologar em DEV — não aplicar.
 
 ---
 

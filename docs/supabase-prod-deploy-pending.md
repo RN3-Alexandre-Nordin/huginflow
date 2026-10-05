@@ -2,6 +2,8 @@
 
 > **Documento canônico (atualizar a cada mudança):** [MIGRACAO-SUPABASE.md](./MIGRACAO-SUPABASE.md)
 >
+> **Plano de fases (plataforma + cadastros + estoque):** [plano-desenvolvimento-fases.md](./plano-desenvolvimento-fases.md)
+>
 > **Pacotes de cutover (ordem sugerida no go-live):**
 >
 > 1. Financeiro / AR — bundle SQL desta página + [MIGRACAO-SUPABASE.md](./MIGRACAO-SUPABASE.md)
@@ -19,12 +21,50 @@ Comparativo entre projetos:
 | **Dev** | `vujqukqsfwmoezwyuoum` | [huginflow-dev](https://supabase.com/dashboard/project/vujqukqsfwmoezwyuoum) |
 | **Prod** | `zmypzexefjbovuknjlid` | [huginflow-prod](https://supabase.com/dashboard/project/zmypzexefjbovuknjlid) |
 
-**Última migration no prod (MCP 2026-09-06):** cutover CRM + Analytics BI + `empresa_webhooks` + `test_runs` + `crm_interacoes` UPDATE RLS (além de finance/AR e `revert_handover_structured`, já presentes).
+**Última migration no prod (intencional, MCP 2026-09-06):** cutover CRM + Analytics BI + `empresa_webhooks` + `test_runs` + `crm_interacoes` UPDATE RLS (além de finance/AR e `revert_handover_structured`, já presentes).
 
-**Última migration no dev:** `202609072045_phase5_analytics_rbac`.
+**Última migration no dev:** `202609111900_cad_ativos_departamento_cc` (além de ativos / reforma / SKUs / Pessoas / entitlements).
+
+**Gate prod (combinado 2026-09-11):** **não aplicar** migrations/DDL em produção sem **pedido explícito**. Até lá: só DEV + documentação do pacote.
 
 **Pendente em prod:** Fases 3–5 (`202609071530`, `202609071900`, `202609072000`,
-`202609072030`, `202609072045`). Não aplicar sem backup e smoke read-only preparado.
+`202609072030`, `202609072045`) + pacote Cadastros completo. Não aplicar sem backup, smoke e autorização explícita.
+
+---
+
+## Pacote Cadastros / entitlements (set/2026) — aguardando homologação DEV + pedido explícito
+
+> **Status:** DEV ✅ SQL + UI · **PROD ⏳** (nada deste pacote em prod após rollback 2026-09-11).  
+> Decisões: [plataforma-entitlements-decisoes.md](./plataforma-entitlements-decisoes.md) §9 (CC = departamento; locais de estoque só no addon `estoque`).
+
+### Ordem de aplicação (quando o responsável pedir)
+
+| # | Arquivo | Dev | Prod | Notas |
+|---|---------|-----|------|-------|
+| 1 | `202609111200_plataforma_addon_entitlements.sql` | ✅ | ⏳ | `addon_registry` + `empresa_addons`; seed sem `financeiro`; `finops` reservado |
+| 2 | `202609111400_crm_leads_pessoas_campos.sql` | ✅ | ⏳ | Papéis multi, PF/PJ, endereço/fiscal/bancário |
+| 3 | `202609111500_cad_skus_mestre_unidades_depara.sql` | ✅ | ⏳ | `cad_skus` + conversão + de-para; RBAC `skus` |
+| 4 | `202609111600_cad_sku_conversao_generica.sql` | ✅ | ⏳ | `sku_id` nullable (genérica vs específica) |
+| 5 | `202609111700_cad_skus_reforma_fiscal.sql` | ✅ | ⏳ | IBS/CBS/IS + NBS |
+| 6 | `202609111800_cad_ativos_patrimonio.sql` | ✅ | ⏳ | `cad_ativos` + stub fórmulas; greenfield com `departamento_id` |
+| 7 | `202609111900_cad_ativos_departamento_cc.sql` | ✅ | ⏳ | CC = `departamento_id`; drop `centro_custo` texto (idempotente se 1800 já veio sem texto) |
+
+### Incidente / rollback (2026-09-11)
+
+Apply precoce de C1+C2 em prod → **revertido** no mesmo dia (`rollback_premature_cadastros_wave_parcial`): drop tabelas entitlements, drop colunas Pessoas, limpeza de `schema_migrations`. Prod alinhado ao baseline pré-onda.
+
+### Fora deste pacote
+
+- `cad_locais_estoque` / `local_padrao_id` no SKU → addon **estoque** (futuro).
+- Código app (menus Cadastros, forms Pessoas/SKU/Ativos) só no **mesmo release** do SQL.
+
+### Checklist pré-prod
+
+1. [ ] Bateria / smoke DEV (Pessoas, SKUs, Conversões UM, De-para, Ativos + select CC).
+2. [ ] Pedido explícito para cutover prod.
+3. [ ] Backup prod.
+4. [ ] Aplicar C1→C7 na ordem (MCP ou bundle).
+5. [ ] Deploy código + smoke prod.
 
 **Analytics BI (dev ✅, prod ✅ MCP 2026-09-06):** `202609021200` … `202609021204` — índices, colunas SLA, RPCs `fn_analytics_*`
 
@@ -38,6 +78,13 @@ Registrar aqui tudo homologado em **dev** e ainda **não** em produção (além 
 
 | Data | Pacote | Dev | Prod | Doc detalhado | Notas |
 |------|--------|-----|------|---------------|-------|
+| 2026-09-11 | **Ativos CC = departamento** | ✅ SQL MCP + UI | ⏳ pedido explícito | § Pacote Cadastros | `202609111900`; drop `centro_custo` texto |
+| 2026-09-11 | **Ativos / patrimônio** + stub fórmulas | ✅ SQL MCP + UI | ⏳ pedido explícito | § Pacote Cadastros | `202609111800`; RBAC `ativos` |
+| 2026-09-11 | **SKUs reforma fiscal** (IBS/CBS/IS) | ✅ SQL MCP + UI | ⏳ pedido explícito | § Pacote Cadastros | `202609111700` |
+| 2026-09-11 | **Conversões UM genéricas** + telas separadas | ✅ SQL MCP + UI | ⏳ pedido explícito | § Pacote Cadastros | `202609111600` |
+| 2026-09-11 | **SKUs** — mestre + UM conversão + de-para | ✅ SQL MCP + UI | ⏳ pedido explícito | § Pacote Cadastros | `202609111500`; RBAC `skus` |
+| 2026-09-11 | **Pessoas** — campos mestre em `crm_leads` | ✅ SQL MCP + UI | ⏳ pedido explícito | § Pacote Cadastros | `202609111400` · apply precoce revertido no mesmo dia |
+| 2026-09-11 | **Plataforma entitlements** | ✅ SQL MCP + código | ⏳ pedido explícito | § Pacote Cadastros | `202609111200` · apply precoce revertido no mesmo dia |
 | 2026-09-07 | **Fase 5: analytics/test_runs/ACL Omni** | ✅ SQL MCP + validação em andamento | ⏳ aplicar no próximo cutover | Agente testes Fase 5 | `202609072000`, `202609072030`, `202609072045`; tenant obrigatório no runner, helpers fechados, RBAC analytics e associação departamental self-read |
 | 2026-09-07 | **RAG RBAC + source/tenant integrity** | ✅ SQL MCP + 3 baterias verdes | ⏳ aplicar no próximo cutover | Agente testes Fase 4 | `202609071900_phase4_knowledge_rbac.sql` |
 | 2026-09-07 | **RBAC por ação em leads/canais/roteamento** | ✅ SQL MCP + 3 baterias verdes | ⏳ aplicar no próximo cutover | Agente testes Fase 3 | `202609071530_phase3_permission_rls.sql`; cria `check_permission`, remove policy aberta de roteamento e sincroniza RLS com a matriz |
