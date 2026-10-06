@@ -75,20 +75,27 @@ export async function validarEAgruparCanonical(
 
   const { data: pessoas } = await client
     .from('crm_leads')
-    .select('id, nome, documento, ativo, papeis')
+    .select('id, nome, documento, ativo, papeis, codigo_externo')
     .eq('empresa_id', empresaId)
     .eq('ativo', true)
     .limit(3000)
 
   const pessoaByDoc = new Map<string, { id: string; nome: string; papeis: string[] }>()
+  const pessoaByExterno = new Map<string, { id: string; nome: string; papeis: string[] }>()
   for (const p of pessoas || []) {
-    const d = digitsOnly(String(p.documento || ''))
-    if (!d) continue
-    pessoaByDoc.set(d, {
-      id: p.id,
-      nome: p.nome,
+    const entry = {
+      id: p.id as string,
+      nome: p.nome as string,
       papeis: Array.isArray(p.papeis) ? p.papeis : [],
-    })
+    }
+    const d = digitsOnly(String(p.documento || ''))
+    if (d) pessoaByDoc.set(d, entry)
+    const externo = String(p.codigo_externo || '').trim()
+    if (externo) {
+      pessoaByExterno.set(externo, entry)
+      const externoDigitos = digitsOnly(externo)
+      if (externoDigitos) pessoaByExterno.set(externoDigitos, entry)
+    }
   }
 
   const { data: skuRows } = await client
@@ -147,7 +154,11 @@ export async function validarEAgruparCanonical(
   for (const [, itens] of groupMap) {
     const first = itens[0]
     const docKey = digitsOnly(first.requisitante_documento)
-    const pessoa = pessoaByDoc.get(docKey)
+    const externoKey = (first.requisitante_codigo_externo || '').trim()
+    const pessoa =
+      (docKey ? pessoaByDoc.get(docKey) : undefined) ||
+      (externoKey ? pessoaByExterno.get(externoKey) : undefined) ||
+      (digitsOnly(externoKey) ? pessoaByExterno.get(digitsOnly(externoKey)) : undefined)
     const codigoOrigem = first.codigo_origem?.trim() || null
     const sistemaOrigem =
       first.sistema_origem?.trim() || (codigoOrigem ? 'planilha' : null)
@@ -172,11 +183,13 @@ export async function validarEAgruparCanonical(
     }
 
     if (!erroCab) {
-      if (!docKey) {
-        erroCab = 'Documento do requisitante ausente.'
+      if (!docKey && !externoKey) {
+        erroCab = 'Documento ou matrícula do requisitante ausente.'
         codigoCab = 'REQUISITANTE_NAO_CADASTRADO'
       } else if (!pessoa) {
-        erroCab = `Requisitante com documento ${first.requisitante_documento} não cadastrado em Pessoas.`
+        erroCab = externoKey
+          ? `Matrícula "${externoKey}" não cadastrada em Pessoas (código externo).`
+          : `Requisitante com documento ${first.requisitante_documento} não cadastrado em Pessoas.`
         codigoCab = 'REQUISITANTE_NAO_CADASTRADO'
       } else if (!pessoa.papeis.includes('funcionario')) {
         erroCab = `${pessoa.nome} não possui papel Funcionário.`
@@ -185,7 +198,11 @@ export async function validarEAgruparCanonical(
     }
 
     // Mesmo grupo: documentos divergentes
-    const docsNoGrupo = new Set(itens.map((i) => digitsOnly(i.requisitante_documento)).filter(Boolean))
+    const docsNoGrupo = new Set(
+      itens
+        .map((i) => digitsOnly(i.requisitante_documento) || (i.requisitante_codigo_externo || '').trim())
+        .filter(Boolean)
+    )
     if (!erroCab && docsNoGrupo.size > 1) {
       erroCab = 'Linhas da mesma codigo_origem com requisitantes diferentes.'
       codigoCab = 'REQUISITANTE_CONFLITO'

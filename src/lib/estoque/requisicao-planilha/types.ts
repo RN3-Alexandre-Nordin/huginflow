@@ -7,6 +7,8 @@ export type CanonicalReqRow = {
   /** Índice 1-based na planilha (após header) */
   linha: number
   requisitante_documento: string
+  /** Matrícula/código externo. O adapter ATC resolve a pessoa por este campo. */
+  requisitante_codigo_externo?: string
   /** Nome como veio na origem (rastreio; não substitui match por documento) */
   requisitante_nome?: string
   sku_codigo: string
