@@ -15,8 +15,8 @@
 
 **Gate prod:** aplicar SQL ou código em produção somente com pedido explícito do responsável. `develop` ≠ `main`.
 
-**Última migration deste ciclo no dev:** —  
-**Última migration deste ciclo no prod:** —
+**Última migration deste ciclo no dev:** `omni_chat_indexes` (26/10/2026)  
+**Última migration deste ciclo no prod:** `omni_chat_indexes` (26/10/2026)
 
 **Gerar bundle SQL consolidado:**
 
@@ -32,10 +32,11 @@ node scripts/supabase/prod-deploy/build-bundle.mjs
 
 | Data | Migration / alteração | Dev | Prod | Arquivo | Notas |
 |------|----------------------|-----|------|---------|-------|
+| 2026-10-26 | `omni_chat_indexes` | ✅ | ✅ | `supabase/migrations/202610261300_omni_chat_indexes.sql` | Índices `crm_conversas (empresa_id, created_at desc)` e `crm_cards (empresa_id, conversa_id)`. Lista do Omni e checagem de acesso do operador faziam varredura sequencial. Vai junto com o deploy do chat sem fila de server actions. Cutover **03** |
+| 2026-10-21 | `crm_interacoes_user_fk_set_null` | ✅ | ✅ | `supabase/migrations/202610211200_crm_interacoes_user_fk_set_null.sql` | DEV já tinha `ON DELETE SET NULL` (alterado sem arquivo); PROD bloqueia excluir usuário com interações. Achado pela homologação (`UI-OMNI-DEPT-SEND`). Cutover **02** |
+| 2026-10-20 | Lacuna de segurança de 07/09 | ✅ | ✅ | `202609071530_phase3_permission_rls.sql` · `202609071900_phase4_knowledge_rbac.sql` · `202609072000_phase5_isolation_analytics.sql` · `202609072030_phase5_omni_department_membership.sql` · `202609072045_phase5_analytics_rbac.sql` | Aplicadas no DEV em 07/09 e esquecidas no cutover da v0.7.0. A homologação PROD do sistema inteiro acusou (`SCR-RBAC-01`, `SCR-ANALYTICS-01`). Aplicadas em PROD via MCP com os nomes dos arquivos; nenhuma migration posterior redefine esses objetos. |
 
 **Legenda:** ✅ aplicado · ⏳ pendente · ❌ não necessário
-
-Nenhuma migration deste ciclo.
 
 ---
 
@@ -43,8 +44,8 @@ Nenhuma migration deste ciclo.
 
 | # | ID | Arquivo | Prod |
 |---|-----|---------|------|
-
-Nenhum item. Ao criar a migration, copiar a linha para cá e para a Seção 4 do cutover, na ordem de execução.
+| 02 | `crm_interacoes_user_fk_set_null` | `supabase/migrations/202610211200_crm_interacoes_user_fk_set_null.sql` | ✅ 21/10 |
+| 03 | `omni_chat_indexes` | `supabase/migrations/202610261300_omni_chat_indexes.sql` | ✅ 26/10 |
 
 ---
 

@@ -1,9 +1,18 @@
+import type { Page } from '@playwright/test'
 import { test, expect, resetUi } from '../fixtures'
 import { ensureAuthenticated } from '../helpers/auth'
+import { clickUntil } from '../helpers/interaction'
 import { openFirstKanban } from '../helpers/kanban'
 import { hideDevOverlays } from '../helpers/overlays'
 
 test.describe.configure({ mode: 'serial' })
+
+async function openChatPanel(page: Page) {
+  const fab = page.getByTestId('chat-fab')
+  await expect(fab).toBeVisible({ timeout: 30_000 })
+  const panel = page.getByTestId('chat-panel')
+  await clickUntil(fab, async () => (await panel.getAttribute('data-open')) === 'true')
+}
 
 test.describe('Chat interno flutuante', () => {
   test.beforeEach(async ({ page }) => {
@@ -15,10 +24,7 @@ test.describe('Chat interno flutuante', () => {
 
   test('[UI-CHAT-01] Botão flutuante abre Conversas', async ({ page }) => {
     await hideDevOverlays(page)
-    const fab = page.getByTestId('chat-fab')
-    await expect(fab).toBeVisible({ timeout: 30_000 })
-    await fab.click()
-    await expect(page.getByTestId('chat-panel')).toHaveAttribute('data-open', 'true')
+    await openChatPanel(page)
     await expect(page.getByTestId('chat-panel-title')).toBeVisible()
   })
 
@@ -30,8 +36,7 @@ test.describe('Chat interno flutuante', () => {
     expect(cardId).toBeTruthy()
     expect(cardTitle).toBeTruthy()
 
-    await page.getByTestId('chat-fab').click()
-    await expect(page.getByTestId('chat-panel')).toHaveAttribute('data-open', 'true')
+    await openChatPanel(page)
     await page.getByTestId('chat-search').fill(cardTitle)
 
     const exactConversation = page.locator(
@@ -51,7 +56,7 @@ test.describe('Chat interno flutuante', () => {
     const cardId = await page.getByTestId('kanban-card').first().getAttribute('data-card-id')
     expect(cardId).toBeTruthy()
 
-    await page.getByTestId('chat-fab').click()
+    await openChatPanel(page)
     await page.getByTestId('chat-search').fill(
       (await page.getByTestId('kanban-card-title').first().innerText()).trim(),
     )

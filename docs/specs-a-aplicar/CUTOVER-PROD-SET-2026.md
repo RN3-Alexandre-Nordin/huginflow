@@ -40,8 +40,8 @@ Executar **na ordem numérica**, no SQL Editor de produção ou via MCP Supabase
 
 | Ordem | Arquivo de Migration | Escopo / Conteúdo | Verificação pós-execução |
 |---|---|---|---|
-
-Nenhum item. A primeira migration deste ciclo entra como **01**.
+| 02 | `supabase/migrations/202610211200_crm_interacoes_user_fk_set_null.sql` | FK `crm_interacoes.user_id` com `ON DELETE SET NULL`: excluir usuário não é barrado pelo histórico dele. **Aplicada em PROD em 21/10.** | `SELECT confdeltype FROM pg_constraint WHERE conname = 'crm_interacoes_user_id_fkey';` devolve `n`. |
+| 03 | `supabase/migrations/202610261300_omni_chat_indexes.sql` | Índices da lista do Omni e da checagem de acesso do operador: `crm_conversas (empresa_id, created_at desc)` e `crm_cards (empresa_id, conversa_id)`. **Aplicada em PROD em 26/10.** | `SELECT indexname FROM pg_indexes WHERE indexname IN ('idx_crm_conversas_empresa_created', 'idx_crm_cards_empresa_conversa');` devolve as duas linhas. |
 
 ---
 

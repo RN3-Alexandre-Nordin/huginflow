@@ -10,7 +10,7 @@ import { isOmniMessageDeleted, markOmniMetadataDeleted } from '@/lib/omnichannel
 import { ActiveSpeakerService } from '@/lib/omnichannel/ChatThreadService'
 import { canConsultCard, isTenantAdmin } from '@/lib/crm/cardConsultaAccess'
 import { getUserDepartamentoIds } from '@/lib/crm/userDepartamentos'
-import { canAccessOmniSession } from '@/lib/omnichannel/OmniSessionAccess'
+import { canAccessOmniSession, filterAccessibleOmniSessions } from '@/lib/omnichannel/OmniSessionAccess'
 
 /** Uma entrada por thread (última mensagem de cada sessao_id). */
 function dedupeSessoes<T extends { sessao_id: string; created_at?: string; updated_at?: string }>(
@@ -88,14 +88,15 @@ export async function getOmniConversas() {
   let sessoes = dedupeSessoes(rows ?? [])
 
   if (me.role_global === 'operador') {
-    const filtered: typeof sessoes = []
-    for (const c of sessoes) {
-      const row = c as { atribuido_a_id?: string | null; status?: string | null; sessao_id: string }
-      if (await operadorPodeAcessarSessao(supabase, me, row.sessao_id, row)) {
-        filtered.push(c)
-      }
-    }
-    sessoes = filtered
+    const allowed = await filterAccessibleOmniSessions(
+      supabase,
+      me,
+      sessoes.map((c) => ({
+        sessaoId: c.sessao_id,
+        conversa: c as { atribuido_a_id?: string | null },
+      })),
+    )
+    sessoes = sessoes.filter((c) => allowed.has(c.sessao_id))
   }
 
   const data = sessoes.slice(0, 50).map((row) => ({
@@ -453,23 +454,27 @@ export async function getOmniMensagens(sessaoId: string) {
   const allowed = await operadorPodeAcessarSessao(supabase, me, sessaoId, accessSnapshot)
   if (!allowed) return { error: 'Sem permissão para esta conversa', data: [] }
 
-  const { data, error } = await supabase
-    .from('crm_interacoes')
-    .select('*, usuarios(nome_completo)')
-    .eq('conversa_id', sessaoId)
-    .order('created_at', { ascending: true })
-    .limit(200)
+  const [{ data: recentes, error }, { data: historicoRecentes }] = await Promise.all([
+    supabase
+      .from('crm_interacoes')
+      .select('*, usuarios(nome_completo)')
+      .eq('conversa_id', sessaoId)
+      .order('created_at', { ascending: false })
+      .limit(200),
+    supabase
+      .from('crm_conversas')
+      .select('content, created_at, metadata')
+      .eq('sessao_id', sessaoId)
+      .order('created_at', { ascending: false })
+      .limit(200),
+  ])
 
   if (error) return { error: error.message, data: [] }
 
-  const { data: historicoRows } = await supabase
-    .from('crm_conversas')
-    .select('content, created_at, metadata')
-    .eq('sessao_id', sessaoId)
-    .order('created_at', { ascending: true })
-    .limit(200)
+  const data = (recentes ?? []).reverse()
+  const historicoRows = (historicoRecentes ?? []).reverse()
 
-  const deletedHistorico = (historicoRows ?? []).filter((row) => isOmniMessageDeleted(row.metadata))
+  const deletedHistorico = historicoRows.filter((row) => isOmniMessageDeleted(row.metadata))
 
   function overlayDeleted<T extends { content: string; created_at: string; metadata?: unknown }>(
     row: T,
@@ -488,15 +493,16 @@ export async function getOmniMensagens(sessaoId: string) {
   }
 
   // Fallback: histórico legado só em crm_conversas
-  if (!data?.length) {
-    const { data: legacyRows } = await supabase
+  if (!data.length) {
+    const { data: legacyRecentes } = await supabase
       .from('crm_conversas')
       .select('id, content, role, created_at, metadata, atribuido_a_id')
       .eq('sessao_id', sessaoId)
-      .order('created_at', { ascending: true })
+      .order('created_at', { ascending: false })
       .limit(200)
+    const legacyRows = (legacyRecentes ?? []).reverse()
 
-    if (legacyRows?.length) {
+    if (legacyRows.length) {
       return {
         data: legacyRows.map((row) => {
           const marked = overlayDeleted(row)
@@ -514,7 +520,7 @@ export async function getOmniMensagens(sessaoId: string) {
     }
   }
 
-  return { data: (data ?? []).map((row) => overlayDeleted(row)) }
+  return { data: data.map((row) => overlayDeleted(row)) }
 }
 
 type OmniRedirectCardRow = {

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
 import { format } from 'date-fns'
 import { Bot, Loader2, MessageCircle, Send, User } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
+import { useCoalescedRefresh } from '@/hooks/useCoalescedRefresh'
 import { sendOmniMessage } from '@/app/(app)/cockpit/crm/omni-actions'
 import {
   getOmniConversaBySessao,
@@ -114,6 +115,11 @@ export default function CardWhatsAppPanel({
     }
   }, [cardId, conversaId, loadThread])
 
+  const scheduleThreadRefresh = useCoalescedRefresh(
+    () => (sessaoId ? loadThread(sessaoId) : undefined),
+    400,
+  )
+
   useEffect(() => {
     if (!sessaoId) return
 
@@ -128,7 +134,7 @@ export default function CardWhatsAppPanel({
           filter: `conversa_id=eq.${sessaoId}`,
         },
         () => {
-          loadThread(sessaoId)
+          scheduleThreadRefresh()
         },
       )
       .subscribe()
@@ -136,7 +142,7 @@ export default function CardWhatsAppPanel({
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [cardId, sessaoId, loadThread, supabase])
+  }, [cardId, sessaoId, scheduleThreadRefresh, supabase])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })

@@ -13,6 +13,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 ## Performance SaaS
 
 Antes de listagens/agregações: `.cursor/rules/saas-performance.mdc`. Estoque: `docs/specs-aplicadas/desenvolvimento-modulo-estoque.md` §2.1.
+O sistema precisa aguentar milhares de usuários simultâneos: seguir a seção “Concorrência e escala” desse arquivo (server action só para mutação, queries em lote, realtime coalescido, polling só com aba visível, timeout em chamadas externas).
 
 ## Documentação canônica
 

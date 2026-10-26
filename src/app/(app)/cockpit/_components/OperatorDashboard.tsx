@@ -8,7 +8,7 @@ import { useQuery } from "@tanstack/react-query"
 import { formatDistanceToNow } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import { getCockpitMetrics } from "../actions"
-import { getOmniConversas } from "../crm/omni-chat-actions"
+import type { getOmniConversas } from "../crm/omni-chat-actions"
 import { getDashboardRefetchInterval } from "@/lib/query/polling"
 import ActivityFeed from "./ActivityFeed"
 import ProductivityModal from "./ProductivityModal"
@@ -27,7 +27,11 @@ export default function OperatorDashboard({ userName, userId }: { userName: stri
 
   const { data: conversasResult, isLoading: loadingConversas } = useQuery({
     queryKey: ["cockpit-omni-preview", userId],
-    queryFn: () => getOmniConversas(),
+    queryFn: async () => {
+      const res = await fetch("/api/omni/conversas", { cache: "no-store" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return (await res.json()) as Awaited<ReturnType<typeof getOmniConversas>>;
+    },
     refetchInterval: getDashboardRefetchInterval(),
   });
 
