@@ -63,6 +63,22 @@ export class TriageActionExecutor {
       return { executed, cardId, responsavelId, handover: false, reasoning: reasons.join(' ') }
     }
 
+    // A classificação completa é funil + estágio. O modelo às vezes preenche o TRIAGE
+    // e esquece [ACTION: CREATE_CARD] (visto com gpt-4o-mini). O sistema cria o card mesmo assim.
+    const classificationComplete = Boolean(tags.triage?.funil_id && tags.triage?.estagio_id)
+    if (
+      classificationComplete &&
+      !actions.has('CREATE_CARD') &&
+      !actions.has('HANDOVER') &&
+      !actions.has('QUEUE_UNASSIGNED')
+    ) {
+      actions.add('CREATE_CARD')
+      actions.add('HANDOVER')
+      reasons.push(
+        'TRIAGE com funil e estágio, sem ACTION — CREATE_CARD e HANDOVER inferidos.',
+      )
+    }
+
     const wantsCard =
       actions.has('CREATE_CARD') || actions.has('HANDOVER') || actions.has('QUEUE_UNASSIGNED')
 
