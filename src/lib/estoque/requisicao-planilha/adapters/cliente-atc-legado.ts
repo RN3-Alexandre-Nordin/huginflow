@@ -19,7 +19,7 @@ function normHeader(h: string): string {
 export const clienteAtcLegadoAdapter: PlanilhaAdapter = {
   codigo: 'cliente_atc_legado',
   label: 'Cliente ATC (legado suprimentos)',
-  hint: 'Export BSC/suprimentos — transformado para o padrão Hugin',
+  hint: 'Export BSC/suprimentos. De-para: matrícula → código externo da pessoa; material → código do SKU.',
   addonCodigo: ADDON_ADAPTER_ATC,
 
   toCanonical(matrix: string[][], ctx: AdapterContext) {
@@ -62,16 +62,16 @@ export const clienteAtcLegadoAdapter: PlanilhaAdapter = {
       const { codigo: matricula, nome: nomeReq } = splitCodigoNome(reqRaw)
       const { codigo: skuCodigo } = splitCodigoNome(matRaw)
       const skuClean = skuCodigo.replace(/\s+/g, '').replace(/\(.*$/, '').trim()
-      // ATC- 0570 → ATC-0570
-      const skuNorm = skuClean.replace(/^(ATC)-(\d)/i, (_, p, d) => `${p.toUpperCase()}-${d}`)
+      // ATC- 0570 → ATC-0570; ATC-534 → ATC-0534 (código de estoque com 4 dígitos)
+      const skuNorm = skuClean
+        .replace(/^(ATC)-(\d)/i, (_, p, d) => `${p.toUpperCase()}-${d}`)
+        .replace(/^ATC-(\d+)$/i, (_, d) => `ATC-${d.padStart(4, '0')}`)
 
       const pessoa = map.get(matricula) || map.get(digitsOnly(matricula))
       const documento = pessoa?.documento ? digitsOnly(pessoa.documento) : ''
 
-      if (!documento) {
-        erros.push(
-          `Linha ${i + 1}: matrícula "${matricula}" sem pessoa/documento em Cadastros (codigo_externo).`
-        )
+      if (!matricula) {
+        erros.push(`Linha ${i + 1}: requisitante sem matrícula.`)
       }
 
       const parts: string[] = []
@@ -88,7 +88,8 @@ export const clienteAtcLegadoAdapter: PlanilhaAdapter = {
       const qtd = parseFloat(qtdRaw)
       rows.push({
         linha: i + 1,
-        requisitante_documento: documento || matricula,
+        requisitante_documento: documento,
+        requisitante_codigo_externo: matricula || undefined,
         requisitante_nome: nomeReq || pessoa?.nome || undefined,
         sku_codigo: skuNorm || skuCodigo,
         quantidade: Number.isFinite(qtd) ? qtd : NaN,

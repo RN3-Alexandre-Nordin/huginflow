@@ -65,3 +65,4 @@ Traceability: Toda ação automatizada pela IA deve deixar um log de "Por que is
 O Hugin Flow é multi-tenant SaaS. **Antes** de criar ou alterar telas de lista, dashboards ou agregações:
 - Consultar `.cursor/rules/saas-performance.mdc` (alwaysApply).
 - Em estoque: também `docs/specs-aplicadas/desenvolvimento-modulo-estoque.md` §2.1 (paginar; `GROUP BY`/VIEW no Postgres; ler `est_saldos`; não agregar milhares de linhas no JS).
+- **Escala de milhares de usuários simultâneos** (seção “Concorrência e escala” do mesmo arquivo): server action só para mutação (leitura recorrente em Route Handler); número fixo de queries por requisição, sem `await` em loop; realtime com `useCoalescedRefresh`; polling só com `useVisibleInterval`; timeout explícito em toda chamada externa.

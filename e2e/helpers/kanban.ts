@@ -1,6 +1,7 @@
 import type { Page } from '@playwright/test'
 import { expect } from '@playwright/test'
 import { hideDevOverlays } from './overlays'
+import { clickUntil } from './interaction'
 
 function funilRows(page: Page) {
   return page.locator('div.group.border-l-2').filter({
@@ -78,7 +79,7 @@ export async function openFirstCardHub(page: Page) {
   await openFirstKanban(page)
   const gestao = page.getByTestId('card-gestao-btn').first()
   await expect(gestao).toBeVisible({ timeout: 10_000 })
-  await gestao.click()
-  await expect(page.getByTestId('card-modal')).toBeVisible({ timeout: 20_000 })
+  const modal = page.getByTestId('card-modal')
+  await clickUntil(gestao, () => modal.isVisible())
   await expect(page.getByTestId('card-hub')).toBeVisible({ timeout: 20_000 })
 }

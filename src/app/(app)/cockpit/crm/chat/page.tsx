@@ -13,8 +13,6 @@ import {
 import { format } from 'date-fns'
 import { sendOmniMessage, sendOmniAttachment, deleteOmniMessage } from '../omni-actions'
 import {
-  getOmniConversas,
-  getOmniMensagens,
   getOmniConversaBySessao,
   getSessaoIdByCardId,
   getLinkedCardBySessao,
@@ -29,6 +27,8 @@ import { DOCUMENT_MAX_BYTES, DOCUMENT_PLACEHOLDER } from '@/lib/omnichannel/docu
 import { stripOutboundTags } from '@/lib/omnichannel/triage/parseTriageTags'
 import { maskPhone } from '@/utils/brasilian-formatters'
 import { hasPermission } from '@/utils/permissions'
+import { useCoalescedRefresh } from '@/hooks/useCoalescedRefresh'
+import { useVisibleInterval } from '@/hooks/useVisibleInterval'
 import ChatCardRedirectModal from '@/components/omni/ChatCardRedirectModal'
 import OmniCustomerContextPanel from '@/components/omni/OmniCustomerContextPanel'
 import CardConsultaDrawer from '@/components/crm/CardConsultaDrawer'
@@ -252,6 +252,17 @@ function getResponderLabel(msg: Mensagem): string | null {
   return 'Atendente'
 }
 
+/** Polling de segurança: lento com realtime ativo, mais curto se o canal caiu. */
+const SAFETY_POLL_REALTIME_OK_MS = 60_000
+const SAFETY_POLL_REALTIME_DOWN_MS = 15_000
+
+async function getOmniJson<T>(url: string, signal?: AbortSignal): Promise<{ data: T; error?: string }> {
+  const res = await fetch(url, { cache: 'no-store', signal })
+  const isJson = res.headers.get('content-type')?.includes('application/json')
+  if (!isJson) return { data: [] as T, error: `HTTP ${res.status}` }
+  return (await res.json()) as { data: T; error?: string }
+}
+
 function ChatLoadingFallback() {
   return (
     <div className="flex items-center justify-center h-[calc(100vh-200px)]">
@@ -353,6 +364,9 @@ function ChatOmnichannelInner() {
   const selectingRef = useRef(false)
   const userPickedSessaoRef = useRef(false)
   const syncingUrlFromPickRef = useRef(false)
+  const mensagensAbortRef = useRef<AbortController | null>(null)
+  const lastMessageKeyRef = useRef<string | null>(null)
+  const [realtimeOk, setRealtimeOk] = useState(false)
 
   useEffect(() => {
     selectedChatRef.current = selectedChat
@@ -524,16 +538,31 @@ function ChatOmnichannelInner() {
     }
   }, [sessaoParam, cardParam, resolveSessaoFromUrl])
 
-  async function fetchConversas(me: any, options?: { applyAutoSelect?: boolean }) {
-    const { data, error } = await getOmniConversas()
-    if (error) console.error('[Chat] Erro ao listar conversas:', error)
-    const list = data || []
-    setConversas(list)
-    if (options?.applyAutoSelect) {
-      await tryAutoSelect(list)
+  async function fetchConversas(options?: { applyAutoSelect?: boolean }) {
+    try {
+      const { data, error } = await getOmniJson<Conversa[]>('/api/omni/conversas')
+      if (error) {
+        // Falha transitória não apaga a lista que o operador já está vendo.
+        console.error('[Chat] Erro ao listar conversas:', error)
+        return
+      }
+      const list = data || []
+      setConversas(list)
+      if (options?.applyAutoSelect) {
+        await tryAutoSelect(list)
+      }
+    } catch (err) {
+      console.error('[Chat] Erro ao listar conversas:', err)
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
+
+  const scheduleConversasRefresh = useCoalescedRefresh(() => fetchConversas(), 800)
+  const scheduleMensagensRefresh = useCoalescedRefresh(() => {
+    const chat = selectedChatRef.current
+    return chat ? fetchMensagens(chat.id) : undefined
+  }, 300)
 
   useEffect(() => {
     async function init() {
@@ -547,7 +576,7 @@ function ChatOmnichannelInner() {
         .single()
       
       setProfile(me)
-      if (me) fetchConversas(me, { applyAutoSelect: true })
+      if (me) fetchConversas({ applyAutoSelect: true })
     }
     init()
   }, [])
@@ -571,7 +600,7 @@ function ChatOmnichannelInner() {
       ? undefined
       : `empresa_id=eq.${profile.empresa_id}`
 
-    const channel = supabase.channel('chat-updates')
+    const channel = supabase.channel(`omni-chat-${profile.id}`)
 
     const interacoesInsertConfig: {
       event: 'INSERT'
@@ -589,9 +618,9 @@ function ChatOmnichannelInner() {
       const row = payload.new as { conversa_id?: string; empresa_id?: string }
       if (!isSuperadmin && row.empresa_id !== profile.empresa_id) return
       if (selectedChatRef.current && row.conversa_id === selectedChatRef.current.id) {
-        fetchMensagens(selectedChatRef.current.id)
+        scheduleMensagensRefresh()
       }
-      fetchConversas(profile)
+      scheduleConversasRefresh()
     })
 
     const interacoesUpdateConfig: {
@@ -610,7 +639,7 @@ function ChatOmnichannelInner() {
       const row = payload.new as { conversa_id?: string; empresa_id?: string }
       if (!isSuperadmin && row.empresa_id !== profile.empresa_id) return
       if (selectedChatRef.current && row.conversa_id === selectedChatRef.current.id) {
-        fetchMensagens(selectedChatRef.current.id)
+        scheduleMensagensRefresh()
       }
     })
 
@@ -630,22 +659,27 @@ function ChatOmnichannelInner() {
       const row = payload.new as { sessao_id?: string; empresa_id?: string } | null
       if (!isSuperadmin && row?.empresa_id && row.empresa_id !== profile.empresa_id) return
       if (selectedChatRef.current && row?.sessao_id === selectedChatRef.current.id) {
-        fetchMensagens(selectedChatRef.current.id)
+        scheduleMensagensRefresh()
       }
-      fetchConversas(profile)
+      scheduleConversasRefresh()
     })
-    channel.subscribe()
+    channel.subscribe((status) => {
+      setRealtimeOk(status === 'SUBSCRIBED')
+    })
 
-    return () => { 
-      supabase.removeChannel(channel) 
+    return () => {
+      setRealtimeOk(false)
+      supabase.removeChannel(channel)
     }
-  }, [profile])
+  }, [profile, supabase, scheduleConversasRefresh, scheduleMensagensRefresh])
 
+  const selectedChatId = selectedChat?.id ?? null
   useEffect(() => {
-    if (selectedChat) {
-      fetchMensagens(selectedChat.id)
+    if (selectedChatId) {
+      void fetchMensagens(selectedChatId)
     }
-  }, [selectedChat])
+    return () => mensagensAbortRef.current?.abort()
+  }, [selectedChatId])
 
   useEffect(() => {
     if (!selectedChat) {
@@ -751,27 +785,49 @@ function ChatOmnichannelInner() {
     }
   }
 
-  // Fallback: Realtime pode falhar se a tabela não estiver na publication
-  useEffect(() => {
-    if (!profile) return
-    const interval = setInterval(() => {
-      fetchConversas(profile)
-      if (selectedChatRef.current) {
-        fetchMensagens(selectedChatRef.current.id)
-      }
-    }, 8000)
-    return () => clearInterval(interval)
-  }, [profile])
+  // Rede de segurança caso algum evento realtime se perca; só com a aba visível.
+  useVisibleInterval(
+    () => {
+      scheduleConversasRefresh()
+      scheduleMensagensRefresh()
+    },
+    realtimeOk ? SAFETY_POLL_REALTIME_OK_MS : SAFETY_POLL_REALTIME_DOWN_MS,
+    Boolean(profile),
+  )
 
   async function fetchMensagens(chatId: string) {
-    const { data, error } = await getOmniMensagens(chatId)
-    if (error) {
-      console.error('[Chat] Erro ao carregar mensagens:', error)
-      setMensagens([])
+    mensagensAbortRef.current?.abort()
+    const controller = new AbortController()
+    mensagensAbortRef.current = controller
+
+    const sameChat = lastMessageKeyRef.current?.startsWith(`${chatId}:`) ?? false
+    let result: { data: Mensagem[]; error?: string }
+    try {
+      result = await getOmniJson<Mensagem[]>(
+        `/api/omni/conversas/${encodeURIComponent(chatId)}/mensagens`,
+        controller.signal,
+      )
+    } catch (err) {
+      if (controller.signal.aborted) return
+      console.error('[Chat] Erro ao carregar mensagens:', err)
       return
     }
-    setMensagens(applyDeletedFlags((data || []) as Mensagem[]))
-    setTimeout(scrollToBottom, 50)
+    if (controller.signal.aborted || selectedChatRef.current?.id !== chatId) return
+
+    if (result.error) {
+      console.error('[Chat] Erro ao carregar mensagens:', result.error)
+      if (!sameChat) setMensagens([])
+      return
+    }
+
+    const rows = applyDeletedFlags((result.data || []) as Mensagem[])
+    setMensagens(rows)
+
+    const lastKey = `${chatId}:${rows.length}:${rows[rows.length - 1]?.id ?? ''}`
+    if (lastKey !== lastMessageKeyRef.current) {
+      lastMessageKeyRef.current = lastKey
+      setTimeout(scrollToBottom, 50)
+    }
   }
 
   async function handleSendMessage() {

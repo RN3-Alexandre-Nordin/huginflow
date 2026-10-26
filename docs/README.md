@@ -16,7 +16,7 @@
 | Qualquer feature / fase | [specs-aplicadas/plano-desenvolvimento-fases.md](./specs-aplicadas/plano-desenvolvimento-fases.md) |
 | Addon, menu, gate, RBAC | [specs-aplicadas/plataforma-entitlements-decisoes.md](./specs-aplicadas/plataforma-entitlements-decisoes.md) · [roadmap](./specs-aplicadas/roadmap-plataforma-entitlements.md) |
 | Estoque | [specs-aplicadas/desenvolvimento-modulo-estoque.md](./specs-aplicadas/desenvolvimento-modulo-estoque.md) |
-| Compras | Plano Cursor **Addon Compras** (guia única; fases 1–9). Banco de produção: [CUTOVER-PROD-SET-2026.md](./specs-a-aplicar/CUTOVER-PROD-SET-2026.md) itens **29–52** (aplicados em 05/10; addon desligado) |
+| Compras | Plano Cursor **Addon Compras** (guia única; fases 1–9, fechadas na `v0.7.0`). Próximo banco: [CUTOVER-PROD-SET-2026.md](./specs-a-aplicar/CUTOVER-PROD-SET-2026.md) (ciclo zerado) |
 | Relatórios / BI | [specs-aplicadas/planejamento-modulo-relatorios-bi.md](./specs-aplicadas/planejamento-modulo-relatorios-bi.md) |
 | Bifrost (chamados SSO) | [specs-aplicadas/bifrost-embed.md](./specs-aplicadas/bifrost-embed.md) |
 

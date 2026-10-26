@@ -27,7 +27,7 @@ export const ADAPTER_METAS: PlanilhaAdapterMeta[] = [
   {
     codigo: 'cliente_atc_legado',
     label: 'Cliente ATC (legado suprimentos)',
-    hint: 'Export BSC/suprimentos — transformado para o padrão Hugin',
+    hint: 'Export BSC/suprimentos. De-para: matrícula → código externo da pessoa; material → código do SKU.',
     addonCodigo: ADDON_ADAPTER_ATC,
   },
 ]

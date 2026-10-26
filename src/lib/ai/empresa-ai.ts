@@ -48,8 +48,16 @@ export function getAiConfigErrorMessage(): string {
   return 'OPENAI_API_KEY não configurada no ambiente (.env / variáveis do servidor).'
 }
 
+/** O SDK espera até 10 min com 2 retries por padrão — prenderia a tela do usuário. */
+const OPENAI_TEXT_TIMEOUT_MS = 30_000
+const OPENAI_MEDIA_TIMEOUT_MS = 60_000
+
+function createOpenAiClient(config: EmpresaAiConfig, timeout = OPENAI_TEXT_TIMEOUT_MS): OpenAI {
+  return new OpenAI({ apiKey: config.apiKey, timeout, maxRetries: 1 })
+}
+
 export async function generateEmbedding(text: string, config: EmpresaAiConfig): Promise<number[]> {
-  const client = new OpenAI({ apiKey: config.apiKey })
+  const client = createOpenAiClient(config)
   const result = await client.embeddings.create({
     model: OPENAI_EMBEDDING_MODEL,
     input: text,
@@ -67,7 +75,7 @@ export async function generateText(
   config: EmpresaAiConfig,
   options: GenerateTextOptions = {},
 ): Promise<string> {
-  const client = new OpenAI({ apiKey: config.apiKey })
+  const client = createOpenAiClient(config)
   const result = await client.chat.completions.create({
     model: config.model,
     messages: [{ role: 'user', content: prompt }],
@@ -86,7 +94,7 @@ export async function analyzeImageWithVision(
   mimeType: string,
   config: EmpresaAiConfig,
 ): Promise<string> {
-  const client = new OpenAI({ apiKey: config.apiKey })
+  const client = createOpenAiClient(config, OPENAI_MEDIA_TIMEOUT_MS)
   const base64 = imageBuffer.toString('base64')
   const result = await client.chat.completions.create({
     model: VISION_MODEL,
@@ -118,7 +126,7 @@ export async function transcribeAudio(
   config: EmpresaAiConfig,
   options: TranscribeAudioOptions = {},
 ): Promise<string> {
-  const client = new OpenAI({ apiKey: config.apiKey })
+  const client = createOpenAiClient(config, OPENAI_MEDIA_TIMEOUT_MS)
   const filename = options.filename ?? 'audio.ogg'
   const mimeType = options.mimeType ?? 'audio/ogg'
   const file = await OpenAI.toFile(audioBuffer, filename, { type: mimeType })
