@@ -5,7 +5,14 @@ import { useRouter } from 'next/navigation'
 import SearchableSelect from '@/components/SearchableSelect'
 import { PEDIDO_STATUS_LABEL } from '@/lib/compras/pedido-status'
 import PedidoWizard from '../../pedidos/PedidoWizard'
-import { lancarNota, lerXmlNota } from '../actions'
+import { casarXmlComPedido, type LinhaXmlNota, type PendenciaXml } from '@/lib/compras/casar-xml-pedido'
+import {
+  buscarSkusEntradaAction,
+  criarSkuFromNfeAction,
+  vincularDeparaNfeAction,
+} from '@/app/(app)/cockpit/estoque/entradas/nfe-assist-actions'
+import { lancarNota, lerXmlNota, resolverDeparaXmlNota } from '../actions'
+import ResolverXmlNota from './ResolverXmlNota'
 
 type ItemPedido = {
   id: string
@@ -25,6 +32,7 @@ export type PedidoNotaOption = {
   id: string
   numero: string
   status: string
+  fornecedorId: string
   fornecedorNome: string
   fornecedorDocumento: string
   itens: ItemPedido[]
@@ -106,6 +114,10 @@ export default function NotaForm({
   })
   const [erro, setErro] = useState<string | null>(null)
   const [pending, start] = useTransition()
+  const [xmlItens, setXmlItens] = useState<LinhaXmlNota[]>([])
+  const [pendencias, setPendencias] = useState<PendenciaXml[]>([])
+  const [resolvendo, setResolvendo] = useState<number | null>(null)
+  const [skuOptions, setSkuOptions] = useState<{ id: string; codigo: string; nome: string; unidade_estoque: string }[]>([])
 
   const pedido = pedidos.find((p) => p.id === pedidoId)
   const valor = itens.reduce((s, i) => {
@@ -127,6 +139,9 @@ export default function NotaForm({
   function escolherPedido(id: string) {
     const next = pedidos.find((p) => p.id === id)
     setPedidoId(id)
+    setXmlItens([])
+    setPendencias([])
+    setResolvendo(null)
     setItens(
       (next?.itens || []).map((item) => ({
         ...item,
@@ -137,7 +152,6 @@ export default function NotaForm({
         nSerie: '',
       })),
     )
-    setOrigem('manual')
     setEmitenteDocumento('')
     setEmitenteNome('')
   }
@@ -153,6 +167,10 @@ export default function NotaForm({
       return
     }
     if (passo === 'nota') {
+      if (origem === 'xml' && pendencias.length) {
+        setErro('Resolva o código do fornecedor de cada item do XML antes de seguir.')
+        return
+      }
       if (!numeroNf.trim() || !emissao) {
         setErro('Informe o número e a data de emissão.')
         return
@@ -176,6 +194,38 @@ export default function NotaForm({
       return
     }
     setPasso('revisao')
+  }
+
+  function itensBaseDoPedido() {
+    return (pedido?.itens || []).map((item) => ({
+      ...item,
+      preco: formatPreco(item.preco),
+      precoPedido: item.preco,
+      cfop: '',
+      centroCusto: '',
+      nSerie: '',
+    }))
+  }
+
+  async function casar(linhas: LinhaXmlNota[], pessoaId: string) {
+    const mapa = await resolverDeparaXmlNota({
+      pessoa_id: pessoaId,
+      codigos: linhas.map((linha) => linha.codigo_parceiro),
+    })
+    if ('error' in mapa && mapa.error) {
+      setErro(mapa.error)
+      return
+    }
+    if (!('ok' in mapa) || !mapa.ok) return
+    const casado = casarXmlComPedido(itensBaseDoPedido(), linhas, mapa.depara, formatPreco)
+    setItens(casado.itens)
+    setPendencias(casado.pendencias)
+    setResolvendo(null)
+    if (casado.pendencias.length) {
+      setErro('Há item do XML sem de-para para este fornecedor, ou o SKU não está neste pedido.')
+    } else {
+      setErro(null)
+    }
   }
 
   function irVoltar() {
@@ -260,7 +310,7 @@ export default function NotaForm({
           <label className="block rounded-xl border border-dashed border-[#2BAADF]/40 bg-[#2BAADF]/5 px-4 py-3 text-sm text-gray-200 sm:col-span-2">
             Arquivo XML da NF-e
             <span className="mt-0.5 block text-xs text-gray-500">
-              Escolha o XML deste pedido. Número, série, chave e itens são preenchidos a partir dele.
+              O código do fornecedor no XML encontra o SKU pelo de-para deste fornecedor, como na entrada de estoque.
             </span>
             <input
               type="file"
@@ -289,20 +339,26 @@ export default function NotaForm({
                     setOrigem('xml')
                     setEmitenteDocumento(res.emitente_documento ?? '')
                     setEmitenteNome(res.emitente_nome ?? '')
-                    if (res.itens?.length && res.itens.length === itens.length) {
-                      setItens(
-                        itens.map((item, index) => {
-                          const xml = res.itens[index]
-                          return {
-                            ...item,
-                            preco: formatPreco(String(xml.preco)),
-                            cfop: xml.cfop,
-                            nSerie: xml.n_serie,
-                            impostos: xml.impostos,
-                          }
-                        }),
-                      )
+                    const linhas: LinhaXmlNota[] = (res.itens || []).map((item) => ({
+                      linha: item.linha,
+                      codigo_parceiro: item.codigo_parceiro,
+                      descricao: item.descricao,
+                      quantidade: item.quantidade,
+                      unidade: item.unidade,
+                      preco: item.preco,
+                      cfop: item.cfop,
+                      n_serie: item.n_serie,
+                      impostos: item.impostos,
+                      ncm: item.ncm,
+                      cest: item.cest,
+                      codigo_barras: item.codigo_barras,
+                    }))
+                    setXmlItens(linhas)
+                    if (!pedido?.fornecedorId) {
+                      setErro('O pedido não tem fornecedor para o de-para.')
+                      return
                     }
+                    await casar(linhas, pedido.fornecedorId)
                   })
                 }
                 reader.readAsText(file)
@@ -313,6 +369,99 @@ export default function NotaForm({
             <p className="text-xs text-gray-400 sm:col-span-2">
               Emitente do XML: {emitenteNome}
             </p>
+          ) : null}
+          {pendencias.length ? (
+            <div className="space-y-2 sm:col-span-2">
+              {pendencias.map((pendencia) => (
+                <div
+                  key={pendencia.linha.linha}
+                  className="flex items-center justify-between gap-3 rounded-xl border border-amber-400/20 bg-amber-400/5 px-3 py-2"
+                >
+                  <p className="text-xs text-amber-200">
+                    <span className="font-mono">{pendencia.linha.codigo_parceiro}</span>
+                    {' · '}
+                    {pendencia.linha.descricao || 'Item do XML'}
+                    {' · '}
+                    {pendencia.motivo === 'sem_depara'
+                      ? 'sem de-para para este fornecedor'
+                      : 'o SKU do de-para não está neste pedido'}
+                  </p>
+                  <button
+                    type="button"
+                    className="shrink-0 text-[11px] font-medium text-[#2BAADF]"
+                    onClick={() => {
+                      setResolvendo(pendencia.linha.linha)
+                      start(async () => {
+                        const res = await buscarSkusEntradaAction(pendencia.linha.codigo_parceiro, true)
+                        if (res.skus) setSkuOptions(res.skus)
+                      })
+                    }}
+                  >
+                    Resolver
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : null}
+          {resolvendo != null && xmlItens.find((linha) => linha.linha === resolvendo) ? (
+            <ResolverXmlNota
+              linha={xmlItens.find((linha) => linha.linha === resolvendo)!}
+              skuOptions={skuOptions}
+              pending={pending}
+              onBuscar={(termo) => {
+                start(async () => {
+                  const res = await buscarSkusEntradaAction(termo, true)
+                  if (res.skus) setSkuOptions(res.skus)
+                })
+              }}
+              onVincular={(skuId) => {
+                const linha = xmlItens.find((item) => item.linha === resolvendo)
+                if (!linha || !pedido?.fornecedorId) return
+                start(async () => {
+                  const res = await vincularDeparaNfeAction({
+                    pessoa_id: pedido.fornecedorId,
+                    codigo_parceiro: linha.codigo_parceiro,
+                    sku_id: skuId,
+                    descricao_parceiro: linha.descricao,
+                  })
+                  if ('error' in res && res.error) {
+                    setErro(res.error)
+                    return
+                  }
+                  setErro(null)
+                  await casar(xmlItens, pedido.fornecedorId)
+                })
+              }}
+              onCriar={(input) => {
+                const linha = xmlItens.find((item) => item.linha === resolvendo)
+                if (!linha || !pedido?.fornecedorId) return
+                start(async () => {
+                  const res = await criarSkuFromNfeAction({
+                    pessoa_id: pedido.fornecedorId,
+                    codigo_parceiro: linha.codigo_parceiro,
+                    descricao_parceiro: input.nome || linha.descricao,
+                    unidade_origem: linha.unidade,
+                    unidade_estoque: input.unidadeEstoque,
+                    fator_conversao:
+                      input.unidadeEstoque.toUpperCase() === linha.unidade.toUpperCase()
+                        ? 1
+                        : Number(input.fator),
+                    ncm: linha.ncm,
+                    cest: linha.cest,
+                    codigo_barras: linha.codigo_barras,
+                    valor_unitario: linha.preco,
+                    codigo_sku: input.codigo,
+                  })
+                  if ('error' in res && res.error) {
+                    setErro(res.error)
+                    return
+                  }
+                  setErro(null)
+                  await casar(xmlItens, pedido.fornecedorId)
+                })
+              }}
+              onFechar={() => setResolvendo(null)}
+            />
           ) : null}
           <label className="block text-sm text-gray-300">
             Número
@@ -407,8 +556,8 @@ export default function NotaForm({
               {item.precoPedido &&
               Math.abs((numero(item.preco) || 0) - (numero(item.precoPedido) || 0)) > 0.005 ? (
                 <p className="text-xs text-amber-300 sm:col-span-12">
-                  Preço diferente do pedido ({formatPreco(item.precoPedido)}). A nota pode ser
-                  confirmada.
+                  Preço diferente do pedido ({formatPreco(item.precoPedido)}). Se passar do percentual da
+                  configuração, a nota fica suspensa e o recebimento não entra.
                 </p>
               ) : null}
               <input
@@ -457,7 +606,8 @@ export default function NotaForm({
           </p>
           <p className="text-xs text-gray-500">
             Material produtivo entra no local padrão da configuração. Serviço e consumo só gravam a
-            nota. Se o SKU controla série, cada número vira uma unidade no estoque.
+            nota. Se o SKU controla série, cada número vira uma unidade no estoque. Se o valor passar
+            do percentual de discrepância, a nota fica suspensa e o recebimento não entra.
           </p>
           <button
             type="button"

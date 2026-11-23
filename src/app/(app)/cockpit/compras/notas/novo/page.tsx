@@ -10,10 +10,15 @@ import NotaForm, { type PedidoNotaOption } from './NotaForm'
 
 export const metadata = { title: 'Nova nota de entrada | HuginFlow' }
 
-function nomeEmbed(value: { nome?: string; documento?: string | null } | { nome?: string; documento?: string | null }[] | null) {
-  if (!value) return { nome: '', documento: '' }
+function nomeEmbed(
+  value:
+    | { id?: string; nome?: string; documento?: string | null }
+    | { id?: string; nome?: string; documento?: string | null }[]
+    | null,
+) {
+  if (!value) return { id: '', nome: '', documento: '' }
   const row = Array.isArray(value) ? value[0] : value
-  return { nome: row?.nome || '', documento: row?.documento || '' }
+  return { id: row?.id || '', nome: row?.nome || '', documento: row?.documento || '' }
 }
 
 export default async function NovaNotaPage({
@@ -45,7 +50,7 @@ export default async function NovaNotaPage({
   const { data } = await supabase
     .from('com_pedidos')
     .select(
-      'id, numero, status, fornecedor:crm_leads!fornecedor_id(nome, documento), itens:com_pedido_itens(id, sku_id, descricao, quantidade, unidade, preco_unitario)',
+      'id, numero, status, fornecedor_id, fornecedor:crm_leads!fornecedor_id(id, nome, documento), itens:com_pedido_itens(id, sku_id, descricao, quantidade, unidade, preco_unitario)',
     )
     .eq('empresa_id', me!.empresa_id)
     .in('status', ['aprovado', 'recebido_parcial', 'recebido'])
@@ -68,6 +73,7 @@ export default async function NovaNotaPage({
         id: row.id,
         numero: row.numero,
         status: row.status,
+        fornecedorId: fornecedor.id || (row.fornecedor_id as string) || '',
         fornecedorNome: fornecedor.nome || '—',
         fornecedorDocumento: fornecedor.documento,
         itens: itens.map((item) => ({

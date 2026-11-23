@@ -6,6 +6,7 @@ import { redirect } from 'next/navigation'
 import { hasPermission } from '@/utils/permissions'
 import { getMyProfile } from '@/app/(app)/cockpit/actions'
 import { deparaPayloadFromForm, parseDeparasBulkFromForm } from '@/lib/skus/constants'
+import { validarLinhasDepara } from '@/lib/skus/depara-codigo.mjs'
 
 const LIST_PATH = '/cockpit/cadastros/sku-depara'
 
@@ -47,8 +48,18 @@ export async function createSkuDeparasBulk(formData: FormData) {
     return { error: 'Pessoa inválida para esta empresa. Selecione apenas itens da lista.' }
   }
 
+  const { data: existentes, error: erroExistentes } = await supabase
+    .from('cad_sku_depara')
+    .select('id, sku_id, pessoa_id, codigo_parceiro')
+    .eq('empresa_id', empresaId)
+    .in('pessoa_id', pessoaIds)
+  if (erroExistentes) return { error: erroExistentes.message }
+
+  const normalizadas = validarLinhasDepara(rows, existentes || [])
+  if (normalizadas.error) return { error: normalizadas.error }
+
   const { error } = await supabase.from('cad_sku_depara').insert(
-    rows.map((r) => ({
+    normalizadas.rows.map((r) => ({
       empresa_id: empresaId,
       sku_id: r.sku_id,
       pessoa_id: r.pessoa_id,
@@ -88,12 +99,23 @@ export async function updateSkuDepara(id: string, formData: FormData) {
   if (!empresaId) return { error: 'Empresa não identificada.' }
 
   const supabase = await createClient()
+  const { data: existentes, error: erroExistentes } = await supabase
+    .from('cad_sku_depara')
+    .select('id, sku_id, pessoa_id, codigo_parceiro')
+    .eq('empresa_id', empresaId)
+    .eq('pessoa_id', payload.pessoa_id)
+  if (erroExistentes) return { error: erroExistentes.message }
+
+  const normalizada = validarLinhasDepara([payload], existentes || [], { ignorarId: id })
+  if (normalizada.error) return { error: normalizada.error }
+  const codigo = normalizada.rows[0].codigo_parceiro
+
   let query = supabase
     .from('cad_sku_depara')
     .update({
       sku_id: payload.sku_id,
       pessoa_id: payload.pessoa_id,
-      codigo_parceiro: payload.codigo_parceiro,
+      codigo_parceiro: codigo,
       observacao: payload.observacao,
       ativo: payload.ativo,
       updated_at: new Date().toISOString(),

@@ -33,7 +33,7 @@ export default async function ComprasConfigPage() {
     supabase
       .from('com_config')
       .select(
-        'aprovacao_ativa, nivel1_grupo_id, nivel1_teto, nivel2_grupo_id, nivel2_a_partir, recebimento_por_caixa, caixa_proximo, recebimento_importados, importados_limpeza, importados_agenda, impressora_etiqueta, local_entrada_id',
+        'aprovacao_ativa, nivel1_grupo_id, nivel1_teto, nivel2_grupo_id, nivel2_a_partir, recebimento_por_caixa, caixa_proximo, recebimento_importados, importados_limpeza, importados_agenda, impressora_etiqueta, local_entrada_id, discrepancia_valor_pct, discrepancia_grupo_id',
       )
       .eq('empresa_id', me!.empresa_id)
       .maybeSingle(),
@@ -56,7 +56,8 @@ export default async function ComprasConfigPage() {
       <div>
         <h1 className="text-xl font-semibold text-white">Configuração</h1>
         <p className="text-sm text-gray-500">
-          Alçada em dois valores. Recebimento por caixa fica na aba Recebimento e nasce desligado.
+          Alçada em dois valores. Recebimento por caixa fica na aba Recebimento e nasce desligado. A
+          discrepância de valor suspende a nota quando passa do percentual.
         </p>
       </div>
       {canEdit ? (

@@ -18,6 +18,9 @@ export default async function ConferenciaImportadoPage({
   const { pedidoId } = await params
   const me = await getMyProfile()
   const isSuper = me?.role_global === 'superadmin'
+  const podeCadastrar =
+    !!me &&
+    (isSuper || hasPermission(me, 'skus', 'create') || hasPermission(me, 'skus', 'edit'))
   const permitido =
     !!me &&
     (isSuper ||
@@ -58,7 +61,7 @@ export default async function ConferenciaImportadoPage({
 
   const { data: pedido } = await supabase
     .from('com_pedidos')
-    .select('id, numero, codigo_fornecedor, status')
+    .select('id, numero, codigo_fornecedor, status, fornecedor:crm_leads!fornecedor_id(nome)')
     .eq('id', pedidoId)
     .eq('empresa_id', me!.empresa_id)
     .maybeSingle()
@@ -66,7 +69,7 @@ export default async function ConferenciaImportadoPage({
 
   const { data: itens } = await supabase
     .from('com_pedido_itens')
-    .select('id, descricao, quantidade, unidade')
+    .select('id, descricao, quantidade, unidade, sku:cad_skus!sku_id(codigo)')
     .eq('pedido_id', pedido.id)
     .eq('empresa_id', me!.empresa_id)
 
@@ -90,12 +93,19 @@ export default async function ConferenciaImportadoPage({
     .order('codigo')
     .limit(300)
 
-  const linhas = (itens || []).map((item) => ({
-    id: item.id,
-    descricao: item.descricao,
-    unidade: item.unidade,
-    saldo: Number(item.quantidade) - (ja.get(item.id) || 0),
-  }))
+  const linhas = (itens || []).map((item) => {
+    const sku = item.sku as { codigo?: string } | { codigo?: string }[] | null
+    const skuCodigo = Array.isArray(sku) ? sku[0]?.codigo || '' : sku?.codigo || ''
+    return {
+      id: item.id,
+      descricao: item.descricao,
+      unidade: item.unidade,
+      saldo: Number(item.quantidade) - (ja.get(item.id) || 0),
+      skuCodigo,
+    }
+  })
+  const fornecedor = pedido.fornecedor as { nome?: string } | { nome?: string }[] | null
+  const fornecedorNome = Array.isArray(fornecedor) ? fornecedor[0]?.nome || '' : fornecedor?.nome || ''
 
   const limpezaLabel: Record<string, string> = {
     transferencia: 'Transferência de estoque',
@@ -118,6 +128,8 @@ export default async function ConferenciaImportadoPage({
       <ConferenciaImportado
         pedidoId={pedido.id}
         podeConferir={pedidoRecebivel(pedido.status)}
+        podeCadastrar={podeCadastrar}
+        fornecedorNome={fornecedorNome}
         itens={linhas}
         locais={locais || []}
         limpeza={limpezaLabel[config.importados_limpeza] || config.importados_limpeza}

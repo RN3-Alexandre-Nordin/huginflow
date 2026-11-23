@@ -3,10 +3,16 @@
 import { revalidatePath } from 'next/cache'
 import { getMyProfile } from '@/app/(app)/cockpit/actions'
 import { empresaHasAddon } from '@/lib/addons/entitlements'
+import {
+  calcularDiscrepanciaValor,
+  dentroDaTolerancia,
+  mensagemSuspensao,
+} from '@/lib/compras/discrepancia-valor'
 import { pedidoPodeNota } from '@/lib/compras/nota-status'
 import { parseNfeXml } from '@/lib/estoque/parser-nfe-xml'
 import { processarLoteEntrada } from '@/lib/estoque/processar-entrada'
 import { hasPermission } from '@/utils/permissions'
+import { createAdminClient } from '@/utils/supabase/admin'
 import { createClient } from '@/utils/supabase/server'
 
 async function gate(action: 'view' | 'create' | 'edit') {
@@ -57,6 +63,8 @@ export async function lerXmlNota(xml: string) {
     frete: parsed.frete || 0,
     impostos: parsed.impostos || null,
     itens: parsed.itens.map((item) => ({
+      linha: item.linha,
+      codigo_parceiro: item.codigo_parceiro,
       descricao: item.descricao_parceiro,
       quantidade: item.quantidade_origem,
       unidade: item.unidade_origem,
@@ -64,8 +72,45 @@ export async function lerXmlNota(xml: string) {
       cfop: item.cfop || '',
       n_serie: item.n_serie || '',
       impostos: item.impostos || null,
+      ncm: item.ncm || '',
+      cest: item.cest || '',
+      codigo_barras: item.codigo_barras || '',
     })),
   }
+}
+
+/** De-para do fornecedor do pedido: código do XML → SKU Hugin. */
+export async function resolverDeparaXmlNota(input: {
+  pessoa_id: string
+  codigos: string[]
+}) {
+  const { error, me } = await gate('create')
+  if (error || !me) return { error: error || 'Sem permissão.' }
+  if (!input.pessoa_id) return { error: 'O pedido não tem fornecedor.' }
+
+  const supabase = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()
+    ? createAdminClient()
+    : await createClient()
+  const { data, error: qErr } = await supabase
+    .from('cad_sku_depara')
+    .select('codigo_parceiro, sku_id')
+    .eq('empresa_id', me.empresa_id)
+    .eq('pessoa_id', input.pessoa_id)
+    .eq('ativo', true)
+    .limit(2000)
+  if (qErr) return { error: qErr.message }
+
+  const mapa: Record<string, string> = {}
+  for (const row of data || []) {
+    const codigo = String(row.codigo_parceiro || '').trim().toUpperCase()
+    if (codigo) mapa[codigo] = row.sku_id as string
+  }
+  const pedidos = new Set(input.codigos.map((c) => c.trim().toUpperCase()).filter(Boolean))
+  const depara: Record<string, string> = {}
+  for (const codigo of pedidos) {
+    if (mapa[codigo]) depara[codigo] = mapa[codigo]
+  }
+  return { ok: true as const, depara }
 }
 
 export async function lancarNota(input: {
@@ -288,6 +333,39 @@ async function gerarEntradaDaNota(
   return { error: null as string | null }
 }
 
+async function efetivarNota(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  empresaId: string,
+  usuarioId: string,
+  notaId: string,
+) {
+  const entrada = await gerarEntradaDaNota(supabase, empresaId, usuarioId, notaId)
+  if (entrada.error) return { error: entrada.error }
+
+  const { error: upErr } = await supabase
+    .from('com_notas')
+    .update({
+      status: 'confirmada',
+      confirmada_em: new Date().toISOString(),
+      confirmada_usuario_id: usuarioId,
+    })
+    .eq('id', notaId)
+    .eq('empresa_id', empresaId)
+  if (upErr) return { error: upErr.message }
+
+  const { error: preErr } = await supabase.rpc('com_gravar_pre_titulo', { p_nota_id: notaId })
+  revalidatePath('/cockpit/compras/notas')
+  revalidatePath(`/cockpit/compras/notas/${notaId}`)
+  revalidatePath('/cockpit/compras/pre-titulos')
+  return {
+    ok: true as const,
+    suspensa: false as const,
+    aviso: preErr
+      ? 'A nota foi confirmada. O pré-título não entrou agora; use Trazer notas confirmadas em Pré-títulos.'
+      : null,
+  }
+}
+
 export async function confirmarNota(notaId: string) {
   const { error, me } = await gate('edit')
   if (error || !me) return { error: error || 'Sem permissão.' }
@@ -299,32 +377,83 @@ export async function confirmarNota(notaId: string) {
     .eq('empresa_id', me.empresa_id)
     .maybeSingle()
   if (!nota) return { error: 'Nota não encontrada.' }
+  if (nota.status === 'suspensa') {
+    return { error: 'Esta nota está suspensa. A aprovação humana libera o recebimento.' }
+  }
   if (nota.status !== 'rascunho') return { error: 'Só um rascunho pode ser confirmado.' }
 
-  const entrada = await gerarEntradaDaNota(supabase, me.empresa_id, me.id, nota.id)
-  if (entrada.error) return { error: entrada.error }
-
-  const { error: upErr } = await supabase
-    .from('com_notas')
-    .update({
-      status: 'confirmada',
-      confirmada_em: new Date().toISOString(),
-      confirmada_usuario_id: me.id,
-    })
-    .eq('id', nota.id)
+  const { data: config } = await supabase
+    .from('com_config')
+    .select('discrepancia_valor_pct')
     .eq('empresa_id', me.empresa_id)
-  if (upErr) return { error: upErr.message }
-
-  const { error: preErr } = await supabase.rpc('com_gravar_pre_titulo', { p_nota_id: nota.id })
-  revalidatePath('/cockpit/compras/notas')
-  revalidatePath(`/cockpit/compras/notas/${nota.id}`)
-  revalidatePath('/cockpit/compras/pre-titulos')
-  return {
-    ok: true as const,
-    aviso: preErr
-      ? 'A nota foi confirmada. O pré-título não entrou agora; use Trazer notas confirmadas em Pré-títulos.'
-      : null,
+    .maybeSingle()
+  const limite = config?.discrepancia_valor_pct
+  if (limite != null) {
+    const { data: itens } = await supabase
+      .from('com_nota_itens')
+      .select('quantidade, preco_unitario, preco_pedido')
+      .eq('nota_id', nota.id)
+      .eq('empresa_id', me.empresa_id)
+    const discrepancia = calcularDiscrepanciaValor(itens || [])
+    if (!dentroDaTolerancia(discrepancia, Number(limite))) {
+      const { error: suspErr } = await supabase
+        .from('com_notas')
+        .update({
+          status: 'suspensa',
+          discrepancia_pct: discrepancia.percentual,
+          valor_pedido: discrepancia.valorPedido,
+          suspensa_em: new Date().toISOString(),
+        })
+        .eq('id', nota.id)
+        .eq('empresa_id', me.empresa_id)
+      if (suspErr) return { error: suspErr.message }
+      revalidatePath('/cockpit/compras/notas')
+      revalidatePath(`/cockpit/compras/notas/${nota.id}`)
+      return {
+        ok: true as const,
+        suspensa: true as const,
+        aviso: mensagemSuspensao(discrepancia, Number(limite)),
+      }
+    }
   }
+
+  return efetivarNota(supabase, me.empresa_id, me.id, nota.id)
+}
+
+export async function aprovarNotaSuspensa(notaId: string) {
+  const me = await getMyProfile()
+  if (!me?.empresa_id) return { error: 'Sessão sem empresa.' }
+  const isSuper = me.role_global === 'superadmin'
+  if (!isSuper && !(await empresaHasAddon(me.empresa_id, 'compras'))) {
+    return { error: 'Addon Compras não está ativo nesta empresa.' }
+  }
+
+  const supabase = await createClient()
+  const { data: nota } = await supabase
+    .from('com_notas')
+    .select('id, status, criador_usuario_id')
+    .eq('id', notaId)
+    .eq('empresa_id', me.empresa_id)
+    .maybeSingle()
+  if (!nota) return { error: 'Nota não encontrada.' }
+  if (nota.status !== 'suspensa') return { error: 'Esta nota não está suspensa.' }
+
+  const isAdmin = isSuper || me.role_global === 'admin'
+  if (!isAdmin && nota.criador_usuario_id && nota.criador_usuario_id === me.id) {
+    return { error: 'Quem lançou a nota não aprova o próprio recebimento.' }
+  }
+
+  const { data: config } = await supabase
+    .from('com_config')
+    .select('discrepancia_grupo_id')
+    .eq('empresa_id', me.empresa_id)
+    .maybeSingle()
+  const grupo = config?.discrepancia_grupo_id
+  if (!isAdmin && (!grupo || me.grupo_id !== grupo)) {
+    return { error: 'Seu grupo não aprova nota suspensa por discrepância de valor.' }
+  }
+
+  return efetivarNota(supabase, me.empresa_id, me.id, nota.id)
 }
 
 export async function cancelarNota(notaId: string) {
@@ -338,7 +467,9 @@ export async function cancelarNota(notaId: string) {
     .eq('empresa_id', me.empresa_id)
     .maybeSingle()
   if (!nota) return { error: 'Nota não encontrada.' }
-  if (nota.status !== 'rascunho') return { error: 'Só um rascunho pode ser cancelado.' }
+  if (nota.status !== 'rascunho' && nota.status !== 'suspensa') {
+    return { error: 'Só um rascunho ou uma nota suspensa pode ser cancelado.' }
+  }
   const { error: upErr } = await supabase
     .from('com_notas')
     .update({ status: 'cancelada', cancelada_em: new Date().toISOString() })
