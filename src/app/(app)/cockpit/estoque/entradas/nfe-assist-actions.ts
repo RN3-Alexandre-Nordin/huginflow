@@ -1,5 +1,6 @@
 'use server'
 
+import { createAdminClient } from '@/utils/supabase/admin'
 import { createClient } from '@/utils/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { getMyProfile } from '@/app/(app)/cockpit/actions'
@@ -9,13 +10,23 @@ import { validarLoteEntrada } from '@/lib/estoque/validacao-entrada'
 import type { ItemEntradaInput, LoteEntradaInput } from '@/lib/estoque/tipos'
 import { SKU_UNIDADES } from '@/lib/skus/constants'
 
+/** Quem já passou em canEntrada lê e grava SKU/de-para desta empresa.
+ *  O RLS de cadastros exige permissão de SKU; a entrada por XML e a nota de compra
+ *  usam estas ações com o mesmo gate da tela. */
+async function dbEntradaXml() {
+  if (process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()) return createAdminClient()
+  return createClient()
+}
+
 function canEntrada(me: Awaited<ReturnType<typeof getMyProfile>>) {
   if (!me) return false
   if (me.role_global === 'superadmin' || me.role_global === 'admin') return true
   return (
     hasPermission(me, 'estoque_entradas', 'create') ||
     hasPermission(me, 'estoque', 'edit') ||
-    hasPermission(me, 'estoque', 'create')
+    hasPermission(me, 'estoque', 'create') ||
+    hasPermission(me, 'compras_notas', 'create') ||
+    hasPermission(me, 'compras_notas', 'edit')
   )
 }
 
@@ -274,20 +285,20 @@ export async function previewNfeLinhasAction(input: {
   return { parsed, validacao }
 }
 
-export async function buscarSkusEntradaAction(q: string) {
+export async function buscarSkusEntradaAction(q: string, incluirSemControleEstoque = false) {
   const me = await getMyProfile()
   if (!canEntrada(me) || !me?.empresa_id) return { error: 'Sem permissão.', skus: [] }
 
-  const supabase = await createClient()
+  const supabase = await dbEntradaXml()
   const term = q.trim()
   let query = supabase
     .from('cad_skus')
     .select('id, codigo, nome, unidade_estoque, ncm, controla_lote, exige_validade')
     .eq('empresa_id', me.empresa_id)
     .eq('ativo', true)
-    .eq('controla_estoque', true)
     .order('codigo')
     .limit(40)
+  if (!incluirSemControleEstoque) query = query.eq('controla_estoque', true)
 
   if (term) {
     query = query.or(`codigo.ilike.%${term}%,nome.ilike.%${term}%`)
@@ -313,8 +324,16 @@ export async function vincularDeparaNfeAction(input: {
     return { error: 'Dados incompletos para o de-para.' }
   }
 
-  const supabase = await createClient()
+  const supabase = await dbEntradaXml()
   const now = new Date().toISOString()
+
+  const { data: pessoa } = await supabase
+    .from('crm_leads')
+    .select('id')
+    .eq('empresa_id', me.empresa_id)
+    .eq('id', input.pessoa_id)
+    .maybeSingle()
+  if (!pessoa) return { error: 'Fornecedor inválido para esta empresa.' }
 
   const { data: sku } = await supabase
     .from('cad_skus')
@@ -411,8 +430,16 @@ export async function criarSkuFromNfeAction(input: {
     (input.codigo_sku || input.codigo_parceiro || '').trim().slice(0, 60) ||
     `NFE-${Date.now().toString(36).toUpperCase()}`
 
-  const supabase = await createClient()
+  const supabase = await dbEntradaXml()
   const now = new Date().toISOString()
+
+  const { data: pessoa } = await supabase
+    .from('crm_leads')
+    .select('id')
+    .eq('empresa_id', me.empresa_id)
+    .eq('id', input.pessoa_id)
+    .maybeSingle()
+  if (!pessoa) return { error: 'Fornecedor inválido para esta empresa.' }
 
   // código único — se colidir, sufixa
   let codigoFinal = codigoSku
