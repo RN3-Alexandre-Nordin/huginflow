@@ -18,26 +18,6 @@ export interface ResultadoProcessamentoEntrada {
   erroResumo?: string | null
 }
 
-export async function gerarNumeroEntrada(
-  empresaId: string,
-  client: SupabaseClient
-): Promise<string> {
-  const hoje = new Date()
-  const yyyy = hoje.getFullYear()
-  const mm = String(hoje.getMonth() + 1).padStart(2, '0')
-  const dd = String(hoje.getDate()).padStart(2, '0')
-  const prefixo = `ENT-${yyyy}${mm}${dd}-`
-
-  const { count } = await client
-    .from('est_entrada_lotes')
-    .select('*', { count: 'exact', head: true })
-    .eq('empresa_id', empresaId)
-    .ilike('numero', `${prefixo}%`)
-
-  const seq = String((count || 0) + 1).padStart(4, '0')
-  return `${prefixo}${seq}`
-}
-
 export async function processarLoteEntrada(
   params: LoteEntradaInput,
   client: SupabaseClient
@@ -55,16 +35,12 @@ export async function processarLoteEntrada(
     }
   }
 
-  // 2. Gera número sequencial amigável
-  const numero = await gerarNumeroEntrada(params.empresa_id, client)
+  // O número ENT- nasce no trigger BEFORE INSERT. O cliente não envia numero.
   const agora = new Date().toISOString()
-
-  // 3. Insere cabeçalho do lote
-  const { data: loteCriado, error: errLote } = await client
+  const inserido = await client
     .from('est_entrada_lotes')
     .insert({
       empresa_id: params.empresa_id,
-      numero,
       origem: params.origem,
       status: 'processando',
       pessoa_id: params.pessoa_id,
@@ -79,8 +55,11 @@ export async function processarLoteEntrada(
       created_at: agora,
       updated_at: agora,
     })
-    .select('id')
+    .select('id, numero')
     .single()
+  const loteCriado = inserido.data as { id: string; numero: string } | null
+  const errLote = inserido.error
+  const numero = loteCriado?.numero || ''
 
   if (errLote || !loteCriado) {
     return {

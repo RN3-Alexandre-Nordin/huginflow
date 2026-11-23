@@ -1,6 +1,7 @@
 /**
  * Aprovação interna de requisições de materiais.
- * Gate: aprovador configurado em est_config OU admin do tenant OU superadmin.
+ * Gate alinhado a est_transicionar_requisicao: aprovador configurado,
+ * admin do tenant, administrador do grupo da mesma empresa ou superadmin.
  */
 
 export type EstConfigAprovacao = {
@@ -9,10 +10,25 @@ export type EstConfigAprovacao = {
   req_aprovacao_valor_minimo?: number | string | null
 }
 
+export type GrupoAcessoLike = {
+  is_admin?: boolean | null
+  empresa_id?: string | null
+}
+
 export type ProfileLike = {
   id?: string | null
   empresa_id?: string | null
   role_global?: string | null
+  grupos_acesso?: GrupoAcessoLike | GrupoAcessoLike[] | null
+}
+
+/** Grupo administrador somente quando grupos_acesso.empresa_id é a empresa do usuário. */
+export function grupoAdminDaEmpresa(me: ProfileLike | null | undefined): boolean {
+  const empresaId = me?.empresa_id
+  if (!empresaId) return false
+  const raw = me.grupos_acesso
+  const grupos = Array.isArray(raw) ? raw : raw ? [raw] : []
+  return grupos.some((g) => g?.is_admin === true && g.empresa_id === empresaId)
 }
 
 export function podeAprovarRequisicao(
@@ -22,6 +38,7 @@ export function podeAprovarRequisicao(
   if (!me?.id) return false
   if (me.role_global === 'superadmin') return true
   if (me.role_global === 'admin') return true
+  if (grupoAdminDaEmpresa(me)) return true
   const aprovadorId = config?.req_aprovador_usuario_id
   if (aprovadorId && aprovadorId === me.id) return true
   return false

@@ -5,7 +5,7 @@ import EstoqueAreaNavClient from './EstoqueAreaNavClient'
 
 /**
  * Nav do módulo estoque. Oculta "Aprovação" se o usuário não for
- * aprovador configurado / admin / superadmin.
+ * aprovador configurado / admin de grupo da empresa / admin / superadmin.
  */
 export default async function EstoqueAreaNav() {
   const me = await getMyProfile()

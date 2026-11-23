@@ -358,9 +358,9 @@ export const TEST_CATALOG: Record<string, TestCatalogEntry> = {
   'UI-BI-01': {
     id: 'UI-BI-01',
     area: 'Relatórios / Analytics',
-    expectativa: 'Relatórios carregam KPIs, série diária, heatmap e filtro de departamento.',
+    expectativa: 'O catálogo de relatórios abre e os relatórios do Omni carregam sem erro.',
     passos:
-      'Abre /cockpit/relatorios, valida os quatro KPIs, série, heatmap e atualização do filtro.',
+      'Abre /cockpit/relatorios, confere os cards de Omni e Workflow e abre fila, SLA, volume e heatmap sem caixa de erro.',
   },
   'UI-FIN-01': {
     id: 'UI-FIN-01',
@@ -683,6 +683,14 @@ export const TEST_CATALOG: Record<string, TestCatalogEntry> = {
     area: 'Compras / Fase 5 Nota',
     expectativa: 'Preço diferente marca aviso; frete entra no custo da última compra. Serviço não move saldo.',
     passos: 'Nota produtiva com frete e aviso_preco; nota de serviço sem cardex.',
+  },
+  'SCR-COM-F5-02': {
+    id: 'SCR-COM-F5-02',
+    area: 'Compras / Fase 5 Discrepância da nota',
+    expectativa:
+      'Acima do percentual a nota fica suspensa e não gera pré-título. Dentro do limite, a confirmação segue.',
+    passos:
+      'Limite 5%: 20% suspende; 4% passa; zero barra qualquer diferença; linha sem preço de pedido não segura.',
   },
   'SCR-COM-F6-01': {
     id: 'SCR-COM-F6-01',

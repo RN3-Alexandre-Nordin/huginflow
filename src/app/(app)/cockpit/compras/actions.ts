@@ -729,10 +729,18 @@ export async function salvarConfigCompras(formData: FormData) {
   const supabase = await createClient()
   const piso1 = parseValorAlcada(String(formData.get('nivel1_teto') || ''))
   const piso2 = parseValorAlcada(String(formData.get('nivel2_a_partir') || ''))
-  if (piso1 === 'invalido' || piso2 === 'invalido') return { error: 'Informe valores numéricos válidos.' }
+  const pctRaw = parseValorAlcada(String(formData.get('discrepancia_valor_pct') || ''))
+  if (piso1 === 'invalido' || piso2 === 'invalido' || pctRaw === 'invalido') {
+    return { error: 'Informe valores numéricos válidos.' }
+  }
+  if (pctRaw != null && pctRaw > 100) return { error: 'O percentual de discrepância vai de 0 a 100.' }
 
   const nivel1Grupo = String(formData.get('nivel1_grupo_id') || '') || null
   const nivel2Grupo = String(formData.get('nivel2_grupo_id') || '') || null
+  const grupoDiscrepancia = String(formData.get('discrepancia_grupo_id') || '') || null
+  if (pctRaw != null && !grupoDiscrepancia) {
+    return { error: 'Selecione o grupo que aprova a nota suspensa.' }
+  }
   const aprovacaoAtiva = formData.get('aprovacao_ativa') === 'on'
   const base1 = piso1 ?? 0
 
@@ -767,6 +775,8 @@ export async function salvarConfigCompras(formData: FormData) {
     importados_agenda: limpezaImportados === 'baixa_agendada' ? agendaImportados : null,
     impressora_etiqueta: 'prevista',
     local_entrada_id: String(formData.get('local_entrada_id') || '') || null,
+    discrepancia_valor_pct: pctRaw,
+    discrepancia_grupo_id: pctRaw == null ? null : grupoDiscrepancia,
     updated_at: new Date().toISOString(),
   }
   const { error: upErr } = await supabase.from('com_config').upsert(payload, { onConflict: 'empresa_id' })

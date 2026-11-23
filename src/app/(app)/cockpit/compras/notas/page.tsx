@@ -92,7 +92,10 @@ export default async function NotasPage({
       <div className="flex items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold text-white">Notas de entrada</h1>
-          <p className="text-sm text-gray-500">Confirmar a nota não movimenta o estoque.</p>
+          <p className="text-sm text-gray-500">
+            Dentro do percentual, a confirmação entra o material no estoque. Acima dele, a nota fica
+            suspensa.
+          </p>
         </div>
         {podeLancar ? (
           <Link

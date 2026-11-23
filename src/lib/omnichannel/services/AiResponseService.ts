@@ -43,13 +43,6 @@ export class AiResponseService {
     }
 
     try {
-      await ConversaHistoricoService.updateLatestSessaoStatus(
-        sessaoId,
-        empresaId,
-        { status: 'processing' },
-        supabase,
-      )
-
       let messageText = message.content
 
       if (shouldProcessAsDocument(message)) {

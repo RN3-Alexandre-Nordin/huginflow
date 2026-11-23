@@ -16,6 +16,11 @@ const SECTIONS = [
     label: 'Recebimento',
     hint: 'Caixa nossa ou recebimento de importados',
   },
+  {
+    id: 'discrepancia',
+    label: 'Discrepância',
+    hint: 'Percentual do valor que libera a nota ou suspende',
+  },
 ] as const
 
 const inputClass =
@@ -41,6 +46,8 @@ export default function ComprasConfigForm({
     importados_agenda: string | null
     impressora_etiqueta: string
     local_entrada_id: string | null
+    discrepancia_valor_pct: number | null
+    discrepancia_grupo_id: string | null
   } | null
 }) {
   const [aba, setAba] = useState<(typeof SECTIONS)[number]['id']>('alcada')
@@ -70,7 +77,7 @@ export default function ComprasConfigForm({
         <p className="mb-2 px-1 text-[10px] font-black uppercase tracking-widest text-gray-600">
           Seções
         </p>
-        <nav className="grid grid-cols-1 gap-1.5 sm:grid-cols-2" role="tablist">
+        <nav className="grid grid-cols-1 gap-1.5 sm:grid-cols-3" role="tablist">
           {SECTIONS.map((item) => {
             const active = aba === item.id
             return (
@@ -251,6 +258,41 @@ export default function ComprasConfigForm({
         <p className="text-xs text-gray-500">
           A confirmação da nota de material produtivo gera a entrada neste local.
         </p>
+      </div>
+      <div className={aba === 'discrepancia' ? 'min-h-[16rem] space-y-4 p-5' : 'hidden'} role="tabpanel">
+        <p className="text-xs text-gray-500">
+          Compara o valor da nota com o valor do pedido, na mesma quantidade. Dentro do percentual,
+          a nota confirma e o recebimento entra. Acima dele, a nota fica suspensa e o estoque não
+          se move até o grupo aprovar.
+        </p>
+        <label className="block text-sm text-gray-300">
+          Percentual de discrepância (%)
+          <input
+            name="discrepancia_valor_pct"
+            defaultValue={config?.discrepancia_valor_pct ?? ''}
+            inputMode="decimal"
+            placeholder="5"
+            className={inputClass}
+          />
+          <span className="mt-1 block text-[11px] text-gray-500">
+            Em branco, a trava fica desligada. Zero suspende qualquer diferença.
+          </span>
+        </label>
+        <label className="block text-sm text-gray-300">
+          Grupo que aprova a nota suspensa
+          <select
+            name="discrepancia_grupo_id"
+            defaultValue={config?.discrepancia_grupo_id || ''}
+            className={inputClass}
+          >
+            <option value="">—</option>
+            {grupos.map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.nome}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
       <div className="px-5 pb-2">
         {erro ? <p className="text-sm text-red-400">{erro}</p> : null}

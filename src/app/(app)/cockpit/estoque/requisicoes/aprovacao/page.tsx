@@ -35,8 +35,8 @@ export default async function AprovacaoRequisicoesPage({ searchParams }: PagePro
         </div>
         <h2 className="mb-2 text-3xl font-extrabold tracking-tight text-white">Acesso Interditado</h2>
         <p className="mx-auto mb-8 max-w-md text-lg text-gray-400">
-          Apenas o aprovador configurado em Estoque → Configuração, o admin da empresa ou superadmin
-          podem acessar esta fila.
+          Apenas o aprovador configurado em Estoque → Configuração, o administrador do grupo desta
+          empresa, o admin da empresa ou superadmin podem acessar esta fila.
         </p>
         <BackTextButton className="rounded-xl border border-[#ffffff10] bg-[#ffffff05] px-6 py-3 font-semibold text-white transition-all hover:bg-[#ffffff10]">
           Voltar ao Início

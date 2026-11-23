@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { Lock } from 'lucide-react'
 import { getMyProfile } from '@/app/(app)/cockpit/actions'
 import BackTextButton from '@/components/BackTextButton'
+import { calcularDiscrepanciaValor, mensagemSuspensao } from '@/lib/compras/discrepancia-valor'
 import { NOTA_STATUS_LABEL } from '@/lib/compras/nota-status'
 import { empresaHasAddon } from '@/lib/addons/entitlements'
 import { hasPermission } from '@/utils/permissions'
@@ -41,7 +42,7 @@ export default async function NotaDetalhePage({ params }: { params: Promise<{ id
   const { data: nota } = await supabase
     .from('com_notas')
     .select(
-      'id, numero, serie, chave, data_emissao, vencimento, frete, valor_total, status, origem, observacao, pedido_id, pedido:com_pedidos!pedido_id(numero), fornecedor:crm_leads!fornecedor_id(nome)',
+      'id, numero, serie, chave, data_emissao, vencimento, frete, valor_total, valor_pedido, discrepancia_pct, status, origem, observacao, criador_usuario_id, pedido_id, pedido:com_pedidos!pedido_id(numero), fornecedor:crm_leads!fornecedor_id(nome)',
     )
     .eq('id', id)
     .eq('empresa_id', me!.empresa_id)
@@ -51,11 +52,36 @@ export default async function NotaDetalhePage({ params }: { params: Promise<{ id
 
   const { data: itens } = await supabase
     .from('com_nota_itens')
-    .select('id, descricao, quantidade, unidade, preco_unitario, aviso_preco, cfop, centro_custo, n_serie')
+    .select('id, descricao, quantidade, unidade, preco_unitario, preco_pedido, aviso_preco, cfop, centro_custo, n_serie')
     .eq('nota_id', nota.id)
     .eq('empresa_id', me!.empresa_id)
 
-  const podeConfirmar = isSuper || hasPermission(me, 'compras_notas', 'edit')
+  const podeEditar = isSuper || hasPermission(me, 'compras_notas', 'edit')
+  const { data: config } = await supabase
+    .from('com_config')
+    .select('discrepancia_valor_pct, discrepancia_grupo_id')
+    .eq('empresa_id', me!.empresa_id)
+    .maybeSingle()
+  const isAdmin = isSuper || me!.role_global === 'admin'
+  const podeAprovar =
+    nota.status === 'suspensa' &&
+    (isAdmin || (!!config?.discrepancia_grupo_id && me!.grupo_id === config.discrepancia_grupo_id)) &&
+    (isAdmin || nota.criador_usuario_id !== me!.id)
+  const avisoSuspensao =
+    nota.status !== 'suspensa'
+      ? null
+      : config?.discrepancia_valor_pct != null
+        ? mensagemSuspensao(
+            calcularDiscrepanciaValor(
+              (itens || []).map((item) => ({
+                quantidade: Number(item.quantidade),
+                preco_unitario: Number(item.preco_unitario),
+                preco_pedido: item.preco_pedido == null ? null : Number(item.preco_pedido),
+              })),
+            ),
+            Number(config.discrepancia_valor_pct),
+          )
+        : 'O recebimento ficou suspenso para aprovação humana.'
 
   return (
     <div className="space-y-4">
@@ -74,7 +100,19 @@ export default async function NotaDetalhePage({ params }: { params: Promise<{ id
           Voltar
         </Link>
       </div>
-      {podeConfirmar ? <NotaAcoes notaId={nota.id} status={nota.status} /> : null}
+      {podeEditar || podeAprovar ? (
+        <NotaAcoes
+          notaId={nota.id}
+          status={nota.status}
+          podeEditar={podeEditar}
+          podeAprovar={podeAprovar}
+          avisoSuspensao={avisoSuspensao}
+        />
+      ) : nota.status === 'suspensa' && avisoSuspensao ? (
+        <p className="rounded-xl border border-amber-400/20 bg-amber-400/5 px-3 py-2 text-sm text-amber-200">
+          {avisoSuspensao}
+        </p>
+      ) : null}
       <div className="rounded-2xl border border-[#ffffff0a] bg-[#111111] p-4 text-sm">
         <p className="text-gray-400">
           Emissão{' '}

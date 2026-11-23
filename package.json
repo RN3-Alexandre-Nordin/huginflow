@@ -31,7 +31,7 @@
     "test:agent:scripts:cadastros": "node scripts/agent/phase-cadastros-scripts.mjs",
     "test:agent:scripts:phase6": "node scripts/agent/phase6-scripts.mjs",
     "test:agent:scripts:compras": "node scripts/agent/compras-scripts.mjs",
-    "test:unit:estoque": "node --test src/lib/estoque/cardex-filters.test.mjs src/lib/estoque/alocar-lotes-fefo.test.mjs src/lib/estoque/parser-nfe-xml.test.mjs",
+    "test:unit:estoque": "node --experimental-strip-types --import ./src/lib/estoque/requisicao-planilha/register-ts-ext.mjs --test src/lib/estoque/cardex-filters.test.mjs src/lib/estoque/alocar-lotes-fefo.test.mjs src/lib/estoque/parser-nfe-xml.test.mjs src/lib/estoque/requisicao-planilha/importar-grupo.test.mjs src/lib/estoque/requisicao-planilha/pacote-21-importacao.test.mjs src/lib/estoque/requisicao-planilha/adapters/cliente-atc-legado.test.mjs src/lib/estoque/requisicao-planilha/pacote-3-aprovacao-origem.test.mjs src/lib/estoque/requisicao-planilha/pacote-4-atomicidade.test.mjs src/lib/estoque/aprovacao-requisicao.test.mjs src/lib/estoque/requisicao-delete-rls.test.mjs src/lib/estoque/requisicao-atendimento-integridade.test.mjs src/lib/estoque/requisicao-ciclo-manual.test.mjs",
     "test:agent:prod-smoke": "node scripts/agent/run-agent-prod-smoke.mjs"
   },
   "dependencies": {
@@ -47,7 +47,7 @@
     "html2pdf.js": "^0.14.0",
     "jose": "^6.2.12",
     "lucide-react": "^1.7.0",
-    "next": "16.2.1",
+    "next": "^16.4.6",
     "openai": "^6.45.0",
     "pdf-parse": "^1.1.1",
     "react": "19.2.4",

@@ -70,13 +70,6 @@ export class DocumentInboundService {
     }
 
     try {
-      await ConversaHistoricoService.updateLatestSessaoStatus(
-        sessaoId,
-        empresaId,
-        { status: 'processing' },
-        supabase,
-      )
-
       const docResult = await DocumentProcessingService.processInboundDocument(
         message,
         canal,

@@ -4,11 +4,12 @@ import { createClient } from '@/utils/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { getMyProfile } from '@/app/(app)/cockpit/actions'
 import { hasPermission } from '@/utils/permissions'
-import {
-  calcularValorEstimadoRequisicao,
-  podeAprovarRequisicao,
-  statusAoEnviarRequisicao,
-} from '@/lib/estoque/aprovacao-requisicao'
+const INTENCAO_POR_STATUS = {
+  pendente_aprovacao: 'enviar',
+  aprovada: 'aprovar',
+  rejeitada: 'rejeitar',
+  cancelada: 'cancelar',
+} as const
 import {
   atenderRequisicao,
   criarRequisicao,
@@ -72,135 +73,25 @@ export async function transicionarStatusRequisicaoAction(
   novoStatus: 'pendente_aprovacao' | 'aprovada' | 'rejeitada' | 'cancelada'
 ) {
   const me = await getMyProfile()
-  const isSuperAdmin = me?.role_global === 'superadmin'
-
   const empresaId = me?.empresa_id ?? ''
-  if (!empresaId) return { error: 'Empresa não identificada.' }
+  if (!empresaId || !me?.id) return { error: 'Empresa não identificada.' }
 
   const supabase = await createClient()
+  const { data: transicao, error } = await supabase.rpc('est_transicionar_requisicao', {
+    p_empresa_id: empresaId,
+    p_requisicao_id: requisicaoId,
+    p_intencao: INTENCAO_POR_STATUS[novoStatus],
+  })
 
-  const { data: config } = await supabase
-    .from('est_config')
-    .select('req_aprovacao_ativa, req_aprovador_usuario_id, req_aprovacao_valor_minimo')
-    .eq('empresa_id', empresaId)
-    .maybeSingle()
-
-  if (novoStatus === 'aprovada' || novoStatus === 'rejeitada') {
-    if (!podeAprovarRequisicao(me, config)) {
-      return {
-        error:
-          'Somente o aprovador configurado em Estoque → Configuração, o admin da empresa ou superadmin podem decidir.',
-      }
-    }
-  }
-
-  if (novoStatus === 'cancelada') {
-    const canCancel =
-      isSuperAdmin ||
-      me?.role_global === 'admin' ||
-      hasPermission(me, 'estoque_requisicoes', 'edit') ||
-      hasPermission(me, 'estoque', 'edit')
-    if (!canCancel) {
-      return { error: 'Sem permissão para cancelar esta requisição.' }
-    }
-  }
-
-  if (novoStatus === 'pendente_aprovacao') {
-    const canSend =
-      isSuperAdmin ||
-      hasPermission(me, 'estoque_requisicoes', 'edit') ||
-      hasPermission(me, 'estoque_requisicoes', 'create') ||
-      hasPermission(me, 'estoque', 'edit')
-    if (!canSend) {
-      return { error: 'Sem permissão para enviar requisição para aprovação.' }
-    }
-  }
-
-  const { data: req, error: errReq } = await supabase
-    .from('est_requisicoes')
-    .select('id, status')
-    .eq('empresa_id', empresaId)
-    .eq('id', requisicaoId)
-    .single()
-
-  if (errReq || !req) {
-    return { error: 'Requisição não encontrada.' }
-  }
-
-  if (novoStatus === 'pendente_aprovacao' && req.status !== 'rascunho') {
-    return { error: 'Apenas requisições em rascunho podem ser enviadas para aprovação.' }
-  }
-  if (novoStatus === 'aprovada' && req.status !== 'pendente_aprovacao') {
-    return { error: 'Apenas requisições pendentes de aprovação podem ser aprovadas.' }
-  }
-  if (novoStatus === 'rejeitada' && req.status !== 'pendente_aprovacao') {
-    return { error: 'Apenas requisições pendentes de aprovação podem ser rejeitadas.' }
-  }
-  if (
-    novoStatus === 'cancelada' &&
-    ['atendida_total', 'cancelada'].includes(req.status)
-  ) {
-    return { error: 'Esta requisição não pode ser cancelada no status atual.' }
-  }
-
-  const agora = new Date().toISOString()
-  const patch: Record<string, unknown> = {
-    status: novoStatus,
-    updated_at: agora,
-  }
-
-  // Envio a partir de rascunho: recalcula valor e aplica regra (pode auto-aprovar)
-  if (novoStatus === 'pendente_aprovacao' && req.status === 'rascunho') {
-    const { data: itens } = await supabase
-      .from('est_requisicao_itens')
-      .select('sku_id, quantidade_pedida')
-      .eq('requisicao_id', requisicaoId)
-
-    const skuIds = [...new Set((itens || []).map((i) => i.sku_id).filter(Boolean))]
-    const precosPorSku = new Map<string, number>()
-    if (skuIds.length > 0) {
-      const { data: skus } = await supabase
-        .from('cad_skus')
-        .select('id, preco_custo')
-        .eq('empresa_id', empresaId)
-        .in('id', skuIds)
-      for (const s of skus || []) {
-        precosPorSku.set(s.id, Number(s.preco_custo || 0))
-      }
-    }
-
-    const valorEstimado = calcularValorEstimadoRequisicao(
-      (itens || []).map((i) => ({
-        sku_id: i.sku_id,
-        quantidade_pedida: Number(i.quantidade_pedida || 0),
-      })),
-      precosPorSku,
-    )
-    const statusFinal = statusAoEnviarRequisicao(config, valorEstimado)
-    patch.status = statusFinal
-    patch.valor_estimado = valorEstimado
-  }
-
-  if (novoStatus === 'aprovada' || novoStatus === 'rejeitada') {
-    patch.aprovador_usuario_id = me.id
-    patch.aprovado_em = agora
-    patch.aprovacao_resultado = novoStatus === 'aprovada' ? 'aprovada' : 'rejeitada'
-  }
-
-  const { error: errUpdate } = await supabase
-    .from('est_requisicoes')
-    .update(patch)
-    .eq('id', requisicaoId)
-
-  if (errUpdate) {
-    return { error: `Erro ao atualizar status: ${errUpdate.message}` }
+  if (error || !transicao?.sucesso) {
+    return { error: transicao?.mensagem || error?.message || 'Falha ao atualizar a requisição.' }
   }
 
   revalidatePath(LIST_PATH)
   revalidatePath(APROVACAO_PATH)
   revalidatePath(`${LIST_PATH}/${requisicaoId}`)
 
-  return { sucesso: true, novoStatus }
+  return { sucesso: true, novoStatus: transicao.status || novoStatus }
 }
 
 export async function atenderRequisicaoAction(

@@ -1,5 +1,6 @@
 export const NOTA_STATUS_LABEL: Record<string, string> = {
   rascunho: 'Rascunho',
+  suspensa: 'Suspensa',
   confirmada: 'Confirmada',
   cancelada: 'Cancelada',
 }

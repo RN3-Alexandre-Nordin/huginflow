@@ -19,7 +19,11 @@ import {
   efetivarRequisicaoPlanilhaAction,
 } from '../import-actions'
 import type { PlanilhaAdapterMeta } from '@/lib/estoque/requisicao-planilha/types'
-import type { RequisicaoPlanilhaGrupoPreview } from '@/lib/estoque/requisicao-planilha/types'
+import { motivoRejeicaoIntegralPlanilha } from '@/lib/estoque/requisicao-planilha/rejeicao-integral'
+import {
+  motivoBloqueioGrupo,
+  type RequisicaoPlanilhaGrupoPreview,
+} from '@/lib/estoque/requisicao-planilha/types'
 import {
   buildModeloRequisicaoXlsx,
   isPlanilhaFileName,
@@ -45,6 +49,7 @@ export default function ImportRequisicaoPlanilhaForm({
   const [fileName, setFileName] = useState('')
   const [grupos, setGrupos] = useState<RequisicaoPlanilhaGrupoPreview[]>([])
   const [avisos, setAvisos] = useState<string[]>([])
+  const [errosIdentificacao, setErrosIdentificacao] = useState<string[]>([])
   const [resumo, setResumo] = useState<{
     totalLinhas: number
     gruposOk: number
@@ -92,6 +97,8 @@ export default function ImportRequisicaoPlanilhaForm({
         const text = planilhaBufferToCsv(buffer, file.name)
         setCsvRaw(text)
         setGrupos([])
+        setAvisos([])
+        setErrosIdentificacao([])
         setResumo(null)
         setFeedback(null)
       } catch (err) {
@@ -118,22 +125,34 @@ export default function ImportRequisicaoPlanilhaForm({
         csv_content: csvRaw,
         adapter,
       })
-      if ('error' in res && res.error) {
+      const identificacao = res.errosIdentificacao || []
+      if ('error' in res && res.error && identificacao.length === 0) {
         setFeedback({ tipo: 'erro', texto: res.error })
         setGrupos([])
+        setAvisos([])
+        setErrosIdentificacao([])
         setResumo(null)
         return
       }
       setGrupos(res.grupos || [])
       setAvisos(res.avisos || [])
+      setErrosIdentificacao(identificacao)
       setResumo(res.resumo || null)
+      const planilhaAtlasBloqueada = Boolean(
+        motivoRejeicaoIntegralPlanilha(adapter, identificacao)
+      )
       setFeedback({
-        tipo: (res.resumo?.linhasComErro || 0) > 0 ? 'alerta' : 'sucesso',
-        texto: `Pré-visualização: ${res.resumo?.totalLinhas || 0} linha(s), ${res.resumo?.gruposOk || 0} requisição(ões) prontas${
-          res.resumo?.linhasComErro
-            ? `, ${res.resumo.linhasComErro} com erro`
-            : ''
-        }.`,
+        tipo:
+          planilhaAtlasBloqueada || (res.resumo?.linhasComErro || 0) > 0
+            ? 'alerta'
+            : 'sucesso',
+        texto: planilhaAtlasBloqueada
+          ? `Planilha Atlas bloqueada por ${identificacao.length} inconsistência(s) de identificação. Nenhuma requisição será gravada.`
+          : `Pré-visualização: ${res.resumo?.totalLinhas || 0} linha(s), ${res.resumo?.gruposOk || 0} requisição(ões) prontas${
+              res.resumo?.linhasComErro
+                ? `, ${res.resumo.linhasComErro} com erro`
+                : ''
+            }.`,
       })
     })
   }
@@ -165,9 +184,11 @@ export default function ImportRequisicaoPlanilhaForm({
     })
   }
 
+  const rejeicaoAtlas = motivoRejeicaoIntegralPlanilha(adapter, errosIdentificacao)
   const podeEfetivar =
+    !rejeicaoAtlas &&
     Boolean(resumo && resumo.gruposOk > 0) &&
-    grupos.some((g) => !g.erro_cabecalho && g.itens.some((i) => !i.erro))
+    grupos.some((g) => !motivoBloqueioGrupo(g))
 
   return (
     <div className="space-y-6">
@@ -208,6 +229,8 @@ export default function ImportRequisicaoPlanilhaForm({
               onChange={(e) => {
                 setAdapter(e.target.value as typeof adapter)
                 setGrupos([])
+                setAvisos([])
+                setErrosIdentificacao([])
                 setResumo(null)
               }}
               className="w-full bg-[#0A0A0A] border border-[#ffffff15] rounded-xl px-3 py-2 text-xs text-white h-9"
@@ -329,6 +352,20 @@ export default function ImportRequisicaoPlanilhaForm({
         </div>
       </div>
 
+      {errosIdentificacao.length > 0 && (
+        <div className="rounded-xl border border-red-500/25 bg-red-500/5 p-4 text-[11px] text-red-100 space-y-1">
+          <p className="text-xs font-semibold text-red-200">
+            Inconsistências de identificação
+            {adapter === 'cliente_atc_legado'
+              ? ' — a planilha inteira fica bloqueada'
+              : ''}
+          </p>
+          {errosIdentificacao.map((a, i) => (
+            <p key={i}>• {a}</p>
+          ))}
+        </div>
+      )}
+
       {avisos.length > 0 && (
         <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-[11px] text-amber-100 space-y-1">
           {avisos.map((a, i) => (
@@ -343,13 +380,15 @@ export default function ImportRequisicaoPlanilhaForm({
             2. Pré-visualização ({grupos.length} grupo(s) / requisitante)
           </h3>
           <div className="space-y-4">
-            {grupos.map((g) => (
+            {grupos.map((g, idx) => {
+              const bloqueio = motivoBloqueioGrupo(g)
+              return (
               <div
-                key={g.requisitante_documento + (g.requisitante_pessoa_id || '')}
+                key={`${g.sistema_origem || ''}|${g.codigo_origem || ''}|${g.requisitante_documento}|${idx}`}
                 className={`rounded-xl border p-4 ${
-                  g.erro_cabecalho
+                  bloqueio
                     ? 'border-red-500/25 bg-red-500/5'
-                    : 'border-[#ffffff10] bg-[#0A0A0A]'
+                    : 'border-emerald-500/20 bg-[#0A0A0A]'
                 }`}
               >
                 <div className="flex flex-wrap items-baseline justify-between gap-2 mb-2">
@@ -372,10 +411,17 @@ export default function ImportRequisicaoPlanilhaForm({
                       </p>
                     )}
                   </div>
-                  {g.erro_cabecalho && (
-                    <p className="text-[11px] text-red-300">{g.erro_cabecalho}</p>
-                  )}
+                  <p
+                    className={`text-[11px] font-semibold ${
+                      bloqueio ? 'text-red-300' : 'text-emerald-400'
+                    }`}
+                  >
+                    {bloqueio ? 'Bloqueada' : 'Apta à importação'}
+                  </p>
                 </div>
+                {bloqueio && (
+                  <p className="text-[11px] text-red-300 mb-2">{bloqueio}</p>
+                )}
                 {g.observacao && (
                   <p className="text-[10px] text-gray-500 mb-2">Obs: {g.observacao}</p>
                 )}
@@ -411,7 +457,8 @@ export default function ImportRequisicaoPlanilhaForm({
                   </tbody>
                 </table>
               </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       )}

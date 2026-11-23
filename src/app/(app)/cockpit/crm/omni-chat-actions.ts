@@ -68,7 +68,15 @@ export async function getOmniConversas() {
   let query = supabase
     .from('crm_conversas')
     .select(`
-      *,
+      sessao_id,
+      empresa_id,
+      status,
+      role,
+      direcao,
+      atribuido_a_id,
+      last_message,
+      created_at,
+      updated_at,
       crm_leads (
         nome,
         telefone,
