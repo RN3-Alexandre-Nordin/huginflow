@@ -60,6 +60,32 @@ export type RequisicaoPlanilhaGrupoPreview = {
   codigo_erro_cabecalho?: string
 }
 
+/** Motivo único de bloqueio do grupo. `null` = apto a criar a requisição inteira. */
+export function motivoBloqueioGrupo(
+  g: RequisicaoPlanilhaGrupoPreview
+): string | null {
+  if (g.ja_existe || g.erro_cabecalho) {
+    return g.erro_cabecalho || 'Requisição de origem já importada.'
+  }
+  if (!g.requisitante_pessoa_id) {
+    return 'Requisitante não resolvido.'
+  }
+  if (g.itens.length === 0) {
+    return 'Grupo sem itens.'
+  }
+  const ruins = g.itens.filter((i) => i.erro || !i.sku_id)
+  if (ruins.length > 0) {
+    const detalhe = ruins
+      .map((i) => {
+        const material = i.sku_codigo.trim() || '(material vazio)'
+        return `linha ${i.linha} · ${material}: ${i.erro || 'SKU não resolvido'}`
+      })
+      .join('; ')
+    return `Grupo bloqueado: um item inválido impede a requisição inteira (${detalhe}).`
+  }
+  return null
+}
+
 export const CANONICAL_HEADERS = [
   'codigo_origem',
   'sistema_origem',

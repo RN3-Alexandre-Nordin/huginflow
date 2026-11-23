@@ -1,4 +1,3 @@
-import { parseMovimentoAtomicoResult } from './rpc-movimento'
 import {
   calcularValorEstimadoRequisicao,
   mensagemStatusEnvio,
@@ -34,32 +33,18 @@ export interface RequisicaoInput {
   /** Nome do requisitante como veio na origem (rastreio) */
   requisitante_nome_origem?: string | null
   enviar_imediatamente?: boolean
+  /**
+   * A origem (ex.: Atlas) já aprovou. Grava `aprovada` sem fila interna
+   * e sem card de workflow. Não dispara baixa de estoque.
+   */
+  aprovada_na_origem?: boolean
   itens: ItemRequisicaoInput[]
-}
-
-export async function gerarNumeroRequisicao(
-  empresaId: string,
-  client: SupabaseClient
-): Promise<string> {
-  const hoje = new Date()
-  const yyyy = hoje.getFullYear()
-  const mm = String(hoje.getMonth() + 1).padStart(2, '0')
-  const dd = String(hoje.getDate()).padStart(2, '0')
-  const prefixo = `REQ-${yyyy}${mm}${dd}-`
-
-  const { count } = await client
-    .from('est_requisicoes')
-    .select('*', { count: 'exact', head: true })
-    .eq('empresa_id', empresaId)
-    .ilike('numero', `${prefixo}%`)
-
-  const seq = String((count || 0) + 1).padStart(4, '0')
-  return `${prefixo}${seq}`
 }
 
 export async function criarRequisicao(
   params: RequisicaoInput,
-  client: SupabaseClient
+  client: SupabaseClient,
+  clientPrivilegiado?: SupabaseClient
 ) {
   // 1. Validação do requisitante
   if (!params.requisitante_pessoa_id) {
@@ -173,19 +158,24 @@ export async function criarRequisicao(
     }
   }
 
-  // Com código de origem: usa como número Hugin (rastreável). Sem: gera REQ-YYYYMMDD-####.
-  const numero = codigoOrigem
-    ? codigoOrigem
-    : await gerarNumeroRequisicao(params.empresa_id, client)
   const valorEstimado = calcularValorEstimadoRequisicao(params.itens, precosPorSku)
 
-  // Status: rascunho OU (enviar) pendente_aprovacao / aprovada conforme parâmetros
+  // Status: rascunho OU (enviar) pendente_aprovacao / aprovada conforme parâmetros.
+  // Aprovação de origem ignora req_aprovacao_* e não cria pendência de workflow.
   let statusInicial: 'rascunho' | 'pendente_aprovacao' | 'aprovada' = 'rascunho'
   let autoPorValorMinimo = false
   let aprovacaoDesligada = false
-  let workflowCardId: string | null = null
 
-  if (params.enviar_imediatamente) {
+  if (params.aprovada_na_origem) {
+    if (!clientPrivilegiado) {
+      return {
+        sucesso: false,
+        mensagem: 'Aprovação de origem só pode ser executada pelo servidor.',
+        codigo: 'ACESSO_NEGADO',
+      }
+    }
+    statusInicial = 'aprovada'
+  } else if (params.enviar_imediatamente) {
     statusInicial = statusAoEnviarRequisicao(config, valorEstimado)
     aprovacaoDesligada = !config?.req_aprovacao_ativa
     const minimo = Number(config?.req_aprovacao_valor_minimo ?? 0)
@@ -196,7 +186,8 @@ export async function criarRequisicao(
       statusInicial === 'aprovada'
   }
 
-  // Se aprovação via workflow está ativa e foi para pendente de aprovação
+  // O funil precisa existir antes da gravação. O card só nasce depois do COMMIT.
+  let stageId: string | null = null
   if (statusInicial === 'pendente_aprovacao' && config?.aprovacao_via_workflow) {
     if (!config.aprovacao_funil_id) {
       return {
@@ -207,7 +198,7 @@ export async function criarRequisicao(
       }
     }
 
-    let stageId = config.aprovacao_estagio_id
+    stageId = config.aprovacao_estagio_id || null
     if (!stageId) {
       const { data: firstStage } = await client
         .from('pipeline_stages')
@@ -228,7 +219,68 @@ export async function criarRequisicao(
         codigo: 'WORKFLOW_NAO_CONFIGURADO',
       }
     }
+  }
 
+  const clientCriacao = params.aprovada_na_origem ? clientPrivilegiado! : client
+  const modoCriacao = params.aprovada_na_origem
+    ? 'aprovada_origem'
+    : params.enviar_imediatamente
+      ? 'enviar'
+      : 'rascunho'
+
+  const { data: gravado, error: errRpc } = await clientCriacao.rpc('est_criar_requisicao', {
+    p_empresa_id: params.empresa_id,
+    p_requisitante_pessoa_id: params.requisitante_pessoa_id,
+    p_solicitante_usuario_id: params.solicitante_usuario_id || null,
+    p_departamento_id: params.departamento_id || null,
+    p_observacao: params.observacao?.trim() || null,
+    p_origem: params.origem || 'manual',
+    p_codigo_origem: codigoOrigem,
+    p_sistema_origem: sistemaOrigem,
+    p_requisitante_nome_origem: requisitanteNomeOrigem,
+    p_modo: modoCriacao,
+    p_itens: params.itens.map((it) => ({
+      sku_id: it.sku_id,
+      quantidade_pedida: it.quantidade_pedida,
+      local_id: it.local_id || null,
+    })),
+  })
+
+  if (errRpc || !gravado) {
+    return {
+      sucesso: false,
+      mensagem: `Erro ao criar requisição: ${errRpc?.message || 'Falha ao salvar'}`,
+    }
+  }
+
+  if (!gravado.sucesso) {
+    return {
+      sucesso: false,
+      mensagem: gravado.mensagem || 'Falha ao salvar a requisição.',
+      codigo: gravado.codigo,
+      requisicaoId: gravado.requisicao_id || undefined,
+      numero: gravado.numero || undefined,
+    }
+  }
+
+  const requisicaoId = gravado.requisicao_id as string
+  const numero = gravado.numero as string
+  if (
+    gravado.status === 'rascunho' ||
+    gravado.status === 'pendente_aprovacao' ||
+    gravado.status === 'aprovada'
+  ) {
+    statusInicial = gravado.status
+  }
+  if (gravado.motivo_aprovacao === 'aprovacao_desligada') {
+    aprovacaoDesligada = true
+    autoPorValorMinimo = false
+  } else if (gravado.motivo_aprovacao === 'abaixo_minimo') {
+    autoPorValorMinimo = true
+    aprovacaoDesligada = false
+  }
+
+  if (stageId && config?.aprovacao_funil_id) {
     const { data: novoCard, error: errCard } = await client
       .from('crm_cards')
       .insert({
@@ -245,65 +297,12 @@ export async function criarRequisicao(
       .select('id')
       .single()
 
-    if (!errCard && novoCard) {
-      workflowCardId = novoCard.id
-    }
-  }
-
-  // 4. Cria cabeçalho da requisição
-  const { data: reqCriada, error: errReq } = await client
-    .from('est_requisicoes')
-    .insert({
-      empresa_id: params.empresa_id,
-      numero,
-      requisitante_pessoa_id: params.requisitante_pessoa_id,
-      solicitante_usuario_id: params.solicitante_usuario_id || null,
-      departamento_id: params.departamento_id || null,
-      status: statusInicial,
-      origem: params.origem || 'manual',
-      codigo_origem: codigoOrigem,
-      sistema_origem: sistemaOrigem,
-      requisitante_nome_origem: requisitanteNomeOrigem,
-      workflow_card_id: workflowCardId,
-      observacao: params.observacao?.trim() || null,
-      valor_estimado: valorEstimado,
-      created_at: agora,
-      updated_at: agora,
-    })
-    .select('id')
-    .single()
-
-  if (errReq || !reqCriada) {
-    return {
-      sucesso: false,
-      mensagem: `Erro ao criar requisição: ${errReq?.message || 'Falha ao salvar'}`,
-    }
-  }
-
-  const requisicaoId = reqCriada.id as string
-
-  // 5. Cria itens da requisição
-  const rowsItens = params.itens.map((it) => ({
-    empresa_id: params.empresa_id,
-    requisicao_id: requisicaoId,
-    sku_id: it.sku_id,
-    quantidade_pedida: it.quantidade_pedida,
-    quantidade_atendida: 0,
-    quantidade_pendente: it.quantidade_pedida,
-    local_id: it.local_id || null,
-    status_item: 'pendente',
-    created_at: agora,
-    updated_at: agora,
-  }))
-
-  const { error: errItens } = await client
-    .from('est_requisicao_itens')
-    .insert(rowsItens)
-
-  if (errItens) {
-    return {
-      sucesso: false,
-      mensagem: `Erro ao salvar itens da requisição: ${errItens.message}`,
+    if (!errCard && novoCard?.id) {
+      await client
+        .from('est_requisicoes')
+        .update({ workflow_card_id: novoCard.id, updated_at: new Date().toISOString() })
+        .eq('empresa_id', params.empresa_id)
+        .eq('id', requisicaoId)
     }
   }
 
@@ -337,7 +336,7 @@ export async function atenderRequisicao(
   },
   client: SupabaseClient
 ) {
-  const { empresa_id, requisicao_id, usuario_id, local_baixa_id } = params
+  const { empresa_id, requisicao_id, local_baixa_id } = params
   const overrides = params.itens?.length
     ? new Map(
         params.itens
@@ -490,10 +489,9 @@ export async function atenderRequisicao(
     }
   }
 
-  // 5. Processamento dos atendimentos
-  let itensBaixados = 0
+  // 5. Monta o plano. A baixa e as quantidades acontecem numa única transação.
   let itensPulados = 0
-  const agora = new Date().toISOString()
+  const operacoes: Array<Record<string, unknown>> = []
 
   for (const item of itens) {
     const locId = item.local_id || localResolvedId
@@ -531,10 +529,7 @@ export async function atenderRequisicao(
     } else if (saldoDisponivel >= pendente) {
       qtdParaBaixar = pendente
     } else if (modoSaldo === 'pula_item') {
-      await client
-        .from('est_requisicao_itens')
-        .update({ status_item: 'pulado', updated_at: agora })
-        .eq('id', item.id)
+      operacoes.push({ item_id: item.id, acao: 'pular' })
       itensPulados++
       continue
     } else if (modoSaldo === 'atende_parcial_pendente') {
@@ -543,11 +538,8 @@ export async function atenderRequisicao(
 
     if (qtdParaBaixar <= 0) {
       if (!overrides && modoSaldo === 'pula_item') {
+        operacoes.push({ item_id: item.id, acao: 'pular' })
         itensPulados++
-        await client
-          .from('est_requisicao_itens')
-          .update({ status_item: 'pulado', updated_at: agora })
-          .eq('id', item.id)
       }
       continue
     }
@@ -613,11 +605,8 @@ export async function atenderRequisicao(
 
       if (qtdParaBaixar <= 0 || alocacoes.length === 0) {
         if (modoSaldo === 'pula_item') {
+          operacoes.push({ item_id: item.id, acao: 'pular' })
           itensPulados++
-          await client
-            .from('est_requisicao_itens')
-            .update({ status_item: 'pulado', updated_at: agora })
-            .eq('id', item.id)
         }
         continue
       }
@@ -632,69 +621,44 @@ export async function atenderRequisicao(
       ]
     }
 
-    let qtdEfetivada = 0
+    const movimentos = []
     for (let indice = 0; indice < alocacoes.length; indice++) {
       const aloc = alocacoes[indice]
       const qtdAloc = Number(aloc.quantidade)
       if (!Number.isFinite(qtdAloc) || qtdAloc <= 0) continue
-
-      const { data: rpcRes, error: rpcErr } = await client.rpc(
-        'est_registrar_movimento_atomico',
-        {
-          p_empresa_id: empresa_id,
-          p_tipo: 'saida',
-          p_sku_id: item.sku_id,
-          p_local_id: locId,
-          p_quantidade: controlaSerie ? 1 : qtdAloc,
-          p_documento: req.numero,
-          p_pessoa_id: req.requisitante_pessoa_id,
-          p_origem: 'requisicao',
-          p_requisicao_id: req.id,
-          p_motivo: `Atendimento Requisição ${req.numero} - ${skuInfo?.codigo || ''}${
-            controlaLote && aloc.numero_lote ? ` · lote ${aloc.numero_lote}` : ''
-          }`,
-          p_usuario_id: usuario_id || null,
-          p_permitir_saldo_negativo: false,
-          p_lote_produto_id: controlaLote ? aloc.lote_produto_id : null,
-          p_serie_id: controlaSerie ? seriesItem[indice] : null,
-        }
-      )
-
-      const parsed = parseMovimentoAtomicoResult(rpcRes, rpcErr)
-      if (!parsed.ok) {
-        return {
-          sucesso: false,
-          mensagem: `Falha ao baixar item ${skuInfo?.codigo || ''}: ${parsed.mensagem || 'Erro ao registrar movimento'}`,
-        }
-      }
-      qtdEfetivada += qtdAloc
+      movimentos.push({
+        quantidade: controlaSerie ? 1 : qtdAloc,
+        lote_produto_id: controlaLote ? aloc.lote_produto_id : null,
+        serie_id: controlaSerie ? seriesItem[indice] : null,
+        motivo: `Atendimento Requisição ${req.numero} - ${skuInfo?.codigo || ''}${
+          controlaLote && aloc.numero_lote ? ` · lote ${aloc.numero_lote}` : ''
+        }`,
+      })
     }
 
-    if (qtdEfetivada <= 0) continue
+    if (movimentos.length === 0) continue
 
     if (!controlaLote && locId === localResolvedId) {
-      saldoMap[`${item.sku_id}_${locId}`] = Math.max(0, saldoDisponivel - qtdEfetivada)
+      const qtdPlano = movimentos.reduce((s, m) => s + Number(m.quantidade), 0)
+      saldoMap[`${item.sku_id}_${locId}`] = Math.max(0, saldoDisponivel - qtdPlano)
     }
 
-    const novaAtendida = Number(item.quantidade_atendida) + qtdEfetivada
-    const novaPendente = Number(item.quantidade_pedida) - novaAtendida
-    const novoStatusItem = novaPendente <= 0 ? 'atendido' : 'parcial'
-
-    await client
-      .from('est_requisicao_itens')
-      .update({
-        quantidade_atendida: novaAtendida,
-        quantidade_pendente: novaPendente,
-        status_item: novoStatusItem,
-        local_id: locId,
-        updated_at: agora,
-      })
-      .eq('id', item.id)
-
-    itensBaixados++
+    operacoes.push({
+      item_id: item.id,
+      acao: 'atender',
+      local_id: locId,
+      movimentos,
+    })
   }
 
-  if (itensBaixados === 0) {
+  if (!operacoes.some((op) => op.acao === 'atender')) {
+    if (operacoes.length > 0) {
+      await client.rpc('est_atender_requisicao', {
+        p_empresa_id: empresa_id,
+        p_requisicao_id: requisicao_id,
+        p_operacoes: operacoes,
+      })
+    }
     return {
       sucesso: false,
       mensagem:
@@ -702,39 +666,28 @@ export async function atenderRequisicao(
     }
   }
 
-  // 6. Recalcula o status geral da requisição
-  const { data: itensAtualizados } = await client
-    .from('est_requisicao_itens')
-    .select('quantidade_pedida, quantidade_atendida, quantidade_pendente, status_item')
-    .eq('requisicao_id', requisicao_id)
+  const { data: baixa, error: errBaixa } = await client.rpc('est_atender_requisicao', {
+    p_empresa_id: empresa_id,
+    p_requisicao_id: requisicao_id,
+    p_operacoes: operacoes,
+  })
 
-  const temPendencia = itensAtualizados?.some(
-    (i: { quantidade_pendente: number }) => Number(i.quantidade_pendente) > 0
-  )
-  const temAlgumaBaixa = itensAtualizados?.some(
-    (i: { quantidade_atendida: number }) => Number(i.quantidade_atendida) > 0
-  )
-
-  let novoStatusReq = req.status
-  if (!temPendencia && temAlgumaBaixa) {
-    novoStatusReq = 'atendida_total'
-  } else if (temAlgumaBaixa) {
-    novoStatusReq = 'atendida_parcial'
+  if (errBaixa || !baixa?.sucesso) {
+    return {
+      sucesso: false,
+      codigo: baixa?.codigo,
+      mensagem:
+        baixa?.mensagem ||
+        errBaixa?.message ||
+        'Falha ao baixar os itens da requisição.',
+    }
   }
-
-  await client
-    .from('est_requisicoes')
-    .update({ status: novoStatusReq, updated_at: agora })
-    .eq('id', requisicao_id)
 
   return {
     sucesso: true,
-    novoStatus: novoStatusReq,
-    itensBaixados,
-    itensPulados,
-    mensagem:
-      novoStatusReq === 'atendida_total'
-        ? `Requisição ${req.numero} atendida totalmente com sucesso!`
-        : `Atendimento parcial registrado. Status "${novoStatusReq}" (${itensBaixados} item(ns) baixado(s) neste ciclo).`,
+    novoStatus: baixa.status,
+    itensBaixados: Number(baixa.itens_baixados || 0),
+    itensPulados: Number(baixa.itens_pulados ?? itensPulados),
+    mensagem: baixa.mensagem,
   }
 }

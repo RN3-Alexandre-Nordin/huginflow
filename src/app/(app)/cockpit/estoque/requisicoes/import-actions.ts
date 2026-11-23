@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/utils/supabase/server'
+import { createAdminClient } from '@/utils/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import { getMyProfile } from '@/app/(app)/cockpit/actions'
 import { hasPermission } from '@/utils/permissions'
@@ -19,7 +20,13 @@ import {
   adaptersDisponiveis,
   isAdapterCodigo,
 } from '@/lib/estoque/requisicao-planilha/adapters/registry'
-import type { PlanilhaAdapterCodigo } from '@/lib/estoque/requisicao-planilha/types'
+import { motivoRejeicaoIntegralPlanilha } from '@/lib/estoque/requisicao-planilha/rejeicao-integral'
+import { planoEfetivacaoRequisicaoPlanilha } from '@/lib/estoque/requisicao-planilha/politica-importacao'
+import {
+  ADDON_ADAPTER_ATC,
+  motivoBloqueioGrupo,
+  type PlanilhaAdapterCodigo,
+} from '@/lib/estoque/requisicao-planilha/types'
 
 const LIST_PATH = '/cockpit/estoque/requisicoes'
 
@@ -66,7 +73,13 @@ export async function previewRequisicaoPlanilhaAction(input: {
   })
 
   if (erros.length && rows.length === 0) {
-    return { error: erros.join(' ') }
+    return {
+      error: erros.join(' '),
+      errosIdentificacao: erros,
+      grupos: [],
+      avisos: [],
+      resumo: { totalLinhas: 0, gruposOk: 0, linhasComErro: 0 },
+    }
   }
 
   const { grupos, errosGlobais } = await validarEAgruparCanonical(
@@ -78,15 +91,14 @@ export async function previewRequisicaoPlanilhaAction(input: {
   const totalLinhas = rows.length
   const gruposOk = gruposParaCriacao(grupos).length
   const linhasComErro = grupos.reduce(
-    (acc, g) =>
-      acc +
-      (g.erro_cabecalho ? g.itens.length : g.itens.filter((i) => i.erro).length),
+    (acc, g) => acc + (motivoBloqueioGrupo(g) ? g.itens.length : 0),
     0
   )
 
   return {
     grupos,
-    avisos: [...erros, ...errosGlobais],
+    errosIdentificacao: erros,
+    avisos: errosGlobais,
     resumo: { totalLinhas, gruposOk, linhasComErro },
   }
 }
@@ -113,7 +125,28 @@ export async function efetivarRequisicaoPlanilhaAction(input: {
     .eq('empresa_id', me.empresa_id)
     .maybeSingle()
 
-  const autoAtender = Boolean(estConfig?.req_planilha_auto_atender)
+  const plano = planoEfetivacaoRequisicaoPlanilha(
+    adapter,
+    estConfig,
+    input.enviar_imediatamente
+  )
+  const autoAtender = plano.autoAtender
+
+  if (adapter === 'cliente_atc_legado') {
+    const addons = await getEmpresaAddons(me.empresa_id)
+    if (addons[ADDON_ADAPTER_ATC] !== true) {
+      return { error: 'A empresa não possui o adaptador Atlas habilitado.' }
+    }
+  }
+
+  let clientPrivilegiado: ReturnType<typeof createAdminClient> | undefined
+  if (plano.aprovada_na_origem) {
+    try {
+      clientPrivilegiado = createAdminClient()
+    } catch {
+      return { error: 'Servidor sem credencial para aprovar requisição de origem.' }
+    }
+  }
 
   const pessoasPorMatricula =
     adapter === 'cliente_atc_legado'
@@ -125,12 +158,19 @@ export async function efetivarRequisicaoPlanilhaAction(input: {
     pessoasPorMatricula,
   })
 
+  const rejeicaoIntegral = motivoRejeicaoIntegralPlanilha(adapter, erros)
+  if (rejeicaoIntegral) {
+    return { error: rejeicaoIntegral, errosIdentificacao: erros }
+  }
+
   if (rows.length === 0) {
     return { error: erros.join(' ') || 'Nenhuma linha para importar.' }
   }
 
+  // Revalida a planilha na efetivação. A pré-visualização não autoriza a gravação.
   const { grupos } = await validarEAgruparCanonical(rows, me.empresa_id, supabase)
   const paraCriar = gruposParaCriacao(grupos)
+  const gruposBloqueados = grupos.length - paraCriar.length
 
   if (paraCriar.length === 0) {
     return {
@@ -159,13 +199,14 @@ export async function efetivarRequisicaoPlanilhaAction(input: {
         codigo_origem: g.codigo_origem,
         sistema_origem: g.sistema_origem,
         requisitante_nome_origem: g.requisitante_nome_origem,
-        // Auto-baixa: cria rascunho e força aprovada (bypassa fila). Senão: envio normal.
-        enviar_imediatamente: autoAtender
-          ? false
-          : Boolean(input.enviar_imediatamente),
+        // Atlas: aprovada na origem, sem rascunho e sem baixa.
+        // Hugin: auto-baixa cria rascunho e atende abaixo; senão, envio normal.
+        enviar_imediatamente: plano.enviar_imediatamente,
+        aprovada_na_origem: plano.aprovada_na_origem,
         itens: g.itens,
       },
-      supabase
+      supabase,
+      clientPrivilegiado
     )
     if (!res.sucesso) {
       falhas.push(res.mensagem || 'Falha ao criar requisição')
@@ -178,17 +219,19 @@ export async function efetivarRequisicaoPlanilhaAction(input: {
     let statusFinal = (res.status as string) || 'rascunho'
     let atendimentoMsg: string | undefined
 
-    if (autoAtender) {
-      const agora = new Date().toISOString()
-      const { error: errAprov } = await supabase
-        .from('est_requisicoes')
-        .update({ status: 'aprovada', updated_at: agora })
-        .eq('empresa_id', me.empresa_id)
-        .eq('id', reqId)
+    if (plano.executarAtendimento) {
+      const { data: liberada, error: errAprov } = await supabase.rpc(
+        'est_transicionar_requisicao',
+        {
+          p_empresa_id: me.empresa_id,
+          p_requisicao_id: reqId,
+          p_intencao: 'liberar_para_baixa',
+        }
+      )
 
-      if (errAprov) {
+      if (errAprov || !liberada?.sucesso) {
         falhas.push(
-          `${numero}: criada, mas falhou ao liberar para baixa (${errAprov.message}).`
+          `${numero}: criada, mas falhou ao liberar para baixa (${liberada?.mensagem || errAprov?.message || 'erro'}).`
         )
         criadas.push({ id: reqId, numero, status: statusFinal })
         continue
@@ -244,6 +287,9 @@ export async function efetivarRequisicaoPlanilhaAction(input: {
     if (totais) partes.push(`${totais} atendida(s) total`)
     if (parciais) partes.push(`${parciais} parcialmente atendida(s)`)
     if (abertas) partes.push(`${abertas} aprovada(s) aguardando saldo`)
+  }
+  if (gruposBloqueados > 0) {
+    partes.push(`${gruposBloqueados} grupo(s) bloqueado(s) não importado(s)`)
   }
   if (falhas.length) partes.push(`${falhas.length} falha(s)`)
 

@@ -12,6 +12,82 @@ function normHeader(h: string): string {
     .replace(/\s+/g, '_')
 }
 
+/** Prefere "Data da Requisição"; "Data" só entra se não houver coluna específica. */
+function idxColunaDataRequisicao(header: string[]): number {
+  let best = -1
+  let bestScore = 0
+  header.forEach((h, i) => {
+    let score = 0
+    if (h === 'data_da_requisicao' || h === 'data_requisicao') score = 3
+    else if (h.includes('data_da_requisicao') || h.includes('data_requisicao')) score = 2
+    else if (h === 'data') score = 1
+    if (score > bestScore) {
+      bestScore = score
+      best = i
+    }
+  })
+  return best
+}
+
+function ymdKey(year: number, month: number, day: number): string | null {
+  if (!Number.isInteger(year) || year < 1900 || year > 2100) return null
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null
+  const dt = new Date(Date.UTC(year, month - 1, day))
+  if (
+    dt.getUTCFullYear() !== year ||
+    dt.getUTCMonth() !== month - 1 ||
+    dt.getUTCDate() !== day
+  ) {
+    return null
+  }
+  return `${year}${String(month).padStart(2, '0')}${String(day).padStart(2, '0')}`
+}
+
+/**
+ * Data civil AAAAMMDD, sem hora.
+ * Aceita dd/mm/aaaa (e hora), ISO, m/d/aa quando o dia > 12 (texto do Excel)
+ * e serial Excel (fração = hora, ignorada).
+ */
+export function dataRequisicaoParaChave(raw: string): string | null {
+  const s = String(raw || '').trim()
+  if (!s) return null
+
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T\s].*)?$/)
+  if (iso) return ymdKey(Number(iso[1]), Number(iso[2]), Number(iso[3]))
+
+  const parted = s.match(
+    /^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2}|\d{4})(?:[ T]\d{1,2}:\d{2}(?::\d{2})?)?$/
+  )
+  if (parted) {
+    const a = Number(parted[1])
+    const b = Number(parted[2])
+    let year = Number(parted[3])
+    if (parted[3].length === 2) year += year <= 29 ? 2000 : 1900
+    let day = a
+    let month = b
+    if (a > 12 && b <= 12) {
+      day = a
+      month = b
+    } else if (b > 12 && a <= 12) {
+      month = a
+      day = b
+    } else if (a > 12 && b > 12) {
+      return null
+    }
+    return ymdKey(year, month, day)
+  }
+
+  if (/^\d+([.,]\d+)?$/.test(s)) {
+    const serial = Math.floor(Number(s.replace(',', '.')))
+    if (serial >= 20000 && serial <= 80000) {
+      const dt = new Date(Date.UTC(1899, 11, 30) + serial * 86400000)
+      return ymdKey(dt.getUTCFullYear(), dt.getUTCMonth() + 1, dt.getUTCDate())
+    }
+  }
+
+  return null
+}
+
 /**
  * Transforma export legado (Status, Requisitante, Material, …)
  * em linhas canônicas Hugin. Match de requisitante por matricula → codigo_externo.
@@ -36,9 +112,7 @@ export const clienteAtcLegadoAdapter: PlanilhaAdapter = {
     const idxComent = header.findIndex((h) => h.includes('comentario') || h.includes('comentário'))
     const idxTipo = header.findIndex((h) => h.includes('tipo_de_requisicao') || h === 'tipo')
     const idxUrg = header.findIndex((h) => h.includes('urgencia'))
-    const idxData = header.findIndex(
-      (h) => h.includes('data_da_requisicao') || h === 'data' || h.includes('data_requisicao')
-    )
+    const idxData = idxColunaDataRequisicao(header)
 
     if (idxReq < 0 || idxMat < 0 || idxQtd < 0) {
       return {
@@ -70,9 +144,17 @@ export const clienteAtcLegadoAdapter: PlanilhaAdapter = {
       const pessoa = map.get(matricula) || map.get(digitsOnly(matricula))
       const documento = pessoa?.documento ? digitsOnly(pessoa.documento) : ''
 
+      const dataRaw = idxData >= 0 ? String(cells[idxData] || '').trim() : ''
+      const dataKey = dataRequisicaoParaChave(dataRaw)
       if (!matricula) {
-        erros.push(`Linha ${i + 1}: requisitante sem matrícula.`)
+        erros.push(`Linha ${i + 1}: requisição bloqueada — matrícula do requisitante ausente.`)
       }
+      if (!dataKey) {
+        erros.push(
+          `Linha ${i + 1}: requisição bloqueada — data da requisição ausente ou inválida.`
+        )
+      }
+      if (!matricula || !dataKey) continue
 
       const parts: string[] = []
       if (idxTipo >= 0 && cells[idxTipo]) parts.push(`Tipo: ${cells[idxTipo]}`)
@@ -80,10 +162,7 @@ export const clienteAtcLegadoAdapter: PlanilhaAdapter = {
       if (idxMotivo >= 0 && cells[idxMotivo]) parts.push(`Motivo: ${cells[idxMotivo]}`)
       if (idxComent >= 0 && cells[idxComent]) parts.push(String(cells[idxComent]))
 
-      // Sem ID explícito no export: chave estável matrícula + data da requisição
-      const dataRaw = idxData >= 0 ? String(cells[idxData] || '').trim() : ''
-      const dataKey = dataRaw.replace(/\D/g, '').slice(0, 12) || 'semdata'
-      const codigoOrigem = `ATC-${matricula || 'X'}-${dataKey}`
+      const codigoOrigem = `ATC-${matricula}-${dataKey}`
 
       const qtd = parseFloat(qtdRaw)
       rows.push({

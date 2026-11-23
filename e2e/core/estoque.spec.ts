@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import type { Browser } from '@playwright/test'
 import { expect, resetUi, test } from '../fixtures'
 import { ensureAuthenticated, loginAsTestUser } from '../helpers/auth'
 import {
@@ -36,6 +37,29 @@ async function setEstoqueEnabled(enabled: boolean) {
     .eq('empresa_id', getTestTenantId())
     .eq('addon_codigo', 'estoque')
   if (error) throw new Error(`setEstoqueEnabled: ${error.message}`)
+}
+
+async function assertBloqueioSemPermissao(browser: Browser) {
+  const semEmail = process.env.TEST_EMAIL_SEM_APROVACAO
+  const semSenha = process.env.TEST_PASSWORD_SEM_APROVACAO
+  if (!semEmail || !semSenha) {
+    test.info().annotations.push({
+      type: 'bloqueado',
+      description:
+        'Bloqueio de usuário sem permissão: TEST_EMAIL_SEM_APROVACAO e TEST_PASSWORD_SEM_APROVACAO ausentes. Nenhuma conta foi criada.',
+    })
+    return
+  }
+  const ctx = await browser.newContext()
+  const outro = await ctx.newPage()
+  try {
+    await loginAsTestUser(outro, { email: semEmail, password: semSenha })
+    await outro.goto('/cockpit/estoque/requisicoes/aprovacao', { waitUntil: 'domcontentloaded' })
+    await expect(outro.getByRole('heading', { name: 'Acesso Interditado' })).toBeVisible()
+    await expect(outro.getByText(/aprovador configurado/i)).toBeVisible()
+  } finally {
+    await ctx.close()
+  }
 }
 
 async function readEstoqueEnabled() {
@@ -245,6 +269,174 @@ test.describe('Estoque', () => {
       await hideDevOverlays(page)
       await expect(page.getByText(/Acesso Interditado/i)).toHaveCount(0)
     }
+  })
+
+  test('[UI-EST-REQ-01] Requisição manual persiste número, solicitante e item', async ({ page }) => {
+    await setEstoqueEnabled(true)
+    await resetUi(page)
+    await ensureAuthenticated(page)
+
+    const marca = `HF-P51-${Date.now()}`
+    await page.goto('/cockpit/estoque/requisicoes/novo', { waitUntil: 'domcontentloaded' })
+    await hideDevOverlays(page)
+    await expect(page.getByText(/Acesso Interditado/i)).toHaveCount(0)
+    await expect(page.getByText('Requisitante (Pessoa)')).toBeVisible()
+    await expect(page.getByRole('button', { name: /Buscar SKU/i })).toBeVisible()
+    await page.waitForFunction(() => {
+      const btn = [...document.querySelectorAll('button')].find((b) =>
+        (b.textContent || '').includes('Buscar SKU'),
+      )
+      return !!btn && Object.getOwnPropertyNames(btn).some((k) => k.startsWith('__react'))
+    })
+
+    const pessoa = page.locator('select').filter({ has: page.locator('option', { hasText: 'Selecione o Requisitante' }) })
+    const pessoaValor = await pessoa.locator('option').nth(1).getAttribute('value')
+    const pessoaNome = (await pessoa.locator('option').nth(1).textContent())?.trim() || ''
+    test.skip(!pessoaValor, 'Tenant sem pessoa com papel Funcionário')
+    await pessoa.selectOption(pessoaValor!)
+
+    const sku = page.getByRole('button', { name: /Buscar SKU/i })
+    await sku.dispatchEvent('click')
+    const lista = page.getByRole('listbox')
+    await expect(lista).toBeVisible()
+    const opcaoSku = lista.getByRole('option').first()
+    await expect(opcaoSku).toBeVisible()
+    const skuLabel = (await opcaoSku.textContent()) || ''
+    const skuCodigo = skuLabel.split(' - ')[0]?.trim()
+    await opcaoSku.click()
+
+    await page.getByPlaceholder('1').fill('1')
+    await page.getByPlaceholder(/Manutenção preventiva/i).fill(marca)
+    await page.getByRole('button', { name: 'Salvar como Rascunho' }).click()
+
+    await page.waitForURL(/\/cockpit\/estoque\/requisicoes\/[0-9a-f-]{36}/i, { timeout: 45_000 })
+    await hideDevOverlays(page)
+    const numero = page.getByRole('heading', { name: /Requisição: REQ-\d{8}-\d{4}/ })
+    await expect(numero).toBeVisible()
+    const statusRequisicao = numero.locator(
+      'xpath=ancestor::div[contains(@class,"justify-between")][1]',
+    )
+    await expect(statusRequisicao.getByText('Rascunho', { exact: true })).toBeVisible()
+    await expect(page.getByText('Digitação Manual')).toBeVisible()
+    const nomeRequisitante = pessoaNome.split(' (')[0]
+    await expect(
+      page.getByText('Requisitante', { exact: true }).locator('xpath=following-sibling::div[1]'),
+    ).toContainText(nomeRequisitante)
+    await expect(page.getByText('Solicitante (Auditoria)', { exact: true })).toBeVisible()
+    await expect(
+      page.getByText('Solicitante (Auditoria)', { exact: true }).locator('xpath=following-sibling::div[1]'),
+    ).toContainText('Admin Monte Sinai')
+    await expect(
+      page.getByText('Workflow / Observação', { exact: true }).locator('xpath=..'),
+    ).toContainText(marca)
+    if (skuCodigo) {
+      await expect(page.getByRole('cell', { name: new RegExp(skuCodigo) })).toBeVisible()
+    }
+    await expect(page.getByRole('button', { name: 'Enviar para aprovação' })).toBeVisible()
+  })
+
+  test('[UI-EST-REQ-03] Envio, fila, aprovação, bloqueio e rejeição', async ({ page, browser }) => {
+    await setEstoqueEnabled(true)
+    await resetUi(page)
+    await ensureAuthenticated(page)
+
+    const marcaAprovar = `HF-P51-APR-${Date.now()}`
+    const marcaRejeitar = `HF-P51-REJ-${Date.now()}`
+
+    async function criarRascunho(marca: string) {
+      await page.goto('/cockpit/estoque/requisicoes/novo', { waitUntil: 'domcontentloaded' })
+      await hideDevOverlays(page)
+      await page.waitForFunction(() => {
+        const btn = [...document.querySelectorAll('button')].find((b) =>
+          (b.textContent || '').includes('Buscar SKU'),
+        )
+        return !!btn && Object.getOwnPropertyNames(btn).some((k) => k.startsWith('__react'))
+      })
+      const pessoa = page.locator('select').filter({ has: page.locator('option', { hasText: 'Selecione o Requisitante' }) })
+      const pessoaValor = await pessoa.locator('option').nth(1).getAttribute('value')
+      test.skip(!pessoaValor, 'Tenant sem pessoa com papel Funcionário')
+      await pessoa.selectOption(pessoaValor!)
+      await page.waitForFunction(() => {
+        const btn = [...document.querySelectorAll('button')].find((b) =>
+          (b.textContent || '').includes('Buscar SKU'),
+        )
+        return !!btn && Object.getOwnPropertyNames(btn).some((k) => k.startsWith('__react'))
+      })
+      await page.getByRole('button', { name: /Buscar SKU/i }).dispatchEvent('click')
+      await page.getByRole('listbox').getByRole('option').first().click()
+      await page.getByPlaceholder('1').fill('1')
+      await page.getByPlaceholder(/Manutenção preventiva/i).fill(marca)
+      await page.getByRole('button', { name: 'Salvar como Rascunho' }).click()
+      await page.waitForURL(/\/cockpit\/estoque\/requisicoes\/[0-9a-f-]{36}/i, { timeout: 45_000 })
+      await hideDevOverlays(page)
+    }
+
+    await criarRascunho(marcaAprovar)
+    await page.getByRole('button', { name: 'Enviar para aprovação' }).click()
+    await expect(page.getByText(/Status atualizado para "pendente_aprovacao"/)).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByText('Aguardando Aprovação').or(page.getByText('Aprovada para Atendimento'))).toBeVisible()
+
+    const statusCabecalho = page
+      .getByRole('heading', { name: /Requisição:/ })
+      .locator('xpath=ancestor::div[contains(@class,"justify-between")][1]')
+    const foiParaFila = (await statusCabecalho.getByText('Aguardando Aprovação', { exact: true }).count()) > 0
+    if (!foiParaFila) {
+      test.info().annotations.push(
+        {
+          type: 'bloqueado',
+          description:
+            'Fila: req_aprovacao_ativa=false no tenant Monte Sinai Atacado (DEV compartilhado). Configuração não alterada.',
+        },
+        {
+          type: 'bloqueado',
+          description: 'Aprovação por usuário autorizado: depende da fila de aprovação interna.',
+        },
+        {
+          type: 'bloqueado',
+          description: 'Rejeição por usuário autorizado: o botão só existe em pendente_aprovacao.',
+        },
+        {
+          type: 'bloqueado',
+          description: 'Auditoria de aprovador: não há decisão manual enquanto a aprovação interna está desligada.',
+        },
+      )
+      await expect(statusCabecalho.getByText('Aprovada para Atendimento', { exact: true })).toBeVisible()
+      await assertBloqueioSemPermissao(browser)
+      return
+    }
+
+    const numeroAprovar = ((await page.getByRole('heading', { name: /Requisição:/ }).textContent()) || '')
+      .replace('Requisição:', '')
+      .trim()
+    const detalheAprovar = page.url()
+
+    await page.goto('/cockpit/estoque/requisicoes/aprovacao', { waitUntil: 'domcontentloaded' })
+    await hideDevOverlays(page)
+    await expect(page.getByText(/Acesso Interditado/i)).toHaveCount(0)
+    const linha = page.locator('tr', { hasText: numeroAprovar })
+    await expect(linha).toBeVisible()
+    page.once('dialog', (dialog) => dialog.accept())
+    await linha.getByRole('button', { name: 'Aprovar' }).click()
+    await expect(page.getByText('Requisição aprovada e liberada para atendimento.')).toBeVisible()
+
+    await page.goto(detalheAprovar, { waitUntil: 'domcontentloaded' })
+    await hideDevOverlays(page)
+    await expect(page.getByText('Aprovada para Atendimento')).toBeVisible()
+    await expect(page.getByText(/Aprovada por /)).toBeVisible()
+
+    await assertBloqueioSemPermissao(browser)
+
+    await criarRascunho(marcaRejeitar)
+    await page.getByRole('button', { name: 'Enviar para aprovação' }).click()
+    await expect(page.getByText('Aguardando Aprovação')).toBeVisible({ timeout: 30_000 })
+    const numeroRejeitar = ((await page.getByRole('heading', { name: /Requisição:/ }).textContent()) || '')
+      .replace('Requisição:', '')
+      .trim()
+    page.once('dialog', (dialog) => dialog.accept())
+    await page.getByRole('button', { name: 'Rejeitar' }).click()
+    await expect(page.getByText('Rejeitada')).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByText(/Rejeitada por /)).toBeVisible()
+    await expect(page.getByRole('heading', { name: new RegExp(numeroRejeitar) })).toBeVisible()
   })
 
   test('[UI-EST-SERIE-01] Tela de séries carrega', async ({ page }) => {

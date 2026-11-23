@@ -1,10 +1,11 @@
 import { digitsOnly, parseCsvToMatrix } from './parse-csv'
 import { getAdapter } from './adapters/registry'
 import type { AdapterContext } from './adapters/types'
-import type {
-  CanonicalReqRow,
-  PlanilhaAdapterCodigo,
-  RequisicaoPlanilhaGrupoPreview,
+import {
+  motivoBloqueioGrupo,
+  type CanonicalReqRow,
+  type PlanilhaAdapterCodigo,
+  type RequisicaoPlanilhaGrupoPreview,
 } from './types'
 import type { ItemRequisicaoInput } from '@/lib/estoque/processar-requisicao'
 
@@ -277,16 +278,15 @@ export function gruposParaCriacao(
   }> = []
 
   for (const g of grupos) {
-    if (g.erro_cabecalho || !g.requisitante_pessoa_id || g.ja_existe) continue
-    const itensValidos = g.itens.filter((i) => !i.erro && i.sku_id)
-    if (itensValidos.length === 0) continue
+    // Item inválido bloqueia o grupo inteiro — não descarta só a linha.
+    if (motivoBloqueioGrupo(g)) continue
     ok.push({
-      requisitante_pessoa_id: g.requisitante_pessoa_id,
+      requisitante_pessoa_id: g.requisitante_pessoa_id!,
       observacao: g.observacao,
       codigo_origem: g.codigo_origem,
       sistema_origem: g.sistema_origem,
       requisitante_nome_origem: g.requisitante_nome_origem,
-      itens: itensValidos.map((i) => ({
+      itens: g.itens.map((i) => ({
         linha: i.linha,
         sku_id: i.sku_id!,
         quantidade_pedida: i.quantidade,
