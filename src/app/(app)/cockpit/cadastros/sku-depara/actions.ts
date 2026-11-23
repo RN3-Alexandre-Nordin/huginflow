@@ -57,6 +57,9 @@ export async function createSkuDeparasBulk(formData: FormData) {
 
   const normalizadas = validarLinhasDepara(rows, existentes || [])
   if (normalizadas.error) return { error: normalizadas.error }
+  if (!normalizadas.rows?.length) {
+    return { error: 'Não foi possível normalizar os códigos do parceiro.' }
+  }
 
   const { error } = await supabase.from('cad_sku_depara').insert(
     normalizadas.rows.map((r) => ({
@@ -108,7 +111,11 @@ export async function updateSkuDepara(id: string, formData: FormData) {
 
   const normalizada = validarLinhasDepara([payload], existentes || [], { ignorarId: id })
   if (normalizada.error) return { error: normalizada.error }
-  const codigo = normalizada.rows[0].codigo_parceiro
+  const linha = normalizada.rows?.[0]
+  if (!linha?.codigo_parceiro) {
+    return { error: 'Não foi possível normalizar o código do parceiro.' }
+  }
+  const codigo = linha.codigo_parceiro
 
   let query = supabase
     .from('cad_sku_depara')

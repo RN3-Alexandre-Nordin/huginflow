@@ -17,6 +17,11 @@ type Candidato = {
   saldo?: number
 }
 
+function origemPermitida(valor: string | undefined | null): Origem | null {
+  if (valor === 'sku' || valor === 'alternativo' || valor === 'ocr' || valor === 'manual') return valor
+  return null
+}
+
 const ORIGEM_LABEL: Record<Origem, string> = {
   sku: 'SKU do Hugin Flow',
   alternativo: 'Código do fornecedor',
@@ -76,9 +81,9 @@ export default function ConferenciaImportado({
       status?: string
       pedido_item_id?: string | null
       descricao?: string
-      origem?: Origem
+      origem?: string
       codigo_lido?: string
-      candidatos?: Candidato[]
+      candidatos?: Array<Candidato & { origem?: string }>
     },
     porFoto: boolean,
   ) {
@@ -97,11 +102,16 @@ export default function ConferenciaImportado({
       if (resultado.codigo_lido) setCodigo(resultado.codigo_lido)
       setItemId(resultado.pedido_item_id)
       setDescricao(resultado.descricao || '')
-      setOrigem(porFoto ? 'ocr' : (resultado.origem || 'sku'))
+      setOrigem(porFoto ? 'ocr' : (origemPermitida(resultado.origem) || 'sku'))
       return
     }
     if (resultado.status === 'ambiguo') {
-      setCandidatos(resultado.candidatos || [])
+      setCandidatos(
+        (resultado.candidatos || []).map((item) => ({
+          ...item,
+          origem: origemPermitida(item.origem) ?? undefined,
+        })),
+      )
       setErro('Há mais de um produto possível. Escolha o item do pedido.')
       return
     }

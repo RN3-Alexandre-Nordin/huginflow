@@ -2,6 +2,8 @@ export {
   normalizarCodigoEtiqueta,
   extrairCodigoEtiqueta,
   extrairCodigosEtiqueta,
+  codigoConfirmadoPeloOperador,
+  deveOferecerVinculo,
   codigoCasaItem,
   resolverCodigoEtiqueta,
   resolverCodigosEtiqueta,

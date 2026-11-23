@@ -1,27 +1,19 @@
 # Estágio 1: Dependências
 FROM node:22-alpine AS deps
+
 RUN apk add --no-cache libc6-compat python3 make g++
+
 WORKDIR /app
 
-COPY package.json ./
+COPY package.json package-lock.json ./
 
-# Instalamos os pacotes nativos críticos
-RUN npm install @next/swc-linux-x64-musl lightningcss-linux-x64-musl @tailwindcss/oxide-linux-x64-musl
-
-# Copiamos o lock
-COPY package-lock.json* ./
-
-# SUBSTIUA 'npm ci' POR ESTA LINHA:
-RUN npm install
+RUN npm ci --include=optional
 
 # Estágio 2: Builder
 FROM node:22-alpine AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-
-# Forçar rebuild de binários nativos para Alpine (musl)
-RUN npm rebuild @next/swc-linux-x64-musl lightningcss
 
 # Desativar telemetria do Next.js durante o build
 ENV NEXT_TELEMETRY_DISABLED=1
