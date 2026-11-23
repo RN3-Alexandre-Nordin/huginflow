@@ -9,6 +9,7 @@ import { parseNfeXml, type NfeXmlEmitente } from '@/lib/estoque/parser-nfe-xml'
 import { validarLoteEntrada } from '@/lib/estoque/validacao-entrada'
 import type { ItemEntradaInput, LoteEntradaInput } from '@/lib/estoque/tipos'
 import { SKU_UNIDADES } from '@/lib/skus/constants'
+import { postgrestIlikePattern } from '@/lib/estoque/cardex-filters.mjs'
 
 /** Quem já passou em canEntrada lê e grava SKU/de-para desta empresa.
  *  O RLS de cadastros exige permissão de SKU; a entrada por XML e a nota de compra
@@ -301,7 +302,8 @@ export async function buscarSkusEntradaAction(q: string, incluirSemControleEstoq
   if (!incluirSemControleEstoque) query = query.eq('controla_estoque', true)
 
   if (term) {
-    query = query.or(`codigo.ilike.%${term}%,nome.ilike.%${term}%`)
+    const pat = postgrestIlikePattern(term)
+    if (pat) query = query.or(`codigo.ilike.${pat},nome.ilike.${pat}`)
   }
 
   const { data, error } = await query
