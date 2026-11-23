@@ -75,7 +75,8 @@ export async function createConversaoUm(formData: FormData) {
   }
 
   revalidatePath(LIST_PATH)
-  redirect(LIST_PATH)
+  const voltar = String(formData.get('return_to') || '')
+  redirect(voltar.startsWith('/cockpit/') && !voltar.startsWith('//') ? voltar : LIST_PATH)
 }
 
 export async function updateConversaoUm(id: string, formData: FormData) {

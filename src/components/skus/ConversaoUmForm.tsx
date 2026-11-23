@@ -24,6 +24,7 @@ type Props = {
   action: (formData: FormData) => Promise<{ error?: string } | void>
   cancelHref: string
   submitLabel: string
+  returnTo?: string
 }
 
 export default function ConversaoUmForm({
@@ -34,6 +35,7 @@ export default function ConversaoUmForm({
   action,
   cancelHref,
   submitLabel,
+  returnTo,
 }: Props) {
   const [escopo, setEscopo] = useState<'generica' | 'especifica'>(
     initial?.sku_id ? 'especifica' : 'generica',
@@ -51,6 +53,7 @@ export default function ConversaoUmForm({
 
   return (
     <form action={formAction} className="relative max-w-2xl">
+      {returnTo ? <input type="hidden" name="return_to" value={returnTo} /> : null}
       {state?.error && (
         <div className="mb-4 flex items-center gap-3 rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-400">
           <AlertCircle className="h-5 w-5 shrink-0" />

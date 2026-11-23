@@ -881,9 +881,18 @@ export function ImportXmlForm({
                       )}
                     </td>
                     <td className="py-2.5 px-3 text-right">
-                      {row.status !== 'ok' &&
+                      {row.erro_codigo === 'CONVERSAO_NAO_ENCONTRADA' && row.sku_id ? (
+                        <Link
+                          href={`/cockpit/cadastros/conversoes-um/novo?sku_id=${encodeURIComponent(row.sku_id)}&origem=${encodeURIComponent(row.unidade_origem || '')}&destino=${encodeURIComponent(row.unidade_estoque || '')}&voltar=${encodeURIComponent('/cockpit/estoque/entradas/xml')}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-[11px] text-[#2BAADF] hover:underline font-medium"
+                        >
+                          Resolver
+                        </Link>
+                      ) : row.status !== 'ok' &&
                         row.erro_codigo !== 'LOTE_OBRIGATORIO' &&
-                        row.erro_codigo !== 'VALIDADE_OBRIGATORIA' && (
+                        row.erro_codigo !== 'VALIDADE_OBRIGATORIA' ? (
                         <button
                           type="button"
                           onClick={() => abrirResolver(row.linha, row.xml)}
@@ -891,7 +900,7 @@ export function ImportXmlForm({
                         >
                           Resolver
                         </button>
-                      )}
+                      ) : null}
                       {(row.erro_codigo === 'LOTE_OBRIGATORIO' ||
                         row.erro_codigo === 'VALIDADE_OBRIGATORIA') && (
                         <button

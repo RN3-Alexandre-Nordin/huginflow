@@ -10,7 +10,16 @@ import { createConversaoUm } from '../actions'
 
 export const metadata = { title: 'Nova conversão UM | HuginFlow' }
 
-export default async function NovaConversaoUmPage() {
+export default async function NovaConversaoUmPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ sku_id?: string; origem?: string; destino?: string; voltar?: string }>
+}) {
+  const params = await searchParams
+  const voltar =
+    params.voltar?.startsWith('/cockpit/') && !params.voltar.startsWith('//')
+      ? params.voltar
+      : '/cockpit/cadastros/conversoes-um'
   const me = await getMyProfile()
   const supabase = await createClient()
   const empresaId = me?.empresa_id ?? ''
@@ -49,9 +58,15 @@ export default async function NovaConversaoUmPage() {
         mode="create"
         skus={(skus || []).map(({ id, codigo, nome }) => ({ id, codigo, nome }))}
         knownUnits={knownUnits}
-        cancelHref="/cockpit/cadastros/conversoes-um"
-        submitLabel="Cadastrar"
+        initial={{
+          sku_id: params.sku_id || null,
+          unidade_origem: params.origem || undefined,
+          unidade_destino: params.destino || undefined,
+        }}
+        returnTo={voltar.startsWith('/cockpit/estoque/') ? voltar : undefined}
         action={createConversaoUm}
+        cancelHref={voltar}
+        submitLabel="Cadastrar"
       />
     </div>
   )
