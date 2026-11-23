@@ -102,6 +102,7 @@ export function ImportXmlForm({
   const [modoNovoSku, setModoNovoSku] = useState(false)
   const [skuPick, setSkuPick] = useState('')
   const [skuOptions, setSkuOptions] = useState(skusIniciais)
+  const skuBuscaTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Novo SKU form
   const [novoCodigo, setNovoCodigo] = useState('')
@@ -312,6 +313,13 @@ export function ImportXmlForm({
     setNovoNome(xmlItem?.descricao_parceiro || '')
     setNovoUmEstoque(xmlItem?.unidade_origem || 'UN')
     setNovoFator('1')
+  }
+
+  function agendarBuscaSku(term: string) {
+    if (skuBuscaTimer.current) clearTimeout(skuBuscaTimer.current)
+    skuBuscaTimer.current = setTimeout(() => {
+      void onBuscarSku(term)
+    }, 250)
   }
 
   async function onBuscarSku(term: string) {
@@ -951,23 +959,13 @@ export function ImportXmlForm({
                   <SearchableSelect
                     value={skuPick}
                     onChange={setSkuPick}
+                    onQueryChange={agendarBuscaSku}
                     placeholder="Buscar SKU interno…"
                     options={skuOptions.map((s) => ({
                       value: s.id,
                       label: `${s.codigo} — ${s.nome}`,
                       searchText: `${s.codigo} ${s.nome}`,
                     }))}
-                  />
-                  <input
-                    type="search"
-                    placeholder="Filtrar SKUs (digite e Enter)…"
-                    className="w-full bg-[#0A0A0A] border border-[#ffffff15] rounded-xl px-3 py-2 text-xs text-white"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault()
-                        void onBuscarSku((e.target as HTMLInputElement).value)
-                      }
-                    }}
                   />
                   <button
                     type="button"

@@ -30,6 +30,8 @@ type Props = {
   maxVisible?: number
   /** Nome do campo no form (input hidden). */
   name?: string
+  /** Disparado a cada alteração do texto. A lista continua filtrada em `options`. */
+  onQueryChange?: (query: string) => void
   required?: boolean
   icon?: LucideIcon
 }
@@ -75,6 +77,7 @@ export default function SearchableSelect({
   name,
   required,
   icon: Icon,
+  onQueryChange,
 }: Props) {
   const listboxId = useId()
   const rootRef = useRef<HTMLDivElement>(null)
@@ -173,6 +176,7 @@ export default function SearchableSelect({
   function clear() {
     onChange('')
     setQuery('')
+    onQueryChange?.('')
     setOpen(true)
     requestAnimationFrame(() => {
       updateCoords()
@@ -200,6 +204,7 @@ export default function SearchableSelect({
     if (e.key === 'Escape') {
       setOpen(false)
       setQuery('')
+      onQueryChange?.('')
     }
   }
 
@@ -282,7 +287,10 @@ export default function SearchableSelect({
             aria-autocomplete="list"
             disabled={disabled}
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => {
+              setQuery(e.target.value)
+              onQueryChange?.(e.target.value)
+            }}
             onKeyDown={onKeyDown}
             placeholder={selected ? selected.label : placeholder}
             className={inputClassName}

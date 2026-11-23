@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link2, Plus } from 'lucide-react'
 import SearchableSelect from '@/components/SearchableSelect'
 import { SKU_UNIDADES } from '@/lib/skus/constants'
@@ -31,6 +31,7 @@ export default function ResolverXmlNota({
   const [nome, setNome] = useState(linha.descricao)
   const [umEstoque, setUmEstoque] = useState(linha.unidade || 'UN')
   const [fator, setFator] = useState('1')
+  const buscaTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const unidades = [linha.unidade, ...SKU_UNIDADES].filter((v, i, a) => v && a.indexOf(v) === i)
 
   return (
@@ -70,23 +71,16 @@ export default function ResolverXmlNota({
           <SearchableSelect
             value={skuPick}
             onChange={setSkuPick}
+            onQueryChange={(termo) => {
+              if (buscaTimer.current) clearTimeout(buscaTimer.current)
+              buscaTimer.current = setTimeout(() => onBuscar(termo), 250)
+            }}
             placeholder="Buscar SKU interno…"
             options={skuOptions.map((s) => ({
               value: s.id,
               label: `${s.codigo} — ${s.nome}`,
               searchText: `${s.codigo} ${s.nome}`,
             }))}
-          />
-          <input
-            type="search"
-            placeholder="Filtrar SKUs (digite e Enter)…"
-            className="w-full rounded-xl border border-[#ffffff15] bg-[#0A0A0A] px-3 py-2 text-xs text-white"
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault()
-                onBuscar((e.target as HTMLInputElement).value)
-              }
-            }}
           />
           <button
             type="button"
