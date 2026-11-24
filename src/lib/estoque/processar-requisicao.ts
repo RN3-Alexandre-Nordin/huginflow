@@ -161,7 +161,10 @@ export async function criarRequisicao(
     }
   }
 
-  const valorEstimado = calcularValorEstimadoRequisicao(params.itens, precosPorSku)
+  const valorEstimado = calcularValorEstimadoRequisicao(
+    params.itens.filter((it): it is ItemRequisicaoInput & { sku_id: string } => Boolean(it.sku_id)),
+    precosPorSku
+  )
 
   // Status: rascunho OU (enviar) pendente_aprovacao / aprovada conforme parâmetros.
   // Aprovação de origem ignora req_aprovacao_* e não cria pendência de workflow.
