@@ -107,7 +107,7 @@ export default function AtendimentoPanel({
   useEffect(() => {
     const next: Record<string, string> = {}
     for (const it of itens) {
-      if (Number(it.quantidade_pendente) <= 0 || it.status_item === 'pulado' || it.aguardando_sku) continue
+      if (Number(it.quantidade_pendente) <= 0 || it.status_item === 'pulado' || it.aguardando_sku || !it.sku_id) continue
       const saldo = saldoNoLocal[it.sku_id] || 0
       const max = Math.min(Number(it.quantidade_pendente), Math.max(0, saldo))
       next[it.id] = String(max)
@@ -385,7 +385,7 @@ export default function AtendimentoPanel({
 
             <ul className="divide-y divide-[#ffffff06]">
               {pendentes.map((it) => {
-                const saldo = saldoNoLocal[it.sku_id] || 0
+                const saldo = it.sku_id ? saldoNoLocal[it.sku_id] || 0 : 0
                 const max = Math.min(Number(it.quantidade_pendente), Math.max(0, saldo))
                 const semSaldo = saldo <= 0
                 const parcialSaldo = !semSaldo && saldo < Number(it.quantidade_pendente)
