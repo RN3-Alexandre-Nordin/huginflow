@@ -39,6 +39,8 @@ export type RequisicaoPlanilhaGrupoPreview = {
   codigo_origem: string | null
   sistema_origem: string | null
   requisitante_documento: string
+  /** Matrícula da planilha ATC, quando o match é por código externo. */
+  requisitante_codigo_externo?: string | null
   requisitante_pessoa_id: string | null
   /** Nome cadastrado em Pessoas (se achou) */
   requisitante_nome: string | null

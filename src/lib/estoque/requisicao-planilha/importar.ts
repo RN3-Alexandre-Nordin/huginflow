@@ -217,6 +217,7 @@ export async function validarEAgruparCanonical(
       codigo_origem: codigoOrigem,
       sistema_origem: sistemaOrigem,
       requisitante_documento: first.requisitante_documento,
+      requisitante_codigo_externo: externoKey || null,
       requisitante_pessoa_id: pessoa?.id ?? null,
       requisitante_nome: pessoa?.nome ?? null,
       requisitante_nome_origem: nomeOrigem,
