@@ -233,11 +233,11 @@ export async function validarEAgruparCanonical(
           erro = 'SKU obrigatório.'
           codigo_erro = 'SKU_INVALIDO'
         } else if (!sku) {
-          erro = `SKU "${it.sku_codigo}" não encontrado.`
-          codigo_erro = 'SKU_INVALIDO'
+          erro = `SKU "${it.sku_codigo}" não cadastrado. A requisição será gravada para cadastrar o SKU depois.`
+          codigo_erro = 'SKU_NAO_CADASTRADO'
         } else if (!sku.controla_estoque) {
-          erro = `SKU "${it.sku_codigo}" não controla estoque.`
-          codigo_erro = 'SKU_INVALIDO'
+          erro = `SKU "${it.sku_codigo}" não controla estoque. A requisição será gravada; a baixa fica bloqueada.`
+          codigo_erro = 'SKU_SEM_CONTROLE'
         } else if (!Number.isFinite(it.quantidade) || it.quantidade <= 0) {
           erro = 'Quantidade deve ser maior que zero.'
           codigo_erro = 'ITENS_OBRIGATORIOS'
@@ -278,19 +278,34 @@ export function gruposParaCriacao(
   }> = []
 
   for (const g of grupos) {
-    // Item inválido bloqueia o grupo inteiro — não descarta só a linha.
     if (motivoBloqueioGrupo(g)) continue
+    const itens: ItemRequisicaoInput[] = []
+    for (const i of g.itens) {
+      if (!Number.isFinite(i.quantidade) || i.quantidade <= 0) continue
+      if (i.codigo_erro === 'SKU_NAO_CADASTRADO' && i.sku_codigo.trim()) {
+        itens.push({
+          linha: i.linha,
+          sku_codigo_informado: i.sku_codigo.trim(),
+          quantidade_pedida: i.quantidade,
+        })
+        continue
+      }
+      if (i.sku_id && (i.codigo_erro === 'SKU_SEM_CONTROLE' || !i.erro)) {
+        itens.push({
+          linha: i.linha,
+          sku_id: i.sku_id,
+          quantidade_pedida: i.quantidade,
+        })
+      }
+    }
+    if (itens.length === 0) continue
     ok.push({
       requisitante_pessoa_id: g.requisitante_pessoa_id!,
       observacao: g.observacao,
       codigo_origem: g.codigo_origem,
       sistema_origem: g.sistema_origem,
       requisitante_nome_origem: g.requisitante_nome_origem,
-      itens: g.itens.map((i) => ({
-        linha: i.linha,
-        sku_id: i.sku_id!,
-        quantidade_pedida: i.quantidade,
-      })),
+      itens,
     })
   }
   return ok

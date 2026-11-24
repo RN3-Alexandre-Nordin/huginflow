@@ -17,13 +17,15 @@ import CampoSerie from '@/components/estoque/CampoSerie'
 import {
   atenderRequisicaoAction,
   transicionarStatusRequisicaoAction,
+  vincularSkuItemRequisicaoAction,
 } from '../actions'
 
 export type ItemAtendimentoUi = {
   id: string
-  sku_id: string
+  sku_id: string | null
   sku_codigo: string
   sku_nome: string
+  aguardando_sku?: boolean
   unidade: string
   quantidade_pedida: number
   quantidade_atendida: number
@@ -105,7 +107,7 @@ export default function AtendimentoPanel({
   useEffect(() => {
     const next: Record<string, string> = {}
     for (const it of itens) {
-      if (Number(it.quantidade_pendente) <= 0 || it.status_item === 'pulado') continue
+      if (Number(it.quantidade_pendente) <= 0 || it.status_item === 'pulado' || it.aguardando_sku) continue
       const saldo = saldoNoLocal[it.sku_id] || 0
       const max = Math.min(Number(it.quantidade_pendente), Math.max(0, saldo))
       next[it.id] = String(max)
@@ -132,6 +134,7 @@ export default function AtendimentoPanel({
   function handleAtender() {
     setFeedback(null)
     const itensAtender = pendentes
+      .filter((it) => !it.aguardando_sku)
       .map((it) => ({
         item_id: it.id,
         quantidade: parseFloat((qtds[it.id] || '0').replace(',', '.')),
@@ -403,6 +406,34 @@ export default function AtendimentoPanel({
                           )}
                         </p>
                         <p className="truncate text-[11px] text-gray-500">{it.sku_nome}</p>
+                        {it.aguardando_sku && (
+                          <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                            <Link
+                              href={`/cockpit/cadastros/skus/novo?codigo=${encodeURIComponent(it.sku_codigo)}&controla_estoque=1&requisicao_item=${it.id}&voltar=${encodeURIComponent(`/cockpit/estoque/requisicoes/${requisicaoId}`)}`}
+                              className="text-[11px] font-semibold text-[#2BAADF] hover:underline"
+                            >
+                              Cadastrar SKU
+                            </Link>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setFeedback(null)
+                                startTransition(async () => {
+                                  const res = await vincularSkuItemRequisicaoAction(it.id)
+                                  if ('error' in res && res.error) {
+                                    setFeedback({ tipo: 'erro', texto: res.error })
+                                  } else {
+                                    setFeedback({ tipo: 'sucesso', texto: 'SKU vinculado à requisição.' })
+                                    router.refresh()
+                                  }
+                                })
+                              }}
+                              className="text-[11px] font-semibold text-gray-300 hover:text-white"
+                            >
+                              Vincular SKU já cadastrado
+                            </button>
+                          </div>
+                        )}
                       </div>
 
                       <div className="flex items-center justify-between md:block md:text-right">
@@ -421,14 +452,16 @@ export default function AtendimentoPanel({
                         </span>
                         <p
                           className={`font-mono text-sm tabular-nums ${
-                            semSaldo
+                            it.aguardando_sku
+                              ? 'text-gray-500'
+                              : semSaldo
                               ? 'text-red-400'
                               : parcialSaldo
                                 ? 'text-amber-300'
                                 : 'text-gray-300'
                           }`}
                         >
-                          {saldo}
+                          {it.aguardando_sku ? '—' : saldo}
                           <span className="ml-1 text-[10px] text-gray-600">{it.unidade}</span>
                         </p>
                       </div>
@@ -437,6 +470,9 @@ export default function AtendimentoPanel({
                         <span className="text-[10px] uppercase text-gray-600 md:hidden">
                           Qtd a atender
                         </span>
+                        {it.aguardando_sku ? (
+                          <span className="text-[11px] text-amber-300">Cadastre o SKU para liberar a saída</span>
+                        ) : (
                         <div className="flex w-full max-w-[10rem] items-center overflow-hidden rounded-xl border border-[#ffffff15] bg-[#0A0A0A] focus-within:border-emerald-500/40 md:w-auto">
                           <input
                             type="number"
@@ -454,22 +490,23 @@ export default function AtendimentoPanel({
                             {it.unidade}
                           </span>
                         </div>
+                        )}
                       </div>
 
-                      {semSaldo && (
+                      {!it.aguardando_sku && semSaldo && (
                         <p className="col-span-full flex items-center gap-1.5 text-[10px] text-red-400/90 md:col-span-1 md:col-start-4 md:justify-end">
                           <AlertTriangle className="h-3 w-3" />
                           Sem saldo neste local
                         </p>
                       )}
-                      {!semSaldo && max < Number(it.quantidade_pendente) && (
+                      {!it.aguardando_sku && !semSaldo && max < Number(it.quantidade_pendente) && (
                         <p className="col-span-full text-[10px] text-gray-600 md:col-span-1 md:col-start-4 md:text-right">
                           Máx. neste ciclo: {max} {it.unidade}
                         </p>
                       )}
                     </div>
 
-                    {controlaSerie && localBaixaId && (
+                    {controlaSerie && it.sku_id && localBaixaId && (
                       <div className="px-1">
                         <CampoSerie
                           skuId={it.sku_id}
@@ -489,6 +526,7 @@ export default function AtendimentoPanel({
                       </div>
                     )}
                     {controlaLote &&
+                      it.sku_id &&
                       empresaId &&
                       localBaixaId &&
                       Number.isFinite(qtdNum) &&

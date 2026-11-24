@@ -14,7 +14,9 @@ type SupabaseClient = { from: (table: string) => any; rpc: (fn: string, args: an
 
 export interface ItemRequisicaoInput {
   linha?: number
-  sku_id: string
+  sku_id?: string | null
+  /** Código da planilha quando o SKU ainda não existe. */
+  sku_codigo_informado?: string | null
   quantidade_pedida: number
   local_id?: string | null
 }
@@ -110,7 +112,8 @@ export async function criarRequisicao(
     precosPorSku.set(s.id, Number(s.preco_custo || 0))
   }
   for (const item of params.itens) {
-    if (!item.sku_id || !skuMap.has(item.sku_id)) {
+    const pendenteCadastro = !item.sku_id && Boolean(item.sku_codigo_informado?.trim())
+    if (!pendenteCadastro && (!item.sku_id || !skuMap.has(item.sku_id))) {
       return {
         sucesso: false,
         mensagem: 'SKU inválido ou não pertencente a esta empresa.',
@@ -240,7 +243,8 @@ export async function criarRequisicao(
     p_requisitante_nome_origem: requisitanteNomeOrigem,
     p_modo: modoCriacao,
     p_itens: params.itens.map((it) => ({
-      sku_id: it.sku_id,
+      sku_id: it.sku_id || null,
+      sku_codigo_informado: it.sku_codigo_informado?.trim() || null,
       quantidade_pedida: it.quantidade_pedida,
       local_id: it.local_id || null,
     })),
@@ -400,7 +404,7 @@ export async function atenderRequisicao(
   // 3. Carrega itens pendentes da requisição
   let itensQuery = client
     .from('est_requisicao_itens')
-    .select('*, cad_skus (id, codigo, nome, controla_lote, controla_serie)')
+    .select('*, cad_skus (id, codigo, nome, controla_lote, controla_serie, controla_estoque)')
     .eq('requisicao_id', requisicao_id)
     .gt('quantidade_pendente', 0)
 
@@ -417,8 +421,19 @@ export async function atenderRequisicao(
     }
   }
 
+  const semSku = itens.filter((i: { sku_id?: string | null }) => !i.sku_id)
+  const itensBaixa = itens.filter((i: { sku_id?: string | null }) => Boolean(i.sku_id))
+  if (itensBaixa.length === 0) {
+    return {
+      sucesso: false,
+      mensagem: semSku.length
+        ? 'Há itens sem SKU cadastrado. Cadastre o SKU na requisição antes da saída. A falta de saldo só é avaliada na baixa.'
+        : 'Não há itens com saldo pendente para atendimento nesta requisição.',
+    }
+  }
+
   // 4. Carrega saldos atuais dos SKUs sem controle de lote (soma por sku×local)
-  const skuIdsSemLote = itens
+  const skuIdsSemLote = itensBaixa
     .filter((i: { cad_skus?: { controla_lote?: boolean } | null }) => !i.cad_skus?.controla_lote)
     .map((i: { sku_id: string }) => i.sku_id)
   const saldoMap: Record<string, number> = {}
@@ -469,7 +484,7 @@ export async function atenderRequisicao(
 
   // Checagem prévia no modo 'nao_atende_requisicao' (só no modo automático sem overrides parciais intencionais)
   if (modoSaldo === 'nao_atende_requisicao' && !overrides) {
-    for (const item of itens) {
+    for (const item of itensBaixa) {
       const locId = item.local_id || localResolvedId
       const skuInfo = item.cad_skus as {
         codigo?: string
@@ -493,7 +508,7 @@ export async function atenderRequisicao(
   let itensPulados = 0
   const operacoes: Array<Record<string, unknown>> = []
 
-  for (const item of itens) {
+  for (const item of itensBaixa) {
     const locId = item.local_id || localResolvedId
     const pendente = Number(item.quantidade_pendente)
     const skuInfo = item.cad_skus as {
@@ -501,7 +516,15 @@ export async function atenderRequisicao(
       nome?: string
         controla_lote?: boolean
         controla_serie?: boolean
+        controla_estoque?: boolean
       } | null
+    if (skuInfo && skuInfo.controla_estoque === false) {
+      return {
+        sucesso: false,
+        codigo: 'SKU_SEM_CONTROLE',
+        mensagem: `SKU ${skuInfo.codigo || item.sku_id} não controla estoque. A saída desta linha fica bloqueada até o cadastro controlar estoque.`,
+      }
+    }
       const controlaLote = Boolean(skuInfo?.controla_lote)
       const controlaSerie = Boolean(skuInfo?.controla_serie)
       const saldoDisponivel = await saldoDisponivelItem(item.sku_id, locId, controlaLote)

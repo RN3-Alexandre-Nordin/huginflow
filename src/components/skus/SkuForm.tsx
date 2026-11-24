@@ -28,6 +28,10 @@ type Props = {
   action: (formData: FormData) => Promise<{ error?: string } | void>
   cancelHref: string
   submitLabel: string
+  initialCodigo?: string
+  controlaEstoqueDefault?: boolean
+  requisicaoItemId?: string
+  voltarHref?: string
 }
 
 function Field({
@@ -78,6 +82,10 @@ export default function SkuForm({
   action,
   cancelHref,
   submitLabel,
+  initialCodigo,
+  controlaEstoqueDefault,
+  requisicaoItemId,
+  voltarHref,
 }: Props) {
   const [section, setSection] = useState<SkuFormSectionId>('identidade')
   const [tipo, setTipo] = useState(sku?.tipo === 'servico' ? 'servico' : 'produto')
@@ -111,6 +119,8 @@ export default function SkuForm({
 
   return (
     <form action={formAction} className="relative">
+      {requisicaoItemId ? <input type="hidden" name="requisicao_item_id" value={requisicaoItemId} /> : null}
+      {voltarHref ? <input type="hidden" name="voltar" value={voltarHref} /> : null}
       {isPending && (
         <div className="absolute inset-0 z-50 flex items-center justify-center rounded-2xl bg-black/40 backdrop-blur-[2px]">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#2BAADF]/20 border-t-[#2BAADF]" />
@@ -207,7 +217,7 @@ export default function SkuForm({
                   <input
                     name="codigo"
                     required
-                    defaultValue={v('codigo')}
+                    defaultValue={v('codigo') || initialCodigo || ''}
                     className={inputCls}
                     placeholder="Ex.: PROD-001"
                   />
@@ -358,7 +368,7 @@ export default function SkuForm({
                     <input
                       type="checkbox"
                       name="controla_estoque"
-                      defaultChecked={sku?.controla_estoque === true}
+                      defaultChecked={sku?.controla_estoque === true || controlaEstoqueDefault === true}
                       className="rounded border-[#ffffff30] text-[#80B828] focus:ring-[#80B828]/40"
                     />
                     Controla estoque (quantidades na UM de estoque)
