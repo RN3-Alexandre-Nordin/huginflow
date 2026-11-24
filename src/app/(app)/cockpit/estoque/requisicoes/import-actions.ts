@@ -39,6 +39,51 @@ function canCreateReq(me: Awaited<ReturnType<typeof getMyProfile>>) {
   )
 }
 
+/** Cadastra o requisitante ausente da planilha como funcionário em Pessoas. */
+export async function cadastrarRequisitantePlanilhaAction(input: {
+  nome: string
+  documento?: string | null
+  codigo_externo?: string | null
+}) {
+  const me = await getMyProfile()
+  if (!canCreateReq(me) || !me?.empresa_id) {
+    return { error: 'Sem permissão para cadastrar o requisitante.' }
+  }
+
+  const nome = input.nome.trim()
+  const documento = (input.documento || '').replace(/\D/g, '')
+  const codigoExterno = (input.codigo_externo || '').trim()
+  if (!nome) return { error: 'A planilha não trouxe o nome do requisitante.' }
+  if (!documento && !codigoExterno) {
+    return { error: 'Informe documento ou matrícula para cadastrar o requisitante.' }
+  }
+
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('crm_leads')
+    .insert([
+      {
+        empresa_id: me.empresa_id,
+        nome,
+        documento: documento || null,
+        codigo_externo: codigoExterno || null,
+        natureza: documento.length === 14 ? 'pj' : 'pf',
+        papeis: ['funcionario'],
+        ativo: true,
+        status_relacionamento: 'ativo',
+      },
+    ])
+    .select('id, nome')
+    .single()
+
+  if (error || !data) {
+    return { error: error?.message || 'Falha ao cadastrar o funcionário.' }
+  }
+
+  revalidatePath('/cockpit/crm/leads')
+  return { id: data.id as string, nome: data.nome as string }
+}
+
 export async function listAdaptersRequisicaoAction() {
   const me = await getMyProfile()
   if (!me?.empresa_id) return { error: 'Usuário não autenticado.' }

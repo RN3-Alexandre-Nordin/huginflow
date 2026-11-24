@@ -13,10 +13,12 @@ import {
   RefreshCw,
   Send,
   Layers,
+  UserPlus,
 } from 'lucide-react'
 import {
   previewRequisicaoPlanilhaAction,
   efetivarRequisicaoPlanilhaAction,
+  cadastrarRequisitantePlanilhaAction,
 } from '../import-actions'
 import type { PlanilhaAdapterMeta } from '@/lib/estoque/requisicao-planilha/types'
 import { motivoRejeicaoIntegralPlanilha } from '@/lib/estoque/requisicao-planilha/rejeicao-integral'
@@ -42,6 +44,7 @@ export default function ImportRequisicaoPlanilhaForm({
 }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
+  const [cadastrandoChave, setCadastrandoChave] = useState<string | null>(null)
 
   const defaultAdapter = adapters[0]?.codigo || 'hugin_padrao'
   const [adapter, setAdapter] = useState(defaultAdapter)
@@ -154,6 +157,43 @@ export default function ImportRequisicaoPlanilhaForm({
                 : ''
             }.`,
       })
+    })
+  }
+
+  function handleCadastrarRequisitante(g: RequisicaoPlanilhaGrupoPreview, chave: string) {
+    const nome = (g.requisitante_nome_origem || '').split(' / ')[0]?.trim()
+    if (!nome) {
+      setFeedback({
+        tipo: 'erro',
+        texto: 'A planilha não trouxe o nome do requisitante para o cadastro.',
+      })
+      return
+    }
+    setCadastrandoChave(chave)
+    startTransition(async () => {
+      const res = await cadastrarRequisitantePlanilhaAction({
+        nome,
+        documento: g.requisitante_documento,
+        codigo_externo: g.requisitante_codigo_externo,
+      })
+      setCadastrandoChave(null)
+      if ('error' in res && res.error) {
+        setFeedback({ tipo: 'erro', texto: res.error })
+        return
+      }
+      setFeedback({
+        tipo: 'sucesso',
+        texto: `${res.nome} cadastrado como funcionário. Validando a planilha de novo…`,
+      })
+      const preview = await previewRequisicaoPlanilhaAction({
+        csv_content: csvRaw,
+        adapter,
+      })
+      const identificacao = preview.errosIdentificacao || []
+      setGrupos(preview.grupos || [])
+      setAvisos(preview.avisos || [])
+      setErrosIdentificacao(identificacao)
+      setResumo(preview.resumo || null)
     })
   }
 
@@ -420,7 +460,28 @@ export default function ImportRequisicaoPlanilhaForm({
                   </p>
                 </div>
                 {bloqueio && (
-                  <p className="text-[11px] text-red-300 mb-2">{bloqueio}</p>
+                  <div className="mb-2 flex flex-wrap items-center gap-2">
+                    <p className="text-[11px] text-red-300">{bloqueio}</p>
+                    {g.codigo_erro_cabecalho === 'REQUISITANTE_NAO_CADASTRADO' && (
+                      <button
+                        type="button"
+                        disabled={isPending}
+                        onClick={() =>
+                          handleCadastrarRequisitante(
+                            g,
+                            `${g.requisitante_documento}|${g.requisitante_codigo_externo || ''}|${idx}`
+                          )
+                        }
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-[#2BAADF]/40 bg-[#2BAADF]/10 px-2.5 py-1 text-[11px] font-semibold text-[#2BAADF] disabled:opacity-40"
+                      >
+                        <UserPlus className="h-3.5 w-3.5" />
+                        {cadastrandoChave ===
+                        `${g.requisitante_documento}|${g.requisitante_codigo_externo || ''}|${idx}`
+                          ? 'Cadastrando…'
+                          : 'Cadastrar como funcionário'}
+                      </button>
+                    )}
+                  </div>
                 )}
                 {g.observacao && (
                   <p className="text-[10px] text-gray-500 mb-2">Obs: {g.observacao}</p>
