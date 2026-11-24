@@ -6,7 +6,12 @@ import { createSku } from '../actions'
 
 export const metadata = { title: 'Novo SKU | HuginFlow' }
 
-export default async function NovoSkuPage() {
+export default async function NovoSkuPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ codigo?: string; controla_estoque?: string; requisicao_item?: string; voltar?: string }>
+}) {
+  const query = await searchParams
   const me = await getMyProfile()
   const supabase = await createClient()
 
@@ -57,9 +62,13 @@ export default async function NovoSkuPage() {
         pessoas={pessoas || []}
         familias={familias || []}
         knownUnits={collectUnidadesFromSkus(skuUnits || [])}
-        cancelHref="/cockpit/cadastros/skus"
+        cancelHref={query.voltar?.startsWith('/cockpit/') ? query.voltar : '/cockpit/cadastros/skus'}
         submitLabel="Cadastrar SKU"
         action={createSku}
+        initialCodigo={query.codigo || ''}
+        controlaEstoqueDefault={query.controla_estoque === '1'}
+        requisicaoItemId={query.requisicao_item || ''}
+        voltarHref={query.voltar || ''}
       />
     </div>
   )

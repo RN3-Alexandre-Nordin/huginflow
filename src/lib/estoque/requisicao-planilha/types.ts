@@ -73,7 +73,12 @@ export function motivoBloqueioGrupo(
   if (g.itens.length === 0) {
     return 'Grupo sem itens.'
   }
-  const ruins = g.itens.filter((i) => i.erro || !i.sku_id)
+  const ruins = g.itens.filter(
+    (i) =>
+      i.codigo_erro !== 'SKU_NAO_CADASTRADO' &&
+      i.codigo_erro !== 'SKU_SEM_CONTROLE' &&
+      (i.erro || !i.sku_id)
+  )
   if (ruins.length > 0) {
     const detalhe = ruins
       .map((i) => {

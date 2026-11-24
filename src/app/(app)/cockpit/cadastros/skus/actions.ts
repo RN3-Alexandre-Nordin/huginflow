@@ -36,16 +36,32 @@ export async function createSku(formData: FormData) {
   if (!empresaId) return { error: 'Empresa não identificada.' }
 
   const supabase = await createClient()
-  const { error } = await supabase
+  const { data: criado, error } = await supabase
     .from('cad_skus')
     .insert([{ ...payload, empresa_id: empresaId, updated_at: new Date().toISOString() }])
+    .select('id')
+    .single()
 
   if (error) {
     if (error.code === '23505') return { error: 'Já existe um SKU com este código nesta empresa.' }
     return { error: error.message }
   }
 
+  const itemId = String(formData.get('requisicao_item_id') || '')
+  const voltar = String(formData.get('voltar') || '')
+  if (itemId && criado?.id) {
+    await supabase.rpc('est_vincular_sku_item_requisicao', {
+      p_empresa_id: empresaId,
+      p_item_id: itemId,
+      p_sku_id: criado.id,
+    })
+  }
+
   revalidatePath(LIST_PATH)
+  if (voltar.startsWith('/cockpit/estoque/requisicoes/')) {
+    revalidatePath(voltar)
+    redirect(voltar)
+  }
   redirect(LIST_PATH)
 }
 

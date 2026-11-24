@@ -154,8 +154,9 @@ export default async function EstoqueRequisicaoDetalhesPage({ params }: PageProp
     return {
       id: it.id as string,
       sku_id: it.sku_id as string,
-      sku_codigo: sku?.codigo || '—',
-      sku_nome: sku?.nome || '',
+      sku_codigo: sku?.codigo || (it.sku_codigo_informado as string) || '—',
+      sku_nome: sku?.nome || (it.sku_id ? '' : 'SKU não cadastrado'),
+      aguardando_sku: !it.sku_id,
       unidade: sku?.unidade_estoque || 'UN',
       quantidade_pedida: Number(it.quantidade_pedida),
       quantidade_atendida: Number(it.quantidade_atendida),

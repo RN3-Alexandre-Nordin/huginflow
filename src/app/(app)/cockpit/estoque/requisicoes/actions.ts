@@ -152,3 +152,21 @@ export async function atenderRequisicaoAction(
 
   return res
 }
+
+export async function vincularSkuItemRequisicaoAction(itemId: string) {
+  const me = await getMyProfile()
+  const empresaId = me?.empresa_id
+  if (!empresaId) return { error: 'Empresa não identificada.' }
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('est_vincular_sku_item_requisicao', {
+    p_empresa_id: empresaId,
+    p_item_id: itemId,
+    p_sku_id: null,
+  })
+  if (error || !data?.sucesso) {
+    return { error: data?.mensagem || error?.message || 'Não foi possível vincular o SKU.' }
+  }
+  revalidatePath(LIST_PATH)
+  if (data.requisicao_id) revalidatePath(`${LIST_PATH}/${data.requisicao_id}`)
+  return { ok: true }
+}

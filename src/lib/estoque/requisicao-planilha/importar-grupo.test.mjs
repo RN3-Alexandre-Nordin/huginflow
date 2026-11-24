@@ -101,10 +101,13 @@ describe('bloqueio de grupo na importação de requisição', () => {
     assert.equal(motivoBloqueioGrupo(grupos[0]), null)
   })
 
-  it('bloqueia o grupo quando o SKU não existe', async () => {
+  it('grava o grupo quando o SKU não existe, para cadastrar depois', async () => {
     const { grupos } = await validar([linha({ sku_codigo: 'NAO-EXISTE' })])
-    assert.equal(gruposParaCriacao(grupos).length, 0)
-    assert.match(motivoBloqueioGrupo(grupos[0]), /linha 2 · NAO-EXISTE/)
+    const criacao = gruposParaCriacao(grupos)
+    assert.equal(motivoBloqueioGrupo(grupos[0]), null)
+    assert.equal(criacao.length, 1)
+    assert.equal(criacao[0].itens[0].sku_codigo_informado, 'NAO-EXISTE')
+    assert.equal(criacao[0].itens[0].sku_id, undefined)
   })
 
   it('bloqueia o grupo quando o material está vazio', async () => {
@@ -134,13 +137,15 @@ describe('bloqueio de grupo na importação de requisição', () => {
       linha({ linha: 3, sku_codigo: 'SUMIU' }),
     ])
     assert.equal(grupos.length, 1)
-    assert.equal(gruposParaCriacao(grupos).length, 0)
-    const motivo = motivoBloqueioGrupo(grupos[0])
-    assert.match(motivo, /linha 3 · SUMIU/)
+    assert.equal(motivoBloqueioGrupo(grupos[0]), null)
+    const criacao = gruposParaCriacao(grupos)
+    assert.equal(criacao.length, 1)
+    assert.equal(criacao[0].itens.length, 2)
+    assert.equal(criacao[0].itens[1].sku_codigo_informado, 'SUMIU')
     assert.equal(grupos[0].itens.filter((i) => !i.erro).length, 1)
   })
 
-  it('importa só o grupo válido da mesma planilha', async () => {
+  it('grava o grupo com SKU ausente junto com o grupo válido', async () => {
     const { grupos } = await validar([
       linha({ codigo_origem: 'REQ-OK', sku_codigo: 'MAT-1' }),
       linha({
@@ -151,18 +156,19 @@ describe('bloqueio de grupo na importação de requisição', () => {
     ])
     const criacao = gruposParaCriacao(grupos)
     assert.equal(grupos.length, 2)
-    assert.equal(criacao.length, 1)
-    assert.equal(criacao[0].codigo_origem, 'REQ-OK')
-    assert.equal(criacao[0].itens.length, 1)
+    assert.equal(criacao.length, 2)
+    const ruim = criacao.find((g) => g.codigo_origem === 'REQ-RUIM')
+    assert.equal(ruim.itens[0].sku_codigo_informado, 'SUMIU')
   })
 
-  it('a mesma regra rejeita o grupo se o SKU deixar de existir após a pré-visualização', async () => {
+  it('se o SKU sumir depois da pré-visualização, a requisição ainda é gravada como pendente', async () => {
     const rows = [linha()]
     const previa = await validar(rows)
     assert.equal(gruposParaCriacao(previa.grupos).length, 1)
 
     const efetivacao = await validar(rows, { skus: [] })
-    assert.equal(gruposParaCriacao(efetivacao.grupos).length, 0)
-    assert.match(motivoBloqueioGrupo(efetivacao.grupos[0]), /MAT-1/)
+    const criacao = gruposParaCriacao(efetivacao.grupos)
+    assert.equal(criacao.length, 1)
+    assert.equal(criacao[0].itens[0].sku_codigo_informado, 'MAT-1')
   })
 })
